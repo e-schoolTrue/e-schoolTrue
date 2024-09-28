@@ -1,0 +1,20 @@
+import {FileEntity} from "#electron/backend/entities/file.ts";
+
+
+export type StudentCommand = {
+    id?: number
+    firstname?: string
+    lastname?: string
+    matricule?:string
+    fatherFirstname?:string
+    fatherLastname?:string
+    motherFirstname?:string
+    motherLastname?:string
+    createdAt?: Date
+    photo?:FileEntity
+    birthDay?:Date
+    birthPlace?:string
+    address?:string
+    famillyPhone?:string
+    personalPhone?:string
+}

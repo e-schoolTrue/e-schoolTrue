@@ -1,0 +1,16 @@
+body ,
+html , #app {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    --el-color-primary: #003366;
+    --el-color-warning: #4B0082;
+    --el-color-danger: #ff4500;
+    --el-color-success: #32CD32;
+    --el-page-title-primary-color: #007BFF;
+    --button-hover-bg-color: #014d95;
+    --button-hover-text-color: #fff;
+    --button-text-color:var(--el-color-success) ;
+}
