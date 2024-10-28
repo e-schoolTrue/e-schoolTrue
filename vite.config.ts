@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { defineConfig } from 'vite'
 import path from 'node:path'
 import electron from 'vite-plugin-electron/simple'
@@ -22,10 +21,10 @@ export default defineConfig({
   plugins: [
     vue(),
     AutoImport({
-      resolvers: [ElementPlusResolver() , IconsResolver()],
+      resolvers: [ElementPlusResolver()],
     }),
     Components({
-      resolvers: [ElementPlusResolver() , IconsResolver()],
+      resolvers: [ElementPlusResolver()],
     }),
     ElementPlus({
       // options
@@ -59,9 +58,13 @@ export default defineConfig({
       renderer: {
       },
     }),
-    Icons({
-      // experimental
-      autoInstall: true,
-    })
+    // Supprimez ou commentez cette partie
+    // Icons({
+    //   autoInstall: true,
+    // })
   ],
+  // Supprimez cette partie
+  // optimizeDeps: {
+  //   include: ['@mdi/js'],
+  // },
 })

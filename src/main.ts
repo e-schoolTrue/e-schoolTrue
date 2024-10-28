@@ -1,18 +1,14 @@
-// @ts-nocheck
-import {createApp} from 'vue'
+import { createApp } from 'vue'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import App from './App.vue'
 import '@/style.css'
-import App from '@/App.vue'
-import {router} from "@/routes";
-import {ElMessageBox} from "element-plus";
-import supabase from "@/data-source.ts";
-
-
+import { router } from "@/routes";
 import fr from 'element-plus/es/locale/lang/fr'
 
 
 
-
-
-createApp(App).use({locale: fr}).use(router).mount('#app').$nextTick(() => {
-  // Use contextBridge
-})
+const app = createApp(App)
+app.use(ElementPlus, { locale: fr })
+app.use(router)
+app.mount('#app')

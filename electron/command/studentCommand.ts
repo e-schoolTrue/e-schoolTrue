@@ -12,6 +12,7 @@ export type StudentCommand = {
     motherLastname?:string
     createdAt?: Date
     photo?:FileEntity
+    documents?:FileEntity
     birthDay?:Date
     birthPlace?:string
     address?:string

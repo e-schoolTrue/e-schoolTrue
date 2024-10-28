@@ -1,70 +1,130 @@
 <script setup lang="ts">
-import { ref, defineProps, defineEmits } from 'vue';
+import { ref, reactive, defineAsyncComponent, PropType, defineEmits} from 'vue';
 
-// Définir les types pour les props
-interface StudentData {
-  firstname: string;   // Changer 'name' à 'firstname'
-  lastname: string;    // Ajouter 'lastname'
-  birthDay: Date | null; // Changer 'birthDate' à 'birthDay'
-  birthPlace: string; // Ajout du champ birthPlace
-  address: string;
-  classId: number | null;
-  fatherFirstname?: string; // Ajout des noms de père et mère
-  fatherLastname?: string;
-  motherFirstname?: string;
-  motherLastname?: string;
-  famillyPhone: string;
-  personalPhone:string;
-  photo?: File | null; 
-}
 
 interface ClassItem {
   id: number;
   name: string;
 }
 
-// Définir les props avec leurs types
-const props = defineProps<{
-  studentData: StudentData;
-  classes: ClassItem[];
-}>();
+// Définition de l'interface StudentData
+interface StudentData {
+  firstname: string;
+  lastname: string;
+  birthDay: Date | null;
+  birthPlace: string;
+  address: string;
+  classId?: number;
+  fatherFirstname: string;
+  fatherLastname: string;
+  motherFirstname: string;
+  motherLastname: string;
+  famillyPhone: string;
+  personalPhone: string;
+  photo: StudentFile | null;
+  document: StudentFile | null;
+  schoolInfo: string;
+  sex: 'male' | 'female';
+  schoolYear: string;
+  nationality?: string;
+  fatherProfession?: string;
+  fatherEmail?: string;
+  motherProfession?: string;
+  motherEmail?: string;
+  bloodGroup?: string;
+  allergies?: string;
+  medicalConditions?: string;
+  doctorName?: string;
+  doctorPhone?: string;
+  lastSchool?: string;
+  lastClass?: string;
+  changeReason?: string;
+  inscriptionFees?: number;
+  annualFees?: number;
+  busFees?: number;
+  canteenFees?: number;
+  paymentMode?: string;
+  emergencyConsent?: boolean;
+  rulesConsent?: boolean;
+}
 
-const emit = defineEmits(['save']);
+const props = defineProps({
+  classes: {
+    type: Array as PropType<ClassItem[]>,
+    required: true
+  },
+  studentData: {
+    type: Object as PropType<Partial<StudentData>>,
+    default: () => ({})
+  },
+  disabled: {
+    type: Boolean,
+    default: false
+  }
+});
+
+interface StudentFile {
+  name: string;
+  type: string;
+  size: number;
+  content: string;  // Changé pour string (base64)
+}
 
 // État de l'étape actuelle
 const currentStep = ref(0);
 
 // État des données de formulaire
-const firstname = ref(props.studentData.firstname);
-const lastname = ref(props.studentData.lastname);
-const birthDay = ref(props.studentData.birthDay);
-const birthPlace = ref(props.studentData.birthPlace || ''); 
-const  address = ref(props.studentData. address);
-const personalPhone = ref(props.studentData.personalPhone);
-const classId = ref(props.studentData.classId);
-const photo = ref<File | null>(null);
+const formData = reactive<StudentData>({
+  firstname: '',
+  lastname: '',
+  birthDay: null,
+  birthPlace: '',
+  address: '',
+  classId: 0,
+  fatherFirstname: '',
+  fatherLastname: '',
+  motherFirstname: '',
+  motherLastname: '',
+  famillyPhone: '',
+  personalPhone: '',
+  photo: null,
+  document: null,
+  schoolInfo: '',
+  sex: 'male',
+  schoolYear: '',
+  ...props.studentData, // Fusionner avec les données existantes, si fournies
+  nationality: '',
+  fatherProfession: '',
+  fatherEmail: '',
+  motherProfession: '',
+  motherEmail: '',
+  bloodGroup: '',
+  allergies: '',
+  medicalConditions: '',
+  doctorName: '',
+  doctorPhone: '',
+  lastSchool: '',
+  lastClass: '',
+  changeReason: '',
+  inscriptionFees: 0,
+  annualFees: 0,
+  busFees: 0,
+  canteenFees: 0,
+  paymentMode: 'once',
+  emergencyConsent: false,
+  rulesConsent: false,
+});
 
-// Informations des parents et autres données
-const fatherFirstname = ref('');
-const fatherLastname = ref('');
-const motherFirstname = ref('');
-const motherLastname = ref('');
-const famillyPhone = ref('');
-const schoolInfo = ref('');
-const documents = ref(null);
+const emit = defineEmits<{
+  (e: 'save', data: StudentData): void
+}>();
 
 // Gérer les étapes "Suivant" et "Précédent"
 const nextStep = () => {
-  if (currentStep.value < 3) {
+  if (currentStep.value < 5) {
     currentStep.value += 1;
   }
 };
-const classes = ref([
-  { id: 1, name: 'A' },
-  { id: 2, name: 'B' },
-  { id: 3, name: 'C' },
-  { id: 4, name: 'DEF' },
-]);
 
 const previousStep = () => {
   if (currentStep.value > 0) {
@@ -72,139 +132,133 @@ const previousStep = () => {
   }
 };
 
-// Sauvegarder les données au dernier step
 const saveData = () => {
-  const studentData = {
-    firstname: firstname.value,
-    lastname: lastname.value,
-    birthDay: birthDay.value,
-    birthPlace: birthPlace.value, 
-    address:  address.value,
-    classId: classId.value,
-    personalPhone: personalPhone.value,
-    fatherFirstname: fatherFirstname.value, // Ajout des informations sur le père
-    fatherLastname: fatherLastname.value,
-    motherFirstname: motherFirstname.value, // Ajout des informations sur la mère
-    motherLastname: motherLastname.value,
-    famillyPhone: famillyPhone.value,
-    schoolInfo: schoolInfo.value,
-    documents: documents.value
+  console.log("Données brutes à sauvegarder:", formData);
+  
+  // Fonction pour nettoyer l'objet
+  const cleanObject = (obj: any) => {
+    const cleanedObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value instanceof Date) {
+        cleanedObj[key] = value.toISOString();
+      } else if (typeof value === 'object' && value !== null) {
+        cleanedObj[key] = cleanObject(value);
+      } else if (value !== undefined) {
+        cleanedObj[key] = value;
+      }
+    }
+    return cleanedObj;
   };
-  emit('save', studentData);
-};
-const handlePhotoUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files) {
-    photo.value = target.files[0];
+
+  const dataToSave = cleanObject(formData);
+  console.log("Données nettoyées à sauvegarder:", dataToSave);
+
+  try {
+    emit("save", dataToSave);
+  } catch (error) {
+    console.error("Erreur lors de l'émission de l'événement save:", error);
   }
 };
+
+// Importez les composants de section de manière asynchrone
+const PersonalInfo = defineAsyncComponent(() => import('./sections/PersonalInfo.vue'));
+const ParentInfo = defineAsyncComponent(() => import('./sections/ParentInfo.vue'));
+const SchoolInfo = defineAsyncComponent(() => import('./sections/SchoolInfo.vue'));
+const MedicalInfo = defineAsyncComponent(() => import('./sections/MedicalInfo.vue'));
+const Attachments = defineAsyncComponent(() => import('./sections/Attachments.vue'));
+const FeesAndConsent = defineAsyncComponent(() => import('./sections/FeesAndConsent.vue'));
+
+// Définissez un tableau de sections
+const sections = [
+  PersonalInfo,
+  ParentInfo,
+  SchoolInfo,
+  MedicalInfo,
+  Attachments,
+  FeesAndConsent
+];
 </script>
 
 <template>
-  <el-card>
-    <el-form style="width: 100%">
-      <el-space direction="vertical" fill="fill" size="small" style="width: 100%">
-        <el-steps :space="300" :active="currentStep" finish-status="success">
-          <el-step title="Informations personnelles" />
-          <el-step title="Informations des Parents" />
-          <el-step title="Informations Scolaires" />
-          <el-step title="Pièces jointes" />
-        </el-steps>
+  <el-card class="student-form">
+    <el-steps :active="currentStep" finish-status="success" align-center class="mb-4">
+      <el-step title="Informations personnelles" icon="el-icon-user" />
+      <el-step title="Informations des Parents" icon="el-icon-user-solid" />
+      <el-step title="Informations Scolaires" icon="el-icon-school" />
+      <el-step title="Informations Médicales" icon="el-icon-first-aid-kit" />
+      <el-step title="Pièces jointes" icon="el-icon-document" />
+      <el-step title="Frais et Consentements" icon="el-icon-money" />
+    </el-steps>
 
-        <!-- Section 1 : Informations personnelles -->
-        <div v-if="currentStep === 0">
-          <el-form-item label="Nom">
-            <el-input v-model="lastname"></el-input> 
-          </el-form-item>
+    <div class="form-container">
+      <el-form :model="formData" label-position="top" class="mt-4">
+        <component 
+          :is="sections[currentStep]" 
+          :formData="formData" 
+          :classes="props.classes"
+        />
 
-          <el-form-item label="Prénom">
-            <el-input v-model="firstname"></el-input> 
-          </el-form-item>
-
-          <el-form-item label="Date de naissance">
-            <el-date-picker v-model="birthDay" type="date"></el-date-picker> 
-          </el-form-item>
-          <el-form-item label="Lieu de Naissance">
-            <el-input v-model="birthPlace"></el-input> 
-          </el-form-item>
-          <el-form-item label="Adresse">
-            <el-input v-model="address"></el-input>
-          </el-form-item>
-          <el-form-item label="Contact de l'élève">
-            <el-input v-model="personalPhone"></el-input>
-          </el-form-item>
-          <el-form-item label="Classe">
-            <el-select v-model="classId">
-              <el-option
-                v-for="item in classes"
-                :key="item.id"
-                :label="item.name"
-                :value="item.id"
-              />
-            </el-select>
-          </el-form-item>
-          
+        <div class="step-actions">
+          <el-button v-if="currentStep > 0" @click="previousStep" :disabled="props.disabled">Précédent</el-button>
+          <el-button v-if="currentStep < 5" type="primary" @click="nextStep" :disabled="props.disabled">Suivant</el-button>
+          <el-button v-if="currentStep === 5" type="primary" @click="saveData" :disabled="props.disabled">
+            <el-icon class="el-icon-loading" v-if="props.disabled"></el-icon>
+            Sauvegarder
+          </el-button>
         </div>
-
-        <!-- Section 2 : Informations des Parents -->
-        <div v-if="currentStep === 1">
-          <el-form-item label="Prénom du Père">
-            <el-input v-model="fatherFirstname"></el-input> <!-- Ajouter input pour prénom du père -->
-          </el-form-item>
-
-          <el-form-item label="Nom du Père">
-            <el-input v-model="fatherLastname"></el-input> <!-- Ajouter input pour nom de famille du père -->
-          </el-form-item>
-
-          <el-form-item label="Prénom de la Mère">
-            <el-input v-model="motherFirstname"></el-input> <!-- Ajouter input pour prénom de la mère -->
-          </el-form-item>
-
-          <el-form-item label="Nom de la Mère">
-            <el-input v-model="motherLastname"></el-input> <!-- Ajouter input pour nom de famille de la mère -->
-          </el-form-item>
-
-          <el-form-item label="Contact du Parent">
-            <el-input v-model="famillyPhone"></el-input>
-          </el-form-item>
-        </div>
-
-        <!-- Section 3 : Informations Scolaires -->
-        <div v-if="currentStep === 2">
-          <el-form-item label="Informations Scolaires">
-            <el-input v-model="schoolInfo"></el-input>
-          </el-form-item>
-        </div>
-
-        <!-- Section 4 : Pièces jointes -->
-        <div v-if="currentStep === 3">
-          <el-form-item label="Photo">
-          <el-upload
-            action="#"
-            :auto-upload="false"
-            :on-change="handlePhotoUpload"
-            :limit="1"
-          >
-            <el-button type="primary">Sélectionner une photo</el-button>
-          </el-upload>
-        </el-form-item>
-
-          <el-form-item label="Pièces jointes">
-            <el-upload v-model="documents" action="">
-              <el-button type="primary">Selectionner document Scolaire</el-button>
-            </el-upload>
-          </el-form-item>
-        </div>
-
-        <!-- Boutons Précédent et Suivant -->
-        <el-form-item>
-          <el-button v-if="currentStep > 0" type="info" @click="previousStep">Précédent</el-button>
-          <el-button v-if="currentStep < 3" type="primary" @click="nextStep">Suivant</el-button>
-          <el-button v-if="currentStep === 3" type="success" @click="saveData">Sauvegarder</el-button>
-        </el-form-item>
-      </el-space>
-    </el-form>
+      </el-form>
+    </div>
   </el-card>
 </template>
 
-<style scoped></style>
+<style scoped>
+.student-form {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.form-container {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 20px;
+}
+
+.form-section {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.step-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  position: sticky;
+  bottom: 0;
+  background-color: white;
+  padding: 10px 0;
+}
+
+/* Styles pour la barre de défilement */
+.form-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.form-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.form-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.form-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+</style>

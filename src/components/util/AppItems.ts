@@ -18,11 +18,18 @@ export const AppItems = [
                 route: "/student",
                 subItems:[]
             },
-             {
+            {
                 id: "submenu-1-3",
-                title: "Absence",
-                icon: "twemoji:spiral_calendar_pad",
-                route: "/student/:id/absences",
+                title: "Gestion des Absences",
+                icon: "mdi:calendar-alert",
+                route: "/absences",
+                subItems:[]
+            },
+            {
+                id: "submenu-1-4",
+                title: "Gestion des Paiements",
+                icon: "mdi:cash-multiple",
+                route: "/payments",
                 subItems:[]
             }
         ]

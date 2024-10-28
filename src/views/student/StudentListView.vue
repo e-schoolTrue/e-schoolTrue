@@ -1,56 +1,143 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import StudentFilter from "@/components/student/student-filter.vue";
 import StudentTable from "@/components/student/student-table.vue";
-import StudentDetail from "@/components/student/student-detail.vue"; // Le composant de détail
+import { ElMessage } from 'element-plus';
 
-// État pour gérer le modal de détail et l'élève sélectionné
-const isDetailDialogVisible = ref(false);
-const selectedStudent = ref(null);
+interface Student {
+  id?: number;
+  firstname: string;
+  lastname: string;
+  matricule: string;
+  schoolYear: string;
+  classId?: number;
+  famillyPhone?: string;
+}
 
-// Méthode pour gérer l'événement "detail" et ouvrir le modal avec les infos de l'élève
-const handleDetail = (student: any) => {
-  selectedStudent.value = student;
-  isDetailDialogVisible.value = true; // Ouvrir le modal
+const router = useRouter();
+const students = ref<Student[]>([]);
+const filteredStudents = ref<Student[]>([]);
+
+onMounted(async () => {
+  await loadStudents();
+});
+
+const loadStudents = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('student:all');
+    if (result.success) {
+      console.log("Données brutes des étudiants reçues:", JSON.stringify(result.data, null, 2));
+      students.value = result.data.map((student: any) => ({
+        id: student.id,
+        matricule: student.matricule,
+        lastname: student.lastname,
+        firstname: student.firstname,
+        schoolYear: student.schoolYear,
+        classId: student.classId !== null ? Number(student.classId) : null,
+        famillyPhone: student.famillyPhone || ''
+      }));
+      console.log("Étudiants traités:", students.value);
+      filteredStudents.value = students.value;
+    } else {
+      ElMessage.error("Erreur lors du chargement des étudiants");
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des étudiants:", error);
+    ElMessage.error("Une erreur s'est produite lors du chargement des étudiants");
+  }
 };
 
-// Méthode pour gérer l'événement "edit"
-const handleEdit = (student: any) => {
-  console.log('Modification de l\'étudiant', student);
-  // Ici, tu peux implémenter la logique pour éditer l'étudiant
+const handleDetail = (student: Student) => {
+  if (student && student.id) {
+    router.push({ name: 'StudentDetails', params: { id: student.id.toString() } });
+  } else {
+    ElMessage.error("Impossible d'afficher les détails : ID de l'étudiant manquant");
+  }
+};
+
+const handleEdit = (studentOrId: Student | number) => {
+  let studentId: number | undefined;
+
+  if (typeof studentOrId === 'object' && studentOrId !== null) {
+    studentId = studentOrId.id;
+  } else if (typeof studentOrId === 'number') {
+    studentId = studentOrId;
+  }
+
+  if (studentId !== undefined) {
+    router.push({ name: 'UpdateStudent', params: { id: studentId.toString() } });
+  } else {
+    ElMessage.error("Impossible de modifier l'étudiant : ID manquant");
+  }
+};
+
+const handleFilter = (filterCriteria: any) => {
+  filteredStudents.value = students.value.filter(student => {
+    const nameMatch = (student.firstname?.toLowerCase().includes(filterCriteria.studentFirstName.toLowerCase()) || 
+                       student.lastname?.toLowerCase().includes(filterCriteria.studentLastName.toLowerCase())) ?? true;
+    const matriculeMatch = student.matricule?.includes(filterCriteria.studentPV) ?? true;
+    const classMatch = !filterCriteria.schoolClass || student.classId?.toString() === filterCriteria.schoolClass;
+    const yearMatch = !filterCriteria.schoolYear || student.schoolYear === filterCriteria.schoolYear;
+
+    return nameMatch && matriculeMatch && classMatch && yearMatch;
+  });
+};
+
+const handlePageChange = (page: number) => {
+  console.log('Page changée:', page);
+  // Implémentez la logique de pagination si nécessaire
 };
 </script>
 
 <template>
-  <el-row :gutter="20">
-    <el-col :span="6">
-      <el-card>
+  <el-container>
+    <el-aside width="250px">
+      <el-card >
         <el-row justify="center">
-          <el-text size="large" style="font-weight: bold">Liste des Elèves</el-text>
+          <el-text size="large" style="font-weight: bold">
+            Liste des Élèves
+          </el-text>
         </el-row>
       </el-card>
-    </el-col>
-
-    <el-col :span="18">
-      <el-card>
-        <student-filter />
-        <student-table @detail="handleDetail" @edit="handleEdit" />
+    </el-aside>
+    
+    <el-main>
+      <el-card class="h-100">
+        <student-filter @filter="handleFilter" />
+        <div class="table-container">
+          <student-table 
+            :students="filteredStudents"
+            @detail="handleDetail" 
+            @edit="handleEdit"
+            @pageChange="handlePageChange"
+          />
+        </div>
       </el-card>
-    </el-col>
-  </el-row>
-
-  <!-- Modal pour afficher les détails de l'élève -->
-  <el-dialog v-model="isDetailDialogVisible" title="Détail de l'élève" width="50%">
-    <student-detail v-if="selectedStudent" :student="selectedStudent" />
-  </el-dialog>
+    </el-main>
+  </el-container>
 </template>
 
 <style scoped>
-.el-row {
-  margin-bottom: 20px;
+.el-container {
+  height: calc(100vh - 60px); /* Ajustez selon la hauteur de votre en-tête */
 }
 
-.el-col {
-  padding: 10px;
+.el-aside {
+  background-color: #f0f2f5;
+}
+
+.el-main {
+  padding: 20px;
+}
+
+.h-100 {
+  height: 100%;
+}
+
+.table-container {
+  margin-top: 20px;
+  height: calc(100% - 100px); /* Ajustez selon la hauteur de votre filtre */
+  overflow-y: auto;
 }
 </style>

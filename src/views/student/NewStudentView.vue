@@ -3,92 +3,55 @@ import { ref } from 'vue';
 import StudentForm from '@/components/student/student-form.vue';
 import { ElMessage } from 'element-plus';
 
-// Interface pour les données de l'étudiant
-interface StudentData {
-  firstname: string; // Non optionnel
-  lastname: string; // Non optionnel
-  matricule: string; // Non optionnel
-  fatherFirstname: string; // Non optionnel
-  fatherLastname: string; // Non optionnel
-  motherFirstname: string; // Non optionnel
-  motherLastname: string; // Non optionnel
-  birthDay: Date | null; // Peut être null
-  birthPlace: string; // Non optionnel
-  address: string; // Non optionnel
-  famillyPhone: string; 
-  personalPhone: string; 
-  classId: number | null; 
-  photo?: File | null; 
-}
+const classes = ref([
+  { id: 1, name: 'CI' },
+  { id: 2, name: 'CP' },
+  { id: 3, name: 'CE1' },
+  { id: 4, name: 'CE2' },
+  { id: 5, name: 'CM1' },
+  { id: 6, name: 'CM2' },
+  { id: 7, name: '6ème' },
+  { id: 8, name: '5ème' },
+  { id: 9, name: '4ème' },
+  { id: 10, name: '3ème' },
+  { id: 11, name: '2nde' },
+  { id: 12, name: '1ère' },
+  { id: 13, name: 'Terminale' }
+]);
 
 
-// Initialisez les données de l'étudiant
-const studentData = ref<StudentData>({
-  firstname: '',
-  lastname: '',
-  matricule: '',
-  fatherFirstname: '',
-  fatherLastname: '',
-  motherFirstname: '',
-  motherLastname: '',
-  birthDay: null,
-  birthPlace: '',
-  address: '',
-  famillyPhone: '',
-  personalPhone: '',
-  classId: null,
-  photo:null
-});
-
-const saveData = async (data: StudentData) => {
+const saveStudent = async (studentData: any) => {
   try {
-    const result = await window.ipcRenderer.invoke('save-student', data);
+    console.log("Données de l'étudiant à enregistrer:", studentData);
+    
+    // Sérialiser puis désérialiser pour s'assurer que l'objet est clonable
+    const serializedData = JSON.parse(JSON.stringify(studentData));
+    
+    const result = await window.ipcRenderer.invoke('save-student', serializedData);
     if (result.success) {
-      ElMessage.success(result.message);
-      // Réinitialiser le formulaire ou naviguer ailleurs après la sauvegarde
+      ElMessage.success('Étudiant enregistré avec succès');
+      // Réinitialiser le formulaire ou rediriger vers la liste des étudiants
     } else {
-      ElMessage.error(result.message || 'Échec de l\'enregistrement');
+      let errorMessage = "Échec de l'enregistrement";
+      if (result.message) {
+        errorMessage = result.message; // Utiliser le message tel quel, sans décodage
+      }
+      ElMessage.error(errorMessage);
     }
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde:', error);
-    ElMessage.error('Une erreur s\'est produite lors de la sauvegarde.');
+    console.error('Erreur lors de l\'enregistrement:', error);
+    ElMessage.error('Une erreur s\'est produite lors de l\'enregistrement');
   }
 };
-
-interface ClassItem {
-  id: number;
-  name: string;
-}
-
-const classes = ref<ClassItem[]>([]);
-
-const loadClasses = async () => {
-  try {
-    const result = await window.ipcRenderer.invoke('classRoom:all');
-    if (result.success) {
-      classes.value = result.data;
-    } else {
-      ElMessage.error('Erreur lors du chargement des classes');
-    }
-  } catch (error) {
-    console.error('Erreur lors du chargement des classes:', error);
-    ElMessage.error('Une erreur s\'est produite lors du chargement des classes.');
-  }
-};
-
-loadClasses();
 </script>
 
 <template>
   <el-card>
     <el-row justify="center">
-      <el-text size="large" style="font-weight: bold">Nouvelle Inscription</el-text>
+      <el-text size="large" style="font-weight: bold">Ajouter un nouvel élève</el-text>
     </el-row>
   </el-card>
 
-  <student-form
-    :studentData="studentData"
-    :classes="classes"
-    @save="saveData"
-  />
+  <student-form :classes="classes" @save="saveStudent" />
 </template>
+

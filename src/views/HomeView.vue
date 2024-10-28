@@ -22,4 +22,3 @@ import DashbordMenu from "@/components/dashbord-menu.vue";
 }
 
 </style>
-
