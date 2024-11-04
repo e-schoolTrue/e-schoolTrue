@@ -10,8 +10,11 @@
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "better-sqlite3": "^9.6.0",
-    "typeorm": "^0.3.20"
+    "csv-parser": "^3.0.0",
+    "typeorm": "^0.3.20",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@iconify-json/bi": "^1.1.23",

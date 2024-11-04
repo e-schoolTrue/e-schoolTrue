@@ -27,7 +27,6 @@ const loadStudents = async () => {
   try {
     const result = await window.ipcRenderer.invoke('student:all');
     if (result.success) {
-      console.log("Données brutes des étudiants reçues:", JSON.stringify(result.data, null, 2));
       students.value = result.data.map((student: any) => ({
         id: student.id,
         matricule: student.matricule,
@@ -37,7 +36,6 @@ const loadStudents = async () => {
         classId: student.classId !== null ? Number(student.classId) : null,
         famillyPhone: student.famillyPhone || ''
       }));
-      console.log("Étudiants traités:", students.value);
       filteredStudents.value = students.value;
     } else {
       ElMessage.error("Erreur lors du chargement des étudiants");
@@ -86,16 +84,15 @@ const handleFilter = (filterCriteria: any) => {
 
 const handlePageChange = (page: number) => {
   console.log('Page changée:', page);
-  // Implémentez la logique de pagination si nécessaire
 };
 </script>
 
 <template>
   <el-container>
     <el-aside width="250px">
-      <el-card >
+      <el-card shadow="hover">
         <el-row justify="center">
-          <el-text size="large" style="font-weight: bold">
+          <el-text size="large" style="font-weight: bold; color: #333;">
             Liste des Élèves
           </el-text>
         </el-row>
@@ -103,7 +100,7 @@ const handlePageChange = (page: number) => {
     </el-aside>
     
     <el-main>
-      <el-card class="h-100">
+      <el-card shadow="always" class="main-card">
         <student-filter @filter="handleFilter" />
         <div class="table-container">
           <student-table 
@@ -120,24 +117,30 @@ const handlePageChange = (page: number) => {
 
 <style scoped>
 .el-container {
-  height: calc(100vh - 60px); /* Ajustez selon la hauteur de votre en-tête */
+  height: calc(100vh - 60px);
 }
 
 .el-aside {
   background-color: #f0f2f5;
+  padding: 10px;
 }
 
 .el-main {
   padding: 20px;
 }
 
-.h-100 {
-  height: 100%;
+.main-card {
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #fff;
 }
 
 .table-container {
   margin-top: 20px;
-  height: calc(100% - 100px); /* Ajustez selon la hauteur de votre filtre */
+  height: calc(100% - 100px);
   overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
 }
 </style>

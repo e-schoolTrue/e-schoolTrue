@@ -14,7 +14,7 @@ interface StudentData {
   birthDay: Date | null;
   birthPlace: string;
   address: string;
-  classId?: number;
+  classId: number | null;
   fatherFirstname: string;
   fatherLastname: string;
   motherFirstname: string;
@@ -23,29 +23,8 @@ interface StudentData {
   personalPhone: string;
   photo: StudentFile | null;
   document: StudentFile | null;
-  schoolInfo: string;
   sex: 'male' | 'female';
   schoolYear: string;
-  nationality?: string;
-  fatherProfession?: string;
-  fatherEmail?: string;
-  motherProfession?: string;
-  motherEmail?: string;
-  bloodGroup?: string;
-  allergies?: string;
-  medicalConditions?: string;
-  doctorName?: string;
-  doctorPhone?: string;
-  lastSchool?: string;
-  lastClass?: string;
-  changeReason?: string;
-  inscriptionFees?: number;
-  annualFees?: number;
-  busFees?: number;
-  canteenFees?: number;
-  paymentMode?: string;
-  emergencyConsent?: boolean;
-  rulesConsent?: boolean;
 }
 
 const props = defineProps({
@@ -80,7 +59,7 @@ const formData = reactive<StudentData>({
   birthDay: null,
   birthPlace: '',
   address: '',
-  classId: 0,
+  classId: null,
   fatherFirstname: '',
   fatherLastname: '',
   motherFirstname: '',
@@ -89,30 +68,9 @@ const formData = reactive<StudentData>({
   personalPhone: '',
   photo: null,
   document: null,
-  schoolInfo: '',
   sex: 'male',
   schoolYear: '',
   ...props.studentData, // Fusionner avec les données existantes, si fournies
-  nationality: '',
-  fatherProfession: '',
-  fatherEmail: '',
-  motherProfession: '',
-  motherEmail: '',
-  bloodGroup: '',
-  allergies: '',
-  medicalConditions: '',
-  doctorName: '',
-  doctorPhone: '',
-  lastSchool: '',
-  lastClass: '',
-  changeReason: '',
-  inscriptionFees: 0,
-  annualFees: 0,
-  busFees: 0,
-  canteenFees: 0,
-  paymentMode: 'once',
-  emergencyConsent: false,
-  rulesConsent: false,
 });
 
 const emit = defineEmits<{
@@ -164,18 +122,14 @@ const saveData = () => {
 const PersonalInfo = defineAsyncComponent(() => import('./sections/PersonalInfo.vue'));
 const ParentInfo = defineAsyncComponent(() => import('./sections/ParentInfo.vue'));
 const SchoolInfo = defineAsyncComponent(() => import('./sections/SchoolInfo.vue'));
-const MedicalInfo = defineAsyncComponent(() => import('./sections/MedicalInfo.vue'));
 const Attachments = defineAsyncComponent(() => import('./sections/Attachments.vue'));
-const FeesAndConsent = defineAsyncComponent(() => import('./sections/FeesAndConsent.vue'));
 
 // Définissez un tableau de sections
 const sections = [
   PersonalInfo,
   ParentInfo,
   SchoolInfo,
-  MedicalInfo,
   Attachments,
-  FeesAndConsent
 ];
 </script>
 
@@ -185,9 +139,7 @@ const sections = [
       <el-step title="Informations personnelles" icon="el-icon-user" />
       <el-step title="Informations des Parents" icon="el-icon-user-solid" />
       <el-step title="Informations Scolaires" icon="el-icon-school" />
-      <el-step title="Informations Médicales" icon="el-icon-first-aid-kit" />
       <el-step title="Pièces jointes" icon="el-icon-document" />
-      <el-step title="Frais et Consentements" icon="el-icon-money" />
     </el-steps>
 
     <div class="form-container">
@@ -200,8 +152,8 @@ const sections = [
 
         <div class="step-actions">
           <el-button v-if="currentStep > 0" @click="previousStep" :disabled="props.disabled">Précédent</el-button>
-          <el-button v-if="currentStep < 5" type="primary" @click="nextStep" :disabled="props.disabled">Suivant</el-button>
-          <el-button v-if="currentStep === 5" type="primary" @click="saveData" :disabled="props.disabled">
+          <el-button v-if="currentStep < 4" type="primary" @click="nextStep" :disabled="props.disabled">Suivant</el-button>
+          <el-button v-if="currentStep === 4" type="primary" @click="saveData" :disabled="props.disabled">
             <el-icon class="el-icon-loading" v-if="props.disabled"></el-icon>
             Sauvegarder
           </el-button>
