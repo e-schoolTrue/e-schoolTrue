@@ -12,16 +12,16 @@ export class FileEntity {
     @Column({ type: "text" })
     path?: string;  // Chemin d'accès au fichier sur le disque
 
-    @Column({ type: "numeric" })
+    @Column({ type: "int", nullable: true })  // Définir explicitement le type comme "int"
     size?: number;
 
     @Column({ type: "text" })
     type?: string;
 
-    @Column({ type: "datetime" })
+    @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
     createdAt?: Date;
 
-    @Column({ type: "datetime" })
+    @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
     updatedAt?: Date;
 
     @DeleteDateColumn()
