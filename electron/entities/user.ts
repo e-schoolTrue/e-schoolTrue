@@ -1,5 +1,5 @@
 import {Entity, PrimaryGeneratedColumn} from "typeorm";
-import {ROLE} from "#electron/command";
+import {ROLE} from "@electron/command";
 
 @Entity("user")
 export class UserEntity{

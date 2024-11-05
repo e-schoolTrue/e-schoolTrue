@@ -1,8 +1,8 @@
 import { Column, CreateDateColumn, Entity, OneToOne, PrimaryGeneratedColumn, BeforeInsert, JoinColumn, ManyToOne, OneToMany } from "typeorm";
-import { FileEntity } from "./file"; // Assurez-vous que le chemin d'importation est correct
-import { ClassRoomEntity } from "./grade"; // Assurez-vous que le chemin d'importation est correct
-import { PaymentEntity } from './payment';
-import { AbsenceEntity } from './absence';
+import { FileEntity } from "./file.ts"; // Assurez-vous que le chemin d'importation est correct
+import { ClassRoomEntity } from "./grade.ts"; // Assurez-vous que le chemin d'importation est correct
+import { PaymentEntity } from './payment.ts';
+import { AbsenceEntity } from './absence.ts';
 
 @Entity('T_student')
 export class StudentEntity {

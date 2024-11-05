@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {ElTable} from 'element-plus'
-import {BranchEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {BranchEntity, GradeEntity} from "@electron/entities/grade.ts";
 import {Icon} from "@iconify/vue";
 import {computed, reactive, ref} from "vue";
 import BranchTable from "@/components/grade/branch-table.vue";

@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {GradeCommand} from "#electron/command/settingsCommand.ts";
+import {GradeCommand} from "@electron/command/settingsCommand.ts";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {GradeEntity} from "#electron/backend/entities/grade.ts";
+import {GradeEntity} from "@electron/entities/grade.ts";
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)

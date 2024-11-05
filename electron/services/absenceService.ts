@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
-import { AbsenceEntity } from '../entities/absence';
-import { AppDataSource } from '../../data-source';
+import { AbsenceEntity } from '@electron/entities/absence.ts';
+import { AppDataSource } from '@electron/data-source.ts';
 
 export class AbsenceService {
     private absenceRepository: Repository<AbsenceEntity>;

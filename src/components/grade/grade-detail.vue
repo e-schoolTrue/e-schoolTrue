@@ -2,7 +2,7 @@
 
 import {Icon} from "@iconify/vue";
 import {ref} from "vue";
-import {GradeEntity} from "#electron/backend/entities/grade.ts";
+import {GradeEntity} from "@electron/entities/grade.ts";
 
 const currGrade = ref<GradeEntity>()
 const dialogVisible = ref(false)

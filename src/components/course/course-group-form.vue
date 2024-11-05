@@ -1,10 +1,9 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {ClassRoomCommand, CourseCommand, SubCourseCommand} from "#electron/command/settingsCommand.ts";
+import {ClassRoomCommand, CourseCommand, SubCourseCommand} from "@electron/command/settingsCommand.ts";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
-import {Mapper} from "#electron/command";
+import {CourseEntity} from "@electron/entities/course.ts";
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)

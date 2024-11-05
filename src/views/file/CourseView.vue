@@ -4,9 +4,9 @@ import {Icon} from "@iconify/vue";
 import CourseForm from "@/components/course/course-form.vue";
 import CourseTable from "@/components/course/course-table.vue";
 import {onMounted, ref} from "vue";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {CourseEntity} from "@electron/entities/course.ts";
 import {ElMessageBox, FormInstance} from "element-plus";
-import {CourseCommand} from "#electron/command/settingsCommand.ts";
+import {CourseCommand} from "@electron/command/settingsCommand.ts";
 import {Loader} from "@/components/util/AppLoader.ts";
 import {cloneDeep} from "lodash";
 

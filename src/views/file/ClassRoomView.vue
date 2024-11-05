@@ -3,8 +3,8 @@
 import {Icon} from "@iconify/vue";
 import {onMounted, ref} from "vue";
 import {ElMessageBox, FormInstance} from "element-plus";
-import {ClassRoomCommand} from "#electron/command/settingsCommand.ts";
-import {ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {ClassRoomCommand} from "@electron/command/settingsCommand.ts";
+import {ClassRoomEntity, GradeEntity} from "@electron/entities/grade.ts";
 import {cloneDeep} from "lodash"
 import {Loader} from "@/components/util/AppLoader.ts";
 import ClasseRoomForm from "@/components/classroom/classe-room-form.vue";

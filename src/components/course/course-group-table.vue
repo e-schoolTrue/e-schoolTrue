@@ -2,8 +2,8 @@
 import {ElTable} from 'element-plus'
 import {Icon} from "@iconify/vue";
 import {computed, reactive, ref} from "vue";
-import {ClassRoomCommand} from "#electron/command/settingsCommand.ts";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {ClassRoomCommand} from "@electron/command/settingsCommand.ts";
+import {CourseEntity} from "@electron/entities/course.ts";
 
 const props = defineProps<{courses:CourseEntity[]}>()
 const searchForm = ref("")
