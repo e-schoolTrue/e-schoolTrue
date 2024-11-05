@@ -5,19 +5,17 @@ import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import {ElementPlusResolver} from "unplugin-vue-components/resolvers";
-import Icons from 'unplugin-icons/vite'
-import IconsResolver from 'unplugin-icons/resolver'
 import ElementPlus from 'unplugin-element-plus/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  resolve : {
-    alias: {
-      "@": path.resolve('src'),
-      "#electron":path.resolve('electron'),
-      "#app":path.resolve('.'),
-    }
-  } ,
+  resolve:{
+    alias: [
+      {find : "@" ,  replacement : path.resolve('./src')},
+      {find : "@electron" ,  replacement : path.resolve('./electron')},
+      {find : "@app" ,  replacement : path.resolve('.')}
+    ]
+  },
   plugins: [
     vue(),
     AutoImport({
@@ -35,15 +33,20 @@ export default defineConfig({
         entry: 'electron/main.ts',
         vite:{
           resolve:{
-            alias: {
-              "#electron":path.resolve('electron'),
-              "#app":path.resolve('.'),
-            }
+            alias: [
+              {find : "@" ,  replacement : path.resolve('./src')},
+              {find : "@electron" ,  replacement : path.resolve('./electron')},
+              {find : "@app" ,  replacement : path.resolve('.')}
+            ]
           },
           build:{
             rollupOptions:{
-              external:["typeorm"]
+              external:["typeorm" , "better-sqlite3"]
             }
+          },
+          test:{
+            globals:true,
+            env:"node"
           }
         }
       },
@@ -51,20 +54,29 @@ export default defineConfig({
         // Shortcut of `build.rollupOptions.input`.
         // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
         input: path.join(__dirname, 'electron/preload.ts'),
+        vite:{
+          resolve:{
+            alias: [
+              {find : "@" ,  replacement: path.resolve('./src')},
+              {find : "@electron" ,  replacement: path.resolve('./electron')},
+              {find : "@app" ,  replacement: path.resolve('.')}
+            ]
+          },
+          test:{
+            globals:true,
+            env:"node",
+          }
+        }
+
       },
       // Ployfill the Electron and Node.js API for Renderer process.
       // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
       // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
-      renderer: {
-      },
+      renderer: {},
     }),
     // Supprimez ou commentez cette partie
-    // Icons({
-    //   autoInstall: true,
-    // })
   ],
-  // Supprimez cette partie
-  // optimizeDeps: {
-  //   include: ['@mdi/js'],
-  // },
+  optimizeDeps: {
+    include: ['@mdi/js'],
+  },
 })

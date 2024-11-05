@@ -2,7 +2,7 @@
 import {reactive, ref} from 'vue'
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {BranchEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {BranchEntity, GradeEntity} from "@electron/entities/grade.ts";
 
 const props = defineProps<{formTitle:string }>()
 const dialogVisible = ref(false)

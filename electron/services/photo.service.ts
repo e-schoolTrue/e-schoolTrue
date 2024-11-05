@@ -1,5 +1,5 @@
-import { FileEntity } from "../entities/file.ts";  // Importer FileEntity pour gérer les fichiers
-import { AppDataSource } from "#electron/data-source.ts";  // Importer la source de données TypeORM
+import { FileEntity } from "@electron/entities/file.ts";  // Importer FileEntity pour gérer les fichiers
+import { AppDataSource } from "@electron/data-source.ts";  // Importer la source de données TypeORM
 
 export class PhotoService {
   private fileRepository = AppDataSource.getInstance().getRepository(FileEntity);

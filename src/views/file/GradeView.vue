@@ -5,8 +5,8 @@ import {Icon} from "@iconify/vue";
 import GradeForm from "@/components/grade/grade-form.vue";
 import {onMounted, ref} from "vue";
 import {ElMessageBox, FormInstance} from "element-plus";
-import {BranchCommand, GradeCommand} from "#electron/command/settingsCommand.ts";
-import {BranchEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {BranchCommand, GradeCommand} from "@electron/command/settingsCommand.ts";
+import {BranchEntity, GradeEntity} from "@electron/entities/grade.ts";
 import {cloneDeep} from "lodash"
 import {Loader} from "@/components/util/AppLoader.ts";
 import BranchForm from "@/components/grade/branch-form.vue";

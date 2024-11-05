@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
-import { PaymentEntity } from '../entities/payment';
-import { AppDataSource } from '../../data-source';
+import { PaymentEntity } from '@electron/entities/payment.ts';
+import { AppDataSource } from '../data-source.ts';
 
 export class PaymentService {
     private paymentRepository: Repository<PaymentEntity>;

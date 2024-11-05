@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
-import { StudentEntity } from "./students";
+import { StudentEntity } from "./students.ts";
 
 @Entity('T_payment')
 export class PaymentEntity {

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {ClassRoomCommand, CourseCommand} from "#electron/command/settingsCommand.ts";
+import {ClassRoomCommand, CourseCommand} from "@electron/command/settingsCommand.ts";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
 

@@ -1,7 +1,7 @@
-// @ts-nocheck
+
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
-import { AppDataSource } from "#electron/data-source.ts";
+import { AppDataSource } from "@electron/data-source.ts";
 import './events'
 
 // The built directory structure
@@ -22,7 +22,7 @@ let dataSourceInitialized = false;
 async function initializeDataSource() {
   if (!dataSourceInitialized) {
     console.log("Début de l'initialisation de la base de données");
-    await AppDataSource.initialize();
+    await AppDataSource.getInstance().initialize();
     console.log("Base de données initialisée avec succès");
     dataSourceInitialized = true;
   }
@@ -31,7 +31,6 @@ async function initializeDataSource() {
 async function createWindow() {
   try {
     await initializeDataSource();
-
     win = new BrowserWindow({
       icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
       width: 1200,
@@ -39,7 +38,9 @@ async function createWindow() {
       autoHideMenuBar: true,
       show: false,
       webPreferences: {
+        nodeIntegration:true,
         preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: false,
         sandbox: false
       },
     })

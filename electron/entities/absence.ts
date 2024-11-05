@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
-import { StudentEntity } from "./students";
+import { StudentEntity } from "./students.ts";
 
 @Entity('T_absence')
 export class AbsenceEntity {

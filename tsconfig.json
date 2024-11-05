@@ -18,8 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*" : ["./src/*"],
-      "#electron/*": ["./electron/*"],
-      "#app/*": ["./*"]
+      "@electron/*": ["./electron/*"],
+      "@app/*": ["./*"]
     },
     /* Linting */
     "strict": true,
@@ -31,7 +31,6 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx",
     "src/**/*.vue",
     "electron",
     "auto-imports.d.ts",

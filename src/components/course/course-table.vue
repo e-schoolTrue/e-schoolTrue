@@ -2,8 +2,8 @@
 import {ElTable, FormInstance} from 'element-plus'
 import {Icon} from "@iconify/vue";
 import {computed, reactive, ref} from "vue";
-import {ClassRoomCommand, CourseCommand} from "#electron/command/settingsCommand.ts";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {ClassRoomCommand, CourseCommand} from "@electron/command/settingsCommand.ts";
+import {CourseEntity} from "@electron/entities/course.ts";
 import CourseDetails from "@/components/course/course-details.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
 

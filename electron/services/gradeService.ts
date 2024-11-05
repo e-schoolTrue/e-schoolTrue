@@ -1,9 +1,9 @@
 import {Repository} from "typeorm";
-import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
-import {AppDataSource} from "#electron/data-source.ts";
-import {ResultType} from "#electron/command";
+import {BranchEntity, ClassRoomEntity, GradeEntity} from "@electron/entities/grade.ts";
+import {AppDataSource} from "@electron/data-source.ts";
+import {ResultType} from "@electron/command";
 import {messages} from "#app/messages.ts";
-import {BranchCommand, ClassRoomCommand, GradeCommand} from "#electron/command/settingsCommand.ts";
+import {BranchCommand, ClassRoomCommand, GradeCommand} from "@electron/command/settingsCommand.ts";
 
 
 export class GradeService {

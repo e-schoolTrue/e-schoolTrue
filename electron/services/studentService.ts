@@ -1,9 +1,9 @@
 import { Repository } from 'typeorm';
-import { StudentEntity } from '../entities/students';
-import { ClassRoomEntity } from '../entities/grade';
-import { FileEntity } from '../entities/file';
-import { AppDataSource } from '../../data-source';
-import { ResultType } from '#electron/command';
+import { StudentEntity } from '@electron/entities/students.ts';
+import { ClassRoomEntity } from '@electron/entities/grade.ts';
+import { FileEntity } from '@electron/entities/file.ts';
+import { AppDataSource } from '../data-source.ts';
+import { ResultType } from '@electron/command';
 
 export class StudentService {
   private studentRepository: Repository<StudentEntity>;

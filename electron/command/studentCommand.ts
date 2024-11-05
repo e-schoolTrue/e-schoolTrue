@@ -1,4 +1,4 @@
-import {FileEntity} from "#electron/backend/entities/file.ts";
+import {FileEntity} from "@electron/entities/file.ts";
 
 
 export type StudentCommand = {

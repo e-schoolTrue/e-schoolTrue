@@ -5,6 +5,15 @@ export enum CIVILITY{
     Lady="Mademoiselle"
 }
 
+export enum FILE_TYPE{
+    txt="txt",
+    pdf="pdf",
+    xls="xls",
+    png="image/png",
+    jpeg="jpeg",
+    ico="ico"
+}
+
 export enum FAMILY_SITUATION{
     Maried="Marié(e)",
     Divorced="Divorcé(e)",
@@ -24,14 +33,4 @@ export type ResultType = {
     message: string | null;
     data: any|null;
     error: any|null;
-}
-
-export class Mapper{
-    static mapTo<S,T>(source:S , target:new()=>T):T{
-        const _target:T = new target()
-        Object.getOwnPropertyNames(_target).map((property:string)=>{
-            (_target as any)[property]=(source as any)[property]
-        })
-        return _target
-    }
 }

@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import {computed, reactive, ref} from 'vue'
-import {ClassRoomCommand} from "#electron/command/settingsCommand.ts";
+import {ClassRoomCommand} from "@electron/command/settingsCommand.ts";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {ClassRoomEntity, GradeEntity} from "@electron/entities/grade.ts";
 
 const props = defineProps<{classRoom?:ClassRoomEntity , grades:GradeEntity[]}>()
 const dialogVisible = ref(false)
