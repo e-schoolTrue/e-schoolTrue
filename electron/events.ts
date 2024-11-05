@@ -258,18 +258,11 @@ ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, ph
                 },
                 error: null,
                 message: "Photo récupérée avec succès"
+                
             };
         } else {
             return { success: false, message: "Photo non trouvée", error: null, data: null };
         }
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("get-levels-and-fees", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
-    try {
-        return await global.studentService.getAvailableLevelsAndFees();
     } catch (error) {
         return handleError(error);
     }

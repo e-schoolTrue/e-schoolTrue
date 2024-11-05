@@ -80,6 +80,8 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SchoolInfo: typeof import('./src/components/student/sections/SchoolInfo.vue')['default']
     StudentDetail: typeof import('./src/components/student/student-detail.vue')['default']
+    StudentFile: typeof import('./src/components/student/student-file.vue')['default']
+    StudentFileReader: typeof import('./src/components/student/StudentFileReader.vue')['default']
     StudentFilter: typeof import('./src/components/student/student-filter.vue')['default']
     StudentForm: typeof import('./src/components/student/student-form.vue')['default']
     StudentTable: typeof import('./src/components/student/student-table.vue')['default']

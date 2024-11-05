@@ -1,18 +1,40 @@
 import { Repository } from 'typeorm';
 import { StudentEntity } from '../entities/students';
-import { ClassRoomEntity } from '../entities/grade';
 import { FileEntity } from '../entities/file';
 import { AppDataSource } from '../../data-source';
 import { ResultType } from '#electron/command';
 
+// Déplacer l'interface en dehors de la classe
+interface StudentDetailsResponse {
+  id: number;
+  firstname?: string;
+  lastname?: string;
+  matricule?: string;
+  birthDay?: Date;
+  birthPlace?: string;
+  address?: string;
+  famillyPhone?: string;
+  personalPhone?: string;
+  sex?: 'male' | 'female';
+  schoolYear?: string;
+  photo: {
+    id: number;
+    name: string;
+    type: string;
+  } | null;
+  documents: Array<{
+    id: number;
+    name: string;
+    type: string;
+  }>;
+}
+
 export class StudentService {
   private studentRepository: Repository<StudentEntity>;
-  private classRepository: Repository<ClassRoomEntity>;
   private fileRepository: Repository<FileEntity>;
 
   constructor() {
     this.studentRepository = AppDataSource.getInstance().getRepository(StudentEntity);
-    this.classRepository = AppDataSource.getInstance().getRepository(ClassRoomEntity);
     this.fileRepository = AppDataSource.getInstance().getRepository(FileEntity);
   }
 
@@ -20,7 +42,6 @@ export class StudentService {
     try {
       console.log("Données reçues pour l'enregistrement de l'étudiant:", studentData);
 
-      // Vérifier si la photo existe
       if (studentData.photoId) {
         const photoExists = await this.fileRepository.findOne({ where: { id: studentData.photoId } });
         if (!photoExists) {
@@ -33,24 +54,10 @@ export class StudentService {
         }
       }
 
-      // Vérifier si la classe existe
-      if (studentData.classId) {
-        const classExists = await this.classRepository.findOne({ where: { id: studentData.classId } });
-        if (!classExists) {
-          return {
-            success: false,
-            data: null,
-            error: "La classe spécifiée n'existe pas",
-            message: "Erreur lors de l'enregistrement de l'étudiant : La classe spécifiée n'existe pas"
-          };
-        }
-      }
-
-      // Nettoyer les données
       const cleanedData: Partial<StudentEntity> = {};
       for (const [key, value] of Object.entries(studentData)) {
         if (value !== null && value !== undefined) {
-          cleanedData[key as keyof StudentEntity] = value;
+          (cleanedData as any)[key] = value;
         }
       }
 
@@ -63,101 +70,102 @@ export class StudentService {
         error: null,
         message: "Étudiant enregistré avec succès"
       };
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
       console.error("Erreur dans saveStudent:", error);
       return {
         success: false,
         data: null,
-        error: error.message,
-        message: `Échec de l'enregistrement de l'étudiant : ${error.message}`
+        error: errorMessage,
+        message: `Échec de l'enregistrement de l'étudiant : ${errorMessage}`
       };
     }
   }
 
   async getAllStudents(): Promise<StudentEntity[]> {
     try {
-      console.log("Début de getAllStudents");
-      console.log("Connexion à la base de données:", AppDataSource.getInstance().isInitialized);
-      const students = await this.studentRepository.find({
-        relations: ['photo', 'class']
+      return await this.studentRepository.find({
+        relations: ['photo', 'documents']
       });
-      console.log("Requête SQL exécute:", this.studentRepository.createQueryBuilder().getSql());
-      console.log("Nombre d'étudiants trouvés:", students.length);
-      console.log("Premier étudiant (si existe):", students[0]);
-      return students;
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
       console.error('Erreur détaillée dans getAllStudents:', error);
-      throw new Error('Erreur lors de la récupération des étudiants: ' + error.message);
+      throw new Error('Erreur lors de la récupération des étudiants: ' + errorMessage);
     }
   }
 
-  async getStudentDetails(studentId: number): Promise<any> {
+  async getStudentDetails(studentId: number): Promise<StudentDetailsResponse> {
     try {
-      console.log(`Tentative de récupération des détails de l'étudiant avec l'ID: ${studentId}`);
       const student = await this.studentRepository.findOneOrFail({
         where: { id: studentId },
-        relations: ['photo', 'documents', 'class']
+        relations: ['photo', 'documents']
       });
 
-      console.log("Étudiant trouvé:", student);
+      // Traitement de la photo avec vérification de null/undefined
+      const photoData = student.photo && student.photo.id && student.photo.name && student.photo.type
+        ? {
+            id: student.photo.id,
+            name: student.photo.name,
+            type: student.photo.type
+          }
+        : null;
 
-      const studentDetails = {
-        ...student,
-        photo: student.photo ? { id: student.photo.id, name: student.photo.name } : null,
-        documents: student.documents ? student.documents.map(doc => ({
+      // Traitement des documents avec vérification de null/undefined
+      const documentsData = (student.documents ?? [])
+        .filter((doc): doc is Required<Pick<FileEntity, 'id' | 'name' | 'type'>> => 
+          Boolean(doc?.id && doc?.name && doc?.type)
+        )
+        .map(doc => ({
           id: doc.id,
           name: doc.name,
           type: doc.type
-        })) : [],
-        className: student.class ? student.class.name : null,
+        }));
+
+      const response: StudentDetailsResponse = {
+        id: student.id,
+        firstname: student.firstname,
+        lastname: student.lastname,
+        matricule: student.matricule,
+        birthDay: student.birthDay,
+        birthPlace: student.birthPlace,
+        address: student.address,
+        famillyPhone: student.famillyPhone,
+        personalPhone: student.personalPhone,
+        sex: student.sex,
+        schoolYear: student.schoolYear,
+        photo: photoData,
+        documents: documentsData
       };
 
-      console.log("Détails de l'étudiant préparés:", studentDetails);
-      return studentDetails;
+      return response;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
       console.error('Erreur dans getStudentDetails:', error);
-      throw error;
+      throw new Error(`Erreur lors de la récupération des détails de l'étudiant: ${errorMessage}`);
     }
   }
 
-  async getAvailableLevelsAndFees(): Promise<ResultType> {
+  async updateStudent(studentId: number, studentData: Partial<Omit<StudentEntity, 'id'>>): Promise<ResultType> {
     try {
-      const classRooms = await this.classRepository.find();
-      const levelsAndFees = classRooms.map(room => ({
-        level: room.name,
-        inscriptionFees: room.inscriptionFees,
-        annualFees: room.annualFees
-      }));
-
-      return {
-        success: true,
-        data: levelsAndFees,
-        error: null,
-        message: Buffer.from('Niveaux et frais récupérés avec succès').toString('base64')
-      };
-    } catch (error: any) {
-      console.error("Erreur dans getAvailableLevelsAndFees:", error);
-      return {
-        success: false,
-        data: null,
-        error: error.message,
-        message: Buffer.from(`Échec de la récupération des niveaux et frais: ${error.message}`).toString('base64')
-      };
-    }
-  }
-
-  async updateStudent(studentId: number, studentData: Partial<StudentEntity>): Promise<ResultType> {
-    try {
-      const existingStudent = await this.studentRepository.findOne({ where: { id: studentId } });
+      const existingStudent = await this.studentRepository.findOne({ 
+        where: { id: studentId } 
+      });
+      
       if (!existingStudent) {
         throw new Error("Étudiant non trouvé");
       }
 
-      // Mettre à jour les propriétés de l'étudiant existant
-      Object.assign(existingStudent, studentData);
+      const updatedData: Partial<StudentEntity> = {};
+      for (const [key, value] of Object.entries(studentData)) {
+        if (value !== null && value !== undefined) {
+          (updatedData as any)[key] = value;
+        }
+      }
 
-      const updatedStudent = await this.studentRepository.save(existingStudent);
-      console.log("Étudiant mis à jour:", updatedStudent);
+      const updatedStudent = await this.studentRepository.save({
+        ...existingStudent,
+        ...updatedData
+      });
 
       return {
         success: true,
@@ -165,13 +173,14 @@ export class StudentService {
         error: null,
         message: Buffer.from('Étudiant mis à jour avec succès').toString('base64')
       };
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
       console.error("Erreur dans updateStudent:", error);
       return {
         success: false,
         data: null,
-        error: error.message,
-        message: Buffer.from(`Échec de la mise à jour: ${error.message}`).toString('base64')
+        error: errorMessage,
+        message: Buffer.from(`Échec de la mise à jour: ${errorMessage}`).toString('base64')
       };
     }
   }
