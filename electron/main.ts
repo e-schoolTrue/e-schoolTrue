@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
 import './events'
+import { PaymentService } from './backend/services/paymentService';
 
 // The built directory structure
 //
@@ -18,6 +19,10 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 let win: BrowserWindow | null
 let dataSourceInitialized = false;
+
+const global = {
+  paymentService: new PaymentService()
+};
 
 async function initializeDataSource() {
   if (!dataSourceInitialized) {

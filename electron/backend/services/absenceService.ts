@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { Between, Repository } from 'typeorm';
 import { AbsenceEntity } from '../entities/absence';
 import { AppDataSource } from '../../data-source';
 
@@ -17,9 +17,63 @@ export class AbsenceService {
     async getAbsencesByStudent(studentId: number): Promise<AbsenceEntity[]> {
         return await this.absenceRepository.find({
             where: { student: { id: studentId } },
-            order: { date: 'DESC' }
+            relations: ['student'],
+            order: {
+                date: 'DESC' as const // Explicitly type the order
+            }
         });
     }
 
-    // Ajoutez d'autres méthodes selon vos besoins
+    async updateAbsenceStatus(absenceId: number, justified: boolean): Promise<AbsenceEntity> {
+        const absence = await this.absenceRepository.findOne({
+            where: { id: absenceId },
+            relations: ['student']
+        });
+
+        if (!absence) {
+            throw new Error("Absence non trouvée");
+        }
+
+        absence.justified = justified;
+        return await this.absenceRepository.save(absence);
+    }
+
+    async deleteAbsence(absenceId: number): Promise<void> {
+        const absence = await this.absenceRepository.findOne({
+            where: { id: absenceId }
+        });
+
+        if (!absence) {
+            throw new Error("Absence non trouvée");
+        }
+
+        await this.absenceRepository.remove(absence);
+    }
+
+    async getAbsencesByDateRange(startDate: Date, endDate: Date): Promise<AbsenceEntity[]> {
+        return await this.absenceRepository.find({
+            where: {
+                date: Between(startDate, endDate)
+            },
+            relations: ['student'],
+            order: {
+                date: 'DESC' as const // Explicitly type the order
+            }
+        });
+    }
+
+    async getAbsenceStatistics(studentId: number): Promise<{
+        total: number;
+        justified: number;
+        unjustified: number;
+    }> {
+        const absences = await this.getAbsencesByStudent(studentId);
+        const justified = absences.filter(a => a.justified).length;
+
+        return {
+            total: absences.length,
+            justified,
+            unjustified: absences.length - justified
+        };
+    }
 }

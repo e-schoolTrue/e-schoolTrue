@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { StudentEntity } from "./students";
 
 @Entity('T_payment')
@@ -6,21 +6,31 @@ export class PaymentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @ManyToOne(() => StudentEntity, student => student.payments)
-    student!: StudentEntity;
-
-    @Column('decimal', { precision: 10, scale: 2 })
+    @Column({ type: "int" })
     amount!: number;
 
-    @Column('varchar')
-    paymentType!: string;
-
-    @Column('date')
+    @Column({ type: "datetime" })
     paymentDate!: Date;
 
-    @Column('varchar', { nullable: true })
-    paymentMethod!: string;
+    @Column({ type: "text" })
+    paymentType!: string; // "CASH" | "CHEQUE" | "VIREMENT"
 
-    @Column('varchar', { nullable: true })
-    receiptNumber!: string;
+    @Column({ type: "text", nullable: true })
+    reference?: string;
+
+    @Column({ type: "text", nullable: true })
+    notes?: string;
+
+    @ManyToOne(() => StudentEntity, student => student.payments)
+    @JoinColumn({ name: "studentId" })
+    student!: StudentEntity;
+
+    @Column({ type: "int" })
+    studentId!: number;
+
+    @Column({ type: "int" })
+    installmentNumber!: number;
+
+    @Column({ type: "text" })
+    schoolYear!: string;
 }

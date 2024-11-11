@@ -1,71 +1,88 @@
-<template>
-  <el-card class="absence-form">
-    <template #header>
-      <h3>Ajouter une absence</h3>
-    </template>
-    <el-form :model="form" @submit.prevent="submitForm" label-position="top">
-      <el-form-item label="ID Étudiant" prop="studentId">
-        <el-input v-model.number="form.studentId" type="number" placeholder="Entrez l'ID de l'étudiant" />
-      </el-form-item>
-      <el-form-item label="Date" prop="date">
-        <el-date-picker v-model="form.date" type="date" placeholder="Sélectionnez une date" style="width: 100%;" />
-      </el-form-item>
-      <el-form-item label="Raison" prop="reason">
-        <el-input v-model="form.reason" type="textarea" :rows="3" placeholder="Entrez la raison de l'absence" />
-      </el-form-item>
-      <el-form-item label="Justifiée" prop="justified">
-        <el-switch v-model="form.justified" active-text="Oui" inactive-text="Non" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" native-type="submit" :loading="isSubmitting">Ajouter l'absence</el-button>
-      </el-form-item>
-    </el-form>
-  </el-card>
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ref, computed } from 'vue';
+
+const props = defineProps({
+  visible: {
+    type: Boolean,
+    required: true
+  },
+  student: {
+    type: Object,
+    default: null
+  }
+});
+
+const emit = defineEmits(['update:visible', 'submit']);
 
 const form = ref({
-  studentId: null as number | null,
-  date: null as Date | null,
+  date: new Date(),
   reason: '',
   justified: false
 });
 
-const isSubmitting = ref(false);
-
-const emit = defineEmits(['absence-added']);
-
-const submitForm = async () => {
-  if (!form.value.studentId || !form.value.date || !form.value.reason) {
-    ElMessage.warning('Veuillez remplir tous les champs obligatoires');
-    return;
-  }
-
-  isSubmitting.value = true;
-  try {
-    const result = await window.ipcRenderer.invoke('absence:add', form.value);
-    if (result.success) {
-      emit('absence-added', result.data);
-      ElMessage.success("L'absence a été ajoutée avec succès");
-      form.value = { studentId: null, date: null, reason: '', justified: false };
-    } else {
-      ElMessage.error(result.message || "Erreur lors de l'ajout de l'absence");
-    }
-  } catch (error) {
-    console.error("Erreur lors de l'ajout de l'absence:", error);
-    ElMessage.error("Une erreur s'est produite lors de l'ajout de l'absence");
-  } finally {
-    isSubmitting.value = false;
-  }
+const rules = {
+  date: [{ required: true, message: 'La date est requise' }],
+  reason: [{ required: true, message: 'Le motif est requis' }]
 };
+
+const handleSubmit = () => {
+  emit('submit', { ...form.value });
+};
+
+const handleClose = () => {
+  emit('update:visible', false);
+  form.value = {
+    date: new Date(),
+    reason: '',
+    justified: false
+  };
+};
+
+const isVisible = computed(() => props.visible);
 </script>
 
-<style scoped>
-.absence-form {
-  max-width: 500px;
-  margin: 0 auto;
-}
-</style>
+<template>
+  <el-dialog
+    title="Ajouter une absence"
+    v-model="isVisible"
+    @close="handleClose"
+    width="500px"
+  >
+    <el-form
+      :model="form"
+      :rules="rules"
+      label-position="top"
+    >
+      <el-form-item label="Date" prop="date">
+        <el-date-picker
+          v-model="form.date"
+          type="date"
+          placeholder="Sélectionner la date"
+          style="width: 100%"
+        />
+      </el-form-item>
+
+      <el-form-item label="Motif" prop="reason">
+        <el-input
+          v-model="form.reason"
+          type="textarea"
+          rows="3"
+          placeholder="Saisir le motif de l'absence"
+        />
+      </el-form-item>
+
+      <el-form-item>
+        <el-checkbox v-model="form.justified">
+          Absence justifiée
+        </el-checkbox>
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <el-button @click="handleClose">Annuler</el-button>
+      <el-button type="primary" @click="handleSubmit">
+        Ajouter
+      </el-button>
+    </template>
+  </el-dialog>
+</template>

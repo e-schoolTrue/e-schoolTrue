@@ -13,11 +13,15 @@ interface Student {
   schoolYear: string;
   classId?: number;
   famillyPhone?: string;
+  sex: "male" | "female";
 }
 
 const router = useRouter();
 const students = ref<Student[]>([]);
 const filteredStudents = ref<Student[]>([]);
+
+const isDetailActive = ref(false);
+const isEditActive = ref(false);
 
 onMounted(async () => {
   await loadStudents();
@@ -34,7 +38,8 @@ const loadStudents = async () => {
         firstname: student.firstname,
         schoolYear: student.schoolYear,
         classId: student.classId !== null ? Number(student.classId) : null,
-        famillyPhone: student.famillyPhone || ''
+        famillyPhone: student.famillyPhone || '',
+        sex: student.sex || null // Si pas de genre défini, on met null
       }));
       filteredStudents.value = students.value;
     } else {
@@ -45,9 +50,9 @@ const loadStudents = async () => {
     ElMessage.error("Une erreur s'est produite lors du chargement des étudiants");
   }
 };
-
 const handleDetail = (student: Student) => {
   if (student && student.id) {
+    isDetailActive.value = true;
     router.push({ name: 'StudentDetails', params: { id: student.id.toString() } });
   } else {
     ElMessage.error("Impossible d'afficher les détails : ID de l'étudiant manquant");
@@ -64,21 +69,39 @@ const handleEdit = (studentOrId: Student | number) => {
   }
 
   if (studentId !== undefined) {
+    isEditActive.value = true;
     router.push({ name: 'UpdateStudent', params: { id: studentId.toString() } });
   } else {
     ElMessage.error("Impossible de modifier l'étudiant : ID manquant");
   }
 };
 
+const handleDeleteStudent = async (studentId: number) => {
+  try {
+    const result = await window.ipcRenderer.invoke("delete-student", studentId);
+    if (result.success) {
+      ElMessage.success("L'étudiant a été supprimé avec succès");
+      // Rafraîchir la liste après suppression
+      await loadStudents();
+    } else {
+      ElMessage.error(`Échec de la suppression de l'étudiant : ${result.message}`);
+    }
+  } catch (error) {
+    console.error("Erreur lors de la suppression de l'étudiant:", error);
+    ElMessage.error("Une erreur est survenue lors de la suppression de l'étudiant");
+  }
+};
+
 const handleFilter = (filterCriteria: any) => {
   filteredStudents.value = students.value.filter(student => {
-    const nameMatch = (student.firstname?.toLowerCase().includes(filterCriteria.studentFirstName.toLowerCase()) || 
-                       student.lastname?.toLowerCase().includes(filterCriteria.studentLastName.toLowerCase())) ?? true;
-    const matriculeMatch = student.matricule?.includes(filterCriteria.studentPV) ?? true;
+    const nameMatch = filterCriteria.studentFullName
+      ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
+         student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+      : true;
     const classMatch = !filterCriteria.schoolClass || student.classId?.toString() === filterCriteria.schoolClass;
     const yearMatch = !filterCriteria.schoolYear || student.schoolYear === filterCriteria.schoolYear;
 
-    return nameMatch && matriculeMatch && classMatch && yearMatch;
+    return nameMatch && classMatch && yearMatch;
   });
 };
 
@@ -88,59 +111,15 @@ const handlePageChange = (page: number) => {
 </script>
 
 <template>
-  <el-container>
-    <el-aside width="250px">
-      <el-card shadow="hover">
-        <el-row justify="center">
-          <el-text size="large" style="font-weight: bold; color: #333;">
-            Liste des Élèves
-          </el-text>
-        </el-row>
-      </el-card>
-    </el-aside>
-    
-    <el-main>
-      <el-card shadow="always" class="main-card">
-        <student-filter @filter="handleFilter" />
-        <div class="table-container">
-          <student-table 
-            :students="filteredStudents"
-            @detail="handleDetail" 
-            @edit="handleEdit"
-            @pageChange="handlePageChange"
-          />
-        </div>
-      </el-card>
-    </el-main>
-  </el-container>
+  <student-filter @filter="handleFilter" />
+  <student-table 
+    :students="filteredStudents"
+    @detail="handleDetail" 
+    @edit="handleEdit"
+    @delete="handleDeleteStudent"
+    @pageChange="handlePageChange"
+  />
 </template>
 
 <style scoped>
-.el-container {
-  height: calc(100vh - 60px);
-}
-
-.el-aside {
-  background-color: #f0f2f5;
-  padding: 10px;
-}
-
-.el-main {
-  padding: 20px;
-}
-
-.main-card {
-  padding: 20px;
-  border-radius: 8px;
-  background-color: #fff;
-}
-
-.table-container {
-  margin-top: 20px;
-  height: calc(100% - 100px);
-  overflow-y: auto;
-  padding: 10px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-}
 </style>

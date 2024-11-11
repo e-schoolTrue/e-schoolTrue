@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, defineAsyncComponent, PropType, defineEmits} from 'vue';
-
+import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 
 interface ClassItem {
   id: number;
   name: string;
 }
 
-// Définition de l'interface StudentData
 interface StudentData {
   firstname: string;
   lastname: string;
@@ -22,16 +21,19 @@ interface StudentData {
   famillyPhone: string;
   personalPhone: string;
   photo: StudentFile | null;
-  document: StudentFile | null;
+  documents: StudentFile[];
   sex: 'male' | 'female';
   schoolYear: string;
 }
 
+interface StudentFile {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+}
+
 const props = defineProps({
-  classes: {
-    type: Array as PropType<ClassItem[]>,
-    required: true
-  },
   studentData: {
     type: Object as PropType<Partial<StudentData>>,
     default: () => ({})
@@ -42,17 +44,42 @@ const props = defineProps({
   }
 });
 
-interface StudentFile {
-  name: string;
-  type: string;
-  size: number;
-  content: string;  // Changé pour string (base64)
-}
+// État pour stocker les classes
+const classes = ref<ClassItem[]>([]);
+const loading = ref(false);
 
-// État de l'étape actuelle
+// Fonction pour charger les classes
+const loadClasses = async () => {
+  loading.value = true;
+  try {
+    const result = await window.ipcRenderer.invoke("grade:all");
+    console.log("Classes reçues:", result);
+    
+    if (result?.success && Array.isArray(result.data)) {
+      classes.value = result.data.map((grade: { id: number; name: string; }) => ({
+        id: grade.id,
+        name: grade.name
+      }));
+    } else {
+      console.error("Format de données invalide pour les classes:", result);
+      ElMessage.error("Erreur lors du chargement des classes");
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des classes:", error);
+    ElMessage.error("Erreur lors du chargement des classes");
+    classes.value = [];
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Charger les classes au montage du composant
+onMounted(() => {
+  loadClasses();
+});
+
 const currentStep = ref(0);
 
-// État des données de formulaire
 const formData = reactive<StudentData>({
   firstname: '',
   lastname: '',
@@ -67,17 +94,16 @@ const formData = reactive<StudentData>({
   famillyPhone: '',
   personalPhone: '',
   photo: null,
-  document: null,
+  documents: [],
   sex: 'male',
   schoolYear: '',
-  ...props.studentData, // Fusionner avec les données existantes, si fournies
+  ...props.studentData,
 });
 
 const emit = defineEmits<{
   (e: 'save', data: StudentData): void
 }>();
 
-// Gérer les étapes "Suivant" et "Précédent"
 const nextStep = () => {
   if (currentStep.value < 5) {
     currentStep.value += 1;
@@ -91,14 +117,18 @@ const previousStep = () => {
 };
 
 const saveData = () => {
-  console.log("Données brutes à sauvegarder:", formData);
-  
-  // Fonction pour nettoyer l'objet
   const cleanObject = (obj: any) => {
     const cleanedObj: any = {};
     for (const [key, value] of Object.entries(obj)) {
       if (value instanceof Date) {
         cleanedObj[key] = value.toISOString();
+      } else if (Array.isArray(value)) {
+        cleanedObj[key] = value.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return cleanObject(item);
+          }
+          return item;
+        });
       } else if (typeof value === 'object' && value !== null) {
         cleanedObj[key] = cleanObject(value);
       } else if (value !== undefined) {
@@ -109,22 +139,19 @@ const saveData = () => {
   };
 
   const dataToSave = cleanObject(formData);
-  console.log("Données nettoyées à sauvegarder:", dataToSave);
-
   try {
     emit("save", dataToSave);
   } catch (error) {
     console.error("Erreur lors de l'émission de l'événement save:", error);
+    ElMessage.error("Erreur lors de la sauvegarde");
   }
 };
 
-// Importez les composants de section de manière asynchrone
 const PersonalInfo = defineAsyncComponent(() => import('./sections/PersonalInfo.vue'));
 const ParentInfo = defineAsyncComponent(() => import('./sections/ParentInfo.vue'));
 const SchoolInfo = defineAsyncComponent(() => import('./sections/SchoolInfo.vue'));
 const Attachments = defineAsyncComponent(() => import('./sections/Attachments.vue'));
 
-// Définissez un tableau de sections
 const sections = [
   PersonalInfo,
   ParentInfo,
@@ -147,14 +174,15 @@ const sections = [
         <component 
           :is="sections[currentStep]" 
           :formData="formData" 
-          :classes="props.classes"
+          :classes="classes"
+          :loading="loading"
         />
 
         <div class="step-actions">
           <el-button v-if="currentStep > 0" @click="previousStep" :disabled="props.disabled">Précédent</el-button>
           <el-button v-if="currentStep < 4" type="primary" @click="nextStep" :disabled="props.disabled">Suivant</el-button>
-          <el-button v-if="currentStep === 4" type="primary" @click="saveData" :disabled="props.disabled">
-            <el-icon class="el-icon-loading" v-if="props.disabled"></el-icon>
+          <el-button v-if="currentStep === 4" type="primary" @click="saveData" :disabled="props.disabled || loading">
+            <el-icon class="el-icon-loading" v-if="loading || props.disabled"></el-icon>
             Sauvegarder
           </el-button>
         </div>
@@ -192,7 +220,6 @@ const sections = [
   padding: 10px 0;
 }
 
-/* Styles pour la barre de défilement */
 .form-container::-webkit-scrollbar {
   width: 8px;
 }

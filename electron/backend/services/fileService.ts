@@ -1,63 +1,109 @@
 import { Repository } from 'typeorm';
-import { FileEntity } from '#electron/backend/entities/file';
-import { StudentEntity } from '#electron/backend/entities/students';
-import { AppDataSource } from '#electron/data-source';
+import { FileEntity } from '../entities/file';
+import { AppDataSource } from '../../data-source';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { app } from 'electron';
+
+interface FileResponse {
+    content: Buffer;
+    type: string;
+    name: string;
+    path: string;
+}
 
 export class FileService {
     private fileRepository: Repository<FileEntity>;
-    private studentRepository: Repository<StudentEntity>;
     private uploadDir: string;
 
     constructor() {
         this.fileRepository = AppDataSource.getInstance().getRepository(FileEntity);
-        this.studentRepository = AppDataSource.getInstance().getRepository(StudentEntity);
-        this.uploadDir = path.join(app.getPath('userData'), 'uploads');
+        this.uploadDir = path.join(__dirname, '..', '..', 'uploads');
         fs.mkdir(this.uploadDir, { recursive: true }).catch(console.error);
     }
 
     async saveFile(content: string, name: string, type: string): Promise<FileEntity> {
-        const fileName = `${Date.now()}-${name}`;
-        const filePath = path.join(this.uploadDir, fileName);
+        try {
+            // Extraire le contenu base64 réel (supprimer le préfixe data:image/...;base64,)
+            const base64Data = content.replace(/^data:image\/\w+;base64,/, '');
+            
+            // Convertir en Buffer
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            // Créer un nom de fichier unique
+            const fileName = `${Date.now()}-${name}`;
+            const filePath = path.join(this.uploadDir, fileName);
 
-        const fileData: Partial<FileEntity> = {
-            name,
-            path: filePath,
-            type
-        };
+            // Écrire le fichier
+            await fs.writeFile(filePath, buffer);
+            console.log("Fichier sauvegardé:", filePath);
 
-        const file = this.fileRepository.create(fileData);
+            // Créer l'entité File
+            const fileData: Partial<FileEntity> = {
+                name: name,
+                path: filePath,
+                type: type
+            };
 
-        // Écrire le contenu du fichier
-        await fs.writeFile(filePath, content);
-
-        // Sauvegarder les métadonnées du fichier dans la base de données
-        return await this.fileRepository.save(file);
-    }
-
-    async getFileById(id: number): Promise<FileEntity | null> {
-        return await this.fileRepository.findOne({ where: { id } });
-    }
-
-    async getFileContent(id: number): Promise<Buffer | null> {
-        const file = await this.getFileById(id);
-        if (file && file.path) {
-            return await fs.readFile(file.path);
+            const file = this.fileRepository.create(fileData);
+            return await this.fileRepository.save(file);
+        } catch (error) {
+            console.error('Erreur lors de la sauvegarde du fichier:', error);
+            throw error;
         }
-        return null;
     }
 
-    async associateFileWithStudent(fileId: number, studentId: number): Promise<void> {
-        const file = await this.fileRepository.findOne({ where: { id: fileId } });
-        const student = await this.studentRepository.findOne({ where: { id: studentId } });
+    async getFileById(fileId: number): Promise<FileResponse | null> {
+        try {
+            const file = await this.fileRepository.findOne({ where: { id: fileId } });
+            if (!file || !file.path || !file.type || !file.name) {
+                console.log("Fichier non trouvé ou données manquantes");
+                return null;
+            }
 
-        if (file && student) {
-            file.student = student;
-            await this.fileRepository.save(file);
-        } else {
-            console.warn(`Impossible d'associer le fichier (ID: ${fileId}) à l'étudiant (ID: ${studentId}). L'un des deux n'existe pas.`);
+            console.log("Lecture du fichier:", file.path);
+            const content = await fs.readFile(file.path);
+            console.log("Taille du fichier:", content.length, "bytes");
+            console.log("Type du fichier:", file.type);
+
+            return {
+                content,
+                type: file.type,
+                name: file.name,
+                path: file.path
+            };
+        } catch (error) {
+            console.error('Erreur lors de la récupération du fichier:', error);
+            return null;
         }
+    }
+
+    async saveDocuments(documents: any[], studentId: number): Promise<FileEntity[]> {
+        const savedDocuments: FileEntity[] = [];
+        
+        for (const doc of documents) {
+            try {
+                const base64Data = doc.content.replace(/^data:.*?;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                const fileName = `${Date.now()}-${doc.name}`;
+                const filePath = path.join(this.uploadDir, fileName);
+                
+                await fs.writeFile(filePath, buffer);
+                
+                const fileEntity = this.fileRepository.create({
+                    name: doc.name,
+                    path: filePath,
+                    type: doc.type,
+                    student: { id: studentId }
+                });
+                
+                const savedDoc = await this.fileRepository.save(fileEntity);
+                savedDocuments.push(savedDoc);
+            } catch (error) {
+                console.error(`Erreur lors de la sauvegarde du document ${doc.name}:`, error);
+            }
+        }
+        
+        return savedDocuments;
     }
 }

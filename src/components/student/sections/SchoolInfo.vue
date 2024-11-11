@@ -4,10 +4,10 @@
     <el-form-item label="Classe">
       <el-select v-model="formData.classId" placeholder="Sélectionnez une classe">
         <el-option
-          v-for="classItem in classes"
-          :key="classItem.id"
-          :label="classItem.name"
-          :value="classItem.id"
+          v-for="classItem in safeClasses"
+          :key="classItem?.id"
+          :label="classItem?.name"
+          :value="classItem?.id"
         />
       </el-select>
     </el-form-item>
@@ -18,5 +18,31 @@
 </template>
 
 <script setup lang="ts">
-defineProps(['formData', 'classes']);
+import { computed } from 'vue';
+
+interface ClassItem {
+  id: number;
+  name: string;
+}
+
+interface Props {
+  formData: {
+    classId: number | null;
+    schoolYear: string;
+  };
+  classes: ClassItem[];
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  classes: () => [],
+  formData: () => ({
+    classId: null,
+    schoolYear: ''
+  })
+});
+
+
+const safeClasses = computed(() => {
+  return Array.isArray(props.classes) ? props.classes : [];
+});
 </script>

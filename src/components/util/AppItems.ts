@@ -18,20 +18,6 @@ export const AppItems = [
                 route: "/student",
                 subItems:[]
             },
-            {
-                id: "submenu-1-3",
-                title: "Gestion des Absences",
-                icon: "mdi:calendar-alert",
-                route: "/absences",
-                subItems:[]
-            },
-            {
-                id: "submenu-1-4",
-                title: "Gestion des Paiements",
-                icon: "mdi:cash-multiple",
-                route: "/payments",
-                subItems:[]
-            }
         ]
     },
     {
@@ -87,6 +73,12 @@ export const AppItems = [
                 title: "Configuration des notes",
                 icon: "fa6-solid:school-circle-xmark",
                 route: "/school-notes",
+            },
+            {
+                id: "submenu-6-6",
+                title: "Configuration des paiements",
+                icon: "mdi:cash-register",
+                route: "/payment-config",
             }
         ]
     }

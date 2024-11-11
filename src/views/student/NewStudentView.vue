@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import StudentForm from '@/components/student/student-form.vue';
-import FileUploader from '@/components/student/FileUploader.vue';
+import FileUploader from '@/components/student/student-file.vue';
 import { ElMessage } from 'element-plus';
 import type { StudentData } from '@/types/student';
 
@@ -26,6 +26,13 @@ const isLoading = ref(false);
 // Fonction pour gérer les données du formulaire
 const saveStudent = async (studentData: any) => {
   try {
+    console.log("Données reçues de student-form:", studentData);
+    
+    // S'assurer que documents est un tableau
+    if (studentData.documents && !Array.isArray(studentData.documents)) {
+      studentData.documents = Object.values(studentData.documents);
+    }
+    
     console.log("Données de l'étudiant à enregistrer:", studentData);
     
     // Sérialiser puis désérialiser pour s'assurer que l'objet est clonable
@@ -38,7 +45,7 @@ const saveStudent = async (studentData: any) => {
     } else {
       let errorMessage = "Échec de l'enregistrement";
       if (result.message) {
-        errorMessage = result.message; // Utiliser le message tel quel, sans décodage
+        errorMessage = result.message;
       }
       ElMessage.error(errorMessage);
     }
@@ -81,52 +88,64 @@ const handleFileLoaded = async (students: StudentData[]) => {
   }
 };
 </script>
-
 <template>
-  <el-card>
-    <div class="header-container">
-      <el-row align="middle" justify="space-between">
-        <el-col :span="12">
-          <el-text size="large" class="title">Ajouter un nouvel élève</el-text>
-        </el-col>
-      </el-row>
-    </div>
+  <el-card :shadow="'hover'" style="border-radius: 8px;">
 
-    <!-- Section d'import de fichier -->
-    <div class="section-container">
-      <h3>Import par fichier</h3>
-      <FileUploader 
-        @fileLoaded="handleFileLoaded"
-        :disabled="isLoading"
-      />
-    </div>
+    <!-- Conteneur principal pour la séparation horizontale -->
+    <el-row :gutter="20" class="main-container">
+      <!-- Section d'import de fichier -->
+      <el-col :span="6" class="section-container">
+        <FileUploader 
+          @fileLoaded="handleFileLoaded"
+          :disabled="isLoading"
+        />
+      </el-col>
 
-    <!-- Séparateur -->
-    <el-divider />
+      <!-- Séparateur vertical entre les sections -->
+      <el-divider direction="vertical" class="divider" />
 
-    <!-- Section du formulaire -->
-    <div class="section-container">
-      <h3>Ajout manuel</h3>
-      <student-form :classes="classes" @save="saveStudent" />
-    </div>
+      <!-- Section du formulaire d'ajout manuel -->
+      <el-col :span="16" class="section-container">
+        <student-form :classes="classes" @save="saveStudent" />
+      </el-col>
+    </el-row>
   </el-card>
 </template>
 
 <style scoped>
 .header-container {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
+  background-color: var(--background-color);
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.main-container {
+  display: flex;
 }
 
 .section-container {
-  margin: 1rem 0;
+  background-color: #fff;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  flex: 1;
 }
 
 .section-container h3 {
   margin-bottom: 1rem;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
+  font-weight: bold;
 }
 
-.el-divider {
-  margin: 2rem 0;
+.title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.divider {
+  height: 100%;
+  border-color: var(--primary-color);
 }
 </style>
