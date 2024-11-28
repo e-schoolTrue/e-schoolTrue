@@ -44,6 +44,11 @@
       <div class="table-header">
         <h3 class="table-title">Liste des élèves</h3>
         <div class="table-actions">
+          <el-tooltip content="Aperçu avant impression" placement="top">
+            <el-button type="info" circle @click="handlePreview" style="margin-right: 8px">
+              <Icon icon="mdi:eye" />
+            </el-button>
+          </el-tooltip>
           <el-tooltip content="Imprimer la liste" placement="top">
             <el-button type="primary" circle @click="handlePrint">
               <Icon icon="mdi:printer" />
@@ -214,7 +219,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["detail", "edit", "pageChange", "delete", "print"]);
+const emit = defineEmits(["detail", "edit", "pageChange", "delete", "print", "preview"]);
 
 const currentPage = ref(1);
 const pageSize = ref(5);
@@ -292,7 +297,31 @@ const handlePageChange = (page: number) => {
 };
 
 const handlePrint = () => {
-  emit("print", paginatedData.value);
+  // Vérifier si les données sont filtrées par classe
+  const allSameGrade = props.students.every((student, _i, arr) => 
+    student.gradeId === arr[0].gradeId
+  );
+
+  if (!allSameGrade) {
+    ElMessage.warning('Merci de filtrer par classe (grade) avant d\'imprimer');
+    return;
+  }
+
+  emit("print", props.students);
+};
+
+const handlePreview = () => {
+  // Même vérification que pour l'impression
+  const allSameGrade = props.students.every((student, _i, arr) => 
+    student.gradeId === arr[0].gradeId
+  );
+
+  if (!allSameGrade) {
+    ElMessage.warning('Merci de filtrer par classe (grade) avant l\'aperçu');
+    return;
+  }
+
+  emit("preview", props.students);
 };
 
 // Obtenir le nom du grade à partir de son ID

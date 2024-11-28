@@ -51,9 +51,11 @@ const students = ref<Student[]>([]);
 const filteredStudents = ref<Student[]>([]);
 const printData: Ref<Student[]> = ref([]);
 const schoolPrintRef = ref<ComponentPublicInstance | null>(null);
+const previewPrintRef = ref<ComponentPublicInstance | null>(null);
 const printDialogVisible = ref(false);
 const isDetailActive = ref(false);
 const isEditActive = ref(false);
+const previewDialogVisible = ref(false);
 
 onMounted(async () => {
   await loadStudents();
@@ -123,19 +125,27 @@ const handlePrint = async (data: Student[]) => {
     return;
   }
 
+  // Vérifier si les données sont filtrées par classe
+  const allSameGrade = data.every((student, _i, arr) => 
+    student.gradeId === arr[0].gradeId
+  );
+
+  if (!allSameGrade) {
+    ElMessage.warning('Merci de filtrer par classe (grade) avant d\'imprimer');
+    return;
+  }
+
   printData.value = data;
   
-  // Correction des critères de filtrage
+  // Mettre à jour les critères de filtrage
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
       ? (document.querySelector('.student-filter input[placeholder="Nom ou prénom"]') as HTMLInputElement)?.value
       : '',
-      schoolGrade: filteredStudents.value.length < students.value.length
-      ? (document.querySelector('.student-filter select[placeholder="Classe"]') as HTMLSelectElement)?.value
+    schoolGrade: data[0]?.gradeId 
+      ? (await getGradeName(data[0].gradeId))
       : '',
-    schoolYear: filteredStudents.value.length < students.value.length
-      ? (document.querySelector('.student-filter select[placeholder="Année scolaire"]') as HTMLSelectElement)?.value
-      : ''
+    schoolYear: data[0]?.schoolYear || ''
   };
   
   printDialogVisible.value = true;
@@ -172,6 +182,20 @@ const handlePrint = async (data: Student[]) => {
     console.error("Erreur lors de l'impression:", error);
     ElMessage.error("Erreur lors de l'impression");
     printDialogVisible.value = false;
+  }
+};
+
+const getGradeName = async (gradeId: number): Promise<string> => {
+  try {
+    const result = await window.ipcRenderer.invoke("grade:all");
+    if (result.success && result.data) {
+      const grade = result.data.find((g: any) => g.id === gradeId);
+      return grade ? grade.name : '';
+    }
+    return '';
+  } catch (error) {
+    console.error("Erreur lors de la récupération du nom de la classe:", error);
+    return '';
   }
 };
 
@@ -248,6 +272,67 @@ const handleFilter = (filterCriteria: {
 const handlePageChange = (page: number) => {
   console.log('Page changée:', page);
 };
+
+const handlePreview = async (data: Student[]) => {
+  if (!data || data.length === 0) {
+    ElMessage.error("Aucune donnée à afficher");
+    return;
+  }
+
+  printData.value = data;
+  
+  // Mettre à jour les critères de filtrage
+  filterCriteria.value = {
+    studentFullName: filteredStudents.value.length < students.value.length
+      ? (document.querySelector('.student-filter input[placeholder="Nom ou prénom"]') as HTMLInputElement)?.value
+      : '',
+    schoolGrade: data[0]?.gradeId 
+      ? (await getGradeName(data[0].gradeId))
+      : '',
+    schoolYear: data[0]?.schoolYear || ''
+  };
+  
+  previewDialogVisible.value = true;
+};
+
+const proceedWithPrint = () => {
+  previewDialogVisible.value = false;
+  // Attendre que la dialog soit fermée avant d'imprimer
+  setTimeout(async () => {
+    printDialogVisible.value = true;
+    await nextTick();
+    
+    const printElement = schoolPrintRef.value?.$el;
+    if (!printElement) {
+      ElMessage.error("Le template d'impression n'est pas prêt");
+      return;
+    }
+
+    try {
+      printJS({
+        printable: printElement.id || 'school-print-template',
+        type: 'html',
+        documentTitle: 'Liste des étudiants',
+        targetStyles: ['*'],
+        scanStyles: true,
+        css: [],
+        onPrintDialogClose: () => {
+          printDialogVisible.value = false;
+          ElMessage.success("Impression terminée");
+        },
+        onError: (error) => {
+          console.error("Erreur d'impression:", error);
+          ElMessage.error("Erreur lors de l'impression");
+          printDialogVisible.value = false;
+        }
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'impression:", error);
+      ElMessage.error("Erreur lors de l'impression");
+      printDialogVisible.value = false;
+    }
+  }, 300);
+};
 </script>
 
 <template>
@@ -263,12 +348,73 @@ const handlePageChange = (page: number) => {
       @delete="handleDeleteStudent"
       @pageChange="handlePageChange"
       @print="handlePrint"
+      @preview="handlePreview"
     />
-    <SchoolPrintTemplate
-      v-if="printDialogVisible"
-      ref="schoolPrintRef"
-      :students="printData"
-      :filter-criteria="filterCriteria"
-    />
+    
+    <!-- Dialog pour l'aperçu -->
+    <el-dialog
+      v-model="previewDialogVisible"
+      title="Aperçu avant impression"
+      width="90%"
+      :fullscreen="true"
+      custom-class="preview-dialog"
+      destroy-on-close
+    >
+      <SchoolPrintTemplate
+        v-if="previewDialogVisible"
+        ref="previewPrintRef"
+        :students="printData"
+        :filter-criteria="filterCriteria"
+      />
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="previewDialogVisible = false">Fermer</el-button>
+          <el-button type="primary" @click="proceedWithPrint">
+            Imprimer
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- Template caché pour l'impression -->
+    <div v-show="false">
+      <SchoolPrintTemplate
+        v-if="printDialogVisible"
+        ref="schoolPrintRef"
+        :students="printData"
+        :filter-criteria="filterCriteria"
+      />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.preview-dialog {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-dialog :deep(.el-dialog__body) {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+.preview-dialog :deep(.el-dialog__header) {
+  padding: 15px 20px;
+  margin-right: 0;
+  border-bottom: 1px solid #dcdfe6;
+}
+
+.preview-dialog :deep(.el-dialog__footer) {
+  border-top: 1px solid #dcdfe6;
+  padding: 15px 20px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+</style>

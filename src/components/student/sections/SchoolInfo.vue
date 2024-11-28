@@ -12,13 +12,18 @@
       </el-select>
     </el-form-item>
     <el-form-item label="Année Scolaire">
-      <el-input v-model="formData.schoolYear" placeholder="Année scolaire" />
+      <el-input 
+        v-model="formData.schoolYear" 
+        placeholder="Année scolaire"
+        disabled
+      />
     </el-form-item>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 
 interface ClassItem {
   id: number;
@@ -27,7 +32,7 @@ interface ClassItem {
 
 interface Props {
   formData: {
-    gradeId: number | null; // Changé de classId à gradeId
+    gradeId: number | null;
     schoolYear: string;
   };
   classes: ClassItem[];
@@ -36,13 +41,28 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   classes: () => [],
   formData: () => ({
-    gradeId: null, // Changé de classId à gradeId
+    gradeId: null,
     schoolYear: ''
   })
 });
 
-
 const safeClasses = computed(() => {
   return Array.isArray(props.classes) ? props.classes : [];
 });
+
+const fetchCurrentSchoolYear = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
+    if (result.success && result.data) {
+      props.formData.schoolYear = result.data.schoolYear;
+    } else {
+      ElMessage.warning("Aucune année scolaire active n'a été trouvée");
+    }
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'année scolaire:", error);
+    ElMessage.error("Impossible de récupérer l'année scolaire");
+  }
+};
+
+onMounted(fetchCurrentSchoolYear);
 </script>

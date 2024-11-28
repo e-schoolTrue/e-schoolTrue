@@ -33,6 +33,7 @@
       <div class="document-header">
         <h2 class="document-title">
           Liste des élèves 
+          {{ gradeName ? `- ${gradeName}` : '' }}
           {{ filterInfoText ? `(${filterInfoText})` : '' }}
         </h2>
       </div>
@@ -162,33 +163,25 @@ export default defineComponent({
 
     // Calcul du texte des filtres
     const filterInfoText = computed(() => {
-      const { studentFullName, schoolGrade, schoolYear } = props.filterCriteria;
       const filters = [];
       
-      if (studentFullName) filters.push(`Nom: ${studentFullName}`);
-      if (schoolGrade) filters.push(`Classe: ${schoolGrade}`);
-      if (schoolYear) filters.push(`Année: ${schoolYear}`);
+      if (props.filterCriteria?.studentFullName) {
+        filters.push(`Nom: ${props.filterCriteria.studentFullName}`);
+      }
+      if (props.filterCriteria?.schoolYear) {
+        filters.push(`Année: ${props.filterCriteria.schoolYear}`);
+      }
 
       return filters.length > 0 ? filters.join(', ') : '';
     });
 
     // Calcul du nom de la classe
     const gradeName = computed(() => {
-      // Si un critère de classe est spécifié, utilisez-le directement
+      // Si un critère de classe est spécifié, l'utiliser
       if (props.filterCriteria?.schoolGrade) {
         return props.filterCriteria.schoolGrade;
       }
-      
-      // Si les étudiants ont tous la même classe
-      const firstGradeId = props.students[0]?.gradeId;
-      const allSameGrade = props.students.every(student => student.gradeId === firstGradeId);
-      
-      if (allSameGrade && firstGradeId) {
-        return `Classe ${firstGradeId}`;
-      }
-      
-      // Sinon, retournez une valeur par défaut
-      return 'Toutes classes';
+      return '';
     });
 
     // Décider si la colonne de classe doit être affichée

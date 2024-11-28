@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, defineAsyncComponent, PropType, defineEmits} from 'vue';
+import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted} from 'vue';
 
 
 interface ClassItem {
@@ -139,6 +139,17 @@ const sections = [
   SchoolInfo,
   Attachments,
 ];
+
+onMounted(async () => {
+  try {
+    const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
+    if (result.success && result.data) {
+      formData.schoolYear = result.data.schoolYear;
+    }
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'année scolaire:", error);
+  }
+});
 </script>
 
 <template>

@@ -617,5 +617,36 @@ ipcMain.handle("yearRepartition:delete", async (_event, id: number) => {
     }
 });
 
+// Modifier le handler pour utiliser la fonction existante
+ipcMain.handle("yearRepartition:getCurrent", async () => {
+    try {
+        // Utiliser le handler existant
+        const result = await global.yearRepartitionService.getAllYearRepartitions();
+        if (!result.success || !result.data) {
+            return { success: false, message: "Aucune répartition trouvée" };
+        }
+
+        // Trouver l'année scolaire active
+        const currentDate = new Date();
+        const currentRepartition = result.data
+            .find((repartition: { periodConfigurations: any; }) => {
+                const periods = repartition.periodConfigurations;
+                if (!periods || periods.length === 0) return false;
+                
+                const startDate = new Date(periods[0].start);
+                const endDate = new Date(periods[periods.length - 1].end);
+                
+                return currentDate >= startDate && currentDate <= endDate;
+            });
+
+        return {
+            success: true,
+            data: currentRepartition || null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
 
 

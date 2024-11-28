@@ -74,8 +74,20 @@ const resetFilter = () => {
   emit('reset', filterForm);
 };
 
+const fetchCurrentSchoolYear = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
+    if (result.success && result.data) {
+      filterForm.schoolYear = result.data.schoolYear;
+    }
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'année scolaire:", error);
+  }
+};
+
 onMounted(() => {
   loadGrades();
+  fetchCurrentSchoolYear();
 });
 </script>
 
