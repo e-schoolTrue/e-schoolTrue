@@ -13,6 +13,11 @@
     "@mdi/js": "^7.4.47",
     "better-sqlite3": "^9.6.0",
     "csv-parser": "^3.0.0",
+    "date-fns": "^4.1.0",
+    "electron-print-preview": "^2.2.0",
+    "electron-printer": "^0.0.5",
+    "html2pdf.js": "^0.10.2",
+    "print-js": "^1.6.0",
     "typeorm": "^0.3.20",
     "xlsx": "^0.18.5"
   },

@@ -98,12 +98,11 @@ const canShowDetails = computed(() => {
 }
 
 .el-main {
-  padding: 20px;
+  padding: 5px;
 }
 
 .main-card {
-  padding: 20px;
-  border-radius: 8px;
+  border-radius: 4px;
   background-color: #fff;
   height: 100%;
 }

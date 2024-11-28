@@ -30,6 +30,7 @@ declare module 'vue' {
     ElCol: typeof import('element-plus/es')['ElCol']
     ElCollapse: typeof import('element-plus/es')['ElCollapse']
     ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']
+    ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElContainer: typeof import('element-plus/es')['ElContainer']
     ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
     ElDescriptions: typeof import('element-plus/es')['ElDescriptions']
@@ -86,12 +87,14 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SchoolInfo: typeof import('./src/components/student/sections/SchoolInfo.vue')['default']
+    SchoolPrintTemplate: typeof import('./src/components/template/SchoolPrintTemplate.vue')['default']
     StudentFile: typeof import('./src/components/student/student-file.vue')['default']
     StudentFilter: typeof import('./src/components/student/student-filter.vue')['default']
     StudentForm: typeof import('./src/components/student/student-form.vue')['default']
     StudentLayout: typeof import('./src/components/layouts/StudentLayout.vue')['default']
     StudentTable: typeof import('./src/components/student/student-table.vue')['default']
     StudentUpdate: typeof import('./src/components/student/student-update.vue')['default']
+    YearRepartionForm: typeof import('./src/components/schoolYear/YearRepartionForm.vue')['default']
   }
   export interface ComponentCustomProperties {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

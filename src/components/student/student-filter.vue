@@ -64,9 +64,9 @@ const loadGrades = async () => {
 };
 
 const applyFilter = () => {
+  console.log('Filtres appliqués:', filterForm);
   emit('filter', filterForm);
 };
-
 const resetFilter = () => {
   filterForm.schoolYear = '';
   filterForm.classId = '';
@@ -150,11 +150,11 @@ onMounted(() => {
 
 <style scoped>
 .el-form-item {
-  margin-bottom: 18px;
+  margin-bottom: 5px;
 }
 
 .button-row {
-  margin-top: 20px;
+  margin-top: 10px;
 }
 
 .center-align {

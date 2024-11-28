@@ -1,28 +1,31 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import StudentForm from '@/components/student/student-form.vue';
 import FileUploader from '@/components/student/student-file.vue';
 import { ElMessage } from 'element-plus';
 import type { StudentData } from '@/types/student';
 
-const classes = ref([
-  { id: 1, name: 'CI' },
-  { id: 2, name: 'CP' },
-  { id: 3, name: 'CE1' },
-  { id: 4, name: 'CE2' },
-  { id: 5, name: 'CM1' },
-  { id: 6, name: 'CM2' },
-  { id: 7, name: '6ème' },
-  { id: 8, name: '5ème' },
-  { id: 9, name: '4ème' },
-  { id: 10, name: '3ème' },
-  { id: 11, name: '2nde' },
-  { id: 12, name: '1ère' },
-  { id: 13, name: 'Terminale' }
-]);
 
 const isLoading = ref(false);
+const classes = ref([]); // Initialisation vide
 
+
+const fetchClasses = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('grade:all');
+    if (result.success) {
+      classes.value = result.data; // Supposons que le résultat contient un tableau de classes
+    } else {
+      throw new Error(result.message || 'Échec de la récupération des classes');
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des classes:', error);
+    ElMessage.error('Impossible de charger les classes');
+  }
+};
+
+// Charger les classes au montage
+onMounted(fetchClasses);
 // Fonction pour gérer les données du formulaire
 const saveStudent = async (studentData: any) => {
   try {
@@ -67,7 +70,7 @@ const handleFileLoaded = async (students: StudentData[]) => {
         const preparedData = {
           ...student,
           birthDay: student.birthDay ? new Date(student.birthDay) : null,
-          classId: student.classId ? Number(student.classId) : null
+          gradeId: student.gradeId // directement gradeId
         };
 
         console.log('Tentative d\'enregistrement pour:', preparedData);

@@ -8,7 +8,10 @@ import {PaymentConfigEntity} from "./backend/entities/paymentConfig.ts";
 import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
 import {app} from "electron";
 import {CourseEntity, ObservationEntity} from "#electron/backend/entities/course.ts";
+import { SchoolEntity } from "./backend/entities/school.ts";
+import {YearRepartitionEntity} from "#electron/backend/entities/yearRepartition";
 import path from 'path';
+
 
 
 export class AppDataSource {
@@ -25,7 +28,7 @@ export class AppDataSource {
                 dropSchema:true,
                 database: dbPath,
                 logging: true,
-                entities: [User, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity],
+                entities: [User, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity],
                 subscribers: [],
                 migrations: [],
             });

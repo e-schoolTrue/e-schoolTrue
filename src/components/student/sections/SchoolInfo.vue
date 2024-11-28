@@ -2,7 +2,7 @@
   <div>
     <h3>Informations Académiques</h3>
     <el-form-item label="Classe">
-      <el-select v-model="formData.classId" placeholder="Sélectionnez une classe">
+      <el-select v-model="formData.gradeId" placeholder="Sélectionnez une classe">
         <el-option
           v-for="classItem in safeClasses"
           :key="classItem?.id"
@@ -27,7 +27,7 @@ interface ClassItem {
 
 interface Props {
   formData: {
-    classId: number | null;
+    gradeId: number | null; // Changé de classId à gradeId
     schoolYear: string;
   };
   classes: ClassItem[];
@@ -36,7 +36,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   classes: () => [],
   formData: () => ({
-    classId: null,
+    gradeId: null, // Changé de classId à gradeId
     schoolYear: ''
   })
 });

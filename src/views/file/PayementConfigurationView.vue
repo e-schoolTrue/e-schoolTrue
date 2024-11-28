@@ -1,78 +1,141 @@
 <template>
-  <el-card class="configuration-card">
+  <el-card class="payment-configuration-card shadow-lg">
     <template #header>
       <div class="header-with-actions">
-        <h2>Configuration des Paiements par Classe</h2>
+        <div class="header-title">
+          <Icon 
+            icon="mdi:currency-usd" 
+            width="24" 
+            height="24" 
+            color="#32CD32" 
+            class="mr-3"
+          />
+          <h2>Configuration des Paiements par Classe</h2>
+        </div>
         <el-button
           type="primary"
           @click="saveAllConfigurations"
           :loading="isSavingAll"
+          class="save-all-btn"
         >
+          <Icon 
+            icon="mdi:content-save-all" 
+            width="18" 
+            height="18" 
+            class="mr-2"
+          />
           Tout Sauvegarder
         </el-button>
       </div>
     </template>
 
-    <el-table :data="configurations" border v-loading="isLoading">
-      <el-table-column label="Classe" prop="className" width="120">
+    <el-table 
+      :data="configurations" 
+      border 
+      v-loading="isLoading"
+      class="custom-table"
+      row-class-name="table-row"
+    >
+      <el-table-column label="Classe" prop="className" width="150">
         <template #default="{ row }">
-          {{ row.className }}
+          <div class="class-name-cell">
+            <Icon 
+              icon="mdi:school" 
+              width="20" 
+              height="20" 
+              color="#32CD32" 
+              class="mr-2"
+            />
+            {{ row.className }}
+          </div>
         </template>
       </el-table-column>
 
-      <el-table-column label="Montant Annuel" width="200">
-        <el-table-column label="Montant Annuel" width="200">
-          <template #default="{ row }">
-            <el-input-number
-              v-model="row.annualAmount"
-              :min="0"
-              :step="5000"
-              @change="handleAmountChange(row)"
-            />
-          </template>
-        </el-table-column>
+      <el-table-column label="Montant Annuel" width="220">
+        <template #default="{ row }">
+          <el-input-number
+            v-model="row.annualAmount"
+            :min="0"
+            :step="5000"
+            @change="handleAmountChange(row)"
+            class="full-width"
+            controls-position="right"
+          >
+            <template #prefix>
+              <Icon 
+                icon="mdi:cash" 
+                width="20" 
+                height="20" 
+                color="#32CD32" 
+              />
+            </template>
+          </el-input-number>
+        </template>
       </el-table-column>
 
-      <el-table-column label="Nombre de Versements" width="200">
+      <el-table-column label="Versements" width="180">
         <template #default="{ row }">
           <el-input-number
             v-model="row.installments"
             :min="1"
             :max="12"
             @change="handleInstallmentsChange(row)"
-          />
+            class="full-width"
+            controls-position="right"
+          >
+            <template #prefix>
+              <Icon 
+                icon="mdi:calendar-multiple" 
+                width="20" 
+                height="20" 
+                color="#32CD32" 
+              />
+            </template>
+          </el-input-number>
         </template>
       </el-table-column>
 
-      <el-table-column label="Montant par Versement">
+      <el-table-column label="Montant par Versement" width="200">
         <template #default="{ row }">
-          {{
-            calculateInstallmentAmount(row.annualAmount, row.installments)
-          }}
-          FCFA
+          <div class="installment-amount">
+            <Icon 
+              icon="mdi:coin" 
+              width="20" 
+              height="20" 
+              color="#32CD32" 
+              class="mr-2"
+            />
+            {{ calculateInstallmentAmount(row.annualAmount, row.installments) }} 
+            FCFA
+          </div>
         </template>
       </el-table-column>
 
-      <el-table-column label="Actions" width="120">
+      <el-table-column label="Actions" width="150">
         <template #default="{ row }">
           <el-button
             type="primary"
             size="small"
             @click="saveConfiguration(row)"
             :loading="row.isSaving"
+            class="save-config-btn"
           >
+            <Icon 
+              icon="mdi:content-save" 
+              width="16" 
+              height="16" 
+              class="mr-2"
+            />
             Sauvegarder
           </el-button>
         </template>
       </el-table-column>
     </el-table>
   </el-card>
-  
-
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { Icon } from '@iconify/vue';
 import { ElMessage } from "element-plus";
 import { GradeEntity } from "#electron/backend/entities/grade.ts";
 
@@ -265,23 +328,100 @@ onMounted(() => {
   initializeData();
 });
 </script>
-
 <style scoped>
-.configuration-card {
+.payment-configuration-card {
   margin: 20px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.el-input-number {
-  width: 100%;
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 
+              0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .header-with-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 10px 15px;
 }
 
-.header-with-actions h2 {
+.header-title {
+  display: flex;
+  align-items: center;
+}
+
+.header-title h2 {
   margin: 0;
+  font-size: 1.25rem;
+  color: #32CD32;
+  font-weight: 600;
+}
+
+.save-all-btn {
+  display: flex;
+  align-items: center;
+}
+
+.save-config-btn {
+  display: flex;
+  align-items: center;
+}
+
+.custom-table {
+  width: 100%;
+}
+
+.table-row {
+  transition: background-color 0.3s ease;
+}
+
+.table-row:hover {
+  background-color: #f5f5f5;
+}
+
+.class-name-cell {
+  display: flex;
+  align-items: center;
+}
+
+.installment-amount {
+  display: flex;
+  align-items: center;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.mr-2 {
+  margin-right: 0.5rem;
+}
+
+.mr-3 {
+  margin-right: 0.75rem;
+}
+
+:deep(.el-input-number__increase),
+:deep(.el-input-number__decrease) {
+  background-color: #32CD32;
+  color: white;
+}
+
+:deep(.el-input__wrapper) {
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .header-with-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .save-all-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

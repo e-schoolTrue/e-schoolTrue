@@ -40,10 +40,10 @@ export const AppItems = [
         ]
     },
     {
-        id:"submenu-6",
+        id: "submenu-6",
         title: "Fichier",
         icon: "flat-color-icons:folder",
-        subItems:[
+        subItems: [
             {
                 id: "submenu-6-1",
                 title: "Info école",
@@ -79,6 +79,12 @@ export const AppItems = [
                 title: "Configuration des paiements",
                 icon: "mdi:cash-register",
                 route: "/payment-config",
+            },
+            {
+                id: "submenu-6-7",
+                title: "Répartition année scolaire",
+                icon: "mdi:calendar-school",
+                route: "/school-repartition",
             }
         ]
     }

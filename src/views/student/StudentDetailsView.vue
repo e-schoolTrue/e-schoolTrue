@@ -4,15 +4,23 @@ import { useRoute } from 'vue-router';
 import { ElMessage, ElDialog } from 'element-plus';
 import { View, Download } from '@element-plus/icons-vue';
 
+interface Grade {
+  id: number;
+  name: string;
+  description?: string;
+  code?: string;
+}
+
 interface StudentDetails {
   id: number;
   lastname: string;
   firstname: string;
   matricule: string;
-  birthDay: Date | null;
+  birthDay: string | null;
   birthPlace: string;
   address: string;
-  classId: number;
+  grade?: Grade;
+  gradeId: number;
   fatherFirstname: string;
   fatherLastname: string;
   motherFirstname: string;
@@ -21,7 +29,7 @@ interface StudentDetails {
   personalPhone: string;
   sex: 'male' | 'female';
   schoolYear: string;
-  photo?: { id: number; name: string };
+  photo?: { id: number; name: string; type: string };
   documents?: Array<{ id: number; name: string; type: string }>;
 }
 
@@ -42,43 +50,45 @@ interface CurrentDocument {
 const route = useRoute();
 const studentDetails = ref<StudentDetails | null>(null);
 const photoUrl = ref<string | null>(null);
-const activeNames = ref(['1', '2', '3', '4', '5', '6']);
+const activeNames = ref(['1', '2', '3', '4', '6']);
 const dialogVisible = ref(false);
 const currentDocument = ref<CurrentDocument | null>(null);
 
-const getClassName = (classId: number | undefined) => {
-  if (classId === undefined) return "Non assigné";
-  const classes = [
-    { id: 1, name: "CI" },
-    { id: 2, name: "CP" },
-    { id: 3, name: "CE1" },
-    { id: 4, name: "CE2" },
-    { id: 5, name: "CM1" },
-    { id: 6, name: "CM2" },
-    { id: 7, name: "6ème" },
-    { id: 8, name: "5ème" },
-    { id: 9, name: "4ème" },
-    { id: 10, name: "3ème" },
-    { id: 11, name: "2nde" },
-    { id: 12, name: "1ère" },
-    { id: 13, name: "Terminale" },
-  ];
-  const classItem = classes.find((c) => c.id === classId);
-  return classItem ? classItem.name : "Non assigné";
+const getClassName = (grade?: Grade) => {
+  if (!grade) return "Non assigné";
+  return grade.name || "Non assigné";
 };
 
-const loadPhoto = async (photoId: number) => {
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'Non spécifié';
   try {
-    const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', photoId);
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch {
+    return dateString;
+  }
+};
+
+const loadPhoto = async (photo?: { id: number; name: string; type: string }) => {
+  if (!photo) {
+    photoUrl.value = null;
+    return;
+  }
+
+  try {
+    const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', photo.id);
     if (photoResult.success && photoResult.data) {
       photoUrl.value = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
-      console.log("URL de la photo créée, longueur:", photoUrl.value.length);
-      console.log("Type MIME:", photoResult.data.type);
     } else {
       console.error("Erreur lors du chargement de la photo:", photoResult.error);
+      photoUrl.value = null;
     }
   } catch (error) {
     console.error("Erreur lors du chargement de la photo:", error);
+    photoUrl.value = null;
   }
 };
 
@@ -87,11 +97,11 @@ onMounted(async () => {
   if (studentId) {
     try {
       const result = await window.ipcRenderer.invoke('student:getDetails', Number(studentId));
+      console.log("Données reçuesBriand :", result);
+      
       if (result.success) {
         studentDetails.value = result.data;
-        if (studentDetails.value?.photo?.id) {
-          await loadPhoto(studentDetails.value.photo.id);
-        }
+        await loadPhoto(studentDetails.value?.photo);
       } else {
         ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
       }
@@ -107,7 +117,6 @@ const downloadDocument = async (document: DocumentData) => {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
     if (result.success && result.data && result.data.content) {
       try {
-        // Créer le blob directement à partir du contenu base64
         const byteCharacters = atob(result.data.content);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -116,7 +125,6 @@ const downloadDocument = async (document: DocumentData) => {
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: result.data.type });
         
-        // Créer l'URL et déclencher le téléchargement
         const url = window.URL.createObjectURL(blob);
         const a = window.document.createElement('a');
         a.href = url;
@@ -142,7 +150,6 @@ const viewDocument = async (document: DocumentData) => {
   try {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
     if (result.success && result.data && result.data.content) {
-      // Créer l'URL data directement avec le contenu base64
       const content = `data:${result.data.type};base64,${result.data.content}`;
 
       currentDocument.value = {
@@ -213,10 +220,10 @@ const viewDocument = async (document: DocumentData) => {
         <el-collapse v-model="activeNames">
           <el-collapse-item title="Informations personnelles" name="1">
             <el-descriptions :column="2" border>
-              <el-descriptions-item label="Date de naissance">{{ studentDetails.birthDay }}</el-descriptions-item>
+              <el-descriptions-item label="Date de naissance">{{ formatDate(studentDetails.birthDay) }}</el-descriptions-item>
               <el-descriptions-item label="Lieu de naissance">{{ studentDetails.birthPlace }}</el-descriptions-item>
               <el-descriptions-item label="Adresse">{{ studentDetails.address }}</el-descriptions-item>
-              <el-descriptions-item label="Téléphone personnel">{{ studentDetails.personalPhone }}</el-descriptions-item>
+              <el-descriptions-item label="Téléphone personnel">{{ studentDetails.personalPhone || 'Non spécifié' }}</el-descriptions-item>
               <el-descriptions-item label="Téléphone familial">{{ studentDetails.famillyPhone }}</el-descriptions-item>
               <el-descriptions-item label="Sexe">{{ studentDetails.sex === 'male' ? 'Masculin' : 'Féminin' }}</el-descriptions-item>
             </el-descriptions>
@@ -234,7 +241,7 @@ const viewDocument = async (document: DocumentData) => {
           <el-collapse-item title="Informations scolaires" name="4">
             <el-descriptions :column="2" border>
               <el-descriptions-item label="Année Scolaire">{{ studentDetails.schoolYear }}</el-descriptions-item>
-              <el-descriptions-item label="Classe">{{ getClassName(studentDetails.classId) }}</el-descriptions-item>
+              <el-descriptions-item label="Classe">{{ getClassName(studentDetails.grade) }}</el-descriptions-item>
             </el-descriptions>
           </el-collapse-item>
 

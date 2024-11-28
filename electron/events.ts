@@ -1,16 +1,17 @@
-import { ipcMain } from "electron";
+import {  ipcMain } from "electron";
 import { GradeService } from "#electron/backend/services/gradeService.ts";
 import { BranchCommand, ClassRoomCommand, CourseCommand, GradeCommand } from "#electron/command/settingsCommand.ts";
 import { CourseService } from "#electron/backend/services/courseService.ts";
 import { StudentService } from "./backend/services/studentService";
 import { FileService } from "./backend/services/fileService";
+import { YearRepartitionService } from "#electron/backend/services/yearService";
 import { ResultType } from "#electron/command";
 import * as fs from 'fs/promises';
 import { app } from 'electron';
 import path from 'path';
 import { PaymentService } from './backend/services/paymentService';
 import { AbsenceService } from './backend/services/absenceService';
-
+import {SchoolService} from './backend/services/schoolService';
 const global = {
     gradeService: new GradeService(),
     courseService: new CourseService(),
@@ -19,6 +20,9 @@ const global = {
     paymentService: new PaymentService(),
     absenceService: new AbsenceService(),
    StudentService : new StudentService(),
+   SchoolService : new SchoolService(),
+   yearRepartitionService : new YearRepartitionService()
+   
 }
 
 // Fonction utilitaire pour gérer les erreurs
@@ -191,9 +195,8 @@ ipcMain.handle("student:all", async (_event: Electron.IpcMainInvokeEvent, _args:
 ipcMain.handle("student:getDetails", async (_event: Electron.IpcMainInvokeEvent, studentId: number): Promise<ResultType> => {
     console.log(`Début de student:getDetails pour l'étudiant ID: ${studentId}`);
     try {
-        const studentDetails = await global.studentService.getStudentDetails(studentId);
-        console.log("Détails bruts de l'étudiant reçus de la base de données:", JSON.stringify(studentDetails, null, 2));
-        return { success: true, data: studentDetails, error: null, message: "Détails de l'étudiant récupérés avec succès" };
+        // Utilisez directement le résultat de getStudentDetails
+        return await global.studentService.getStudentDetails(studentId);
     } catch (error) {
         console.error("Erreur dans student:getDetails:", error);
         return handleError(error);
@@ -521,5 +524,98 @@ ipcMain.handle('absence:getStatistics', async (_event, studentId: number) => {
     }
 });
 
+// Dans votre fichier main.ts ou là où vous définissez vos handlers IPC
+ipcMain.handle("school:save", async (_event: Electron.IpcMainInvokeEvent, payload: any): Promise<ResultType> => {
+    try {
+        const { data, logo } = payload
 
-  
+        // Si un nouveau logo est fourni
+        if (logo) {
+            const savedFile = await global.fileService.saveFile(
+                logo.content,
+                logo.name,
+                logo.type
+            )
+            // Assigner l'ID du fichier sauvegardé
+            data.logo = savedFile.id
+        }
+
+        const result = await global.SchoolService.saveOrUpdateSchool(data)
+        
+        // Si la sauvegarde est réussie, charger à nouveau les données complètes
+        if (result.success) {
+            const updatedSchool = await global.SchoolService.getSchool()
+            return updatedSchool
+        }
+
+        return result
+    } catch (error) {
+        return handleError(error)
+    }
+})
+
+// Ajouter le nouveau handler pour file:getUrl
+
+ipcMain.handle("school:get", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+    try {
+        const result = await global.SchoolService.getSchool();
+        
+        // Si la récupération a réussi et qu'il y a un logo
+        if (result.success && result.data && result.data.logo) {
+            // Convertir le contenu du logo en base64 s'il existe
+            const logo = await global.fileService.getFileById(result.data.logo.id);
+            if (logo) {
+                result.data.logo = {
+                    id: logo.id,
+                    content: logo.content.toString('base64'),
+                    type: logo.type,
+                    name: logo.name
+                };
+            }
+        }
+        
+        return result;
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+//Repartition Année Scolaire 
+
+ipcMain.handle("yearRepartition:create", async (_event, data) => {
+    try {
+        return await global.yearRepartitionService.createYearRepartition(data);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+// Mettre à jour une répartition d'année scolaire
+ipcMain.handle("yearRepartition:update", async (_event, { id, data }) => {
+    try {
+        return await global.yearRepartitionService.updateYearRepartition(id, data);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+// Récupérer toutes les répartitions d'années scolaires
+ipcMain.handle("yearRepartition:getAll", async () => {
+    try {
+        return await global.yearRepartitionService.getAllYearRepartitions();
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+// Supprimer une répartition d'année scolaire
+ipcMain.handle("yearRepartition:delete", async (_event, id: number) => {
+    try {
+        return await global.yearRepartitionService.deleteYearRepartition(id);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+
+

@@ -7,13 +7,16 @@ import {
   BeforeInsert,
   JoinColumn,
   OneToMany,
+  UpdateDateColumn,
+  ManyToOne,
 } from "typeorm";
-import { FileEntity } from "./file"; // Assurez-vous que le chemin d'importation est correct
-import { PaymentEntity } from "./payment";
-import { AbsenceEntity } from "./absence";
+
+import { FileEntity } from "./file";
+import { GradeEntity } from "./grade";
 
 @Entity("T_student")
 export class StudentEntity {
+  [x: string]: any;
   @PrimaryGeneratedColumn()
   id!: number;
 
@@ -54,6 +57,9 @@ export class StudentEntity {
   @Column({ type: "int", nullable: true })
   photoId?: number;
 
+  @Column({ type: "int", nullable: true })
+  documentId?: number;
+
   @Column({ type: "date" })
   birthDay?: Date;
 
@@ -68,15 +74,7 @@ export class StudentEntity {
 
   @Column({ type: "text" })
   personalPhone?: string;
-
-  @Column({ type: "int", nullable: true })
-  classId?: number | null;
-
-  @OneToMany(() => AbsenceEntity, (absence) => absence.student, {
-    cascade: true,
-    eager: true,
-  })
-  absences?: AbsenceEntity[];
+ 
 
   @BeforeInsert()
   generateMatricule() {
@@ -93,17 +91,15 @@ export class StudentEntity {
   @Column({ type: "text", nullable: true })
   schoolYear?: string;
 
-  // Relation OneToMany avec FileEntity pour les documents
-  @OneToMany(() => FileEntity, (file) => file.student, {
-    cascade: true, // Ajouter cascade pour sauvegarder automatiquement les documents
-    eager: true, // Charger automatiquement les documents
-  })
+  // Nouveaux champs
+
+  // Relation OneToMany avec FileEntity
+  @OneToMany(() => FileEntity, (file) => file.student)
   documents?: FileEntity[];
 
-  // Relation OneToMany avec PaymentEntity pour les paiements
-  @OneToMany(() => PaymentEntity, (payment) => payment.student, {
-    cascade: true,
-    eager: true,
-  })
-  payments?: PaymentEntity[];
+  @ManyToOne(() => GradeEntity, (grade) => grade.students, { nullable: false })
+  @JoinColumn({ name: "gradeId" })
+  grade!: GradeEntity;
+  @UpdateDateColumn()
+  updatedAt?: Date;
 }

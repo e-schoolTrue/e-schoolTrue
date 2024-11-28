@@ -1,11 +1,11 @@
 <template>
   <div class="student-list-container">
-    <!-- Section Header pour les statistiques -->
+    <!-- Statistics Header Section -->
     <div class="header-section">
-      <el-card class="stats-card">
+      <el-card class="stats-card stats-total-students">
         <div class="stats-content">
           <div class="stats-icon">
-            <el-icon :size="24"><UserFilled /></el-icon>
+            <Icon icon="mdi:account-group" class="icon" />
           </div>
           <div class="stats-info">
             <span class="stats-label">Total des élèves</span>
@@ -14,11 +14,10 @@
         </div>
       </el-card>
 
-      <!-- Carte pour les garçons -->
-      <el-card class="stats-card">
+      <el-card class="stats-card stats-boys">
         <div class="stats-content">
-          <div class="stats-icon boy-icon">
-            <el-icon :size="24"><Male /></el-icon>
+          <div class="stats-icon">
+            <Icon icon="mdi:gender-male" class="icon" />
           </div>
           <div class="stats-info">
             <span class="stats-label">Garçons</span>
@@ -27,11 +26,10 @@
         </div>
       </el-card>
 
-      <!-- Carte pour les filles -->
-      <el-card class="stats-card">
+      <el-card class="stats-card stats-girls">
         <div class="stats-content">
-          <div class="stats-icon girl-icon">
-            <el-icon :size="24"><Female /></el-icon>
+          <div class="stats-icon">
+            <Icon icon="mdi:gender-female" class="icon" />
           </div>
           <div class="stats-info">
             <span class="stats-label">Filles</span>
@@ -41,13 +39,25 @@
       </el-card>
     </div>
 
-    <!-- Table des étudiants -->
+    <!-- Student Table -->
     <el-card class="table-card">
+      <div class="table-header">
+        <h3 class="table-title">Liste des élèves</h3>
+        <div class="table-actions">
+          <el-tooltip content="Imprimer la liste" placement="top">
+            <el-button type="primary" circle @click="handlePrint">
+              <Icon icon="mdi:printer" />
+            </el-button>
+          </el-tooltip>
+        </div>
+      </div>
+
       <el-table
         :data="paginatedData"
         style="width: 100%"
         :max-height="tableHeight"
-        :header-cell-style="{ background: '#f5f7fa' }"
+        :header-cell-style="headerStyle"
+        row-class-name="student-table-row"
       >
         <el-table-column
           prop="matricule"
@@ -71,6 +81,7 @@
           prop="sex"
           label="Genre"
           min-width="100"
+          align="center"
           show-overflow-tooltip
         >
           <template #default="scope">
@@ -78,29 +89,37 @@
               v-if="scope.row.sex !== null"
               size="small"
               :type="scope.row.sex === 'male' ? 'primary' : 'success'"
+              class="gender-tag"
             >
-              <el-icon class="mr-1">
-                <Male v-if="scope.row.sex === 'male'" />
-                <Female v-else />
-              </el-icon>
+              <Icon 
+                :icon="scope.row.sex === 'male' ? 'mdi:gender-male' : 'mdi:gender-female'"
+                class="gender-icon"
+              />
               {{ scope.row.sex === "male" ? "Garçon" : "Fille" }}
             </el-tag>
-            <el-tag v-else size="small" type="info"> Non défini </el-tag>
+            <el-tag v-else size="small" type="info">Non défini</el-tag>
           </template>
         </el-table-column>
         <el-table-column
           prop="schoolYear"
           label="Année scolaire"
           min-width="120"
+          align="center"
           show-overflow-tooltip
         />
-        <el-table-column label="Classe" min-width="100" show-overflow-tooltip>
+        <el-table-column
+          label="Classe"
+          min-width="100"
+          align="center"
+          show-overflow-tooltip
+        >
           <template #default="scope">
-            <el-tag size="small" :type="getClassTagType(scope.row.classId)">
-              {{ getClassName(scope.row.classId) }}
+            <el-tag size="small" :type="getGradeTagType(scope.row.gradeId)">
+              {{ getGradeName(scope.row.gradeId) }}
             </el-tag>
           </template>
         </el-table-column>
+
         <el-table-column
           prop="famillyPhone"
           label="Contact Parents"
@@ -111,35 +130,44 @@
         <el-table-column
           fixed="right"
           label="Actions"
-          min-width="180"
+          min-width="140"
           align="center"
         >
           <template #default="scope">
-            <el-button-group>
-              <el-button
-                type="primary"
-                :icon="Document"
-                size="small"
-                @click="() => handleClick(scope.row)"
-                title="Voir les détails"
-                >Détail</el-button
-              >
-              <el-button
-                type="warning"
-                :icon="Edit"
-                size="small"
-                @click="() => handleEdit(scope.row)"
-                title="Modifier l'élève"
-                >Modifier</el-button
-              >
-              <el-button
-                type="danger"
-                :icon="Delete"
-                size="small"
-                @click="() => handleDelete(scope.row)"
-                title="Supprimer l'élève"
-              />
-            </el-button-group>
+            <el-space>
+              <el-tooltip content="Voir les détails" placement="top">
+                <el-button
+                  type="primary"
+                  circle
+                  size="small"
+                  @click="() => handleClick(scope.row)"
+                >
+                  <Icon icon="mdi:eye" />
+                </el-button>
+              </el-tooltip>
+
+              <el-tooltip content="Modifier l'élève" placement="top">
+                <el-button
+                  type="warning"
+                  circle
+                  size="small"
+                  @click="() => handleEdit(scope.row)"
+                >
+                  <Icon icon="mdi:pencil" />
+                </el-button>
+              </el-tooltip>
+
+              <el-tooltip content="Supprimer l'élève" placement="top">
+                <el-button
+                  type="danger"
+                  circle
+                  size="small"
+                  @click="() => handleDelete(scope.row)"
+                >
+                  <Icon icon="mdi:trash" />
+                </el-button>
+              </el-tooltip>
+            </el-space>
           </template>
         </el-table-column>
       </el-table>
@@ -158,16 +186,9 @@
   </div>
 </template>
 
-<script lang="ts" setup>
-import { ref, computed, PropType, onMounted } from "vue";
-import {
-  Document,
-  Edit,
-  Delete,
-  UserFilled,
-  Male,
-  Female,
-} from "@element-plus/icons-vue";
+<script setup lang="ts">
+import { ref, computed, onMounted, PropType } from "vue";
+import { Icon } from '@iconify/vue';
 import { ElMessageBox } from "element-plus";
 
 interface Student {
@@ -176,9 +197,14 @@ interface Student {
   lastname: string;
   firstname: string;
   schoolYear: string;
-  classId?: number;
+  gradeId?: number;
   famillyPhone?: string;
   sex: "male" | "female";
+}
+
+interface Grade {
+  id: number;
+  name: string;
 }
 
 const props = defineProps({
@@ -188,6 +214,38 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(["detail", "edit", "pageChange", "delete", "print"]);
+
+const currentPage = ref(1);
+const pageSize = ref(5);
+const tableHeight = ref(500);
+
+const headerStyle = {
+  background: "#f5f7fa",
+  color: "#606266",
+  fontWeight: "bold",
+  borderBottom: "2px solid #EBEEF5",
+  padding: "12px 0",
+};
+
+// Variables pour stocker les données des grades
+const grades = ref<Grade[]>([]);
+
+// Charger les grades depuis l'IPC au montage
+onMounted(async () => {
+  try {
+    const result = await window.ipcRenderer.invoke("grade:all");
+    console.log('Grades loaded:', result);
+    // Extract the data array from the result
+    grades.value = result.data || [];
+  } catch (error) {
+    console.error("Erreur lors du chargement des grades :", error);
+  }
+});
+
+
+
+// Computed
 const boysCount = computed(
   () => props.students.filter((student) => student.sex === "male").length
 );
@@ -196,28 +254,18 @@ const girlsCount = computed(
   () => props.students.filter((student) => student.sex === "female").length
 );
 
-// Définir les événements émis par ce composant
-const emit = defineEmits(["detail", "edit", "pageChange", "delete"]);
-
-// État pour stocker les données des étudiants
-const currentPage = ref(1);
-const pageSize = ref(7);
-
 const paginatedData = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
   return props.students.slice(start, end);
 });
 
-// Gestion du clic sur le bouton "Détail"
+// Methods
 const handleClick = (student: Student) => {
-  console.log("Détail d'un étudiant", student);
   emit("detail", student);
 };
 
-// Modifiez la fonction handleEdit
 const handleEdit = (student: Student) => {
-  console.log("Modifier un étudiant", student);
   emit("edit", student.id);
 };
 
@@ -238,59 +286,39 @@ const handleDelete = async (student: Student) => {
   }
 };
 
-// Gestion du changement de page
 const handlePageChange = (page: number) => {
-  console.log("Changement de page:", page);
   currentPage.value = page;
   emit("pageChange", page);
 };
 
-// Fonction pour obtenir le nom de la classe à partir de l'ID
-const getClassName = (classId: number | undefined) => {
-  if (classId === undefined) return "Non assigné";
-  const classes = [
-    { id: 1, name: "CI" },
-    { id: 2, name: "CP" },
-    { id: 3, name: "CE1" },
-    { id: 4, name: "CE2" },
-    { id: 5, name: "CM1" },
-    { id: 6, name: "CM2" },
-    { id: 7, name: "6ème" },
-    { id: 8, name: "5ème" },
-    { id: 9, name: "4ème" },
-    { id: 10, name: "3ème" },
-    { id: 11, name: "2nde" },
-    { id: 12, name: "1ère" },
-    { id: 13, name: "Terminale" },
-  ];
-
-  const classObj = classes.find((c) => c.id === classId);
-  return classObj ? classObj.name : "Non assigné";
-};
-const tableHeight = ref(300);
-
-onMounted(() => {
-  calculateTableHeight();
-  window.addEventListener("resize", calculateTableHeight);
-});
-
-const calculateTableHeight = () => {
-  const windowHeight = window.innerHeight;
-  // Ajuster ces valeurs selon vos besoins
-  const headerHeight = 100; // Hauteur du header
-  const paginationHeight = 60; // Hauteur de la pagination
-  const padding = 40; // Padding supplémentaire
-
-  tableHeight.value =
-    windowHeight - (headerHeight + paginationHeight + padding);
+const handlePrint = () => {
+  emit("print", paginatedData.value);
 };
 
-// Fonction pour déterminer le type de tag pour les classes
-const getClassTagType = (classId: number | undefined) => {
-  if (classId === undefined) return "info";
-  if (classId <= 6) return "success"; // Classes primaires
-  if (classId <= 10) return "warning"; // Classes collège
-  return "danger"; // Classes lycée
+// Obtenir le nom du grade à partir de son ID
+const getGradeName = (gradeId: number | undefined): string => {
+  console.log('Current gradeId:', gradeId);
+  console.log('Grades type:', typeof grades.value);
+  console.log('Grades content:', grades.value);
+  
+  if (!gradeId) return "Non assigné";
+  
+  // Additional type checking
+  if (!Array.isArray(grades.value)) {
+    console.error('Grades is not an array');
+    return "Non assigné";
+  }
+  
+  const grade = grades.value.find((g) => g.id === gradeId);
+  
+  return grade ? grade.name : "Non assigné";
+};
+// Définir le type de tag pour les grades
+const getGradeTagType = (gradeId: number | undefined) => {
+  if (!gradeId) return "info";
+  if (gradeId <= 6) return "success";
+  if (gradeId <= 10) return "warning";
+  return "danger";
 };
 </script>
 
@@ -301,29 +329,58 @@ const getClassTagType = (classId: number | undefined) => {
   flex-direction: column;
   gap: 20px;
   height: 100%;
-  box-sizing: border-box;
-}
-:deep(.el-button-group .el-button) {
-  padding: 4px 8px; /* Ajustez selon le besoin */
+  background-color: #f7f9fc;
 }
 
 .header-section {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 20px;
 }
 
 .stats-card {
-  padding: 10px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-5px);
+}
+
+.stats-total-students .stats-icon {
+  background-color: rgba(64, 158, 255, 0.1);
+  color: #409eff;
+}
+
+.stats-boys .stats-icon {
+  background-color: rgba(103, 194, 58, 0.1);
+  color: #67c23a;
+}
+
+.stats-girls .stats-icon {
+  background-color: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
 }
 
 .stats-content {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 15px;
+  padding: 15px;
 }
 
 .stats-icon {
-  color: var(--el-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+}
+
+.stats-icon .icon {
+  font-size: 24px;
 }
 
 .stats-info {
@@ -333,101 +390,78 @@ const getClassTagType = (classId: number | undefined) => {
 
 .stats-label {
   font-size: 14px;
-  color: var(--el-text-color-secondary);
+  color: #6c757d;
+  margin-bottom: 5px;
 }
 
 .stats-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--el-text-color-primary);
+  font-size: 26px;
+  font-weight: 700;
+  color: #2c3e50;
 }
 
 .table-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-:deep(.el-table) {
-  flex: 1;
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.table-title {
+  margin: 0;
+  font-size: 20px;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.gender-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gender-icon {
+  font-size: 16px;
+}
+
+.student-table-row {
+  transition: background-color 0.3s ease;
+}
+
+.student-table-row:hover {
+  background-color: #f5f7fa !important;
 }
 
 .pagination-container {
-  padding: 15px 0;
+  padding: 20px;
   display: flex;
   justify-content: center;
+  border-top: 1px solid #ebeef5;
 }
 
-/* Personnalisation des boutons */
-:deep(.el-button-group) {
-  display: flex;
-  gap: 4px;
-}
-
-:deep(.el-button) {
-  padding: 6px 12px;
-}
-
-:deep(.el-tag) {
-  width: 100%;
-  text-align: center;
-}
-
-/* Personnalisation de la scrollbar du tableau */
+/* Custom Scrollbar */
 :deep(.el-table__body-wrapper::-webkit-scrollbar) {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 :deep(.el-table__body-wrapper::-webkit-scrollbar-track) {
-  background: #f1f1f1;
-  border-radius: 3px;
+  background: #f1f2f6;
+  border-radius: 5px;
 }
 
 :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) {
-  background: #888;
-  border-radius: 4px;
+  background: #a0a0a0;
+  border-radius: 5px;
 }
 
 :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb:hover) {
-  background: #555;
-}
-
-.stats-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: var(--el-color-primary-light-9);
-}
-
-.boy-icon {
-  background-color: var(--el-color-primary-light-9);
-}
-
-.boy-icon :deep(svg) {
-  color: var(--el-color-primary);
-}
-
-.girl-icon {
-  background-color: #f0f9eb;
-}
-
-.girl-icon :deep(svg) {
-  color: var(--el-color-success);
-}
-
-:deep(.el-tag) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-:deep(.el-tag .el-icon) {
-  margin-right: 4px;
+  background: #7c7c7c;
 }
 </style>

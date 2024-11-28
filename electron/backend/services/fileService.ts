@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 interface FileResponse {
+    id: number;       // Ajout de l'id dans l'interface
     content: Buffer;
     type: string;
     name: string;
@@ -66,6 +67,7 @@ export class FileService {
             console.log("Type du fichier:", file.type);
 
             return {
+                id: file.id,    // Ajout de l'id dans la réponse
                 content,
                 type: file.type,
                 name: file.name,
