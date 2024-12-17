@@ -1,0 +1,1 @@
+<!-- Créez ce composant pour afficher les détails des paiements --> 

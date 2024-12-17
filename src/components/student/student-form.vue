@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, defineAsyncComponent, PropType, defineEmits} from 'vue';
+import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted} from 'vue';
 
 
 interface ClassItem {
@@ -14,7 +14,7 @@ interface StudentData {
   birthDay: Date | null;
   birthPlace: string;
   address: string;
-  classId: number | null;
+  gradeId: number | null; 
   fatherFirstname: string;
   fatherLastname: string;
   motherFirstname: string;
@@ -22,7 +22,7 @@ interface StudentData {
   famillyPhone: string;
   personalPhone: string;
   photo: StudentFile | null;
-  document: StudentFile | null;
+  documents: StudentFile[];
   sex: 'male' | 'female';
   schoolYear: string;
 }
@@ -59,7 +59,7 @@ const formData = reactive<StudentData>({
   birthDay: null,
   birthPlace: '',
   address: '',
-  classId: null,
+  gradeId: null, 
   fatherFirstname: '',
   fatherLastname: '',
   motherFirstname: '',
@@ -67,7 +67,7 @@ const formData = reactive<StudentData>({
   famillyPhone: '',
   personalPhone: '',
   photo: null,
-  document: null,
+  documents: [],
   sex: 'male',
   schoolYear: '',
   ...props.studentData, // Fusionner avec les données existantes, si fournies
@@ -99,6 +99,14 @@ const saveData = () => {
     for (const [key, value] of Object.entries(obj)) {
       if (value instanceof Date) {
         cleanedObj[key] = value.toISOString();
+      } else if (Array.isArray(value)) {
+        // Traiter spécifiquement les tableaux
+        cleanedObj[key] = value.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return cleanObject(item);
+          }
+          return item;
+        });
       } else if (typeof value === 'object' && value !== null) {
         cleanedObj[key] = cleanObject(value);
       } else if (value !== undefined) {
@@ -131,6 +139,17 @@ const sections = [
   SchoolInfo,
   Attachments,
 ];
+
+onMounted(async () => {
+  try {
+    const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
+    if (result.success && result.data) {
+      formData.schoolYear = result.data.schoolYear;
+    }
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'année scolaire:", error);
+  }
+});
 </script>
 
 <template>

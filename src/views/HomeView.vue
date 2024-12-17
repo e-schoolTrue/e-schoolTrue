@@ -5,10 +5,10 @@ import DashbordMenu from "@/components/dashbord-menu.vue";
 </script>
 
 <template>
- <el-space direction="vertical" fill="fill">
-   <dashbord-menu/>
-   <router-view/>
- </el-space>
+  <el-space direction="vertical" fill="fill">
+    <dashbord-menu/>
+    <router-view/>
+  </el-space>
 </template>
 
 <style scoped>

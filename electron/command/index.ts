@@ -1,22 +1,38 @@
-
 export enum CIVILITY{
-    Mr="Monsieur",
-    Mrs="Madame",
-    Lady="Mademoiselle"
+    MR="MR",
+    MME="MME",
+    MLLE="MLLE"
 }
 
 export enum FAMILY_SITUATION{
-    Maried="Marié(e)",
-    Divorced="Divorcé(e)",
-    Single="Célibataire",
-    widower="Veuf(ve)",
+    SINGLE="SINGLE",
+    MARRIED="MARRIED",
+    DIVORCED="DIVORCED",
+    WIDOWED="WIDOWED"
 }
 
 export enum ROLE{
-    professor="professeur",
-    student="élève",
-    admin="administrateur"
+    admin="admin",
+    professor="professor",
+    student="student"
+}
 
+export enum SCHOOL_TYPE {
+    PRIMARY = "PRIMARY",
+    SECONDARY = "SECONDARY"  // Pour collège/lycée
+}
+
+export enum TEACHING_TYPE {
+    CLASS_TEACHER = "CLASS_TEACHER",    // Instituteur (primaire)
+    SUBJECT_TEACHER = "SUBJECT_TEACHER" // Professeur par matière (collège/lycée)
+}
+
+export interface TeachingAssignment {
+    id?: number;
+    professorId: number;
+    classId?: number;      // Pour les instituteurs
+    courseId?: number;     // Pour les profs de matière
+    gradeIds?: number[];   // Classes pour les profs de matière
 }
 
 export type ResultType = {

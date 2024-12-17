@@ -7,6 +7,7 @@ import {
     PrimaryGeneratedColumn,
     UpdateDateColumn
 } from "typeorm";
+import { StudentEntity } from "./students";
 
 
 @Entity('grade')
@@ -17,6 +18,8 @@ export class GradeEntity {
     name?: string;
     @Column({type: 'text'})
     code?: string;
+    @OneToMany(() => StudentEntity, (student) => student.grade)
+    students?: StudentEntity[];
     @OneToMany(() => BranchEntity , branch => branch.grade)
     branches?: BranchEntity[];
     @CreateDateColumn()

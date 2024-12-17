@@ -12,7 +12,7 @@ export interface StudentFile {
     birthDay: Date | null;
     birthPlace: string;
     address: string;
-    classId: number | null;
+    gradeId: number | null;
     fatherFirstname: string;
     fatherLastname: string;
     motherFirstname: string;
