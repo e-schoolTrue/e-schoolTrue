@@ -1,10 +1,4 @@
 <template>
-  <el-card>
-    <el-row justify="center">
-      <el-text size="large" style="font-weight: bold">Modifier l'étudiant</el-text>
-    </el-row>
-  </el-card>
-
   <student-form
     v-if="studentData"
     :studentData="studentData"
@@ -74,7 +68,18 @@ const updateStudent = async (data: any) => {
   });
 
   try {
-    const result = await window.ipcRenderer.invoke('update-student', { studentId: props.studentId, studentData: data });
+    const updateData = {
+      ...data,
+      id: props.studentId,
+      photo: data.photo || null,
+      documents: Array.isArray(data.documents) ? data.documents : []
+    };
+
+    const result = await window.ipcRenderer.invoke('update-student', {
+      studentId: props.studentId,
+      studentData: updateData
+    });
+
     if (result.success) {
       ElMessage.success('Étudiant mis à jour avec succès');
       emit('update-complete');

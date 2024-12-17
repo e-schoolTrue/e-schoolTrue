@@ -9,6 +9,7 @@
         :on-change="handleAvatarChange"
         :before-upload="beforeAvatarUpload"
         :auto-upload="false"
+        accept="image/jpeg,image/png"
       >
         <img v-if="imageUrl" :src="imageUrl" class="avatar" />
         <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
@@ -21,15 +22,17 @@
         :on-change="handleDocumentChange"
         :on-remove="handleRemove"
         :before-remove="beforeRemove"
+        :before-upload="beforeDocumentUpload"
         multiple
         :limit="5"
         :on-exceed="handleExceed"
         :auto-upload="false"
+        accept=".pdf,.doc,.docx"
       >
         <el-button type="primary">Cliquez pour uploader</el-button>
         <template #tip>
           <div class="el-upload__tip">
-            Acte de naissance, justificatif de domicile, carnet de santé, certificat de radiation, relevés de notes
+            Acte de naissance, justificatif de domicile, carnet de santé, certificat de radiation, relevés de notes (PDF, DOC, DOCX uniquement)
           </div>
         </template>
       </el-upload>
@@ -67,8 +70,11 @@ const handleDocumentChange: UploadProps['onChange'] = (uploadFile) => {
   const reader = new FileReader();
   reader.onload = (e) => {
     if (props.formData) {
-      if (!props.formData.document) props.formData.document = [];
-      props.formData.document.push({
+      if (!Array.isArray(props.formData.documents)) {
+        props.formData.documents = [];
+      }
+      
+      props.formData.documents.push({
         name: uploadFile.name,
         type: uploadFile.raw?.type,
         size: uploadFile.size,
@@ -90,11 +96,23 @@ const beforeAvatarUpload: UploadProps['beforeUpload'] = (rawFile) => {
   return true
 };
 
+const beforeDocumentUpload: UploadProps['beforeUpload'] = (rawFile) => {
+  const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  if (!allowedTypes.includes(rawFile.type)) {
+    ElMessage.error('Les documents doivent être au format PDF, DOC ou DOCX!')
+    return false
+  } else if (rawFile.size / 1024 / 1024 > 5) {
+    ElMessage.error('La taille du document ne doit pas dépasser 5MB!')
+    return false
+  }
+  return true
+};
+
 const handleRemove = (file: UploadUserFile) => {
-  if (props.formData && props.formData.document) {
-    const index = props.formData.document.findIndex((doc: any) => doc.name === file.name);
+  if (props.formData && Array.isArray(props.formData.documents)) {
+    const index = props.formData.documents.findIndex((doc: any) => doc.name === file.name);
     if (index !== -1) {
-      props.formData.document.splice(index, 1);
+      props.formData.documents.splice(index, 1);
     }
   }
 };

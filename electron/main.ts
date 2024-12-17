@@ -4,15 +4,6 @@ import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
 import './events'
 
-// The built directory structure
-//
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.js
-// │
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
@@ -31,7 +22,6 @@ async function initializeDataSource() {
 async function createWindow() {
   try {
     await initializeDataSource();
-
     win = new BrowserWindow({
       icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
       width: 1200,
@@ -42,7 +32,7 @@ async function createWindow() {
         preload: path.join(__dirname, 'preload.js'),
         sandbox: false
       },
-    })
+    });
 
     // Test active push message to Renderer-process.
     win.webContents.on('did-finish-load', () => {
@@ -67,6 +57,15 @@ async function createWindow() {
   }
 }
 
+app.whenReady().then(async () => {
+  try {
+    await createWindow();
+  } catch (error) {
+    console.error("Erreur lors de l'initialisation:", error);
+    app.quit();
+  }
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -87,21 +86,4 @@ ipcMain.on("app-quit", () => {
     app.quit()
     win = null;
   }
-})
-
-app.whenReady().then(async () => {
-  try {
-    await createWindow();
-  } catch (error) {
-    console.error("Erreur détaillée lors de l'initialisation de l'application:", error);
-    if (error instanceof Error) {
-      console.error("Message d'erreur:", error.message);
-      console.error("Stack trace:", error.stack);
-    }
-    app.quit();
-  }
-
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
 })

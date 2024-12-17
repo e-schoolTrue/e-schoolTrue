@@ -1,26 +1,42 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
 import { StudentEntity } from "./students";
 
-@Entity('T_payment')
+@Entity("payments")
 export class PaymentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+    @Column("decimal", { precision: 10, scale: 2 })
+    amount!: number;
+
+    @Column({ type: "varchar", nullable: false })
+    paymentType!: string;
+
+    @Column({ 
+        type: "varchar", 
+        nullable: false,
+        default: 'cash'
+    })
+    paymentMethod!: string;
+
+    @CreateDateColumn()
+    createdAt!: Date;
+
     @ManyToOne(() => StudentEntity, student => student.payments)
     student!: StudentEntity;
 
-    @Column('decimal', { precision: 10, scale: 2 })
-    amount!: number;
+    @Column({ type: "integer" })
+    studentId!: number;
 
-    @Column('varchar')
-    paymentType!: string;
+    @Column({ type: "integer", default: 1 })
+    installmentNumber!: number;
 
-    @Column('date')
-    paymentDate!: Date;
+    @Column({ 
+        type: "varchar",
+        default: () => `'${new Date().getFullYear()}'`
+    })
+    schoolYear!: string;
 
-    @Column('varchar', { nullable: true })
-    paymentMethod!: string;
-
-    @Column('varchar', { nullable: true })
-    receiptNumber!: string;
+    @Column({ type: "varchar", nullable: true })
+    comment?: string;
 }
