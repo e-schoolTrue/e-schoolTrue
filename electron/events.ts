@@ -238,7 +238,7 @@ ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvoke
                 success: false,
                 data: null,
                 error: "Document non trouvé",
-                message: "Le document n'a pas pu être récupéré"
+                message: "Le document n'a pas pu être récup��ré"
             };
         }
     } catch (error) {
@@ -948,14 +948,9 @@ ipcMain.handle('homework:notify', async (_, data: any) => {
   }
 });
 
-ipcMain.handle('file:getImageUrl', async (_event, path) => {
+ipcMain.handle('file:getImageUrl', async (_event, filePath: string) => {
   try {
-    const result = await global.fileService.getImageUrl(path);
-    return {
-      success: true,
-      data: result,
-      error: null
-    };
+    return await global.fileService.getImageUrl(filePath);
   } catch (error) {
     return handleError(error);
   }
