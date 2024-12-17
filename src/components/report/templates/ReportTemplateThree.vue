@@ -116,6 +116,7 @@
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { ReportCard } from '@/types/report';
+import { ElChart } from '@element-plus/charts'
 
 const props = defineProps<{
   report: ReportCard;
