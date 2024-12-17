@@ -44,16 +44,22 @@
       <div class="table-header">
         <h3 class="table-title">Liste des élèves</h3>
         <div class="table-actions">
-          <el-tooltip content="Aperçu avant impression" placement="top">
-            <el-button type="info" circle @click="handlePreview" style="margin-right: 8px">
-              <Icon icon="mdi:eye" />
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="Imprimer la liste" placement="top">
-            <el-button type="primary" circle @click="handlePrint">
-              <Icon icon="mdi:printer" />
-            </el-button>
-          </el-tooltip>
+          <el-button
+            type="success"
+            @click="handleExport"
+            :loading="loading"
+          >
+            <Icon icon="mdi:file-excel" />
+            Exporter Excel
+          </el-button>
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            @click="refreshData"
+            :loading="loading"
+          >
+            Actualiser
+          </el-button>
         </div>
       </div>
 
@@ -194,7 +200,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, PropType } from "vue";
 import { Icon } from '@iconify/vue';
-import { ElMessageBox } from "element-plus";
+import { ElMessageBox, ElMessage } from 'element-plus';
+import * as XLSX from "xlsx";
+import { Refresh } from '@element-plus/icons-vue';
 
 interface Student {
   id?: number;
@@ -205,6 +213,9 @@ interface Student {
   gradeId?: number;
   famillyPhone?: string;
   sex: "male" | "female";
+  birthDay?: string;
+  birthTown?: string;
+  address?: string;
 }
 
 interface Grade {
@@ -219,11 +230,13 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["detail", "edit", "pageChange", "delete", "print", "preview"]);
+const emit = defineEmits(["detail", "edit", "pageChange", "delete", "refresh"]);
 
 const currentPage = ref(1);
 const pageSize = ref(5);
 const tableHeight = ref(500);
+const searchQuery = ref('');
+const loading = ref(false);
 
 const headerStyle = {
   background: "#f5f7fa",
@@ -265,6 +278,17 @@ const paginatedData = computed(() => {
   return props.students.slice(start, end);
 });
 
+const filteredStudents = computed(() => {
+  if (!searchQuery.value) {
+    return props.students;
+  }
+  return props.students.filter(student => 
+    student.firstname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    student.lastname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    student.matricule.toLowerCase().includes(searchQuery.value.toLowerCase())
+  );
+});
+
 // Methods
 const handleClick = (student: Student) => {
   emit("detail", student);
@@ -296,32 +320,42 @@ const handlePageChange = (page: number) => {
   emit("pageChange", page);
 };
 
-const handlePrint = () => {
-  // Vérifier si les données sont filtrées par classe
-  const allSameGrade = props.students.every((student, _i, arr) => 
-    student.gradeId === arr[0].gradeId
-  );
 
-  if (!allSameGrade) {
-    ElMessage.warning('Merci de filtrer par classe (grade) avant d\'imprimer');
-    return;
+
+const handleExport = () => {
+  try {
+    // Créer un nouveau classeur
+    const wb = XLSX.utils.book_new();
+    
+    // Préparer les données pour l'export
+    const exportData = filteredStudents.value.map(student => ({
+      'Matricule': student.matricule,
+      'Nom': student.lastname,
+      'Prénom': student.firstname,
+      'Genre': student.sex === 'male' ? 'Garçon' : 'Fille',
+      'Année scolaire': student.schoolYear,
+      'Classe': getGradeName(student.gradeId),
+      'Contact Parents': student.famillyPhone,
+      'Date de naissance': student.birthDay ? new Date(student.birthDay).toLocaleDateString() : '',
+      'Lieu de naissance': student.birthTown || '',
+      'Adresse': student.address || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Élèves');
+
+    // Générer le nom du fichier avec la date
+    const date = new Date().toISOString().split('T')[0];
+    const fileName = `liste_eleves_${date}.xlsx`;
+
+    // Déclencher le téléchargement
+    XLSX.writeFile(wb, fileName);
+
+    ElMessage.success('Export réussi !');
+  } catch (error) {
+    console.error('Erreur lors de l\'export:', error);
+    ElMessage.error('Erreur lors de l\'export du fichier');
   }
-
-  emit("print", props.students);
-};
-
-const handlePreview = () => {
-  // Même vérification que pour l'impression
-  const allSameGrade = props.students.every((student, _i, arr) => 
-    student.gradeId === arr[0].gradeId
-  );
-
-  if (!allSameGrade) {
-    ElMessage.warning('Merci de filtrer par classe (grade) avant l\'aperçu');
-    return;
-  }
-
-  emit("preview", props.students);
 };
 
 // Obtenir le nom du grade à partir de son ID
@@ -349,6 +383,16 @@ const getGradeTagType = (gradeId: number | undefined) => {
   if (gradeId <= 10) return "warning";
   return "danger";
 };
+
+const refreshData = () => {
+  loading.value = true;
+  try {
+    emit('refresh');
+  } finally {
+    loading.value = false;
+  }
+};
+
 </script>
 
 <style scoped>

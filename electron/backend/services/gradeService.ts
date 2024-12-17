@@ -210,4 +210,23 @@ export class GradeService {
         }
     }
 
+    async getTotalClasses(): Promise<ResultType> {
+        try {
+            const count = await this.gradeRepository.count();
+            return {
+                success: true,
+                data: count,
+                message: "Nombre total de classes récupéré avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération du nombre de classes",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
+
 }

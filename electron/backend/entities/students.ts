@@ -13,6 +13,8 @@ import {
 
 import { FileEntity } from "./file";
 import { GradeEntity } from "./grade";
+import { AbsenceEntity } from "./absence";
+import { PaymentEntity } from "./payment";
 
 @Entity("T_student")
 export class StudentEntity {
@@ -100,6 +102,14 @@ export class StudentEntity {
   @ManyToOne(() => GradeEntity, (grade) => grade.students, { nullable: false })
   @JoinColumn({ name: "gradeId" })
   grade!: GradeEntity;
+
+  // Ajouter les relations avec Absence et Payment
+  @OneToMany(() => AbsenceEntity, (absence) => absence.student)
+  absences!: AbsenceEntity[];
+
+  @OneToMany(() => PaymentEntity, (payment) => payment.student)
+  payments!: PaymentEntity[];
+
   @UpdateDateColumn()
   updatedAt?: Date;
 }

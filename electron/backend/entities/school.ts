@@ -12,13 +12,16 @@ export class SchoolEntity {
     @Column({ type: "varchar", length: 255 })
     address: string = ''; // Adresse de l'école
 
+    @Column({ type: "varchar", length: 255, nullable: true })
+    town: string = ''; // Ajout de la ville
+
     // Relation avec FileEntity pour le logo
     @OneToOne(() => FileEntity, { nullable: true })
     @JoinColumn({ name: "logoId" }) // Colonne pour la relation avec le logo
     logo?: FileEntity;
 
     @Column({ type: "varchar", length: 20 })
-    phoneNumber: string = ''; // Numéro de téléphone
+    phone: string = ''; // Renommé pour cohérence
 
     @Column({ type: "varchar", length: 255 })
     email: string = ''; // Email de l'école

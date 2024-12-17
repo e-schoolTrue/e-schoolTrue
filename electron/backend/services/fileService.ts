@@ -24,29 +24,25 @@ export class FileService {
 
     async saveFile(content: string, name: string, type: string): Promise<FileEntity> {
         try {
-            // Extraire le contenu base64 réel (supprimer le préfixe data:image/...;base64,)
-            const base64Data = content.replace(/^data:image\/\w+;base64,/, '');
-            
-            // Convertir en Buffer
+            // Nettoyer les données base64
+            const base64Data = content.replace(/^data:.*?;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
             
             // Créer un nom de fichier unique
             const fileName = `${Date.now()}-${name}`;
             const filePath = path.join(this.uploadDir, fileName);
-
+            
             // Écrire le fichier
             await fs.writeFile(filePath, buffer);
-            console.log("Fichier sauvegardé:", filePath);
-
-            // Créer l'entité File
-            const fileData: Partial<FileEntity> = {
-                name: name,
+            
+            // Créer et sauvegarder l'entité
+            const fileEntity = this.fileRepository.create({
+                name,
                 path: filePath,
-                type: type
-            };
-
-            const file = this.fileRepository.create(fileData);
-            return await this.fileRepository.save(file);
+                type
+            });
+            
+            return await this.fileRepository.save(fileEntity);
         } catch (error) {
             console.error('Erreur lors de la sauvegarde du fichier:', error);
             throw error;
@@ -79,27 +75,33 @@ export class FileService {
         }
     }
 
-    async saveDocuments(documents: any[], studentId: number): Promise<FileEntity[]> {
+    async saveDocuments(documents: any[], professorId: number): Promise<FileEntity[]> {
         const savedDocuments: FileEntity[] = [];
         
         for (const doc of documents) {
             try {
+                // Nettoyer les données base64
                 const base64Data = doc.content.replace(/^data:.*?;base64,/, '');
                 const buffer = Buffer.from(base64Data, 'base64');
                 
+                // Créer un nom de fichier unique
                 const fileName = `${Date.now()}-${doc.name}`;
                 const filePath = path.join(this.uploadDir, fileName);
                 
+                // Écrire le fichier
                 await fs.writeFile(filePath, buffer);
+                console.log("Document sauvegardé:", filePath);
                 
+                // Créer l'entité
                 const fileEntity = this.fileRepository.create({
                     name: doc.name,
                     path: filePath,
                     type: doc.type,
-                    student: { id: studentId }
+                    professor: { id: professorId }
                 });
                 
                 const savedDoc = await this.fileRepository.save(fileEntity);
+                console.log("Document enregistré en DB:", savedDoc);
                 savedDocuments.push(savedDoc);
             } catch (error) {
                 console.error(`Erreur lors de la sauvegarde du document ${doc.name}:`, error);
@@ -107,5 +109,62 @@ export class FileService {
         }
         
         return savedDocuments;
+    }
+
+    async getFileUrl(filePath: string): Promise<{ content: string; type: string }> {
+        try {
+            console.log("Lecture du fichier:", filePath);
+            // Lire le fichier en tant que buffer
+            const buffer = await fs.readFile(filePath);
+            const type = this.getMimeType(filePath);
+            
+            console.log("Type MIME:", type);
+            console.log("Taille du fichier:", buffer.length, "bytes");
+
+            if (buffer.length === 0) {
+                throw new Error('Fichier vide');
+            }
+
+            // Convertir directement le buffer en base64
+            const base64Content = buffer.toString('base64');
+
+            // Pour les PDFs, ajouter le préfixe data URL
+            const content = type === 'application/pdf' 
+                ? `data:application/pdf;base64,${base64Content}`
+                : base64Content;
+
+            return { content, type };
+        } catch (error) {
+            console.error('Erreur lors de la récupération du fichier:', error);
+            throw error;
+        }
+    }
+
+    private getMimeType(filePath: string): string {
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes: { [key: string]: string } = {
+            '.pdf': 'application/pdf',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        };
+        
+        const mimeType = mimeTypes[ext] || 'application/octet-stream';
+        console.log(`Extension: ${ext}, Type MIME: ${mimeType}`);
+        return mimeType;
+    }
+
+    async getImageUrl(path: string): Promise<string> {
+        try {
+            const buffer = await fs.readFile(path);
+            const base64 = buffer.toString('base64');
+            const type = this.getMimeType(path);
+            return `data:${type};base64,${base64}`;
+        } catch (error) {
+            console.error('Erreur lors de la lecture de l\'image:', error);
+            return '';
+        }
     }
 }

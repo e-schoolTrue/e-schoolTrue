@@ -37,17 +37,24 @@ export class SchoolService {
 
             // Rechercher une école existante
             const existingSchool = await this.schoolRepository.findOne({
-                where: {} // Une seule école gérée dans ce contexte
+                where: {},
+                relations: ['logo']
             });
 
             if (existingSchool) {
                 // Mise à jour des informations
                 const updatedSchool = this.schoolRepository.merge(existingSchool, schoolData);
-                await this.schoolRepository.save(updatedSchool);
+                const savedSchool = await this.schoolRepository.save(updatedSchool);
+                
+                // Charger l'école avec toutes les relations après la sauvegarde
+                const refreshedSchool = await this.schoolRepository.findOne({
+                    where: { id: savedSchool.id },
+                    relations: ['logo']
+                });
 
                 return {
                     success: true,
-                    data: updatedSchool,
+                    data: refreshedSchool,
                     error: null,
                     message: "Informations de l'école mises à jour avec succès"
                 };
@@ -106,6 +113,25 @@ export class SchoolService {
                 data: null,
                 error: errorMessage,
                 message: `Erreur lors de la récupération des informations de l'école : ${errorMessage}`
+            };
+        }
+    }
+
+    async getSchoolInfo(): Promise<ResultType> {
+        try {
+            const school = await this.getSchool();
+            return {
+                success: true,
+                data: school.data,
+                message: "Informations de l'��cole récupérées avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des informations de l'école",
+                error: error instanceof Error ? error.message : "Unknown error"
             };
         }
     }

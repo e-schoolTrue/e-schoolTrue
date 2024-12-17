@@ -3,6 +3,8 @@ import { PaymentEntity } from '../entities/payment';
 import { PaymentConfigEntity} from '../entities/paymentConfig';
 import { AppDataSource } from '../../data-source';
 import { StudentEntity } from '../entities/students';
+import { ProfessorEntity } from '../entities/professor';
+import { ProfessorPaymentEntity } from '../entities/professorPayment';
 
 export interface ResultType {
     success: boolean;
@@ -17,57 +19,69 @@ export class PaymentService {
     private paymentRepository: Repository<PaymentEntity>;
     private configRepository: Repository<PaymentConfigEntity>;
     private studentRepository: Repository<StudentEntity>;
+    private professorRepository: Repository<ProfessorEntity>;
+    private professorPaymentRepository: Repository<ProfessorPaymentEntity>;
+    private initialized: boolean = false;
 
     constructor() {
         this.paymentRepository = AppDataSource.getInstance().getRepository(PaymentEntity);
         this.configRepository = AppDataSource.getInstance().getRepository(PaymentConfigEntity);
         this.studentRepository = AppDataSource.getInstance().getRepository(StudentEntity);
+        this.professorRepository = AppDataSource.getInstance().getRepository(ProfessorEntity);
+        this.professorPaymentRepository = AppDataSource.getInstance().getRepository(ProfessorPaymentEntity);
+    }
+
+    private async ensureRepositoriesInitialized(): Promise<void> {
+        if (!this.initialized) {
+            const dataSource = AppDataSource.getInstance();
+            if (!dataSource.isInitialized) {
+                await AppDataSource.initialize();
+            }
+            this.paymentRepository = dataSource.getRepository(PaymentEntity);
+            this.configRepository = dataSource.getRepository(PaymentConfigEntity);
+            this.studentRepository = dataSource.getRepository(StudentEntity);
+            this.professorRepository = dataSource.getRepository(ProfessorEntity);
+            this.professorPaymentRepository = dataSource.getRepository(ProfessorPaymentEntity);
+            this.initialized = true;
+        }
     }
 
     async saveConfig(configData: any): Promise<ResultType> {
         try {
-            console.log("Données de configuration reçues:", configData);
-
-            // Vérifier si une configuration existe déjà pour cette classe
+            await this.ensureRepositoriesInitialized();
+            
             const existingConfig = await this.configRepository.findOne({
                 where: { classId: configData.classId }
             });
 
-            let savedConfig;
             if (existingConfig) {
-                // Mise à jour de la configuration existante
-                console.log("Mise à jour de la configuration existante:", existingConfig.id);
-                await this.configRepository.update(existingConfig.id, {
-                    ...configData,
-                    updatedAt: new Date()
-                });
-                savedConfig = await this.configRepository.findOne({
-                    where: { id: existingConfig.id }
-                });
+                existingConfig.annualAmount = configData.annualAmount;
+                const savedConfig = await this.configRepository.save(existingConfig);
+                return {
+                    success: true,
+                    data: savedConfig,
+                    message: "Configuration mise à jour avec succès",
+                    error: null
+                };
             } else {
-                // Création d'une nouvelle configuration
-                console.log("Création d'une nouvelle configuration");
                 const newConfig = this.configRepository.create({
-                    ...configData,
-                    updatedAt: new Date()
+                    classId: configData.classId,
+                    annualAmount: configData.annualAmount
                 });
-                savedConfig = await this.configRepository.save(newConfig);
+                const savedConfig = await this.configRepository.save(newConfig);
+                return {
+                    success: true,
+                    data: savedConfig,
+                    message: "Configuration créée avec succès",
+                    error: null
+                };
             }
-
-            console.log("Configuration sauvegardée avec succès:", savedConfig);
-
-            return {
-                success: true,
-                data: savedConfig,
-                message: "Configuration sauvegardée avec succès",
-                error: null
-            };
         } catch (error) {
-            console.error("Erreur lors de la sauvegarde de la configuration:", error);
+            console.error("Erreur lors de la sauvegarde:", error);
             return {
                 success: false,
                 data: null,
-                message: error instanceof Error ? error.message : "Erreur lors de la sauvegarde",
+                message: "Erreur lors de la sauvegarde de la configuration",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
@@ -75,7 +89,12 @@ export class PaymentService {
 
     async getConfigs(): Promise<ResultType> {
         try {
+            await this.ensureRepositoriesInitialized();
+            console.log("Récupération des configurations");
+            
             const configs = await this.configRepository.find();
+            console.log("Configurations trouvées:", configs);
+
             return {
                 success: true,
                 data: configs,
@@ -83,10 +102,11 @@ export class PaymentService {
                 error: null
             };
         } catch (error) {
+            console.error("Erreur lors de la récupération:", error);
             return {
                 success: false,
                 data: null,
-                message: "Erreur lors de la récupération",
+                message: "Erreur lors de la récupération des configurations",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
@@ -98,25 +118,22 @@ export class PaymentService {
         
         try {
             if (!paymentData.studentId) {
-                console.error('Erreur: StudentId manquant dans les données');
                 throw new Error('StudentId est requis');
             }
+
+            if (!paymentData.paymentType) {
+                throw new Error('Le type de paiement est requis');
+            }
+
+            if (!paymentData.amount) {
+                throw new Error('Le montant est requis');
+            }
             
-            console.log('=== Recherche de l\'étudiant ===');
-            console.log('StudentId recherché:', paymentData.studentId);
-    
-            // Vérifier que l'étudiant existe
             const student = await this.studentRepository.findOne({
                 where: { id: paymentData.studentId }
             });
-    
-            console.log('Résultat de la recherche étudiant:', student ? 'Trouvé' : 'Non trouvé');
-            if (student) {
-                console.log('Détails de l\'étudiant:', JSON.stringify(student, null, 2));
-            }
-    
+
             if (!student) {
-                console.error('Étudiant non trouvé');
                 return {
                     success: false,
                     data: null,
@@ -124,57 +141,44 @@ export class PaymentService {
                     error: "STUDENT_NOT_FOUND"
                 };
             }
-    
-            console.log('=== Création de l\'entité payment ===');
-            // Création et sauvegarde du paiement
+
+            // Création du paiement avec les champs requis
             const payment = this.paymentRepository.create({
-                ...paymentData,
-                student
+                amount: paymentData.amount,
+                paymentType: paymentData.paymentType,
+                student,
+                createdAt: new Date(),
+                installmentNumber: paymentData.installmentNumber || 1,
+                schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
+                comment: paymentData.comment || ''
             });
             
-            console.log('Entity payment créée avec les données:');
-            console.log(JSON.stringify(payment, null, 2));
-    
-            console.log('=== Tentative de sauvegarde du paiement ===');
             const savedPayment = await this.paymentRepository.save(payment);
-            console.log('Payment sauvegardé avec succès:');
-            console.log(JSON.stringify(savedPayment, null, 2));
-    
-            console.log('=== Vérification de la sauvegarde ===');
-            // Vérification de la sauvegarde
+
             const verifiedPayment = await this.paymentRepository.findOne({
                 where: { id: savedPayment.id },
                 relations: ['student']
             });
-    
-            console.log('Résultat de la vérification:', verifiedPayment ? 'Payment vérifié' : 'Payment non trouvé');
-            if (verifiedPayment) {
-                console.log('Détails du payment vérifié:', JSON.stringify(verifiedPayment, null, 2));
-            }
-    
+
             if (!verifiedPayment) {
-                console.error('Erreur: Le paiement a été créé mais non retrouvé en base');
                 throw new Error('Le paiement a été créé mais non retrouvé en base');
             }
-    
-            console.log('=== Traitement terminé avec succès ===');
+
             return {
                 success: true,
                 data: verifiedPayment,
                 message: "Paiement enregistré avec succès",
                 error: null
             };
-    
+
         } catch (error) {
             console.error('=== Erreur dans PaymentService ===');
-            console.error('Type d\'erreur:', );
-            console.error('Message d\'erreur:', );
-            console.error('Stack trace:', );
+            console.error('Message d\'erreur:', error);
             
             return {
                 success: false,
                 data: null,
-                message: "Erreur lors de l'enregistrement",
+                message: error instanceof Error ? error.message : "Erreur lors de l'enregistrement",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
@@ -186,7 +190,7 @@ export class PaymentService {
                 relations: ['student'],
                 skip: (page - 1) * limit,
                 take: limit,
-                order: { paymentDate: 'DESC' }
+                order: { createdAt: 'DESC' }
             });
 
             return {
@@ -209,30 +213,33 @@ export class PaymentService {
         try {
             const payments = await this.paymentRepository.find({
                 where: { studentId },
-                order: { paymentDate: 'DESC' },
-                relations: ['student']
+                relations: ['student'],
+                order: { createdAt: 'DESC' }
             });
 
             return {
                 success: true,
                 data: payments,
-                message: "Paiements de l'étudiant récupérés avec succès",
+                message: "Paiements récupérés avec succès",
                 error: null
             };
         } catch (error) {
+            console.error("Erreur dans getPaymentsByStudent:", error);
             return {
                 success: false,
                 data: null,
                 message: "Erreur lors de la récupération des paiements",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
+                error: error instanceof Error ? error.message : "Unknown error"
             };
         }
     }
 
     async getConfigByClass(classId: number): Promise<ResultType> {
         try {
+            await this.ensureRepositoriesInitialized();
+            
             const config = await this.configRepository.findOne({
-                where: { classId }
+                where: { classId: String(classId) }
             });
 
             if (!config) {
@@ -277,7 +284,7 @@ export class PaymentService {
     
             // Maintenant TypeScript sait que classId est un number
             const config = await this.configRepository.findOne({
-                where: { classId: student.classId as number }
+                where: { classId: String(student.classId) }
             });
     
             if (!config) {
@@ -297,10 +304,9 @@ export class PaymentService {
                 data: {
                     totalAmount: config.annualAmount,
                     totalPaid,
-                    remaining,
-                    installments: config.installments
+                    remaining
                 },
-                message: "Montant restant calculé avec succès",
+                message: "Montant restant calculé avec succès", 
                 error: null
             };
         } catch (error) {
@@ -308,6 +314,277 @@ export class PaymentService {
                 success: false,
                 data: null,
                 message: "Erreur lors du calcul du montant restant",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getRecentPayments(limit: number = 5): Promise<ResultType> {
+        try {
+            const payments = await this.paymentRepository.find({
+                relations: ['student'],
+                order: { createdAt: 'DESC' },
+                take: limit
+            });
+
+            const formattedPayments = payments.map(payment => ({
+                id: payment.id,
+                studentName: `${payment.student.firstname} ${payment.student.lastname}`,
+                amount: payment.amount,
+                date: payment.createdAt
+            }));
+
+            return {
+                success: true,
+                data: formattedPayments,
+                message: "Paiements récents récupérés avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des paiements récents",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
+
+    async addProfessorPayment(paymentData: any): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            const professor = await this.professorRepository.findOne({
+                where: { id: paymentData.professorId },
+                relations: ['teaching']
+            });
+
+            if (!professor) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Professeur non trouvé",
+                    error: "PROFESSOR_NOT_FOUND"
+                };
+            }
+
+            const payment = this.professorPaymentRepository.create({
+                professor,
+                professorId: professor.id,
+                amount: paymentData.amount,
+                type: paymentData.type,
+                paymentMethod: paymentData.paymentMethod,
+                month: paymentData.month,
+                reference: paymentData.reference || '',
+                comment: paymentData.comment || '',
+                isPaid: true,
+                grossAmount: paymentData.grossAmount,
+                netAmount: paymentData.netAmount,
+                deductions: paymentData.deductions || [],
+                additions: paymentData.additions || []
+            });
+
+            const savedPayment = await this.professorPaymentRepository.save(payment);
+
+            return {
+                success: true,
+                data: savedPayment,
+                message: "Paiement enregistré avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error('Erreur détaillée:', error);
+            return {
+                success: false,
+                data: null,
+                message: error instanceof Error ? error.message : "Erreur lors de l'enregistrement",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getProfessorPayments(filters: any): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            const queryBuilder = this.professorPaymentRepository
+                .createQueryBuilder('payment')
+                .leftJoinAndSelect('payment.professor', 'professor');
+
+            // Appliquer les filtres
+            if (filters?.month) {
+                queryBuilder.andWhere('payment.month = :month', { month: filters.month });
+            }
+
+            if (filters?.status) {
+                queryBuilder.andWhere('payment.isPaid = :isPaid', { 
+                    isPaid: filters.status === 'paid' 
+                });
+            }
+
+            const payments = await queryBuilder
+                .orderBy('payment.createdAt', 'DESC')
+                .getMany();
+
+            return {
+                success: true,
+                data: payments,
+                message: "Liste des paiements récupérée avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error('Erreur lors de la récupération des paiements:', error);
+            return {
+                success: false,
+                data: [],
+                message: "Erreur lors de la récupération des paiements",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getProfessorPaymentStats(): Promise<ResultType> {
+        try {
+            const totalPaid = await this.professorPaymentRepository
+                .createQueryBuilder("payment")
+                .where("payment.isPaid = :isPaid", { isPaid: true })
+                .select("SUM(payment.amount)", "total")
+                .getRawOne();
+
+            const totalPending = await this.professorPaymentRepository
+                .createQueryBuilder("payment")
+                .where("payment.isPaid = :isPaid", { isPaid: false })
+                .select("SUM(payment.amount)", "total")
+                .getRawOne();
+
+            return {
+                success: true,
+                data: {
+                    totalPaid: totalPaid?.total || 0,
+                    totalPending: totalPending?.total || 0
+                },
+                message: "Statistiques récupérées avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des statistiques",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getTotalProfessors(): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            const count = await this.professorRepository
+                .createQueryBuilder('professor')
+                .getCount();
+
+            console.log('Nombre total de professeurs:', count);
+
+            return {
+                success: true,
+                data: count,
+                message: "Nombre total de professeurs récupéré avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error('Erreur lors du comptage des professeurs:', error);
+            return {
+                success: false,
+                data: 0,
+                message: "Erreur lors du comptage des professeurs",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getProfessorPaymentById(paymentId: number): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            const payment = await this.professorPaymentRepository.findOne({
+                where: { id: paymentId },
+                relations: ['professor']
+            });
+
+            if (!payment) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Paiement non trouvé",
+                    error: "Payment not found"
+                };
+            }
+
+            return {
+                success: true,
+                data: payment,
+                message: "Paiement récupéré avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération du paiement",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
+
+    async updateProfessorPayment(paymentData: any): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+
+            const payment = await this.professorPaymentRepository.findOne({
+                where: { id: paymentData.id },
+                relations: ['professor']
+            });
+
+            if (!payment) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Paiement non trouvé",
+                    error: "PAYMENT_NOT_FOUND"
+                };
+            }
+
+            // Mettre à jour les champs modifiables
+            Object.assign(payment, {
+                isPaid: paymentData.isPaid,
+                amount: paymentData.amount,
+                type: paymentData.type,
+                paymentMethod: paymentData.paymentMethod,
+                month: paymentData.month,
+                reference: paymentData.reference,
+                comment: paymentData.comment,
+                // Ajout des champs manquants
+                grossAmount: paymentData.grossAmount,
+                netAmount: paymentData.netAmount,
+                deductions: paymentData.deductions || [],
+                additions: paymentData.additions || []
+            });
+
+            const savedPayment = await this.professorPaymentRepository.save(payment);
+
+            return {
+                success: true,
+                data: savedPayment,
+                message: "Paiement mis à jour avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error('Erreur détaillée:', error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la mise à jour du paiement",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }

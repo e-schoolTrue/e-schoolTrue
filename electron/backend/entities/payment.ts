@@ -1,36 +1,42 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
 import { StudentEntity } from "./students";
 
-@Entity('T_payment')
+@Entity("payments")
 export class PaymentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: "int" })
+    @Column("decimal", { precision: 10, scale: 2 })
     amount!: number;
 
-    @Column({ type: "datetime" })
-    paymentDate!: Date;
+    @Column({ type: "varchar", nullable: false })
+    paymentType!: string;
 
-    @Column({ type: "text" })
-    paymentType!: string; // "CASH" | "CHEQUE" | "VIREMENT"
+    @Column({ 
+        type: "varchar", 
+        nullable: false,
+        default: 'cash'
+    })
+    paymentMethod!: string;
 
-    @Column({ type: "text", nullable: true })
-    reference?: string;
-
-    @Column({ type: "text", nullable: true })
-    notes?: string;
+    @CreateDateColumn()
+    createdAt!: Date;
 
     @ManyToOne(() => StudentEntity, student => student.payments)
-    @JoinColumn({ name: "studentId" })
     student!: StudentEntity;
 
-    @Column({ type: "int" })
+    @Column({ type: "integer" })
     studentId!: number;
 
-    @Column({ type: "int" })
+    @Column({ type: "integer", default: 1 })
     installmentNumber!: number;
 
-    @Column({ type: "text" })
+    @Column({ 
+        type: "varchar",
+        default: () => `'${new Date().getFullYear()}'`
+    })
     schoolYear!: string;
+
+    @Column({ type: "varchar", nullable: true })
+    comment?: string;
 }

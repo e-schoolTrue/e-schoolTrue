@@ -1,424 +1,397 @@
 <template>
-  <div class="payment-history">
-    <!-- Cards de résumé -->
-    <div class="summary-section">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-card class="summary-card total">
-            <div class="card-content">
-              <div class="icon-container">
-                <el-icon><Money /></el-icon>
+  <el-dialog
+    v-model="dialogVisible"
+    :title="'Historique des paiements - ' + student?.firstname + ' ' + student?.lastname"
+    width="700px"
+  >
+    <div class="payment-history">
+      <div class="summary-cards">
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-card shadow="hover">
+              <div class="summary-item">
+                <div class="label">Total payé</div>
+                <div class="value success">
+                  {{ formatAmount(totalPaid) }} FCFA
+                </div>
               </div>
-              <div class="text-container">
-                <h3>Montant Total</h3>
-                <p>{{ formatAmount(paymentSummary.totalAmount) }} FCFA</p>
+            </el-card>
+          </el-col>
+          
+          <el-col :span="8">
+            <el-card shadow="hover">
+              <div class="summary-item">
+                <div class="label">Montant annuel</div>
+                <div class="value">
+                  {{ formatAmount(annualAmount) }} FCFA
+                </div>
               </div>
-            </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="6">
-          <el-card class="summary-card paid">
-            <div class="card-content">
-              <div class="icon-container success">
-                <el-icon><CircleCheckFilled /></el-icon>
+            </el-card>
+          </el-col>
+          
+          <el-col :span="8">
+            <el-card shadow="hover">
+              <div class="summary-item">
+                <div class="label">Reste à payer</div>
+                <div class="value warning">
+                  {{ formatAmount(remainingAmount) }} FCFA
+                </div>
               </div>
-              <div class="text-container">
-                <h3>Montant Payé</h3>
-                <p class="success-text">{{ formatAmount(paymentSummary.totalPaid) }} FCFA</p>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="6">
-          <el-card class="summary-card remaining">
-            <div class="card-content">
-              <div class="icon-container" :class="getRemainingIconClass()">
-                <el-icon><WalletFilled /></el-icon>
-              </div>
-              <div class="text-container">
-                <h3>Reste à Payer</h3>
-                <p :class="getRemainingClass()">
-                  {{ formatAmount(paymentSummary.remaining) }} FCFA
-                </p>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="6">
-          <el-card class="summary-card installments">
-            <div class="card-content">
-              <div class="icon-container info">
-                <el-icon><Document /></el-icon>
-              </div>
-              <div class="text-container">
-                <h3>Versements</h3>
-                <p class="info-text">{{ paymentSummary.installments }} fois</p>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-    </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
 
-    <!-- Tableau des paiements -->
-    <div class="payment-table">
-      <el-card>
-        <template #header>
-          <div class="table-header">
-            <h2>Historique des Paiements</h2>
-            <el-button type="primary" :icon="Plus">
-              Nouveau Paiement
-            </el-button>
-          </div>
-        </template>
-        
-        <el-table 
-          :data="payments" 
-          style="width: 100%"
-          :border="true"
-          :stripe="true"
-          height="450"
+      <div class="table-actions" style="margin-bottom: 15px;">
+        <el-button type="success" @click="exportToExcel">
+          <el-icon><Download /></el-icon>
+          Exporter Excel
+        </el-button>
+      </div>
+
+      <el-table
+        v-loading="loading"
+        :data="payments"
+        border
+        stripe
+        style="width: 100%"
+      >
+        <el-table-column
+          label="Date"
+          prop="createdAt"
+          width="120"
         >
-          <el-table-column 
-            label="Date" 
-            prop="paymentDate" 
-            width="150"
-            :formatter="formatDate"
-          />
-          <el-table-column 
-            label="Montant" 
-            prop="amount" 
-            width="180"
-            align="right"
-          >
-            <template #default="{ row }">
-              <span class="amount-cell">
-                {{ formatAmount(row.amount) }} FCFA
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column 
-            label="Type" 
-            prop="paymentType"
-            width="150"
-          >
-            <template #default="{ row }">
-              <el-tag
-                :type="getPaymentTypeTag(row.paymentType)"
-                effect="light"
-                size="large"
-                round
-              >
-                {{ formatPaymentType(row.paymentType) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column 
-            label="N° Versement" 
-            prop="installmentNumber" 
-            width="120"
-            align="center"
-          >
-            <template #default="{ row }">
-              <el-badge :value="row.installmentNumber" type="primary" />
-            </template>
-          </el-table-column>
-          <el-table-column 
-            label="Référence" 
-            prop="reference"
-            show-overflow-tooltip
-          />
-          <el-table-column 
-            label="Notes" 
-            prop="notes"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <el-tooltip 
-                :content="row.notes" 
-                placement="top" 
-                v-if="row.notes"
-              >
-                <span class="notes-cell">{{ row.notes }}</span>
-              </el-tooltip>
-            </template>
-          </el-table-column>
-        </el-table>
+          <template #default="{ row }">
+            {{ formatDate(row.createdAt) }}
+          </template>
+        </el-table-column>
 
-        <div v-if="!payments.length" class="empty-state">
-          <el-empty description="Aucun paiement enregistré" />
-        </div>
-      </el-card>
+        <el-table-column
+          label="Type"
+          prop="type"
+          width="150"
+        >
+          <template #default="{ row }">
+            <el-tag :type="getPaymentTypeColor(row.type)">
+              {{ formatPaymentType(row.type) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="Montant"
+          prop="amount"
+          width="150"
+          align="right"
+        >
+          <template #default="{ row }">
+            {{ formatAmount(row.amount) }} FCFA
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="Mode"
+          prop="paymentMethod"
+          width="120"
+        >
+          <template #default="{ row }">
+            {{ formatPaymentMethod(row.paymentMethod) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="Actions"
+          width="100"
+          fixed="right"
+          align="center"
+        >
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              circle
+              size="small"
+              :icon="Printer"
+              @click="printReceipt(row)"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
-  </div>
+  </el-dialog>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue';
-import { 
-  Money, 
-  CircleCheckFilled, 
-  WalletFilled, 
-  Document,
-  Plus 
-} from '@element-plus/icons-vue';
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { Printer, Download } from '@element-plus/icons-vue';
+import printJS from 'print-js';
+import * as XLSX from 'xlsx';
 
-const props = defineProps({
-  studentId: {
-    type: Number,
-    required: true
-  }
+interface Props {
+  visible: boolean;
+  student: any;
+}
+
+const props = defineProps<Props>();
+const emit = defineEmits(['update:visible']);
+
+const dialogVisible = computed({
+  get: () => props.visible,
+  set: (value) => emit('update:visible', value)
 });
 
+const loading = ref(false);
 const payments = ref([]);
-const paymentSummary = ref({
-  totalAmount: 0,
-  totalPaid: 0,
-  remaining: 0,
-  installments: 0
-});
+const totalPaid = ref(0);
+const annualAmount = ref(0);
+const remainingAmount = ref(0);
 
-const formatAmount = (amount) => {
+const formatAmount = (amount: number): string => {
   return new Intl.NumberFormat('fr-FR').format(amount);
 };
 
-const formatDate = (row) => {
-  return new Date(row.paymentDate).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric'
-  });
+const formatDate = (date: string): string => {
+  return new Date(date).toLocaleDateString('fr-FR');
 };
 
-const formatPaymentType = (type) => {
-  const types = {
-    'cash': 'Espèces',
-    'cheque': 'Chèque',
-    'transfer': 'Virement',
-    'other': 'Autre'
+const getPaymentTypeColor = (type: string): string => {
+  const colors: Record<string, string> = {
+    tuition: 'primary',
+    registration: 'success',
+    uniform: 'warning',
+    transport: 'info',
+    cafeteria: 'danger'
+  };
+  return colors[type] || 'default';
+};
+
+const formatPaymentType = (type: string): string => {
+  const types: Record<string, string> = {
+    tuition: 'Frais de scolarité',
+    registration: 'Inscription',
+    uniform: 'Uniforme',
+    transport: 'Transport',
+    cafeteria: 'Cantine'
   };
   return types[type] || type;
 };
 
-const getPaymentTypeTag = (type) => {
-  const types = {
-    'cash': 'success',
-    'cheque': 'warning',
-    'transfer': 'info',
-    'other': ''
+const formatPaymentMethod = (method: string): string => {
+  const methods: Record<string, string> = {
+    cash: 'Espèces',
+    check: 'Chèque',
+    transfer: 'Virement',
+    mobile_money: 'Mobile Money'
   };
-  return types[type] || '';
-};
-
-const getRemainingClass = () => {
-  if (paymentSummary.value.remaining <= 0) return 'success-text';
-  if (paymentSummary.value.remaining < paymentSummary.value.totalAmount / 2) return 'warning-text';
-  return 'danger-text';
-};
-
-const getRemainingIconClass = () => {
-  if (paymentSummary.value.remaining <= 0) return 'success';
-  if (paymentSummary.value.remaining < paymentSummary.value.totalAmount / 2) return 'warning';
-  return 'danger';
+  return methods[method] || method;
 };
 
 const loadPayments = async () => {
+  if (!props.student?.id) return;
+  
+  loading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('payment:getByStudent', props.studentId);
-    if (result.success) {
-      payments.value = result.data;
-    } else {
-      ElMessage.error('Erreur lors du chargement des paiements');
+    const paymentsResult = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
+    
+    const configResult = await window.ipcRenderer.invoke('payment:getConfig', props.student.grade?.id);
+
+    if (paymentsResult?.success) {
+      payments.value = paymentsResult.data;
+      
+      totalPaid.value = payments.value.reduce((sum: number, payment: any) => {
+        return sum + Number(payment.amount || 0);
+      }, 0);
     }
+
+    if (configResult?.success && configResult.data) {
+      annualAmount.value = Number(configResult.data.annualAmount || 0);
+      
+      remainingAmount.value = Math.max(0, annualAmount.value - totalPaid.value);
+    }
+
   } catch (error) {
-    console.error('Erreur:', error);
-    ElMessage.error('Une erreur est survenue');
+    console.error('Erreur lors du chargement des paiements:', error);
+    ElMessage.error('Erreur lors du chargement des paiements');
+  } finally {
+    loading.value = false;
   }
 };
 
-const loadSummary = async () => {
+const exportToExcel = () => {
   try {
-    const result = await window.ipcRenderer.invoke('payment:getRemainingAmount', props.studentId);
-    console.log("historique:", result)
-    if (result.success) {
-      paymentSummary.value = result.data;
-    }
+    // Préparer les données pour l'export
+    const exportData = payments.value.map((payment: {
+      createdAt: string,
+      paymentType: string,
+      amount: number,
+      paymentMethod: string,
+      reference: string
+    }) => ({
+      'Date': formatDate(payment.createdAt),
+      'Type': formatPaymentType(payment.paymentType), 
+      'Montant': payment.amount,
+      'Mode de paiement': formatPaymentMethod(payment.paymentMethod),
+      'Référence': payment.reference || ''
+    }));
+
+    // Créer un workbook et une worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // Ajouter la worksheet au workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Paiements');
+
+    // Générer le nom du fichier
+    const fileName = `paiements_${props.student.firstname}_${props.student.lastname}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Sauvegarder le fichier
+    XLSX.writeFile(wb, fileName);
+
+    ElMessage.success('Export Excel réussi');
   } catch (error) {
-    console.error('Erreur:', error);
+    console.error('Erreur lors de l\'export:', error);
+    ElMessage.error('Erreur lors de l\'export Excel');
   }
 };
 
-onMounted(async () => {
-  await Promise.all([loadPayments(), loadSummary()]);
+const printReceipt = async (payment: any) => {
+  try {
+    const schoolInfo = await window.ipcRenderer.invoke('school:get');
+    const studentName = `${props.student.firstname} ${props.student.lastname}`;
+    
+    const content = `
+      <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          ${schoolInfo?.data?.logo ? `<img src="data:${schoolInfo.data.logo.type};base64,${schoolInfo.data.logo.content}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
+          <h2>${schoolInfo?.data?.name || 'École'}</h2>
+          <h3>Reçu de Paiement N°${payment.id}</h3>
+          <p style="margin: 5px 0;">Date: ${formatDate(payment.createdAt)}</p>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 5px;"><strong>Élève:</strong></td>
+              <td style="padding: 5px;">${studentName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px;"><strong>Matricule:</strong></td>
+              <td style="padding: 5px;">${props.student.matricule}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px;"><strong>Classe:</strong></td>
+              <td style="padding: 5px;">${props.student.grade?.name || 'N/A'}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 5px;"><strong>Type de paiement:</strong></td>
+              <td style="padding: 5px;">${formatPaymentType(payment.paymentType)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px;"><strong>Montant:</strong></td>
+              <td style="padding: 5px;">${formatAmount(payment.amount)} FCFA</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px;"><strong>Mode de paiement:</strong></td>
+              <td style="padding: 5px;">${formatPaymentMethod(payment.paymentMethod)}</td>
+            </tr>
+            ${payment.reference ? `
+            <tr>
+              <td style="padding: 5px;"><strong>Référence:</strong></td>
+              <td style="padding: 5px;">${payment.reference}</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        
+        <div style="margin-top: 40px; display: flex; justify-content: space-between;">
+          <div>
+            <p style="margin-bottom: 40px;">Signature du payeur:</p>
+            <p>_____________________</p>
+          </div>
+          <div>
+            <p style="margin-bottom: 40px;">Signature du caissier:</p>
+            <p>_____________________</p>
+          </div>
+        </div>
+        
+        <div style="margin-top: 20px; font-size: 10pt; text-align: center;">
+          <p>${schoolInfo?.data?.address || ''}</p>
+          <p>Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
+        </div>
+      </div>
+    `;
+
+    printJS({
+      printable: content,
+      type: 'raw-html',
+      documentTitle: `Reçu de paiement - ${studentName}`,
+      targetStyles: ['*'],
+      style: `
+        .receipt-container { max-width: 800px; margin: 0 auto; }
+        @media print {
+          body { font-size: 12pt; }
+          .receipt-container { padding: 0; }
+          @page { margin: 1cm; }
+        }
+      `
+    });
+
+    ElMessage.success('Reçu généré avec succès');
+  } catch (error) {
+    console.error('Erreur lors de l\'impression:', error);
+    ElMessage.error('Erreur lors de l\'impression du reçu');
+  }
+};
+
+watch(() => props.visible, (newValue) => {
+  if (newValue) {
+    loadPayments();
+  }
 });
+
+watch(() => props.student, () => {
+  if (dialogVisible.value) {
+    loadPayments();
+  }
+}, { deep: true });
 </script>
 
-<style>
+<style scoped>
 .payment-history {
-  padding: 24px;
-  background-color: #f5f7fa;
-  min-height: 100vh;
-}
-
-.summary-section {
-  margin-bottom: 32px;
-}
-
-.summary-card {
-  height: 140px;
-  transition: transform 0.3s ease;
-}
-
-.summary-card:hover {
-  transform: translateY(-5px);
-}
-
-.card-content {
   display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 20px;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.icon-container {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  background-color: var(--el-color-primary-light-9);
+.summary-cards {
+  margin-bottom: 20px;
 }
 
-.icon-container .el-icon {
-  font-size: 24px;
-  color: var(--el-color-primary);
+.summary-item {
+  text-align: center;
 }
 
-.icon-container.success {
-  background-color: var(--el-color-success-light-9);
+.summary-item .label {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 
-.icon-container.success .el-icon {
+.summary-item .value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.summary-item .value.success {
   color: var(--el-color-success);
 }
 
-.icon-container.warning {
-  background-color: var(--el-color-warning-light-9);
-}
-
-.icon-container.warning .el-icon {
+.summary-item .value.warning {
   color: var(--el-color-warning);
-}
-
-.icon-container.danger {
-  background-color: var(--el-color-danger-light-9);
-}
-
-.icon-container.danger .el-icon {
-  color: var(--el-color-danger);
-}
-
-.icon-container.info {
-  background-color: var(--el-color-info-light-9);
-}
-
-.icon-container.info .el-icon {
-  color: var(--el-color-info);
-}
-
-.text-container h3 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-}
-
-.text-container p {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.success-text {
-  color: var(--el-color-success) !important;
-}
-
-.warning-text {
-  color: var(--el-color-warning) !important;
-}
-
-.danger-text {
-  color: var(--el-color-danger) !important;
-}
-
-.info-text {
-  color: var(--el-color-info) !important;
-}
-
-.payment-table {
-  margin-top: 24px;
-}
-
-.table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-}
-
-.table-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.amount-cell {
-  font-family: monospace;
-  font-weight: 600;
-}
-
-.notes-cell {
-  display: block;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.empty-state {
-  padding: 40px 0;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1200px) {
-  .el-col {
-    width: 50%;
-    margin-bottom: 20px;
-  }
-}
-
-@media (max-width: 768px) {
-  .el-col {
-    width: 100%;
-  }
-  
-  .payment-history {
-    padding: 16px;
-  }
-  
-  .card-content {
-    padding: 16px;
-  }
-  
-  .text-container p {
-    font-size: 20px;
-  }
 }
 </style>

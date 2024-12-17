@@ -120,6 +120,7 @@ const submitForm = async () => {
     };
 
     const result = await window.ipcRenderer.invoke('payment:add', paymentData);
+    console.log(result);
 
     if (result.success) {
       emit('payment-added', result.data);

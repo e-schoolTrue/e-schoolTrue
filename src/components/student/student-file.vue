@@ -50,13 +50,19 @@
           >
             <template #header="{ column }">
               <div class="custom-header">
-                <div class="original-header">{{ column.label }}</div>
+                <div class="original-header" :class="{ 'mapped': columnMappings[header] }">
+                  {{ column.label }}
+                  <el-icon v-if="columnMappings[header]" class="mapped-icon">
+                    <Icon icon="mdi:check-circle" />
+                  </el-icon>
+                </div>
                 <el-select
                   v-model="columnMappings[header]"
                   placeholder="Mapper le champ"
                   size="small"
                   clearable
                   class="mapping-select"
+                  :class="{ 'mapped-select': columnMappings[header] }"
                 >
                   <el-option
                     v-for="(label, field) in studentDataFields"
@@ -380,10 +386,42 @@ const isValidMapping = computed(() => {
 .original-header {
   font-weight: 600;
   color: #2c3e50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.original-header.mapped {
+  background-color: #f0f9eb;
+  color: #67c23a;
+  border: 1px solid #e1f3d8;
+}
+
+.mapped-icon {
+  color: #67c23a;
+  font-size: 16px;
+  margin-left: 8px;
 }
 
 .mapping-select {
   width: 100%;
+  transition: all 0.3s ease;
+}
+
+.mapped-select :deep(.el-input__wrapper) {
+  background-color: #f0f9eb;
+  box-shadow: 0 0 0 1px #67c23a inset;
+}
+
+.mapped-select :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #67c23a inset !important;
+}
+
+.mapped-select :deep(.el-select__tags) {
+  background-color: #f0f9eb;
 }
 
 .mapping-summary {

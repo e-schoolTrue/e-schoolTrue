@@ -1,5 +1,6 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { StudentEntity } from "./students";  // Assurez-vous que le chemin d'importation est correct
+import { ProfessorEntity } from "./professor";
 
 @Entity("T_file")
 export class FileEntity {
@@ -20,4 +21,7 @@ export class FileEntity {
 
     @ManyToOne(() => StudentEntity, student => student.documents, { onDelete: "CASCADE" })
     student?: StudentEntity;
+
+    @ManyToOne(() => ProfessorEntity, professor => professor.documents)
+    professor?: ProfessorEntity;
 }

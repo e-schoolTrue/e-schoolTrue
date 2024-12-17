@@ -200,7 +200,7 @@ export class StudentService {
         grade: student.grade ? {
           id: student.grade.id ?? 0, // Ajoutez un fallback pour id
           name: student.grade.name ?? undefined,
-          description: student.grade.description ?? undefined,
+         
           code: student.grade.code ?? undefined
         } : null
       };
@@ -393,7 +393,108 @@ export class StudentService {
   async getStudentById(id: number): Promise<StudentEntity | null> {
     return await this.studentRepository.findOne({
       where: { id },
-      relations: ["absences"], // Inclure la relation avec les absences
+      relations: ["absences", "payments", "grade"], // Inclure toutes les relations nécessaires
     });
+  }
+
+  async getTotalStudents(): Promise<ResultType> {
+    try {
+      const count = await this.studentRepository.count();
+      return {
+        success: true,
+        data: count,
+        message: "Nombre total d'étudiants récupéré avec succès",
+        error: null
+      };
+    } catch (error) {
+      return {
+        success: false,
+        data: null,
+        message: "Erreur lors de la récupération du nombre d'étudiants",
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+
+  async getStudents(): Promise<ResultType> {
+    try {
+      const dataSource = AppDataSource.getInstance();
+      const studentRepo = dataSource.getRepository(StudentEntity);
+      
+      const students = await studentRepo.find({
+        relations: ['grade', 'absences', 'payments'], // Inclure toutes les relations
+        order: {
+          lastname: 'ASC',
+          firstname: 'ASC'
+        }
+      });
+
+      return {
+        success: true,
+        data: students,
+        message: "Liste des étudiants récupérée avec succès",
+        error: null
+      };
+    } catch (error) {
+      return {
+        success: false,
+        data: null,
+        message: "Erreur lors de la récupération des étudiants",
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+
+  async searchStudents(query: string): Promise<ResultType> {
+    try {
+      const students = await this.studentRepository
+        .createQueryBuilder('student')
+        .leftJoinAndSelect('student.grade', 'grade')
+        .where('LOWER(student.firstname) LIKE LOWER(:query)', { query: `%${query}%` })
+        .orWhere('LOWER(student.lastname) LIKE LOWER(:query)', { query: `%${query}%` })
+        .orWhere('LOWER(student.matricule) LIKE LOWER(:query)', { query: `%${query}%` })
+        .orderBy('student.lastname', 'ASC')
+        .addOrderBy('student.firstname', 'ASC')
+        .getMany();
+
+      return {
+        success: true,
+        data: students,
+        message: "Étudiants trouvés avec succès",
+        error: null
+      };
+    } catch (error) {
+      console.error("Erreur dans searchStudents:", error);
+      return {
+        success: false,
+        data: null,
+        message: "Erreur lors de la recherche des étudiants",
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+
+  async getStudentsByGrade(gradeId: number): Promise<ResultType> {
+    try {
+        const students = await this.studentRepository.find({
+            where: { grade: { id: gradeId } },
+            relations: ['grade']
+        });
+
+        return {
+            success: true,
+            data: students,
+            message: "Étudiants récupérés avec succès",
+            error: null
+        };
+    } catch (error) {
+        console.error("Erreur lors de la récupération des étudiants:", error);
+        return {
+            success: false,
+            data: null,
+            message: "Erreur lors de la récupération des étudiants",
+            error: error instanceof Error ? error.message : "Erreur inconnue"
+        };
+    }
   }
 }
