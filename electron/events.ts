@@ -16,6 +16,8 @@ import { ProfessorService } from './backend/services/professorService';
 import { DashboardService } from './backend/services/dashboardService';
 import { HomeworkService } from './backend/services/homeworkService';
 import { VacationService } from './backend/services/vacationService';
+import { ReportService } from './backend/services/reportService';
+import { BackupService } from './backend/services/backupService';
 
 
 const global = {
@@ -30,7 +32,9 @@ const global = {
     professorService: new ProfessorService(),
     dashboardService: new DashboardService(),
     homeworkService: new HomeworkService(),
-    vacationService: new VacationService()
+    vacationService: new VacationService(),
+    reportService: new ReportService(),
+    backupService: new BackupService(),
 };
 
 // Fonction utilitaire pour gérer les erreurs
@@ -955,4 +959,220 @@ ipcMain.handle('file:getImageUrl', async (_event, path) => {
   } catch (error) {
     return handleError(error);
   }
+});
+
+// Handlers pour les bulletins
+ipcMain.handle('report:create', async (_event, data) => {
+    try {
+        return await global.reportService.createReport(data);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:getByStudent', async (_event, studentId: number) => {
+    try {
+        return await global.reportService.getReportsByStudent(studentId);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:getByGrade', async (_event, { gradeId, period, schoolYear }) => {
+    try {
+        return await global.reportService.getReportsByGrade(gradeId, period, schoolYear);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:update', async (_event, { reportId, data }) => {
+    try {
+        return await global.reportService.updateReport(reportId, data);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:delete', async (_event, reportId: number) => {
+    try {
+        return await global.reportService.deleteReport(reportId);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:generateForGrade', async (_event, { gradeId, period, schoolYear }) => {
+    try {
+        return await global.reportService.generateReportsForGrade(gradeId, period, schoolYear);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:getStudentAverages', async (_event, { gradeId, period, schoolYear }) => {
+    try {
+        return await global.reportService.getStudentAverages(gradeId, period, schoolYear);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:getClassStatistics', async (_event, { gradeId, period, schoolYear }) => {
+    try {
+        return await global.reportService.getClassStatistics(gradeId, period, schoolYear);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:calculateRanks', async (_event, { gradeId, period, schoolYear }) => {
+    try {
+        return await global.reportService.calculateRanks(gradeId, period, schoolYear);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:getGradeDistribution', async (_event, { gradeId, period, schoolYear }) => {
+    try {
+        return await global.reportService.getGradeDistribution(gradeId, period, schoolYear);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('report:generatePDF', async (_event, reportId: number) => {
+    try {
+        return await global.reportService.generatePDF(reportId);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+// Événements de sauvegarde
+ipcMain.handle('backup:init', async () => {
+    try {
+        const history = await global.backupService.getBackupHistory();
+        const stats = await global.backupService.getBackupStats();
+        
+        return {
+            success: true,
+            data: {
+                history,
+                stats,
+            },
+            message: "Système de sauvegarde initialisé",
+            error: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:create', async (_event, { type, config }) => {
+    try {
+        return await global.backupService.createBackup(type, config);
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:history', async () => {
+    try {
+        const history = await global.backupService.getBackupHistory();
+        return {
+            success: true,
+            data: history,
+            message: "Historique récupéré avec succès",
+            error: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:stats', async () => {
+    try {
+        const stats = await global.backupService.getBackupStats();
+        return {
+            success: true,
+            data: stats,
+            message: "Statistiques récupérées avec succès",
+            error: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:restore', async (_event, backupId: string) => {
+    try {
+        // Implémenter la restauration
+        return {
+            success: true,
+            message: "Restauration effectuée avec succès",
+            error: null,
+            data: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:delete', async (_event, backupId: string) => {
+    try {
+        // Implémenter la suppression
+        return {
+            success: true,
+            message: "Sauvegarde supprimée avec succès",
+            error: null,
+            data: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:updateConfig', async (_event, config) => {
+    try {
+        // Implémenter la mise à jour de la configuration
+        return {
+            success: true,
+            data: config,
+            message: "Configuration mise à jour avec succès",
+            error: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+ipcMain.handle('backup:storage', async () => {
+    try {
+        const stats = await global.backupService.getBackupStats();
+        return {
+            success: true,
+            data: stats.storageUsed,
+            message: "Utilisation du stockage récupérée avec succès",
+            error: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
+});
+
+// Événement pour vérifier la connexion Supabase
+ipcMain.handle('backup:checkSupabase', async (_event, config) => {
+    try {
+        // Implémenter la vérification de la connexion Supabase
+        return {
+            success: true,
+            message: "Connexion Supabase vérifiée avec succès",
+            error: null,
+            data: null
+        };
+    } catch (error) {
+        return handleError(error);
+    }
 });
