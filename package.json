@@ -18,6 +18,7 @@
     "electron-print-preview": "^2.2.0",
     "electron-printer": "^0.0.5",
     "html2pdf.js": "^0.10.2",
+    "pinia": "^2.3.0",
     "print-js": "^1.6.0",
     "puppeteer": "^23.10.4",
     "qrcode.vue": "^3.6.0",
