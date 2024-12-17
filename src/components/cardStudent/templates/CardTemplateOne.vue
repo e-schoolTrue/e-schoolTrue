@@ -4,6 +4,7 @@
     <div class="card-front">
       <div class="card-header">
         <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
+        
         <div class="school-info">
           <h2>{{ schoolInfo?.name }}</h2>
           <p>{{ schoolInfo?.address }}</p>

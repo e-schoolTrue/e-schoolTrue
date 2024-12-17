@@ -84,12 +84,14 @@
     </div>
 
     <!-- Graphique radar des compétences -->
-    <div class="skills-radar">
-      <h4>Analyse des Compétences</h4>
-      <div class="radar-container">
-        <el-chart type="radar" :data="radarData" height="300px" />
-      </div>
-    </div>
+   <!-- Skills Radar -->
+<div class="skills-radar">
+  <h4>Analyse des Compétences</h4>
+  <div class="radar-container">
+    <ECharts :options="radarOptions" style="height: 300px;" />
+  </div>
+</div>
+
 
     <!-- Appréciation et conclusion -->
     <div class="conclusion-section">
@@ -113,80 +115,65 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { defineProps, computed } from 'vue';
+import ECharts from 'vue-echarts';
+import { use } from 'echarts/core';
+import {
+  RadarChart, // Import the Radar Chart
+} from 'echarts/charts';
+import {
+  TooltipComponent, LegendComponent, // Tooltip and Legend Components
+} from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+// Use the required ECharts modules
+use([RadarChart, TooltipComponent, LegendComponent, CanvasRenderer]);
+
 import { Icon } from '@iconify/vue';
 import type { ReportCard } from '@/types/report';
-import { ElChart } from '@element-plus/charts'
 
 const props = defineProps<{
   report: ReportCard;
   schoolInfo: any;
 }>();
 
-// Style global du bulletin
-const reportStyle = computed(() => ({
-  fontFamily: "'Roboto', sans-serif",
-  padding: '15mm',
-  width: '210mm',
-  minHeight: '297mm',
-  backgroundColor: '#fff',
-  boxShadow: '0 0 20px rgba(0,0,0,0.1)',
-  margin: '0 auto'
-}));
 
-// Formatage des notes
+// Function to format grades
 const formatGrade = (grade: number) => {
   return grade?.toFixed(2) || '-';
 };
-
-// Distribution des notes
-const gradeDistribution = computed(() => {
+// Radar chart options
+const radarOptions = computed(() => {
   const grades = props.report?.grades || [];
-  const ranges = [
-    { range: '0-5', min: 0, max: 5, color: '#ff4949' },
-    { range: '5-10', min: 5, max: 10, color: '#f7ba2a' },
-    { range: '10-15', min: 10, max: 15, color: '#13ce66' },
-    { range: '15-20', min: 15, max: 20, color: '#409eff' }
-  ];
-
-  return ranges.map(range => {
-    const count = grades.filter(g => 
-      g.grade >= range.min && g.grade < range.max
-    ).length;
-    
-    return {
-      ...range,
-      count,
-      percentage: (count / grades.length) * 100
-    };
-  });
+  return {
+    tooltip: {
+      trigger: 'item',
+    },
+    legend: {
+      data: ['Notes'],
+    },
+    radar: {
+      indicator: grades.map((grade) => ({
+        name: grade.courseName,
+        max: 20,
+      })),
+    },
+    series: [
+      {
+        name: 'Analyse des Notes',
+        type: 'radar',
+        data: [
+          {
+            value: grades.map((grade) => grade.grade || 0),
+            name: 'Notes',
+          },
+        ],
+      },
+    ],
+  };
 });
-
-// Données pour le graphique radar
-const radarData = computed(() => ({
-  radar: {
-    indicator: props.report?.grades.map(g => ({
-      name: g.courseName,
-      max: 20
-    })) || []
-  },
-  series: [{
-    type: 'radar',
-    data: [{
-      value: props.report?.grades.map(g => g.grade) || [],
-      name: 'Notes'
-    }]
-  }]
-}));
-
-// Classes CSS pour les notes
-const getGradeClass = (grade: number) => {
-  if (grade >= 15) return 'grade-excellent';
-  if (grade >= 12) return 'grade-good';
-  if (grade >= 10) return 'grade-average';
-  return 'grade-warning';
-};
 </script>
+
 
 <style scoped>
 /* Styles du template... */
@@ -296,6 +283,13 @@ const getGradeClass = (grade: number) => {
 .skills-radar {
   margin: 30px 0;
 }
+.radar-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
 
 .radar-container {
   background: white;

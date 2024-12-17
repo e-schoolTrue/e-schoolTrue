@@ -13,11 +13,7 @@
             <el-tab-pane label="Template" name="template">
               <div class="templates-list">
                 <el-radio-group v-model="selectedTemplate" class="template-radio-group">
-                  <div
-                    v-for="template in templates"
-                    :key="template.id"
-                    class="template-item"
-                  >
+                  <div v-for="template in templates" :key="template.id" class="template-item">
                     <el-radio :label="template.id">
                       <div class="template-info">
                         <h3>{{ template.name }}</h3>
@@ -25,24 +21,18 @@
                       </div>
                     </el-radio>
                     <div class="template-preview">
-                      <component
-                        :is="template.component"
-                        :student="previewStudent"
-                        :school-info="schoolInfo"
-                        :color-scheme="selectedColorScheme"
-                      />
+                      <component :is="template.component" :student="previewStudent" :school-info="schoolInfo"
+                        :color-scheme="selectedColorScheme" />
                     </div>
                   </div>
                 </el-radio-group>
               </div>
+
             </el-tab-pane>
 
             <!-- Onglet Couleurs -->
             <el-tab-pane label="Couleurs" name="colors">
-              <ColorSchemeSelector
-                v-model="selectedColorScheme"
-                @update:modelValue="updatePreview"
-              />
+              <ColorSchemeSelector v-model="selectedColorScheme" @update:modelValue="updatePreview" />
             </el-tab-pane>
           </el-tabs>
         </el-card>
@@ -55,19 +45,10 @@
             <div class="students-header">
               <div class="filters">
                 <el-select v-model="selectedGrade" placeholder="Filtrer par classe" clearable>
-                  <el-option
-                    v-for="grade in grades"
-                    :key="grade.id"
-                    :label="grade.name"
-                    :value="grade.id"
-                  />
+                  <el-option v-for="grade in grades" :key="grade.id" :label="grade.name" :value="grade.id" />
                 </el-select>
 
-                <el-input
-                  v-model="searchQuery"
-                  placeholder="Rechercher un étudiant..."
-                  clearable
-                >
+                <el-input v-model="searchQuery" placeholder="Rechercher un étudiant..." clearable>
                   <template #prefix>
                     <Icon icon="mdi:magnify" />
                   </template>
@@ -82,14 +63,10 @@
           </template>
 
           <!-- Table des étudiants -->
-          <el-table
-            :data="filteredStudents"
-            @selection-change="handleSelectionChange"
-            v-loading="loading"
-            height="calc(100vh - 300px)"
-          >
+          <el-table :data="filteredStudents" @selection-change="handleSelectionChange" v-loading="loading"
+            height="calc(100vh - 300px)">
             <el-table-column type="selection" width="55" />
-            
+
             <el-table-column label="Photo" width="80">
               <template #default="{ row }">
                 <el-avatar :size="40" :src="row.photo?.path">
@@ -116,24 +93,11 @@
     </el-row>
 
     <!-- Dialog d'impression -->
-    <el-dialog
-      v-model="printDialogVisible"
-      title="Impression des cartes"
-      width="80%"
-      top="5vh"
-    >
+    <el-dialog v-model="printDialogVisible" title="Impression des cartes" width="80%" top="5vh">
       <div class="print-preview">
-        <div
-          v-for="student in selectedStudents"
-          :key="student.id"
-          class="print-card"
-        >
-          <component
-            :is="getCurrentTemplate"
-            :student="student"
-            :school-info="schoolInfo"
-            :color-scheme="selectedColorScheme"
-          />
+        <div v-for="student in selectedStudents" :key="student.id" class="print-card">
+          <component :is="getCurrentTemplate" :student="student" :school-info="schoolInfo"
+            :color-scheme="selectedColorScheme" />
         </div>
       </div>
 
@@ -203,20 +167,20 @@ const getCurrentTemplate = computed(() => {
 
 const filteredStudents = computed(() => {
   let filtered = [...students.value];
-  
+
   if (selectedGrade.value) {
     filtered = filtered.filter(s => s.grade?.id === selectedGrade.value);
   }
-  
+
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(s => 
+    filtered = filtered.filter(s =>
       s.firstname?.toLowerCase().includes(query) ||
       s.lastname?.toLowerCase().includes(query) ||
       s.matricule?.toLowerCase().includes(query)
     );
   }
-  
+
   return filtered;
 });
 
@@ -224,7 +188,7 @@ const filteredStudents = computed(() => {
 const loadData = async () => {
   loading.value = true;
   try {
-    const [studentsResult, gradesResult, schoolResult] = await Promise.all([
+    const [studentsResult, , schoolResult] = await Promise.all([
       window.ipcRenderer.invoke('student:all'),
       window.ipcRenderer.invoke('grade:all'),
       window.ipcRenderer.invoke('school:get')
@@ -244,7 +208,7 @@ const loadData = async () => {
         })
       );
       students.value = studentsWithImages;
-      
+
       // Définir un étudiant de prévisualisation
       if (students.value.length > 0) {
         previewStudent.value = students.value[0];
@@ -366,6 +330,7 @@ onMounted(loadData);
 }
 
 @media print {
+
   .config-section,
   .students-section,
   .el-dialog__header,
@@ -383,4 +348,13 @@ onMounted(loadData);
     page-break-inside: avoid;
   }
 }
-</style> 
+
+.templates-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+</style>
