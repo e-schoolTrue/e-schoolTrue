@@ -133,34 +133,21 @@ export const AppItems: MenuItem[] = [
         subItems: [
             {
                 id: "submenu-5-1",
-                title: "Génération Bulletin",
-                icon: "fluent-emoji:page-with-curl",
-                subItems: [
-                    {
-                        id: "submenu-5-1-1",
-                        title: "Bulletin de Paie",
-                        icon: "fluent-emoji:money-bag",
-                        route: "/tools/generation/payroll-slip",
-                    },
-                    {
-                        id: "submenu-5-1-2",
-                        title: "Bulletin Scolaire",
-                        icon: "fluent-emoji:graduation-cap",
-                        route: "/tools/generation/school-report",
-                    }
-                ]
+                title: "Bulletin Scolaire",
+                icon: "fluent-emoji:graduation-cap",
+                route: "/tools/school-report",
             },
             {
                 id: "submenu-5-2",
-                title: "Génération Carte d'Identité",
+                title: "Carte d'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
             },
             {
                 id: "submenu-5-3",
-                title: "Messagerie Automatique",
+                title: "Sauvegarde",
                 icon: "fluent-emoji:incoming-envelope",
-                route: "/tools/automatic-messaging",
+                route: "/tools/save-data",
             }
         ]
     },
