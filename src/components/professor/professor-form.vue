@@ -172,7 +172,42 @@ const previousStep = () => {
     if (currentStep.value > 0) currentStep.value--;
 };
 
+const handleSchoolTypeChange = () => {
+    // Réinitialiser les sélections lors du changement de type d'école
+    selectedClasses.value = [];
+    selectedCourse.value = null;
+};
+
+const validateTeachingAssignment = () => {
+    if (!schoolType.value) {
+        ElMessage.error('Veuillez sélectionner un type d\'école');
+        return false;
+    }
+
+    if (schoolType.value === SCHOOL_TYPE.PRIMARY) {
+        if (selectedClasses.value.length !== 1) {
+            ElMessage.error('Veuillez sélectionner une classe pour l\'instituteur');
+            return false;
+        }
+    } else {
+        if (!selectedCourse.value) {
+            ElMessage.error('Veuillez sélectionner une matière');
+            return false;
+        }
+        if (selectedClasses.value.length === 0) {
+            ElMessage.error('Veuillez sélectionner au moins une classe');
+            return false;
+        }
+    }
+
+    return true;
+};
+
 const saveData = async () => {
+    if (currentStep.value === 4 && !validateTeachingAssignment()) {
+        return;
+    }
+
     try {
         // Créer l'objet d'affectation
         const teachingData = currentStep.value === 4 ? {
@@ -396,6 +431,7 @@ const steps = [
                     v-model:school-type="schoolType"
                     v-model:selected-classes="selectedClasses"
                     v-model:selected-course="selectedCourse"
+                    @school-type-change="handleSchoolTypeChange"
                 />
             </div>
 

@@ -11,6 +11,7 @@ import {app} from "electron";
 import {CourseEntity, ObservationEntity} from "#electron/backend/entities/course.ts";
 import { SchoolEntity } from "./backend/entities/school.ts";
 import {YearRepartitionEntity} from "#electron/backend/entities/yearRepartition";
+import { ReportCardEntity } from "./backend/entities/report";
 import path from 'path';
 import { TeachingAssignmentEntity } from "./backend/entities/teaching";
 import { ProfessorPaymentEntity } from "./backend/entities/professorPayment";
@@ -31,7 +32,7 @@ export class AppDataSource {
                 dropSchema:false,
                 database: dbPath,
                 logging: true,
-                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity],
+                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity],
                 subscribers: [],
                 migrationsRun: true
             });

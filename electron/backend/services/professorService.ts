@@ -8,6 +8,7 @@ import { TEACHING_TYPE } from "#electron/command";
 import { GradeEntity } from "../entities/grade";
 import { CourseEntity } from "../entities/course";
 import { FileService } from "#electron/backend/services/fileService";
+import { SCHOOL_TYPE } from "#electron/command";
 
 
 export class ProfessorService {
@@ -116,59 +117,47 @@ export class ProfessorService {
 
             const savedProfessor = await this.professorRepository.save(professor);
 
-            // Gérer l'affectation d'enseignement avec plus de vérifications
-            if (professorData.teaching && (professorData.teaching.classId || professorData.teaching.courseId)) {
+            // Amélioration de la gestion de l'affectation d'enseignement
+            if (professorData.teaching) {
                 const teachingAssignment = new TeachingAssignmentEntity();
                 teachingAssignment.professor = savedProfessor;
                 teachingAssignment.teachingType = professorData.teaching.teachingType;
                 teachingAssignment.schoolType = professorData.teaching.schoolType;
 
-                console.log("Création de l'affectation:", {
-                    professorId: savedProfessor.id,
-                    teachingType: teachingAssignment.teachingType,
-                    schoolType: teachingAssignment.schoolType
-                });
-
-                // Pour un instituteur
-                if (professorData.teaching.classId) {
-                    const grade = await this.gradeRepository.findOne({
-                        where: { id: professorData.teaching.classId }
-                    });
-                    console.log("Classe trouvée:", grade);
-                    if (!grade) {
-                        throw new Error(`Classe ${professorData.teaching.classId} non trouvée`);
+                // Pour un instituteur (école primaire)
+                if (professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
+                    const classId = professorData.teaching.classId;
+                    if (classId) {
+                        const grade = await this.gradeRepository.findOneOrFail({
+                            where: { id: classId }
+                        });
+                        teachingAssignment.class = grade;
                     }
-                    teachingAssignment.class = grade;
                 }
 
-                // Pour un professeur de matière
-                if (professorData.teaching.courseId) {
-                    const course = await this.courseRepository.findOne({
-                        where: { id: professorData.teaching.courseId }
-                    });
-                    console.log("Matière trouvée:", course);
-                    if (!course) {
-                        throw new Error(`Matière ${professorData.teaching.courseId} non trouvée`);
+                // Pour un professeur de matière (école secondaire)
+                if (professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY) {
+                    if (professorData.teaching.courseId) {
+                        const course = await this.courseRepository.findOneOrFail({
+                            where: { id: professorData.teaching.courseId }
+                        });
+                        teachingAssignment.course = course;
                     }
-                    teachingAssignment.course = course;
+
+                    if (professorData.selectedClasses?.length) {
+                        const gradeIds = professorData.selectedClasses.join(',');
+                        teachingAssignment.gradeIds = gradeIds;
+                        
+                        // Récupérer les noms des classes pour l'affichage
+                        const grades = await this.gradeRepository.findByIds(professorData.selectedClasses);
+                        teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
+                    }
                 }
 
-                if (professorData.teaching.gradeIds) {
-                    teachingAssignment.gradeIds = professorData.teaching.gradeIds;
-                }
-
-                try {
-                    const savedAssignment = await this.teachingAssignmentRepository.save(teachingAssignment);
-                    console.log("Affectation sauvegardée avec succès:", savedAssignment);
-                } catch (error) {
-                    console.error("Erreur lors de la sauvegarde de l'affectation:", error);
-                    throw error;
-                }
-            } else {
-                console.log("Pas d'affectation à créer - Données manquantes");
+                await this.teachingAssignmentRepository.save(teachingAssignment);
             }
 
-            // Recharger le professeur avec toutes les relations
+            // Recharger le professeur avec toutes les relations nécessaires
             const createdProfessor = await this.professorRepository.findOne({
                 where: { id: savedProfessor.id },
                 relations: [
@@ -190,7 +179,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur détaillée lors de la création:", error);
+            console.error("Erreur détaillée:", error);
             return {
                 success: false,
                 data: null,
@@ -343,10 +332,18 @@ export class ProfessorService {
 
     async getAllProfessors(): Promise<ResultType> {
         try {
-            await this.ensureRepositoriesInitialized();
-
             const professors = await this.professorRepository.find({
-                relations: ['diploma', 'qualification', 'user']
+                relations: [
+                    'diploma',
+                    'qualification',
+                    'user',
+                    'teaching',
+                    'teaching.class',
+                    'teaching.course'
+                ],
+                order: {
+                    lastname: 'ASC'
+                }
             });
 
             return {
@@ -356,12 +353,12 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error("Error getting all professors:", error);
+            console.error("Error getting professors:", error);
             return {
                 success: false,
                 data: null,
                 message: "Erreur lors de la récupération des professeurs",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }

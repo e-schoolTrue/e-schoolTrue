@@ -9,7 +9,7 @@
             <p class="school-type">{{ schoolInfo?.type }}</p>
           </div>
           <div class="logo-container">
-            <img v-if="schoolInfo?.logo" :src="schoolInfo.logo" class="school-logo" alt="Logo" />
+            <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
           </div>
         </div>
       </div>
@@ -17,7 +17,7 @@
       <div class="card-content">
         <div class="student-photo-container">
           <div class="student-photo">
-            <img v-if="student?.photo" :src="student.photo" alt="Photo" />
+            <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo" />
             <div v-else class="photo-placeholder">
               <Icon icon="mdi:account" />
             </div>
