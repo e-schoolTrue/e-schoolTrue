@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus';
 import ProfessorForm from '@/components/professor/professor-form.vue';
 import { ROLE, SCHOOL_TYPE } from "#electron/command";
 
+
 interface ProfessorFormData {
   firstname: string;
   lastname: string;
@@ -33,27 +34,18 @@ interface ProfessorFormData {
     content: string;
     type: string;
   };
-  teaching?: {
-    teachingType: string;
-    schoolType: SCHOOL_TYPE | null;
-    classId?: number;
-    courseId?: number | null;
-    gradeIds?: string;
-  };
   schoolType: SCHOOL_TYPE | null;
-  selectedClasses: number[];
+  selectedClasses?: number[];
   selectedCourse: number | null;
 }
 
 const router = useRouter();
 const loading = ref(false);
 
-const handleSave = async (professorData: ProfessorFormData): Promise<boolean> => {
+const handleSave = async (professorData: ProfessorFormData) => {
   loading.value = true;
   try {
     const { schoolType, selectedClasses, selectedCourse, ...otherData } = professorData;
-
-    console.log("Données reçues du formulaire:", professorData); // Log de debug
 
     const serializedData = {
       firstname: otherData.firstname || '',
@@ -95,18 +87,14 @@ const handleSave = async (professorData: ProfessorFormData): Promise<boolean> =>
       } : null,
 
       teaching: schoolType ? {
-        teachingType: schoolType === SCHOOL_TYPE.PRIMARY ? 'CLASS_TEACHER' : 'SUBJECT_TEACHER',
         schoolType,
         classId: schoolType === SCHOOL_TYPE.PRIMARY ? selectedClasses?.[0] : undefined,
         courseId: schoolType === SCHOOL_TYPE.SECONDARY ? selectedCourse : undefined,
-        gradeIds: schoolType === SCHOOL_TYPE.SECONDARY ? selectedClasses?.join(',') : undefined
+        gradeIds: schoolType === SCHOOL_TYPE.SECONDARY ? selectedClasses : undefined
       } : undefined
     };
 
-    console.log("Données à envoyer au backend:", serializedData); // Log de debug
-
     const result = await window.ipcRenderer.invoke('professor:create', serializedData);
-    console.log("Résultat de la création du professeur:", result);
     
     if (result.success) {
       ElMessage.success('Professeur créé avec succès');

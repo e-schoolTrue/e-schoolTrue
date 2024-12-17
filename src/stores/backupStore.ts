@@ -5,9 +5,7 @@ import type {
   BackupHistory, 
   BackupStats, 
   BackupNotification,
-  BackupSchedule,
-  SupabaseConfig 
-} from '@/types/backup';
+  BackupSchedule} from '@/types/backup';
 import { useOnline } from '@vueuse/core';
 import { ElNotification } from 'element-plus';
 
