@@ -3,6 +3,8 @@ import { FileEntity } from '../entities/file';
 import { AppDataSource } from '../../data-source';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { readFile } from 'fs/promises';
+import { ResultType } from '#electron/command';
 
 interface FileResponse {
     id: number;       // Ajout de l'id dans l'interface
@@ -156,15 +158,25 @@ export class FileService {
         return mimeType;
     }
 
-    async getImageUrl(path: string): Promise<string> {
+    async getImageUrl(filePath: string): Promise<ResultType> {
         try {
-            const buffer = await fs.readFile(path);
+            const buffer = await readFile(filePath);
             const base64 = buffer.toString('base64');
-            const type = this.getMimeType(path);
-            return `data:${type};base64,${base64}`;
+            
+            return {
+                success: true,
+                data: base64,
+                message: 'Image chargée avec succès',
+                error: null
+            };
         } catch (error) {
-            console.error('Erreur lors de la lecture de l\'image:', error);
-            return '';
+            console.error('Erreur lors du chargement de l\'image:', error);
+            return {
+                success: false,
+                data: null,
+                message: 'Erreur lors du chargement de l\'image',
+                error: error instanceof Error ? error.message : 'Erreur inconnue'
+            };
         }
     }
 }
