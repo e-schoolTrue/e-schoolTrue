@@ -37,23 +37,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import CardTemplateOne from '@/components/student/templates/CardTemplateOne.vue';
 import CardTemplateTwo from '@/components/student/templates/CardTemplateTwo.vue';
 import CardTemplateThree from '@/components/student/templates/CardTemplateThree.vue';
+import defaultAvatar from '@/assets/default-avatar.png';
 
 const selectedTemplate = ref(0);
 const logoUrl = ref('');
 const student = ref(null);
 const schoolInfo = ref(null);
 
-// Données de prévisualisation
+// Données de prévisualisation avec image importée
 const previewStudent = {
   firstname: 'John',
   lastname: 'Doe',
   matricule: '2023001',
-  photo: '/src/assets/default-avatar.png',
-  photoUrl: '/src/assets/default-avatar.png',
+  photo: defaultAvatar,
+  photoUrl: defaultAvatar,
   grade: { name: 'Classe A' }
 };
 
@@ -75,6 +76,20 @@ const templates = [
 
 const currentTemplate = computed(() => templates[selectedTemplate.value].component);
 
+// Fonction pour charger une image depuis le système de fichiers
+const loadImage = async (path: string) => {
+  try {
+    const result = await window.ipcRenderer.invoke('file:getImageUrl', path);
+    if (result.success) {
+      return `data:image/png;base64,${result.data}`;
+    }
+    return defaultAvatar;
+  } catch (error) {
+    console.error('Erreur lors du chargement de l\'image:', error);
+    return defaultAvatar;
+  }
+};
+
 // Chargement du logo et des informations
 onMounted(async () => {
   try {
@@ -82,18 +97,18 @@ onMounted(async () => {
     if (schoolResult.success && schoolResult.data) {
       schoolInfo.value = schoolResult.data;
       if (schoolResult.data.logo) {
-        const logoResult = await window.ipcRenderer.invoke(
-          'file:getImageUrl',
-          schoolResult.data.logo
-        );
-        if (logoResult.success) {
-          logoUrl.value = logoResult.data;
-        }
+        logoUrl.value = await loadImage(schoolResult.data.logo);
       }
     }
   } catch (error) {
     console.error('Erreur lors du chargement des informations:', error);
   }
+});
+
+// Surveiller les changements de template pour CardPreview
+watch(selectedTemplate, () => {
+  // Émettre un événement pour mettre à jour la prévisualisation
+  emit('template-change', templates[selectedTemplate.value]);
 });
 </script>
 
