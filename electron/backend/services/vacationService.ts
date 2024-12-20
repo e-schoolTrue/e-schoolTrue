@@ -183,4 +183,27 @@ export class VacationService {
             };
         }
     }
+
+    async getAllVacations(): Promise<ResultType> {
+        try {
+            const vacations = await this.vacationRepository.find({
+                relations: ['student', 'professor'],
+                order: { createdAt: 'DESC' }
+            });
+            
+            return {
+                success: true,
+                data: vacations,
+                message: 'Congés récupérés avec succès',
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: 'Erreur lors de la récupération des congés',
+                error: error instanceof Error ? error.message : 'Erreur inconnue'
+            };
+        }
+    }
 } 

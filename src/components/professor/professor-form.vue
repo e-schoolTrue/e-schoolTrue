@@ -165,7 +165,9 @@ const handleRemove = (file: UploadUserFile) => {
 };
 
 const nextStep = () => {
-    if (currentStep.value < steps.length - 1) currentStep.value++;
+    if (validateCurrentStep()) {
+        currentStep.value++;
+    }
 };
 
 const previousStep = () => {
@@ -249,12 +251,30 @@ if (props.initialData) {
 
 // Modifier les étapes
 const steps = [
-    { title: 'Informations personnelles' },
-    { title: 'Situation familiale' },
-    { title: 'Qualifications' },
-    { title: 'Documents' },
-    { title: 'Affectation' }
+    { title: 'Informations personnelles', icon: 'user' },
+    { title: 'Contact', icon: 'phone' },
+    { title: 'Documents', icon: 'document' },
+    { title: 'Compte', icon: 'key' },
+    { title: 'Affectation', icon: 'school' }
 ];
+
+const validateCurrentStep = () => {
+    // Ajout de la validation pour chaque étape
+    switch (currentStep.value) {
+        case 0: // Informations personnelles
+            return !!formData.firstname && !!formData.lastname;
+        case 1: // Contact
+            return !!formData.address && !!formData.town;
+        case 2: // Documents
+            return true; // Documents optionnels
+        case 3: // Compte
+            return !!formData.user.username && !!formData.user.password;
+        case 4: // Affectation
+            return true; // L'affectation peut être optionnelle initialement
+        default:
+            return true;
+    }
+};
 </script>
 
 <template>

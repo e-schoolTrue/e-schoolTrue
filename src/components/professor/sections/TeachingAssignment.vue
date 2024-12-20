@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import { SCHOOL_TYPE } from "#electron/command";
 
 const props = defineProps<{
@@ -19,6 +19,21 @@ const emit = defineEmits<{
 
 const grades = ref<any[]>([]);
 const courses = ref<any[]>([]);
+
+const schoolType = computed({
+  get: () => props.modelValue.schoolType,
+  set: (value) => emit('update:modelValue', { ...props.modelValue, schoolType: value })
+});
+
+const selectedClasses = computed({
+  get: () => props.modelValue.selectedClasses,
+  set: (value) => emit('update:modelValue', { ...props.modelValue, selectedClasses: value })
+});
+
+const selectedCourse = computed({
+  get: () => props.modelValue.selectedCourse,
+  set: (value) => emit('update:modelValue', { ...props.modelValue, selectedCourse: value })
+});
 
 const loadGrades = async () => {
   const result = await window.ipcRenderer.invoke('grade:all');

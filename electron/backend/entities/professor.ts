@@ -5,76 +5,58 @@ import { ProfessorPaymentEntity } from "./professorPayment";
 import { TeachingAssignmentEntity } from "./teaching";
 import { FileEntity } from "./file";
 
-@Entity("professor")
+@Entity("professors")
 export class ProfessorEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: 'varchar', nullable: true })
-    firstname?: string;
+    @Column()
+    firstname!: string;
 
-    @Column({ type: 'varchar', nullable: true })
-    lastname?: string;
+    @Column()
+    lastname!: string;
 
-    @Column({ 
-        type: 'varchar',
-        nullable: true,
-        enum: CIVILITY
-    })
-    civility?: CIVILITY;
+    @Column()
+    civility!: string;
 
-    @Column({ type: 'int', nullable: true })
-    nbr_child?: number;
+    @Column()
+    nbr_child!: number;
 
-    @Column({ 
-        type: 'varchar',
-        nullable: true,
-        enum: FAMILY_SITUATION
-    })
-    family_situation?: FAMILY_SITUATION;
+    @Column()
+    family_situation!: string;
 
-    @Column({ type: 'date', nullable: true })
-    birth_date?: Date;
+    @Column({ type: 'datetime', nullable: true })
+    birth_date!: Date;
 
-    @Column({ type: 'varchar', nullable: true })
-    birth_town?: string;
+    @Column()
+    birth_town!: string;
 
-    @Column({ type: 'varchar', nullable: true })
-    address?: string;
+    @Column()
+    address!: string;
 
-    @Column({ type: 'varchar', nullable: true })
-    town?: string;
+    @Column()
+    town!: string;
 
-    @Column({ type: 'varchar', nullable: true })
-    cni_number?: string;
-
-    @OneToOne(() => DiplomaEntity, { onDelete: "CASCADE" })
-    @JoinColumn()
-    diploma?: DiplomaEntity;
-
-    @OneToOne(() => QualificationEntity, { onDelete: "CASCADE" })
-    @JoinColumn()
-    qualification?: QualificationEntity;
-
-    @OneToOne(() => UserEntity, user => user.professor, {
-        cascade: true,
-        onDelete: 'CASCADE'
-    })
-    @JoinColumn()
-    user?: UserEntity;
-
-    @OneToMany(() => ProfessorPaymentEntity, payment => payment.professor)
-    payments!: ProfessorPaymentEntity[];
-
-    @OneToMany(() => TeachingAssignmentEntity, teaching => teaching.professor)
-    teaching!: TeachingAssignmentEntity[];
-
-    @OneToMany(() => FileEntity, file => file.professor)
-    documents?: FileEntity[];
+    @Column()
+    cni_number!: string;
 
     @OneToOne(() => FileEntity, { nullable: true })
     @JoinColumn()
     photo?: FileEntity;
+
+    @OneToMany(() => FileEntity, file => file.professor)
+    documents!: FileEntity[];
+
+    @OneToOne(() => DiplomaEntity, { nullable: true })
+    @JoinColumn()
+    diploma?: DiplomaEntity;
+
+    @OneToOne(() => QualificationEntity, { nullable: true })
+    @JoinColumn()
+    qualification?: QualificationEntity;
+
+    @OneToMany(() => TeachingAssignmentEntity, teaching => teaching.professor)
+    teaching!: TeachingAssignmentEntity[];
 }
 
 @Entity("qualification")

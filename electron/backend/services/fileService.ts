@@ -162,10 +162,11 @@ export class FileService {
         try {
             const buffer = await readFile(filePath);
             const base64 = buffer.toString('base64');
+            const mimeType = this.getMimeType(filePath);
             
             return {
                 success: true,
-                data: base64,
+                data: `data:${mimeType};base64,${base64}`,
                 message: 'Image chargée avec succès',
                 error: null
             };

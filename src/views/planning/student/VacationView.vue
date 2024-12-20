@@ -216,17 +216,11 @@ const getInitials = (student: Student): string => {
 const loadVacations = async () => {
   loading.value = true;
   try {
-    // Récupérer l'ID de l'étudiant connecté ou sélectionné
-    const studentId = 1; // À remplacer par l'ID réel de l'étudiant
-    
-    const result = await window.ipcRenderer.invoke('vacation:getByStudent', studentId);
+    const result = await window.ipcRenderer.invoke('vacation:all');
     if (result.success) {
-      vacations.value = result.data.map((vacation: any) => ({
-        ...vacation,
-        student: vacation.student || { firstname: 'N/A', lastname: 'N/A' }
-      }));
+      vacations.value = result.data;
     } else {
-      throw new Error(result.message || 'Erreur lors du chargement');
+      throw new Error(result.message || 'Erreur lors du chargement des congés');
     }
   } catch (error) {
     console.error('Erreur:', error);
