@@ -238,7 +238,7 @@ ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvoke
                 success: false,
                 data: null,
                 error: "Document non trouvé",
-                message: "Le document n'a pas pu être récup��ré"
+                message: "Le document n'a pas pu être récupéré"
             };
         }
     } catch (error) {
@@ -829,7 +829,13 @@ ipcMain.handle('homework:getByGrade', async (_, gradeId) => {
 // Handlers pour les congés
 ipcMain.handle('vacation:create', async (_event, data) => {
   try {
-    return await global.vacationService.createVacation(data);
+    const result = await global.vacationService.createVacation(data);
+    return {
+      success: true,
+      data: result.data,
+      message: 'Congé créé avec succès',
+      error: null
+    };
   } catch (error) {
     return handleError(error);
   }
@@ -851,9 +857,15 @@ ipcMain.handle('vacation:getByProfessor', async (_event, professorId) => {
   }
 });
 
-ipcMain.handle('vacation:updateStatus', async (_event, { id, status, comment }) => {
+ipcMain.handle('vacation:updateStatus', async (_event, { id, status }) => {
   try {
-    return await global.vacationService.updateVacationStatus(id, status, comment);
+    const result = await global.vacationService.updateVacationStatus(id, status);
+    return {
+      success: true,
+      data: result.data,
+      message: 'Statut mis à jour avec succès',
+      error: null
+    };
   } catch (error) {
     return handleError(error);
   }
@@ -861,7 +873,13 @@ ipcMain.handle('vacation:updateStatus', async (_event, { id, status, comment }) 
 
 ipcMain.handle('vacation:delete', async (_event, id) => {
   try {
-    return await global.vacationService.deleteVacation(id);
+    const result = await global.vacationService.deleteVacation(id);
+    return {
+      success: true,
+      data: null,
+      message: 'Congé supprimé avec succès',
+      error: null
+    };
   } catch (error) {
     return handleError(error);
   }
@@ -1177,7 +1195,7 @@ ipcMain.handle('vacation:all', async () => {
     const result = await global.vacationService.getAllVacations();
     return {
       success: true,
-      data: result,
+      data: result.data,
       message: 'Congés récupérés avec succès',
       error: null
     };

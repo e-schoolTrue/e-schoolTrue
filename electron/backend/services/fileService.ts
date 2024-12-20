@@ -144,18 +144,17 @@ export class FileService {
 
     private getMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
-        const mimeTypes: { [key: string]: string } = {
-            '.pdf': 'application/pdf',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-            '.doc': 'application/msword',
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        };
-        
-        const mimeType = mimeTypes[ext] || 'application/octet-stream';
-        console.log(`Extension: ${ext}, Type MIME: ${mimeType}`);
-        return mimeType;
+        switch (ext) {
+            case '.jpg':
+            case '.jpeg':
+                return 'image/jpeg';
+            case '.png':
+                return 'image/png';
+            case '.gif':
+                return 'image/gif';
+            default:
+                return 'application/octet-stream';
+        }
     }
 
     async getImageUrl(filePath: string): Promise<ResultType> {
@@ -164,9 +163,13 @@ export class FileService {
             const base64 = buffer.toString('base64');
             const mimeType = this.getMimeType(filePath);
             
+            // Retirer les espaces et les sauts de ligne du base64
+            const cleanBase64 = base64.replace(/[\n\r\s]/g, '');
+            
             return {
                 success: true,
-                data: `data:${mimeType};base64,${base64}`,
+                // Construire l'URL correctement sans espaces
+                data: `data:${mimeType};base64,${cleanBase64}`,
                 message: 'Image chargée avec succès',
                 error: null
             };

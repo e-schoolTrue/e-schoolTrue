@@ -200,5 +200,24 @@ export const AppItems: MenuItem[] = [
             },
         ]
         
+    },
+    {
+        id: 'notes',
+        title: 'Notes et Bulletins',
+        icon: 'mdi:book-education',
+        subItems: [
+            {
+                id: 'notes-config',
+                title: 'Configuration des Notes',
+                icon: 'mdi:cog',
+                route: '/notes/configuration'
+            },
+            {
+                id: 'report-cards',
+                title: 'Bulletins de Notes',
+                icon: 'mdi:file-document',
+                route: '/notes/bulletins'
+            }
+        ]
     }
 ]

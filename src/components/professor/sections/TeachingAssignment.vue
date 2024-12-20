@@ -2,18 +2,22 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { SCHOOL_TYPE } from "#electron/command";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: {
     schoolType: SCHOOL_TYPE | null;
     selectedClasses: number[];
     selectedCourse: number | null;
   }
-}>();
+}>(), {
+  modelValue: () => ({
+    schoolType: null,
+    selectedClasses: [],
+    selectedCourse: null
+  })
+});
 
 const emit = defineEmits<{
-  'update:schoolType': [value: SCHOOL_TYPE | null];
-  'update:selectedClasses': [value: number[]];
-  'update:selectedCourse': [value: number | null];
+  'update:modelValue': [value: typeof props.modelValue];
   'school-type-change': [];
 }>();
 
@@ -21,18 +25,27 @@ const grades = ref<any[]>([]);
 const courses = ref<any[]>([]);
 
 const schoolType = computed({
-  get: () => props.modelValue.schoolType,
-  set: (value) => emit('update:modelValue', { ...props.modelValue, schoolType: value })
+  get: () => props.modelValue?.schoolType ?? null,
+  set: (value) => emit('update:modelValue', { 
+    ...props.modelValue, 
+    schoolType: value 
+  })
 });
 
 const selectedClasses = computed({
-  get: () => props.modelValue.selectedClasses,
-  set: (value) => emit('update:modelValue', { ...props.modelValue, selectedClasses: value })
+  get: () => props.modelValue?.selectedClasses ?? [],
+  set: (value) => emit('update:modelValue', { 
+    ...props.modelValue, 
+    selectedClasses: value 
+  })
 });
 
 const selectedCourse = computed({
-  get: () => props.modelValue.selectedCourse,
-  set: (value) => emit('update:modelValue', { ...props.modelValue, selectedCourse: value })
+  get: () => props.modelValue?.selectedCourse ?? null,
+  set: (value) => emit('update:modelValue', { 
+    ...props.modelValue, 
+    selectedCourse: value 
+  })
 });
 
 const loadGrades = async () => {

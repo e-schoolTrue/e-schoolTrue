@@ -11,7 +11,9 @@
         </div>
 
         <div class="student-photo">
-          <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo" />
+          <img v-if="student?.photo?.url && isValidDataUrl(student.photo.url)" 
+               :src="student.photo.url" 
+               alt="Photo" />
           <div v-else class="photo-placeholder">
             <Icon icon="mdi:account" />
           </div>
@@ -108,6 +110,10 @@ const validUntil = computed(() => {
 const formatDate = (date: string | Date | undefined) => {
   if (!date) return '';
   return new Date(date).toLocaleDateString('fr-FR');
+};
+
+const isValidDataUrl = (url: string) => {
+  return url && url.startsWith('data:') && url.includes('base64,');
 };
 </script>
 
