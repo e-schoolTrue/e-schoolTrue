@@ -186,49 +186,40 @@ const filteredStudents = computed(() => {
 
 // Méthodes
 const loadData = async () => {
-  loading.value = true;
   try {
-    const [studentsResult, , schoolResult] = await Promise.all([
-      window.ipcRenderer.invoke('student:all'),
-      window.ipcRenderer.invoke('grade:all'),
-      window.ipcRenderer.invoke('school:get')
-    ]);
+    // Chargement des infos de l'école avec logo
+    const schoolResult = await window.ipcRenderer.invoke('school:get');
+    if (schoolResult.success) {
+      const school = schoolResult.data;
+      if (school.logo?.path) {
+        const logoResult = await window.ipcRenderer.invoke('file:getImageUrl', school.logo.path);
+        if (logoResult.success) {
+          school.logo.url = logoResult.data;
+        }
+      }
+      schoolInfo.value = school;
+    }
 
+    // Chargement des étudiants avec photos
+    const studentsResult = await window.ipcRenderer.invoke('student:all');
     if (studentsResult.success) {
-      // Charger les URLs des images pour chaque étudiant
-      const studentsWithImages = await Promise.all(
-        studentsResult.data.map(async (student: any) => {
-          if (student.photo?.path) {
-            const fileResult = await window.ipcRenderer.invoke('file:getUrl', student.photo.path);
-            if (fileResult.success) {
-              student.photo.url = `data:${fileResult.data.type};base64,${fileResult.data.content}`;
-            }
+      const loadedStudents = await Promise.all(studentsResult.data.map(async (student: any) => {
+        if (student.photo?.path) {
+          const photoResult = await window.ipcRenderer.invoke('file:getImageUrl', student.photo.path);
+          if (photoResult.success) {
+            student.photo.url = photoResult.data;
           }
-          return student;
-        })
-      );
-      students.value = studentsWithImages;
-
-      // Définir un étudiant de prévisualisation
+        }
+        return student;
+      }));
+      students.value = loadedStudents;
       if (students.value.length > 0) {
         previewStudent.value = students.value[0];
       }
     }
-
-    if (schoolResult.success) {
-      schoolInfo.value = schoolResult.data;
-      if (schoolInfo.value?.logo?.path) {
-        const fileResult = await window.ipcRenderer.invoke('file:getUrl', schoolInfo.value.logo.path);
-        if (fileResult.success) {
-          schoolInfo.value.logo.url = `data:${fileResult.data.type};base64,${fileResult.data.content}`;
-        }
-      }
-    }
   } catch (error) {
-    console.error('Erreur:', error);
+    console.error('Erreur lors du chargement des données:', error);
     ElMessage.error('Erreur lors du chargement des données');
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -259,6 +250,12 @@ const printSelectedCards = () => {
 
 // Initialisation
 onMounted(loadData);
+
+const emit = defineEmits<{
+  'update:zoom': [value: number];
+  'flip': [value: boolean];
+  'print': [];
+}>();
 </script>
 
 <style scoped>

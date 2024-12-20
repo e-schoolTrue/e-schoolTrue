@@ -1171,3 +1171,17 @@ ipcMain.handle('backup:checkSupabase', async (_event, config) => {
         return handleError(error);
     }
 });
+
+ipcMain.handle('vacation:all', async () => {
+  try {
+    const result = await global.vacationService.getAllVacations();
+    return {
+      success: true,
+      data: result,
+      message: 'Congés récupérés avec succès',
+      error: null
+    };
+  } catch (error) {
+    return handleError(error);
+  }
+});

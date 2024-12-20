@@ -111,21 +111,18 @@ const loadProfessor = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('professor:getById', Number(route.params.id));
-    console.log("les result", result);
     if (result.success) {
       const prof = result.data;
       if (prof.photo?.path) {
-        const photoUrl = await getImageUrl(prof.photo.path);
-        prof.photo.url = photoUrl;
+        const photoResult = await window.ipcRenderer.invoke('file:getImageUrl', prof.photo.path);
+        if (photoResult.success) {
+          prof.photo.url = `data:${prof.photo.type};base64,${photoResult.data}`;
+        }
       }
       professor.value = prof;
-    } else {
-      throw new Error(result.message || 'Erreur lors du chargement du professeur');
     }
   } catch (error) {
     console.error('Erreur:', error);
-    ElMessage.error("Erreur lors du chargement du professeur");
-    router.push('/professor');
   } finally {
     loading.value = false;
   }

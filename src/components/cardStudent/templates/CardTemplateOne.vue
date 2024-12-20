@@ -3,22 +3,22 @@
     <!-- Face avant -->
     <div class="card-front">
       <div class="card-header">
-        <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
-        
-        <div class="school-info">
-          <h2>{{ schoolInfo?.name }}</h2>
-          <p>{{ schoolInfo?.address }}</p>
+        <div class="school-logo-container">
+          <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
+          <div v-else class="logo-placeholder">
+            <Icon icon="mdi:school" />
+          </div>
         </div>
-      </div>
 
-      <div class="card-body">
         <div class="student-photo">
           <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo" />
           <div v-else class="photo-placeholder">
             <Icon icon="mdi:account" />
           </div>
         </div>
+      </div>
 
+      <div class="card-body">
         <div class="student-info">
           <h3>{{ student?.firstname }} {{ student?.lastname }}</h3>
           <p class="matricule">{{ student?.matricule }}</p>
@@ -153,10 +153,26 @@ const formatDate = (date: string | Date | undefined) => {
   padding-bottom: 8px;
 }
 
-.school-logo {
-  width: 40px;
-  height: 40px;
+.school-logo-container, .student-photo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.school-logo, .student-photo img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+}
+
+.logo-placeholder, .photo-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f5f5;
+  width: 100%;
+  height: 100%;
 }
 
 .school-info h2 {
