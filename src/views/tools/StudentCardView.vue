@@ -123,6 +123,12 @@ import ColorSchemeSelector from '@/components/cardStudent/ColorSchemeSelector.vu
 import { DEFAULT_COLOR_SCHEME } from '@/constants/colorSchemes';
 import type { ColorScheme } from '@/types/card';
 
+const emit = defineEmits<{
+  'update:zoom': [value: number];
+  'flip': [value: boolean];
+  'print': [];
+}>();
+
 // États
 const loading = ref(false);
 const activeTab = ref('template');
@@ -186,6 +192,7 @@ const filteredStudents = computed(() => {
 
 // Méthodes
 const loadData = async () => {
+  loading.value = true;
   try {
     // Chargement des infos de l'école avec logo
     const schoolResult = await window.ipcRenderer.invoke('school:get');
@@ -193,7 +200,7 @@ const loadData = async () => {
       const school = schoolResult.data;
       if (school.logo?.path) {
         const logoResult = await window.ipcRenderer.invoke('file:getImageUrl', school.logo.path);
-        if (logoResult.success) {
+        if (logoResult.success && isValidDataUrl(logoResult.data)) {
           school.logo.url = logoResult.data;
         }
       }
@@ -206,13 +213,15 @@ const loadData = async () => {
       const loadedStudents = await Promise.all(studentsResult.data.map(async (student: any) => {
         if (student.photo?.path) {
           const photoResult = await window.ipcRenderer.invoke('file:getImageUrl', student.photo.path);
-          if (photoResult.success) {
+          if (photoResult.success && isValidDataUrl(photoResult.data)) {
             student.photo.url = photoResult.data;
           }
         }
         return student;
       }));
       students.value = loadedStudents;
+      
+      // Définir l'étudiant de prévisualisation
       if (students.value.length > 0) {
         previewStudent.value = students.value[0];
       }
@@ -220,6 +229,8 @@ const loadData = async () => {
   } catch (error) {
     console.error('Erreur lors du chargement des données:', error);
     ElMessage.error('Erreur lors du chargement des données');
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -231,8 +242,10 @@ const getInitials = (student: any) => {
   return `${student.firstname?.[0] || ''}${student.lastname?.[0] || ''}`.toUpperCase();
 };
 
-const updatePreview = () => {
-  // Mise à jour de la prévisualisation si nécessaire
+const updatePreview = (student: any) => {
+  if (student) {
+    previewStudent.value = student;
+  }
 };
 
 const handlePrint = () => {
@@ -248,14 +261,13 @@ const printSelectedCards = () => {
   printDialogVisible.value = true;
 };
 
+// Fonction utilitaire pour valider les URLs data
+const isValidDataUrl = (url: string) => {
+  return url && url.startsWith('data:') && url.includes('base64,');
+};
+
 // Initialisation
 onMounted(loadData);
-
-const emit = defineEmits<{
-  'update:zoom': [value: number];
-  'flip': [value: boolean];
-  'print': [];
-}>();
 </script>
 
 <style scoped>
