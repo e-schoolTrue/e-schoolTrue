@@ -56,38 +56,66 @@
         </el-select>
       </div>
 
-      <!-- Liste des étudiants -->
-      <el-table 
-        :data="students"
-        v-loading="loading"
-        @selection-change="handleSelectionChange"
+      <!-- Prévisualisation des templates -->
+      <el-dialog
+        v-model="templatePreviewVisible"
+        title="Aperçu des modèles de bulletin"
+        width="90%"
+        top="5vh"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column label="Photo" width="80">
-          <template #default="{ row }">
-            <el-avatar :size="40" :src="row.photo?.url">
-              {{ getInitials(row) }}
-            </el-avatar>
-          </template>
-        </el-table-column>
-        <el-table-column prop="matricule" label="Matricule" width="120" />
-        <el-table-column prop="firstname" label="Prénom" />
-        <el-table-column prop="lastname" label="Nom" />
-        <el-table-column label="Actions" width="150" align="center">
-          <template #default="{ row }">
-            <el-button 
-              type="primary" 
-              @click="previewReport(row)"
-              :loading="generating[row.id]"
-            >
-              <Icon icon="mdi:eye" />
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+        <div class="templates-preview">
+          <div v-for="template in templates" :key="template.id" class="template-preview-item">
+            <h3>{{ template.name }}</h3>
+            <p>{{ template.description }}</p>
+            <div class="template-preview-content">
+              <component 
+                :is="template.component"
+                :student="sampleStudent"
+                :grades="sampleGrades"
+                :period="selectedPeriod"
+                :config="config"
+                :school-info="schoolInfo"
+              />
+            </div>
+          </div>
+        </div>
+      </el-dialog>
 
-      <!-- Actions -->
-      <div class="actions">
+      <!-- Liste des étudiants avec scroll fixe -->
+      <div class="students-table-container">
+        <el-table 
+          :data="students"
+          v-loading="loading"
+          @selection-change="handleSelectionChange"
+          height="calc(100vh - 350px)"
+        >
+          <el-table-column type="selection" width="55" />
+          <el-table-column label="Photo" width="80">
+            <template #default="{ row }">
+              <el-avatar :size="40" :src="row.photo?.url">
+                {{ getInitials(row) }}
+              </el-avatar>
+            </template>
+          </el-table-column>
+          <el-table-column prop="matricule" label="Matricule" width="120" />
+          <el-table-column prop="firstname" label="Prénom" />
+          <el-table-column prop="lastname" label="Nom" />
+          <el-table-column label="Actions" width="150" align="center">
+            <template #default="{ row }">
+              <el-button 
+                type="primary" 
+                @click="previewReport(row)"
+                :loading="generating[row.id]"
+              >
+                <Icon icon="mdi:eye" />
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- Actions fixes en bas -->
+      <div class="fixed-actions">
         <el-button 
           type="primary" 
           :disabled="!selectedStudents.length"
@@ -97,10 +125,14 @@
           <Icon icon="mdi:printer" class="mr-2" />
           Générer les bulletins sélectionnés
         </el-button>
+        <el-button @click="templatePreviewVisible = true">
+          <Icon icon="mdi:eye" class="mr-2" />
+          Aperçu des modèles
+        </el-button>
       </div>
     </el-card>
 
-    <!-- Prévisualisation -->
+    <!-- Prévisualisation du bulletin -->
     <el-dialog 
       v-model="previewVisible" 
       title="Prévisualisation du bulletin"
@@ -108,7 +140,7 @@
       top="5vh"
       append-to-body
     >
-      <div class="preview-container">
+      <div class="preview-container" ref="previewRef">
         <component 
           :is="selectedTemplate"
           v-if="previewData"
@@ -143,6 +175,7 @@ import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { reportTemplates } from '@/config/reportTemplates';
 import { ReportService } from '@/services/reportService';
+import printJS from 'print-js';
 
 const router = useRouter();
 const reportService = new ReportService();
@@ -160,6 +193,21 @@ const previewData = ref(null);
 const generating = reactive({});
 const generatingMultiple = ref(false);
 const schoolInfo = ref(null);
+const previewRef = ref(null);
+const templatePreviewVisible = ref(false);
+const config = ref(null);
+const sampleStudent = ref({
+  firstname: 'Jean',
+  lastname: 'Dupont',
+  matricule: '2024001',
+  grade: { name: '6ème A' },
+  photo: { url: '' }
+});
+const sampleGrades = ref([
+  { courseName: 'Mathématiques', coefficient: 2, grade: 15, classAverage: 12.5 },
+  { courseName: 'Français', coefficient: 2, grade: 14, classAverage: 13 },
+  // ... autres exemples de notes
+]);
 
 // Périodes
 const periods = [
@@ -227,7 +275,17 @@ const generateReports = async () => {
 };
 
 const printPreview = () => {
-  window.print();
+  if (!previewRef.value) return;
+  
+  printJS({
+    printable: previewRef.value,
+    type: 'html',
+    targetStyles: ['*'],
+    documentTitle: `Bulletin_${previewData.value?.student?.matricule}`,
+    onPrintDialogClose: () => {
+      console.log('Impression terminée');
+    }
+  });
 };
 
 const goToConfig = () => {
@@ -247,6 +305,9 @@ onMounted(() => {
 <style scoped>
 .report-card-view {
   padding: 20px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .header-content {
@@ -271,10 +332,41 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.actions {
-  margin-top: 20px;
+.students-table-container {
+  flex: 1;
+  overflow: hidden;
+}
+
+.fixed-actions {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  padding: 16px;
+  border-top: 1px solid #eee;
   display: flex;
   justify-content: flex-end;
+  gap: 16px;
+  z-index: 10;
+}
+
+.templates-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.template-preview-item {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.template-preview-content {
+  transform: scale(0.5);
+  transform-origin: top center;
+  height: 400px;
+  overflow: hidden;
 }
 
 .preview-container {

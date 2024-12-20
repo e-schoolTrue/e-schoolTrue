@@ -195,7 +195,7 @@ const loadData = async () => {
   loading.value = true;
   try {
     // Chargement des infos de l'école avec logo
-    const schoolResult = await window.ipcRenderer.invoke('student:all');
+    const schoolResult = await window.ipcRenderer.invoke('school:info');
     if (schoolResult.success) {
       const school = schoolResult.data;
       if (school.logo?.path) {
@@ -263,7 +263,12 @@ const printSelectedCards = () => {
 
 // Fonction utilitaire pour valider les URLs data
 const isValidDataUrl = (url: string) => {
-  return url && url.startsWith('data:') && url.includes('base64,');
+  try {
+    return typeof url === 'string' && url.startsWith('data:') && url.includes('base64,');
+  } catch (error) {
+    console.error('Erreur de validation URL:', error);
+    return false;
+  }
 };
 
 // Initialisation
