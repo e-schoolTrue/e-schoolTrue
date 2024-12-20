@@ -766,23 +766,6 @@ ipcMain.handle('file:getUrl', async (_, filePath) => {
   }
 });
 
-ipcMain.handle('file:download', async (_, data) => {
-  try {
-    const result = await global.fileService.getFileUrl(data.path);
-    const downloadsPath = app.getPath('downloads');
-    const filePath = path.join(downloadsPath, data.name);
-    
-    await fs.writeFile(filePath, Buffer.from(result.content, 'base64'));
-    
-    return {
-      success: true,
-      message: 'Fichier téléchargé avec succès',
-      error: null
-    };
-  } catch (error) {
-    return handleError(error);
-  }
-});
 
 // Ajouter avec les autres handlers de paiement
 ipcMain.handle('professor:payment:getById', async (_, paymentId: number) => {
@@ -871,19 +854,7 @@ ipcMain.handle('vacation:updateStatus', async (_event, { id, status }) => {
   }
 });
 
-ipcMain.handle('vacation:delete', async (_event, id) => {
-  try {
-    const result = await global.vacationService.deleteVacation(id);
-    return {
-      success: true,
-      data: null,
-      message: 'Congé supprimé avec succès',
-      error: null
-    };
-  } catch (error) {
-    return handleError(error);
-  }
-});
+
 
 // Handlers pour les absences des professeurs
 ipcMain.handle('absence:createProfessor', async (_, data) => {
@@ -999,21 +970,8 @@ ipcMain.handle('report:getByGrade', async (_event, { gradeId, period, schoolYear
     }
 });
 
-ipcMain.handle('report:update', async (_event, { reportId, data }) => {
-    try {
-        return await global.reportService.updateReport(reportId, data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
 
-ipcMain.handle('report:delete', async (_event, reportId: number) => {
-    try {
-        return await global.reportService.deleteReport(reportId);
-    } catch (error) {
-        return handleError(error);
-    }
-});
+
 
 ipcMain.handle('report:generateForGrade', async (_event, { gradeId, period, schoolYear }) => {
     try {
@@ -1023,21 +981,9 @@ ipcMain.handle('report:generateForGrade', async (_event, { gradeId, period, scho
     }
 });
 
-ipcMain.handle('report:getStudentAverages', async (_event, { gradeId, period, schoolYear }) => {
-    try {
-        return await global.reportService.getStudentAverages(gradeId, period, schoolYear);
-    } catch (error) {
-        return handleError(error);
-    }
-});
 
-ipcMain.handle('report:getClassStatistics', async (_event, { gradeId, period, schoolYear }) => {
-    try {
-        return await global.reportService.getClassStatistics(gradeId, period, schoolYear);
-    } catch (error) {
-        return handleError(error);
-    }
-});
+
+
 
 ipcMain.handle('report:calculateRanks', async (_event, { gradeId, period, schoolYear }) => {
     try {
@@ -1047,13 +993,7 @@ ipcMain.handle('report:calculateRanks', async (_event, { gradeId, period, school
     }
 });
 
-ipcMain.handle('report:getGradeDistribution', async (_event, { gradeId, period, schoolYear }) => {
-    try {
-        return await global.reportService.getGradeDistribution(gradeId, period, schoolYear);
-    } catch (error) {
-        return handleError(error);
-    }
-});
+
 
 ipcMain.handle('report:generatePDF', async (_event, reportId: number) => {
     try {
@@ -1119,7 +1059,7 @@ ipcMain.handle('backup:stats', async () => {
     }
 });
 
-ipcMain.handle('backup:restore', async (_event, backupId: string) => {
+ipcMain.handle('backup:restore', async (_event) => {
     try {
         // Implémenter la restauration
         return {
@@ -1133,7 +1073,7 @@ ipcMain.handle('backup:restore', async (_event, backupId: string) => {
     }
 });
 
-ipcMain.handle('backup:delete', async (_event, backupId: string) => {
+ipcMain.handle('backup:delete', async (_event) => {
     try {
         // Implémenter la suppression
         return {
