@@ -216,7 +216,7 @@ const getInitials = (student: Student): string => {
 const loadVacations = async () => {
   loading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('vacation:all');
+    const result = await window.ipcRenderer.invoke('vacation:getByStudent');
     if (result.success) {
       vacations.value = result.data;
     } else {

@@ -195,7 +195,7 @@ const loadData = async () => {
   loading.value = true;
   try {
     // Chargement des infos de l'école avec logo
-    const schoolResult = await window.ipcRenderer.invoke('school:get');
+    const schoolResult = await window.ipcRenderer.invoke('student:all');
     if (schoolResult.success) {
       const school = schoolResult.data;
       if (school.logo?.path) {

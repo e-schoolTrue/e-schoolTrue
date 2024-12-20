@@ -57,7 +57,7 @@
 
     <!-- Tableau des notes avec groupes de matières -->
     <div class="grades-section">
-      <template v-for="(group, index) in groupedGrades" :key="index">
+      <template v-for="(group) in groupedGrades" :key="index">
         <div class="subject-group">
           <h3>{{ group.name }}</h3>
           <table>
@@ -390,5 +390,4 @@ th {
     padding: 0;
   }
 }
-</style> 
 </style> 

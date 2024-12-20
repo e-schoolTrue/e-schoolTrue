@@ -1176,7 +1176,7 @@ ipcMain.handle('backup:storage', async () => {
 });
 
 // Événement pour vérifier la connexion Supabase
-ipcMain.handle('backup:checkSupabase', async (_event, config) => {
+ipcMain.handle('backup:checkSupabase', async (_event, _config) => {
     try {
         // Implémenter la vérification de la connexion Supabase
         return {
@@ -1190,16 +1190,3 @@ ipcMain.handle('backup:checkSupabase', async (_event, config) => {
     }
 });
 
-ipcMain.handle('vacation:all', async () => {
-  try {
-    const result = await global.vacationService.getAllVacations();
-    return {
-      success: true,
-      data: result.data,
-      message: 'Congés récupérés avec succès',
-      error: null
-    };
-  } catch (error) {
-    return handleError(error);
-  }
-});
