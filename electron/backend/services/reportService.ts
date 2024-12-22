@@ -8,6 +8,8 @@ import { ResultType } from '#electron/command';
 import { FileService } from './fileService';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { app } from 'electron';
+import puppeteer from 'puppeteer';
 
 export class ReportService {
     private reportRepository: Repository<ReportCardEntity>;
@@ -212,5 +214,107 @@ export class ReportService {
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
+    }
+
+    async generateMultipleReports(data: {
+        studentIds: number[];
+        period: string;
+        templateId: string;
+    }): Promise<ResultType> {
+        try {
+            const { studentIds, period, templateId } = data;
+            
+            // Récupérer tous les rapports nécessaires
+            const reports = await Promise.all(
+                studentIds.map(async (studentId) => {
+                    const report = await this.getReportData(studentId, period);
+                    return report;
+                })
+            );
+
+            // Générer le PDF combiné
+            const pdfBuffer = await this.generatePDF(reports, templateId);
+
+            // Sauvegarder temporairement le fichier PDF
+            const tempFilePath = path.join(app.getPath('temp'), `bulletins_${Date.now()}.pdf`);
+            await fs.writeFile(tempFilePath, pdfBuffer);
+
+            return {
+                success: true,
+                data: tempFilePath,
+                message: "Bulletins générés avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur lors de la génération multiple des bulletins:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la génération des bulletins",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    private async getReportData(studentId: number, period: string) {
+        // Récupérer les données de l'étudiant
+        const student = await this.studentRepository.findOne({
+            where: { id: studentId },
+            relations: ['grade']
+        });
+
+        if (!student) {
+            throw new Error(`Étudiant non trouvé: ${studentId}`);
+        }
+
+        // Récupérer les notes
+        const grades = await this.getGrades(studentId, period);
+        
+        // Calculer les moyennes et le rang
+        const { average, classAverage, rank, totalStudents } = await this.calculateStats(
+            studentId,
+            student.grade.id,
+            period
+        );
+
+        return {
+            student,
+            grades,
+            average,
+            classAverage,
+            rank,
+            totalStudents,
+            period
+        };
+    }
+
+    private async generatePDF(reports: any[], templateId: string): Promise<Buffer> {
+        // Implémenter la génération du PDF ici
+        // Vous pouvez utiliser puppeteer ou une autre bibliothèque pour générer le PDF
+        
+        // Exemple simple avec puppeteer
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
+        
+        // Générer le HTML pour chaque rapport
+        const html = reports.map(report => {
+            // Utiliser le template correspondant pour générer le HTML
+            return `<div class="report-page">${/* HTML du rapport */}</div>`;
+        }).join('');
+
+        await page.setContent(html);
+        const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: {
+                top: '20mm',
+                right: '20mm',
+                bottom: '20mm',
+                left: '20mm'
+            }
+        });
+
+        await browser.close();
+        return pdfBuffer;
     }
 } 

@@ -4,7 +4,7 @@
       <template #header>
         <div class="header-content">
           <h2>Génération des Bulletins</h2>
-          <el-button type="primary" @click="goToConfig">
+          <el-button type="primary" @click="goToConfig" class="config-button">
             <Icon icon="mdi:cog" class="mr-2" />
             Configuration
           </el-button>
@@ -46,7 +46,7 @@
             v-for="template in templates" 
             :key="template.id"
             :label="template.name"
-            :value="template.component"
+            :value="template"
           >
             <div class="template-option">
               <span>{{ template.name }}</span>
@@ -57,32 +57,41 @@
       </div>
 
       <!-- Prévisualisation des templates -->
+      <div class="preview-button">
+        <el-button @click="templatePreviewVisible = true">
+          <Icon icon="mdi:eye" class="mr-2" />
+          Aperçu des modèles
+        </el-button>
+      </div>
+
+      <!-- Dialog de prévisualisation des templates -->
       <el-dialog
         v-model="templatePreviewVisible"
         title="Aperçu des modèles de bulletin"
         width="90%"
         top="5vh"
+        fullscreen
       >
         <div class="templates-preview">
-          <div v-for="template in reportTemplates" :key="template.id" class="template-preview-item">
-            <h3>{{ template.name }}</h3>
-            <p>{{ template.description }}</p>
+          <div v-for="template in templates" :key="template.id" class="template-preview-item">
+            <div class="template-header">
+              <h3>{{ template.name }}</h3>
+              <p>{{ template.description }}</p>
+            </div>
             <div class="template-preview-content">
               <component
                 :is="template.component"
-                :student="samplePreviewData.student"
-                :grades="samplePreviewData.grades"
-                :period="selectedPeriod"
+                v-bind="samplePreviewData"
                 :school-info="schoolInfo"
-                :rank="samplePreviewData.rank"
-                :total-students="samplePreviewData.totalStudents"
-                :average="samplePreviewData.average"
-                :class-average="samplePreviewData.classAverage"
-                :general-appreciation="samplePreviewData.generalAppreciation"
               />
             </div>
           </div>
         </div>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="templatePreviewVisible = false">Fermer</el-button>
+          </div>
+        </template>
       </el-dialog>
 
       <!-- Liste des étudiants avec scroll fixe -->
@@ -129,10 +138,6 @@
           <Icon icon="mdi:printer" class="mr-2" />
           Générer les bulletins sélectionnés
         </el-button>
-        <el-button @click="templatePreviewVisible = true">
-          <Icon icon="mdi:eye" class="mr-2" />
-          Aperçu des modèles
-        </el-button>
       </div>
     </el-card>
 
@@ -148,15 +153,9 @@
         <component 
           :is="selectedTemplate.component"
           v-if="previewData"
-          :student="previewData.student"
-          :grades="previewData.grades"
+          v-bind="previewData"
           :period="selectedPeriod"
           :school-info="schoolInfo"
-          :rank="previewData.rank"
-          :total-students="previewData.totalStudents"
-          :average="previewData.average"
-          :class-average="previewData.classAverage"
-          :general-appreciation="previewData.generalAppreciation"
         />
       </div>
 
@@ -174,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, reactive } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
@@ -223,6 +222,7 @@ const selectedStudents = ref<Student[]>([]);
 const selectedGrade = ref<number | null>(null);
 const selectedPeriod = ref<string>('');
 const selectedTemplate = ref<ReportCardTemplate>(reportTemplates[0]);
+const templates = ref(reportTemplates);
 const loading = ref(false);
 const generating = ref<Record<number, boolean>>({});
 const generatingMultiple = ref(false);
@@ -241,7 +241,7 @@ const periods = [
 ];
 
 // Données exemple pour la prévisualisation
-const samplePreviewData = {
+const samplePreviewData = reactive({
   student: {
     id: 0,
     firstname: 'John',
@@ -250,15 +250,28 @@ const samplePreviewData = {
     grade: { id: 1, name: '6ème A' }
   },
   grades: [
-    { courseId: 1, courseName: 'Mathématiques', coefficient: 2, grade: 15, appreciation: 'Bon travail' },
-    { courseId: 2, courseName: 'Français', coefficient: 2, grade: 14, appreciation: 'Peut mieux faire' }
+    { 
+      courseId: 1, 
+      courseName: 'Mathématiques', 
+      coefficient: 2, 
+      grade: 15, 
+      appreciation: 'Bon travail' 
+    },
+    { 
+      courseId: 2, 
+      courseName: 'Français', 
+      coefficient: 2, 
+      grade: 14, 
+      appreciation: 'Peut mieux faire' 
+    }
   ],
   average: 14.5,
   classAverage: 13.8,
   rank: 1,
   totalStudents: 30,
-  generalAppreciation: 'Excellent trimestre'
-};
+  generalAppreciation: 'Excellent trimestre',
+  period: 'TRIMESTER1'
+});
 
 // Chargement des données
 const loadGrades = async () => {
@@ -366,7 +379,7 @@ const getInitials = (student: Student): string => {
 };
 
 const goToConfig = () => {
-  router.push('/school-notes');
+  router.push('/settings/notes');
 };
 
 // Fonction d'impression
@@ -447,21 +460,41 @@ watch(selectedGrade, () => {
 
 .templates-preview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 30px;
   padding: 20px;
+  background-color: #f5f7fa;
 }
 
 .template-preview-item {
-  border: 1px solid #eee;
+  background: white;
   border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.template-header {
   padding: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.template-header h3 {
+  margin: 0;
+  color: var(--el-color-primary);
+  font-size: 18px;
+}
+
+.template-header p {
+  margin: 5px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
 }
 
 .template-preview-content {
-  transform: scale(0.5);
+  padding: 20px;
+  transform: scale(0.6);
   transform-origin: top center;
-  height: 400px;
+  height: 600px;
   overflow: hidden;
 }
 
@@ -482,6 +515,30 @@ watch(selectedGrade, () => {
   .preview-container {
     padding: 0;
     overflow: visible;
+  }
+}
+
+.config-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.preview-button {
+  margin-bottom: 20px;
+}
+
+/* Ajustements pour le mode plein écran */
+:deep(.el-dialog.is-fullscreen) {
+  .el-dialog__body {
+    height: calc(100vh - 120px);
+    overflow-y: auto;
   }
 }
 </style> 
