@@ -87,51 +87,22 @@ export class SchoolService {
         try {
             const school = await this.schoolRepository.findOne({
                 where: {},
-                relations: ["logo"] // Inclure le logo lors de la récupération
+                relations: ['logo']  //relation
             });
-
-            if (school) {
-                return {
-                    success: true,
-                    data: school,
-                    message: "Informations de l'école récupérées avec succès",
-                    error: null
-                };
-            } else {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Aucune information sur l'école disponible",
-                    error: null
-                };
-            }
+    
+            return {
+                success: true,
+                data: school,
+                error: null,
+                message: "Informations de l'école récupérées avec succès"
+            };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue";
             console.error("Erreur dans getSchool:", error);
             return {
                 success: false,
                 data: null,
-                error: errorMessage,
-                message: `Erreur lors de la récupération des informations de l'école : ${errorMessage}`
-            };
-        }
-    }
-
-    async getSchoolInfo(): Promise<ResultType> {
-        try {
-            const school = await this.getSchool();
-            return {
-                success: true,
-                data: school.data,
-                message: "Informations de l'��cole récupérées avec succès",
-                error: null
-            };
-        } catch (error) {
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération des informations de l'école",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Erreur inconnue",
+                message: "Échec de la récupération des informations de l'école"
             };
         }
     }

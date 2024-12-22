@@ -579,7 +579,6 @@ ipcMain.handle("professor:get-teaching-assignments", async (_event, professorId)
 // Handlers pour le dashboard
 ipcMain.handle("dashboard:stats", async () => {
     try {
-        const schoolInfo = await global.schoolService.getSchoolInfo();
         const totalStudents = await global.studentService.getTotalStudents();
         const totalProfessors = await global.professorService.getTotalProfessors();
         const totalClasses = await global.gradeService.getTotalClasses();
@@ -589,7 +588,6 @@ ipcMain.handle("dashboard:stats", async () => {
         return {
             success: true,
             data: {
-                school: schoolInfo.data,
                 stats: {
                     totalStudents: totalStudents.data,
                     totalProfessors: totalProfessors.data,
@@ -937,13 +935,6 @@ ipcMain.handle('homework:notify', async (_, data: any) => {
   }
 });
 
-ipcMain.handle('file:getImageUrl', async (_event, filePath: string) => {
-  try {
-    return await global.fileService.getImageUrl(filePath);
-  } catch (error) {
-    return handleError(error);
-  }
-});
 
 // Handlers pour les bulletins
 ipcMain.handle('report:create', async (_event, data) => {
