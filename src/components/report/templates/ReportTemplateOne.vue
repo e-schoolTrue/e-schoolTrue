@@ -143,8 +143,9 @@ const generalAverage = computed(() => {
 });
 
 // Méthodes
-const formatGrade = (grade: number): string => {
-  return grade.toFixed(2);
+const formatGrade = (grade: number | undefined): string => {
+  if (grade === undefined || grade === null) return '-';
+  return Number(grade).toFixed(2);
 };
 
 const getGeneralAppreciation = () => {

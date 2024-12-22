@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {createMemoryHistory, createRouter} from 'vue-router'
+import {createMemoryHistory, createRouter, createWebHashHistory} from 'vue-router'
 import HomeView from "@/views/HomeView.vue";
 import DashboardView from "@/views/DashboardView.vue";
 import {fileRoutes} from "@/routes/file.ts";
@@ -10,6 +10,7 @@ import {professorRoutes} from "@/routes/professor";
 import {toolRoutes} from '@/routes/tool';
 import {planningRoutes} from '@/routes/planning';
 import {paymentRoutes} from '@/routes/payment';
+import NotesConfigurationView from '@/views/file/NotesConfigurationView.vue';
 
 const routes = [
     {
@@ -33,6 +34,14 @@ const routes = [
     {
         path: "/onboarding",
         children: omboardingRoutes
+    },
+    {
+        path: '/settings/notes',
+        name: 'notes-configuration',
+        component: NotesConfigurationView,
+        meta: {
+            title: 'Configuration des Notes'
+        }
     }
 ];
 

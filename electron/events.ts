@@ -238,7 +238,7 @@ ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvoke
                 success: false,
                 data: null,
                 error: "Document non trouvé",
-                message: "Le document n'a pas pu être récup��ré"
+                message: "Le document n'a pas pu être récupéré"
             };
         }
     } catch (error) {
@@ -1118,5 +1118,37 @@ ipcMain.handle('backup:checkSupabase', async (_event, _config) => {
     } catch (error) {
         return handleError(error);
     }
+});
+
+// Handler pour générer plusieurs bulletins
+ipcMain.handle('report:generateMultiple', async (_event: Electron.IpcMainInvokeEvent, data: {
+  studentIds: number[];
+  period: string;
+  templateId: string;
+}): Promise<ResultType> => {
+  try {
+    const { studentIds, period, templateId } = data;
+    
+    // Vérifier les paramètres
+    if (!studentIds?.length || !period || !templateId) {
+      return {
+        success: false,
+        data: null,
+        message: "Paramètres manquants",
+        error: "MISSING_PARAMETERS"
+      };
+    }
+
+    // Générer les bulletins
+    const result = await global.reportService.generateMultipleReports({
+      studentIds,
+      period,
+      templateId
+    });
+
+    return result;
+  } catch (error) {
+    return handleError(error);
+  }
 });
 
