@@ -48,20 +48,9 @@ export class ProfessorService {
     async createProfessor(professorData: any): Promise<ResultType> {
         try {
             await this.ensureRepositoriesInitialized();
-
-            // Log détaillé des données d'affectation
-            console.log("Données d'affectation complètes:", {
-                teaching: professorData.teaching,
-                schoolType: professorData.teaching?.schoolType,
-                teachingType: professorData.teaching?.teachingType,
-                classId: professorData.teaching?.classId,
-                courseId: professorData.teaching?.courseId,
-                gradeIds: professorData.teaching?.gradeIds
-            });
-
+            
             // Créer le professeur
-            const professor = new ProfessorEntity();
-            Object.assign(professor, {
+            const professor = this.professorRepository.create({
                 firstname: professorData.firstname,
                 lastname: professorData.lastname,
                 civility: professorData.civility,
@@ -71,20 +60,10 @@ export class ProfessorService {
                 birth_town: professorData.birth_town,
                 address: professorData.address,
                 town: professorData.town,
-                cni_number: professorData.cni_number
+                cni_number: professorData.cni_number,
             });
 
-            // Sauvegarder les documents
-            if (professorData.documents?.length > 0) {
-                const savedDocuments = await Promise.all(
-                    professorData.documents.map((doc: { content: string; name: string; type: string; }) => 
-                        this.fileService.saveFile(doc.content, doc.name, doc.type)
-                    )
-                );
-                professor.documents = savedDocuments;
-            }
-
-            // Sauvegarder la photo
+            // Gérer la photo
             if (professorData.photo) {
                 const savedPhoto = await this.fileService.saveFile(
                     professorData.photo.content,
@@ -94,97 +73,69 @@ export class ProfessorService {
                 professor.photo = savedPhoto;
             }
 
-            // Sauvegarder le diplôme
-            if (professorData.diploma) {
-                const diploma = new DiplomaEntity();
-                diploma.name = professorData.diploma.name;
-                professor.diploma = await this.diplomaRepository.save(diploma);
+            // Sauvegarder les documents
+            if (professorData.documents?.length) {
+                const savedDocuments = await this.fileService.saveProfessorDocuments(
+                    professorData.documents,
+                    professor.id
+                );
+                professor.documents = savedDocuments;
             }
 
-            // Sauvegarder la qualification
-            if (professorData.qualification) {
-                const qualification = new QualificationEntity();
-                qualification.name = professorData.qualification.name;
-                professor.qualification = await this.qualificationRepository.save(qualification);
-            }
-
-            // Créer l'utilisateur
-            if (professorData.user) {
-                const user = new UserEntity();
-                Object.assign(user, professorData.user);
-                professor.user = await this.userRepository.save(user);
-            }
-
+            // Sauvegarder le professeur
             const savedProfessor = await this.professorRepository.save(professor);
 
-            // Amélioration de la gestion de l'affectation d'enseignement
+            // Gérer l'affectation d'enseignement
             if (professorData.teaching) {
-                const teachingAssignment = new TeachingAssignmentEntity();
-                teachingAssignment.professor = savedProfessor;
-                teachingAssignment.teachingType = professorData.teaching.teachingType;
-                teachingAssignment.schoolType = professorData.teaching.schoolType;
+                const teaching = this.teachingAssignmentRepository.create({
+                    professor: savedProfessor,
+                    schoolType: professorData.teaching.schoolType,
+                    teachingType: professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY ? 
+                        'CLASS_TEACHER' : 'SUBJECT_TEACHER'
+                });
 
-                // Pour un instituteur (école primaire)
                 if (professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
-                    const classId = professorData.teaching.classId;
-                    if (classId) {
-                        const grade = await this.gradeRepository.findOneOrFail({
-                            where: { id: classId }
+                    // Pour le primaire, une seule classe
+                    if (professorData.teaching.classId) {
+                        const grade = await this.gradeRepository.findOne({
+                            where: { id: professorData.teaching.classId }
                         });
-                        teachingAssignment.class = grade;
+                        if (grade) {
+                            teaching.class = grade;
+                        }
                     }
-                }
-
-                // Pour un professeur de matière (école secondaire)
-                if (professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY) {
+                } else {
+                    // Pour le secondaire, matière et plusieurs classes
                     if (professorData.teaching.courseId) {
-                        const course = await this.courseRepository.findOneOrFail({
+                        const course = await this.courseRepository.findOne({
                             where: { id: professorData.teaching.courseId }
                         });
-                        teachingAssignment.course = course;
+                        if (course) {
+                            teaching.course = course;
+                        }
                     }
 
-                    if (professorData.selectedClasses?.length) {
-                        const gradeIds = professorData.selectedClasses.join(',');
-                        teachingAssignment.gradeIds = gradeIds;
-                        
-                        // Récupérer les noms des classes pour l'affichage
-                        const grades = await this.gradeRepository.findByIds(professorData.selectedClasses);
-                        teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
+                    if (professorData.teaching.gradeIds?.length) {
+                        teaching.gradeIds = professorData.teaching.gradeIds.join(',');
                     }
                 }
 
-                await this.teachingAssignmentRepository.save(teachingAssignment);
+                await this.teachingAssignmentRepository.save(teaching);
             }
-
-            // Recharger le professeur avec toutes les relations nécessaires
-            const createdProfessor = await this.professorRepository.findOne({
-                where: { id: savedProfessor.id },
-                relations: [
-                    'diploma',
-                    'qualification',
-                    'user',
-                    'documents',
-                    'photo',
-                    'teaching',
-                    'teaching.class',
-                    'teaching.course'
-                ]
-            });
 
             return {
                 success: true,
-                data: createdProfessor,
+                data: savedProfessor,
                 message: "Professeur créé avec succès",
                 error: null
             };
         } catch (error) {
-            console.error("Erreur détaillée:", error);
+            console.error("Erreur dans createProfessor:", error);
             return {
                 success: false,
                 data: null,
                 message: "Erreur lors de la création du professeur",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
+                error: error instanceof Error ? error.message : "Unknown error"
             };
         }
     }

@@ -169,54 +169,68 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { reportTemplates } from '@/config/reportTemplates';
-import { ReportService } from '@/services/reportService';
-import printJS from 'print-js';
+import type { ReportCardTemplate, ReportCard } from '@/types/report';
 
 const router = useRouter();
-const reportService = new ReportService();
+
+// Interfaces
+interface Student {
+  id: number;
+  firstname: string;
+  lastname: string;
+  matricule: string;
+  photo?: {
+    url?: string;
+  };
+  grade?: {
+    id: number;
+    name: string;
+  };
+}
+
+interface Grade {
+  id: number;
+  name: string;
+}
 
 // États
+const students = ref<Student[]>([]);
+const selectedStudents = ref<Student[]>([]);
+const selectedGrade = ref<number | null>(null);
+const selectedPeriod = ref<string>('');
+const selectedTemplate = ref<any>(reportTemplates[0].component);
 const loading = ref(false);
-const grades = ref([]);
-const students = ref([]);
-const selectedGrade = ref(null);
-const selectedPeriod = ref(null);
-const selectedTemplate = ref(reportTemplates[0].component);
-const selectedStudents = ref([]);
-const previewVisible = ref(false);
-const previewData = ref(null);
-const generating = reactive({});
 const generatingMultiple = ref(false);
-const schoolInfo = ref(null);
-const previewRef = ref(null);
+const previewVisible = ref(false);
+const previewStudent = ref<Student | null>(null);
+const grades = ref<Grade[]>([]);
+const schoolInfo = ref<any>(null);
+const config = ref<any>(null);
 const templatePreviewVisible = ref(false);
-const config = ref(null);
-const sampleStudent = ref({
-  firstname: 'Jean',
-  lastname: 'Dupont',
-  matricule: '2024001',
-  grade: { name: '6ème A' },
-  photo: { url: '' }
-});
-const sampleGrades = ref([
-  { courseName: 'Mathématiques', coefficient: 2, grade: 15, classAverage: 12.5 },
-  { courseName: 'Français', coefficient: 2, grade: 14, classAverage: 13 },
-  // ... autres exemples de notes
-]);
 
 // Périodes
 const periods = [
-  { value: 'trimester1', label: '1er Trimestre' },
-  { value: 'trimester2', label: '2ème Trimestre' },
-  { value: 'trimester3', label: '3ème Trimestre' },
-  { value: 'semester1', label: '1er Semestre' },
-  { value: 'semester2', label: '2ème Semestre' },
-  { value: 'year', label: 'Année Scolaire' }
+  { value: 'TRIMESTER1', label: '1er Trimestre' },
+  { value: 'TRIMESTER2', label: '2ème Trimestre' },
+  { value: 'TRIMESTER3', label: '3ème Trimestre' }
+];
+
+// Données exemple pour la prévisualisation des templates
+const sampleStudent = {
+  firstname: 'John',
+  lastname: 'Doe',
+  matricule: '12345',
+  grade: { name: '6ème A' }
+};
+
+const sampleGrades = [
+  { courseId: 1, courseName: 'Mathématiques', coefficient: 2, grade: 15, appreciation: 'Bon travail' },
+  { courseId: 2, courseName: 'Français', coefficient: 2, grade: 14, appreciation: 'Peut mieux faire' }
 ];
 
 // Templates disponibles
@@ -224,9 +238,13 @@ const templates = reportTemplates;
 
 // Méthodes
 const loadGrades = async () => {
-  const result = await window.ipcRenderer.invoke('grade:all');
-  if (result.success) {
-    grades.value = result.data;
+  try {
+    const result = await window.ipcRenderer.invoke('grade:all');
+    if (result.success) {
+      grades.value = result.data;
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des classes:', error);
   }
 };
 
@@ -239,12 +257,14 @@ const loadStudents = async () => {
     if (result.success) {
       students.value = result.data;
     }
+  } catch (error) {
+    console.error('Erreur lors du chargement des étudiants:', error);
   } finally {
     loading.value = false;
   }
 };
 
-const handleSelectionChange = (selection) => {
+const handleSelectionChange = (selection: Student[]) => {
   selectedStudents.value = selection;
 };
 
@@ -266,9 +286,21 @@ const previewReport = async (student) => {
 };
 
 const generateReports = async () => {
+  if (!selectedPeriod.value || !selectedTemplate.value) return;
+  
   generatingMultiple.value = true;
   try {
-    // Implémenter la génération multiple
+    const result = await window.ipcRenderer.invoke('report:generateMultiple', {
+      studentIds: selectedStudents.value.map(s => s.id),
+      period: selectedPeriod.value,
+      template: selectedTemplate.value
+    });
+    
+    if (result.success) {
+      // Gérer le succès
+    }
+  } catch (error) {
+    console.error('Erreur lors de la génération des bulletins:', error);
   } finally {
     generatingMultiple.value = false;
   }
@@ -289,16 +321,23 @@ const printPreview = () => {
 };
 
 const goToConfig = () => {
-  router.push('/notes/configuration');
+  router.push('/school-notes');
 };
 
-const getInitials = (student) => {
+const getInitials = (student: Student): string => {
   return `${student.firstname[0]}${student.lastname[0]}`;
 };
 
 // Initialisation
 onMounted(() => {
   loadGrades();
+});
+
+// Watcher pour charger les étudiants quand la classe change
+watch(selectedGrade, () => {
+  if (selectedGrade.value) {
+    loadStudents();
+  }
 });
 </script>
 
