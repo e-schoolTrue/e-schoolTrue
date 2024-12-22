@@ -170,15 +170,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Icon } from '@iconify/vue';
 import { reportTemplates } from '@/config/reportTemplates';
 import type { ReportCardTemplate, ReportCard } from '@/types/report';
+import printJS from 'print-js';
 
-const router = useRouter();
-
-// Interfaces
 interface Student {
   id: number;
   firstname: string;
@@ -198,20 +196,37 @@ interface Grade {
   name: string;
 }
 
-// États
+interface PreviewData {
+  student: Student;
+  grades: {
+    courseId: number;
+    courseName: string;
+    coefficient: number;
+    grade: number;
+    appreciation: string;
+  }[];
+  average: number;
+  classAverage: number;
+  rank: number;
+  totalStudents: number;
+  generalAppreciation?: string;
+}
+
+const router = useRouter();
 const students = ref<Student[]>([]);
 const selectedStudents = ref<Student[]>([]);
 const selectedGrade = ref<number | null>(null);
 const selectedPeriod = ref<string>('');
-const selectedTemplate = ref<any>(reportTemplates[0].component);
+const selectedTemplate = ref<ReportCardTemplate>(reportTemplates[0]);
 const loading = ref(false);
+const generating = ref<Record<number, boolean>>({});
 const generatingMultiple = ref(false);
 const previewVisible = ref(false);
-const previewStudent = ref<Student | null>(null);
+const previewData = ref<PreviewData | null>(null);
 const grades = ref<Grade[]>([]);
 const schoolInfo = ref<any>(null);
-const config = ref<any>(null);
 const templatePreviewVisible = ref(false);
+const previewRef = ref<HTMLElement | null>(null);
 
 // Périodes
 const periods = [
@@ -220,23 +235,7 @@ const periods = [
   { value: 'TRIMESTER3', label: '3ème Trimestre' }
 ];
 
-// Données exemple pour la prévisualisation des templates
-const sampleStudent = {
-  firstname: 'John',
-  lastname: 'Doe',
-  matricule: '12345',
-  grade: { name: '6ème A' }
-};
-
-const sampleGrades = [
-  { courseId: 1, courseName: 'Mathématiques', coefficient: 2, grade: 15, appreciation: 'Bon travail' },
-  { courseId: 2, courseName: 'Français', coefficient: 2, grade: 14, appreciation: 'Peut mieux faire' }
-];
-
-// Templates disponibles
-const templates = reportTemplates;
-
-// Méthodes
+// Chargement des données
 const loadGrades = async () => {
   try {
     const result = await window.ipcRenderer.invoke('grade:all');
@@ -245,6 +244,7 @@ const loadGrades = async () => {
     }
   } catch (error) {
     console.error('Erreur lors du chargement des classes:', error);
+    ElMessage.error('Erreur lors du chargement des classes');
   }
 };
 
@@ -259,8 +259,46 @@ const loadStudents = async () => {
     }
   } catch (error) {
     console.error('Erreur lors du chargement des étudiants:', error);
+    ElMessage.error('Erreur lors du chargement des étudiants');
   } finally {
     loading.value = false;
+  }
+};
+
+const loadSchoolInfo = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('school:info');
+    if (result.success) {
+      schoolInfo.value = result.data;
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des informations de l\'école:', error);
+  }
+};
+
+// Actions
+const previewReport = async (student: Student) => {
+  generating.value[student.id] = true;
+  try {
+    const result = await window.ipcRenderer.invoke('report:preview', {
+      studentId: student.id,
+      period: selectedPeriod.value
+    });
+
+    if (result.success) {
+      previewData.value = {
+        student,
+        ...result.data,
+        average: Number(result.data.average).toFixed(2),
+        classAverage: Number(result.data.classAverage).toFixed(2)
+      };
+      previewVisible.value = true;
+    }
+  } catch (error) {
+    console.error('Erreur lors de la prévisualisation:', error);
+    ElMessage.error('Erreur lors de la prévisualisation');
+  } finally {
+    generating.value[student.id] = false;
   }
 };
 
@@ -268,69 +306,48 @@ const handleSelectionChange = (selection: Student[]) => {
   selectedStudents.value = selection;
 };
 
-const previewReport = async (student) => {
-  generating[student.id] = true;
-  try {
-    const result = await reportService.generateReport(student.id, selectedPeriod.value);
-    if (result.success) {
-      previewData.value = result.data;
-      previewVisible.value = true;
-    } else {
-      throw new Error(result.message);
-    }
-  } catch (error) {
-    ElMessage.error('Erreur lors de la génération du bulletin');
-  } finally {
-    generating[student.id] = false;
-  }
-};
-
 const generateReports = async () => {
-  if (!selectedPeriod.value || !selectedTemplate.value) return;
+  if (!selectedPeriod.value || !selectedTemplate.value) {
+    ElMessage.warning('Veuillez sélectionner une période et un modèle');
+    return;
+  }
   
   generatingMultiple.value = true;
   try {
     const result = await window.ipcRenderer.invoke('report:generateMultiple', {
       studentIds: selectedStudents.value.map(s => s.id),
       period: selectedPeriod.value,
-      template: selectedTemplate.value
+      templateId: selectedTemplate.value.id
     });
     
     if (result.success) {
-      // Gérer le succès
+      ElMessage.success('Bulletins générés avec succès');
+      printJS({
+        printable: result.data,
+        type: 'pdf',
+        showModal: true
+      });
     }
   } catch (error) {
     console.error('Erreur lors de la génération des bulletins:', error);
+    ElMessage.error('Erreur lors de la génération');
   } finally {
     generatingMultiple.value = false;
   }
-};
-
-const printPreview = () => {
-  if (!previewRef.value) return;
-  
-  printJS({
-    printable: previewRef.value,
-    type: 'html',
-    targetStyles: ['*'],
-    documentTitle: `Bulletin_${previewData.value?.student?.matricule}`,
-    onPrintDialogClose: () => {
-      console.log('Impression terminée');
-    }
-  });
-};
-
-const goToConfig = () => {
-  router.push('/school-notes');
 };
 
 const getInitials = (student: Student): string => {
   return `${student.firstname[0]}${student.lastname[0]}`;
 };
 
+const goToConfig = () => {
+  router.push('/school-notes');
+};
+
 // Initialisation
 onMounted(() => {
   loadGrades();
+  loadSchoolInfo();
 });
 
 // Watcher pour charger les étudiants quand la classe change
