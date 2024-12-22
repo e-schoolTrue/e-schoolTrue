@@ -4,7 +4,7 @@
       <template #header>
         <div class="header-content">
           <h2>Génération des Bulletins</h2>
-          <el-button type="primary" @click="goToConfig" class="config-button">
+          <el-button type="primary" @click="goToConfig">
             <Icon icon="mdi:cog" class="mr-2" />
             Configuration
           </el-button>
@@ -46,7 +46,7 @@
             v-for="template in templates" 
             :key="template.id"
             :label="template.name"
-            :value="template"
+            :value="template.component"
           >
             <div class="template-option">
               <span>{{ template.name }}</span>
@@ -57,41 +57,25 @@
       </div>
 
       <!-- Prévisualisation des templates -->
-      <div class="preview-button">
-        <el-button @click="templatePreviewVisible = true">
-          <Icon icon="mdi:eye" class="mr-2" />
-          Aperçu des modèles
-        </el-button>
-      </div>
-
-      <!-- Dialog de prévisualisation des templates -->
       <el-dialog
         v-model="templatePreviewVisible"
         title="Aperçu des modèles de bulletin"
         width="90%"
         top="5vh"
-        fullscreen
       >
         <div class="templates-preview">
           <div v-for="template in templates" :key="template.id" class="template-preview-item">
-            <div class="template-header">
-              <h3>{{ template.name }}</h3>
-              <p>{{ template.description }}</p>
-            </div>
+            <h3>{{ template.name }}</h3>
+            <p>{{ template.description }}</p>
             <div class="template-preview-content">
-              <component
+              <component 
                 :is="template.component"
-                v-bind="samplePreviewData"
+        
                 :school-info="schoolInfo"
               />
             </div>
           </div>
         </div>
-        <template #footer>
-          <div class="dialog-footer">
-            <el-button @click="templatePreviewVisible = false">Fermer</el-button>
-          </div>
-        </template>
       </el-dialog>
 
       <!-- Liste des étudiants avec scroll fixe -->
@@ -138,6 +122,10 @@
           <Icon icon="mdi:printer" class="mr-2" />
           Générer les bulletins sélectionnés
         </el-button>
+        <el-button @click="templatePreviewVisible = true">
+          <Icon icon="mdi:eye" class="mr-2" />
+          Aperçu des modèles
+        </el-button>
       </div>
     </el-card>
 
@@ -151,21 +139,25 @@
     >
       <div class="preview-container" ref="previewRef">
         <component 
-          :is="selectedTemplate.component"
+          :is="selectedTemplate"
           v-if="previewData"
-          v-bind="previewData"
+          :student="previewData.student"
+          :grades="previewData.grades"
           :period="selectedPeriod"
+          
           :school-info="schoolInfo"
+          :rank="previewData.rank"
+          :total-students="previewData.totalStudents"
+      
         />
       </div>
 
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="previewVisible = false">Fermer</el-button>
-          <el-button type="primary" @click="handlePrint">
+         
             <Icon icon="mdi:printer" class="mr-2" />
             Imprimer
-          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -173,12 +165,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, reactive } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { reportTemplates } from '@/config/reportTemplates';
-import type { ReportCardTemplate, ReportCard } from '@/types/report';
+import type { ReportCardTemplate } from '@/types/report';
 import printJS from 'print-js';
 
 interface Student {
@@ -222,7 +214,6 @@ const selectedStudents = ref<Student[]>([]);
 const selectedGrade = ref<number | null>(null);
 const selectedPeriod = ref<string>('');
 const selectedTemplate = ref<ReportCardTemplate>(reportTemplates[0]);
-const templates = ref<ReportCardTemplate[]>(reportTemplates);
 const loading = ref(false);
 const generating = ref<Record<number, boolean>>({});
 const generatingMultiple = ref(false);
@@ -239,65 +230,6 @@ const periods = [
   { value: 'TRIMESTER2', label: '2ème Trimestre' },
   { value: 'TRIMESTER3', label: '3ème Trimestre' }
 ];
-
-// Données exemple pour la prévisualisation
-interface SamplePreviewData {
-  student: {
-    id: number;
-    firstname: string;
-    lastname: string;
-    matricule: string;
-    grade: {
-      id: number;
-      name: string;
-    };
-  };
-  grades: Array<{
-    courseId: number;
-    courseName: string;
-    coefficient: number;
-    grade: number;
-    appreciation: string;
-  }>;
-  average: number;
-  classAverage: number;
-  rank: number;
-  totalStudents: number;
-  generalAppreciation: string;
-  period: string;
-}
-
-const samplePreviewData = reactive<SamplePreviewData>({
-  student: {
-    id: 0,
-    firstname: 'John',
-    lastname: 'Doe',
-    matricule: '12345',
-    grade: { id: 1, name: '6ème A' }
-  },
-  grades: [
-    { 
-      courseId: 1, 
-      courseName: 'Mathématiques', 
-      coefficient: 2, 
-      grade: 15, 
-      appreciation: 'Bon travail' 
-    },
-    { 
-      courseId: 2, 
-      courseName: 'Français', 
-      coefficient: 2, 
-      grade: 14, 
-      appreciation: 'Peut mieux faire' 
-    }
-  ],
-  average: 14.5,
-  classAverage: 13.8,
-  rank: 1,
-  totalStudents: 30,
-  generalAppreciation: 'Excellent trimestre',
-  period: 'TRIMESTER1'
-});
 
 // Chargement des données
 const loadGrades = async () => {
@@ -331,7 +263,7 @@ const loadStudents = async () => {
 
 const loadSchoolInfo = async () => {
   try {
-    const result = await window.ipcRenderer.invoke('school:info');
+    const result = await window.ipcRenderer.invoke('school:get');
     if (result.success) {
       schoolInfo.value = result.data;
     }
@@ -405,22 +337,7 @@ const getInitials = (student: Student): string => {
 };
 
 const goToConfig = () => {
-  router.push('/settings/notes');
-};
-
-// Fonction d'impression
-const handlePrint = () => {
-  if (!previewRef.value) return;
-  
-  printJS({
-    printable: previewRef.value.innerHTML,
-    type: 'html',
-    targetStyles: ['*'],
-    documentTitle: `Bulletin_${previewData.value?.student?.matricule}`,
-    onPrintDialogClose: () => {
-      console.log('Impression terminée');
-    }
-  });
+  router.push('/school-notes');
 };
 
 // Initialisation
@@ -486,41 +403,21 @@ watch(selectedGrade, () => {
 
 .templates-preview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
   padding: 20px;
-  background-color: #f5f7fa;
 }
 
 .template-preview-item {
-  background: white;
+  border: 1px solid #eee;
   border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.template-header {
   padding: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.template-header h3 {
-  margin: 0;
-  color: var(--el-color-primary);
-  font-size: 18px;
-}
-
-.template-header p {
-  margin: 5px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
 }
 
 .template-preview-content {
-  padding: 20px;
-  transform: scale(0.6);
+  transform: scale(0.5);
   transform-origin: top center;
-  height: 600px;
+  height: 400px;
   overflow: hidden;
 }
 
@@ -541,30 +438,6 @@ watch(selectedGrade, () => {
   .preview-container {
     padding: 0;
     overflow: visible;
-  }
-}
-
-.config-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.preview-button {
-  margin-bottom: 20px;
-}
-
-/* Ajustements pour le mode plein écran */
-:deep(.el-dialog.is-fullscreen) {
-  .el-dialog__body {
-    height: calc(100vh - 120px);
-    overflow-y: auto;
   }
 }
 </style> 

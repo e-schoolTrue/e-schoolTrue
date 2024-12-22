@@ -5,7 +5,6 @@ import type { ComponentPublicInstance } from 'vue';
 import printJS from 'print-js'; 
 import StudentFilter from "@/components/student/student-filter.vue";
 import StudentTable from "@/components/student/student-table.vue";
-import SchoolPrintTemplate from "@/components/template/SchoolPrintTemplate.vue"; 
 import { ElMessage } from 'element-plus';
 
 
