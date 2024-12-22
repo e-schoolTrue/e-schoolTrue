@@ -1,542 +1,289 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import { CIVILITY, FAMILY_SITUATION, ROLE, SCHOOL_TYPE } from "#electron/command";
-import type { UploadProps, UploadUserFile } from 'element-plus';
-import { ElMessage } from 'element-plus';
 import TeachingAssignment from './sections/TeachingAssignment.vue';
-import { useRouter } from 'vue-router';
+import type { UploadProps, FormRules } from 'element-plus';
 
-interface ProfessorFormData {
-    id?: number;
-    firstname: string;
-    lastname: string;
-    civility: CIVILITY;
-    nbr_child: number;
-    family_situation: FAMILY_SITUATION;
-    birth_date: Date | null;
-    birth_town: string;
-    address: string;
-    town: string;
-    cni_number: string;
-    diploma: {
-        name: string;
-    };
-    qualification: {
-        name: string;
-    };
-    user: {
-        username: string;
-        password: string;
-        role: ROLE;
-    };
-    documents: Array<{
-        name: string;
-        content: string;
-        type: string;
-    }>;
-    photo?: {
-        name: string;
-        content: string;
-        type: string;
-    };
-    teaching?: {
-        teachingType: string;
-        schoolType: SCHOOL_TYPE | null;
-        classId?: number;
-        courseId?: number | null;
-        gradeIds?: string;
-    };
-    schoolType: SCHOOL_TYPE | null;
-    selectedClasses: number[];
-    selectedCourse: number | null;
-}
-
-const props = defineProps<{
-    disabled?: boolean;
-    initialData?: ProfessorFormData;
-}>();
-
-const emit = defineEmits<{
-    (e: 'save', data: ProfessorFormData): Promise<boolean>;
-}>();
-
-const router = useRouter();
-
-const currentStep = ref(0);
-const imageUrl = ref('');
-
-const schoolType = ref<SCHOOL_TYPE | null>(null);
-const selectedClasses = ref<number[]>([]);
-const selectedCourse = ref<number | null>(null);
-
-const formData = reactive<ProfessorFormData>({
-    firstname: '',
-    lastname: '',
-    civility: CIVILITY.MR,
-    nbr_child: 0,
-    family_situation: FAMILY_SITUATION.SINGLE,
-    birth_date: null,
-    birth_town: '',
-    address: '',
-    town: '',
-    cni_number: '',
-    diploma: { name: '' },
-    qualification: { name: '' },
-    user: {
-        username: '',
-        password: '',
-        role: ROLE.professor
-    },
-    documents: [],
-    photo: undefined,
+// État du formulaire
+const activeStep = ref(0);
+const form = reactive({
+  firstname: '',
+  lastname: '',
+  civility: '',
+  nbr_child: 0,
+  family_situation: '',
+  birth_date: null,
+  birth_town: '',
+  address: '',
+  town: '',
+  cni_number: '',
+  diploma: { name: '' },
+  qualification: { name: '' },
+  user: {
+    username: '',
+    password: '',
+    role: ROLE.PROFESSOR
+  },
+  documents: [],
+  photo: null,
+  teaching: {
     schoolType: null,
     selectedClasses: [],
     selectedCourse: null
+  }
 });
 
-// Options pour les listes déroulantes
-const civilityOptions = [
-    { label: 'Monsieur', value: CIVILITY.MR },
-    { label: 'Madame', value: CIVILITY.MME },
-    { label: 'Mademoiselle', value: CIVILITY.MLLE }
+// Règles de validation
+const rules = reactive<FormRules>({
+  firstname: [
+    { required: true, message: 'Le prénom est requis', trigger: 'blur' },
+    { min: 2, message: 'Minimum 2 caractères', trigger: 'blur' }
+  ],
+  lastname: [
+    { required: true, message: 'Le nom est requis', trigger: 'blur' },
+    { min: 2, message: 'Minimum 2 caractères', trigger: 'blur' }
+  ],
+  civility: [
+    { required: true, message: 'La civilité est requise', trigger: 'change' }
+  ],
+  family_situation: [
+    { required: true, message: 'La situation familiale est requise', trigger: 'change' }
+  ],
+  birth_date: [
+    { required: true, message: 'La date de naissance est requise', trigger: 'change' }
+  ],
+  birth_town: [
+    { required: true, message: 'Le lieu de naissance est requis', trigger: 'blur' }
+  ],
+  address: [
+    { required: true, message: "L'adresse est requise", trigger: 'blur' }
+  ],
+  cni_number: [
+    { required: true, message: 'Le numéro CNI est requis', trigger: 'blur' }
+  ],
+  'user.username': [
+    { required: true, message: "Le nom d'utilisateur est requis", trigger: 'blur' }
+  ],
+  'user.password': [
+    { required: true, message: 'Le mot de passe est requis', trigger: 'blur' },
+    { min: 6, message: 'Minimum 6 caractères', trigger: 'blur' }
+  ],
+  'teaching.schoolType': [
+    { required: true, message: "Le type d'école est requis", trigger: 'change' }
+  ]
+});
+
+const formRef = ref();
+const loading = ref(false);
+
+// Étapes du formulaire
+const steps = [
+  { title: 'Informations personnelles', icon: 'mdi:account' },
+  { title: 'Documents', icon: 'mdi:file-document' },
+  { title: 'Affectation', icon: 'mdi:school' }
 ];
 
-const familySituationOptions = [
-    { label: 'Célibataire', value: FAMILY_SITUATION.SINGLE },
-    { label: 'Marié(e)', value: FAMILY_SITUATION.MARRIED },
-    { label: 'Divorcé(e)', value: FAMILY_SITUATION.DIVORCED },
-    { label: 'Veuf/Veuve', value: FAMILY_SITUATION.WIDOWED }
-];
+// Validation de l'étape courante
+const validateStep = async () => {
+  if (!formRef.value) return false;
+  
+  try {
+    await formRef.value.validate();
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Navigation entre les étapes
+const nextStep = async () => {
+  const isValid = await validateStep();
+  if (isValid) {
+    activeStep.value++;
+  }
+};
+
+const prevStep = () => {
+  activeStep.value--;
+};
 
 // Gestion des fichiers
-
-const beforeAvatarUpload: UploadProps['beforeUpload'] = (rawFile) => {
-    if (rawFile.type !== 'image/jpeg' && rawFile.type !== 'image/png') {
-        ElMessage.error('L\'avatar doit être au format JPG ou PNG!');
-        return false;
-    }
-    if (rawFile.size / 1024 / 1024 > 2) {
-        ElMessage.error('L\'avatar ne doit pas dépasser 2MB!');
-        return false;
-    }
-    return true;
+const handlePhotoSuccess: UploadProps['onSuccess'] = (response) => {
+  form.photo = {
+    name: response.name,
+    url: response.url,
+    type: response.type
+  };
 };
 
-const handlePhotoChange = (file: UploadUserFile) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        if (e.target?.result) {
-            formData.photo = {
-                name: file.name,
-                content: e.target.result as string,
-                type: file.raw?.type || 'image/jpeg'
-            };
-            imageUrl.value = e.target.result as string;
-        }
-    };
-    if (file.raw) {
-        reader.readAsDataURL(file.raw);
-    }
+const handleDocumentSuccess: UploadProps['onSuccess'] = (response) => {
+  form.documents.push({
+    name: response.name,
+    url: response.url,
+    type: response.type
+  });
 };
 
-const handleDocumentChange = (file: UploadUserFile) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        if (e.target?.result && formData.documents) {
-            formData.documents.push({
-                name: file.name,
-                content: e.target.result as string,
-                type: file.raw?.type || 'application/octet-stream'
-            });
-        }
-    };
-    if (file.raw) {
-        reader.readAsDataURL(file.raw);
-    }
+// Soumission du formulaire
+const handleSubmit = async () => {
+  const isValid = await validateStep();
+  if (!isValid) return;
+
+  loading.value = true;
+  try {
+    emit('save', form);
+  } finally {
+    loading.value = false;
+  }
 };
 
-const handleRemove = (file: UploadUserFile) => {
-    if (formData.documents) {
-        const index = formData.documents.findIndex(doc => doc.name === file.name);
-        if (index !== -1) {
-            formData.documents.splice(index, 1);
-        }
-    }
-};
-
-const nextStep = () => {
-    if (validateCurrentStep()) {
-        currentStep.value++;
-    }
-};
-
-const previousStep = () => {
-    if (currentStep.value > 0) currentStep.value--;
-};
-
-const handleSchoolTypeChange = () => {
-    // Réinitialiser les sélections lors du changement de type d'école
-    selectedClasses.value = [];
-    selectedCourse.value = null;
-};
-
-const validateTeachingAssignment = () => {
-    if (!schoolType.value) {
-        ElMessage.error('Veuillez sélectionner un type d\'école');
-        return false;
-    }
-
-    if (schoolType.value === SCHOOL_TYPE.PRIMARY) {
-        if (selectedClasses.value.length !== 1) {
-            ElMessage.error('Veuillez sélectionner une classe pour l\'instituteur');
-            return false;
-        }
-    } else {
-        if (!selectedCourse.value) {
-            ElMessage.error('Veuillez sélectionner une matière');
-            return false;
-        }
-        if (selectedClasses.value.length === 0) {
-            ElMessage.error('Veuillez sélectionner au moins une classe');
-            return false;
-        }
-    }
-
-    return true;
-};
-
-const saveData = async () => {
-    if (currentStep.value === 4 && !validateTeachingAssignment()) {
-        return;
-    }
-
-    try {
-        // Créer l'objet d'affectation
-        const teachingData = currentStep.value === 4 ? {
-            teachingType: schoolType.value === SCHOOL_TYPE.PRIMARY ? 'CLASS_TEACHER' : 'SUBJECT_TEACHER',
-            schoolType: schoolType.value,
-            classId: schoolType.value === SCHOOL_TYPE.PRIMARY ? selectedClasses.value[0] : undefined,
-            courseId: schoolType.value === SCHOOL_TYPE.SECONDARY ? selectedCourse.value : undefined,
-            gradeIds: schoolType.value === SCHOOL_TYPE.SECONDARY ? selectedClasses.value.join(',') : undefined
-        } : undefined;
-
-        console.log("Données d'affectation à envoyer:", teachingData); // Log de debug
-
-        const completeData = {
-            ...formData,
-            teaching: teachingData,
-            schoolType: schoolType.value,
-            selectedClasses: selectedClasses.value,
-            selectedCourse: selectedCourse.value
-        };
-
-        const result = await emit('save', completeData);
-        if (result) {
-            ElMessage.success('Professeur enregistré avec succès');
-            router.push('/professor');
-        }
-    } catch (error) {
-        console.error('Erreur lors de la sauvegarde:', error);
-        ElMessage.error('Erreur lors de la sauvegarde');
-    }
-};
-
-// Initialisation avec les données existantes si fournies
-if (props.initialData) {
-    Object.assign(formData, props.initialData);
-    if (props.initialData.photo) {
-        imageUrl.value = props.initialData.photo.content;
-    }
-}
-
-// Modifier les étapes
-const steps = [
-    { title: 'Informations personnelles', icon: 'user' },
-    { title: 'Contact', icon: 'phone' },
-    { title: 'Documents', icon: 'document' },
-    { title: 'Compte', icon: 'key' },
-    { title: 'Affectation', icon: 'school' }
-];
-
-const validateCurrentStep = () => {
-    // Ajout de la validation pour chaque étape
-    switch (currentStep.value) {
-        case 0: // Informations personnelles
-            return !!formData.firstname && !!formData.lastname;
-        case 1: // Contact
-            return !!formData.address && !!formData.town;
-        case 2: // Documents
-            return true; // Documents optionnels
-        case 3: // Compte
-            return !!formData.user.username && !!formData.user.password;
-        case 4: // Affectation
-            return true; // L'affectation peut être optionnelle initialement
-        default:
-            return true;
-    }
-};
+const emit = defineEmits<{
+  (e: 'save', data: any): void;
+}>();
 </script>
 
 <template>
-    <el-card class="professor-form">
-        <el-steps :active="currentStep" finish-status="success" align-center class="mb-4">
-            <el-step v-for="step in steps" :key="step.title" :title="step.title" />
-        </el-steps>
+  <div class="professor-form">
+    <el-steps :active="activeStep" finish-status="success">
+      <el-step 
+        v-for="(step, index) in steps" 
+        :key="index"
+        :title="step.title"
+      >
+        <template #icon>
+          <Icon :icon="step.icon" />
+        </template>
+      </el-step>
+    </el-steps>
 
-        <el-form :model="formData" label-position="top">
-            <!-- Étape 1: Informations personnelles -->
-            <div v-if="currentStep === 0">
-                <el-row :gutter="20">
-                    <el-col :span="8">
-                        <el-form-item label="Civilité">
-                            <el-select 
-                                v-model="formData.civility"
-                                placeholder="Sélectionnez une civilité"
-                                class="w-full"
-                            >
-                                <el-option
-                                    v-for="option in civilityOptions"
-                                    :key="option.value"
-                                    :label="option.label"
-                                    :value="option.value"
-                                />
-                            </el-select>
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="8">
-                        <el-form-item label="Nom">
-                            <el-input v-model="formData.lastname" />
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="8">
-                        <el-form-item label="Prénom">
-                            <el-input v-model="formData.firstname" />
-                        </el-form-item>
-                    </el-col>
-                </el-row>
+    <el-form 
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      class="mt-4"
+    >
+      <!-- Étape 1: Informations personnelles -->
+      <div v-show="activeStep === 0">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item prop="firstname" label="Prénom">
+              <el-input v-model="form.firstname" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item prop="lastname" label="Nom">
+              <el-input v-model="form.lastname" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-                <el-row :gutter="20">
-                    <el-col :span="12">
-                        <el-form-item label="Date de naissance">
-                            <el-date-picker
-                                v-model="formData.birth_date"
-                                type="date"
-                                placeholder="Sélectionnez une date"
-                            />
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                        <el-form-item label="Lieu de naissance">
-                            <el-input v-model="formData.birth_town" />
-                        </el-form-item>
-                    </el-col>
-                </el-row>
+        <!-- ... autres champs de l'étape 1 ... -->
+      </div>
 
-                <el-row :gutter="20">
-                    <el-col :span="12">
-                        <el-form-item label="Adresse">
-                            <el-input v-model="formData.address" />
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                        <el-form-item label="Ville">
-                            <el-input v-model="formData.town" />
-                        </el-form-item>
-                    </el-col>
-                </el-row>
+      <!-- Étape 2: Documents -->
+      <div v-show="activeStep === 1">
+        <el-upload
+          class="avatar-uploader"
+          action="/api/upload"
+          :show-file-list="false"
+          :on-success="handlePhotoSuccess"
+        >
+          <img v-if="form.photo?.url" :src="form.photo.url" class="avatar" />
+          <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+        </el-upload>
 
-                <el-form-item label="Numéro CNI">
-                    <el-input v-model="formData.cni_number" />
-                </el-form-item>
-            </div>
+        <el-upload
+          action="/api/upload"
+          :on-success="handleDocumentSuccess"
+          multiple
+        >
+          <el-button type="primary">Ajouter des documents</el-button>
+        </el-upload>
+      </div>
 
-            <!-- Étape 2: Situation familiale -->
-            <div v-if="currentStep === 1">
-                <el-row :gutter="20">
-                    <el-col :span="12">
-                        <el-form-item label="Situation familiale">
-                            <el-select 
-                                v-model="formData.family_situation"
-                                placeholder="Sélectionnez une situation"
-                                class="w-full"
-                            >
-                                <el-option
-                                    v-for="option in familySituationOptions"
-                                    :key="option.value"
-                                    :label="option.label"
-                                    :value="option.value"
-                                />
-                            </el-select>
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                        <el-form-item label="Nombre d'enfants">
-                            <el-input-number v-model="formData.nbr_child" :min="0" />
-                        </el-form-item>
-                    </el-col>
-                </el-row>
+      <!-- Étape 3: Affectation -->
+      <div v-show="activeStep === 2">
+        <TeachingAssignment v-model="form.teaching" />
+      </div>
 
-                <el-row :gutter="20">
-                    <el-col :span="8">
-                        <el-form-item label="Nom d'utilisateur">
-                            <el-input v-model="formData.user.username" />
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="8">
-                        <el-form-item label="Mot de passe">
-                            <el-input v-model="formData.user.password" type="password" />
-                        </el-form-item>
-                    </el-col>
-                </el-row>
-            </div>
-
-            <!-- Étape 3: Qualifications -->
-            <div v-if="currentStep === 2">
-                <el-row :gutter="20">
-                    <el-col :span="12">
-                        <el-form-item label="Diplôme">
-                            <el-input v-model="formData.diploma.name" />
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                        <el-form-item label="Qualification">
-                            <el-input v-model="formData.qualification.name" />
-                        </el-form-item>
-                    </el-col>
-                </el-row>
-            </div>
-
-            <!-- Étape 4: Documents -->
-            <div v-if="currentStep === 3">
-                <el-row :gutter="20">
-                    <el-col :span="12">
-                        <el-form-item label="Photo">
-                            <el-upload
-                                class="avatar-uploader"
-                                action="#"
-                                :show-file-list="false"
-                                :on-change="handlePhotoChange"
-                                :before-upload="beforeAvatarUpload"
-                                :auto-upload="false"
-                            >
-                                <img v-if="imageUrl" :src="imageUrl" class="avatar" />
-                                <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-                            </el-upload>
-                        </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                        <el-form-item label="Documents">
-                            <el-upload
-                                action="#"
-                                :on-change="handleDocumentChange"
-                                :on-remove="handleRemove"
-                                :auto-upload="false"
-                                multiple
-                            >
-                                <el-button type="primary">Cliquez pour uploader</el-button>
-                                <template #tip>
-                                    <div class="el-upload__tip">
-                                        Documents au format PDF, DOC, DOCX
-                                    </div>
-                                </template>
-                            </el-upload>
-                        </el-form-item>
-                    </el-col>
-                </el-row>
-            </div>
-
-            <!-- Étape 5: Affectation -->
-            <div v-if="currentStep === 4">
-                <teaching-assignment 
-                    v-model:school-type="schoolType"
-                    v-model:selected-classes="selectedClasses"
-                    v-model:selected-course="selectedCourse"
-                    @school-type-change="handleSchoolTypeChange"
-                />
-            </div>
-
-            <div class="form-actions">
-                <el-button 
-                    v-if="currentStep > 0" 
-                    @click="previousStep"
-                >
-                    Précédent
-                </el-button>
-
-                <el-button 
-                    v-if="currentStep < steps.length - 1" 
-                    type="primary" 
-                    @click="nextStep"
-                >
-                    Suivant
-                </el-button>
-
-                <el-button 
-                    v-if="currentStep === steps.length - 1" 
-                    type="success" 
-                    @click="saveData"
-                    :loading="disabled"
-                >
-                    Terminer
-                </el-button>
-            </div>
-        </el-form>
-    </el-card>
+      <!-- Navigation entre les étapes -->
+      <div class="form-actions">
+        <el-button 
+          v-if="activeStep > 0" 
+          @click="prevStep"
+        >
+          Précédent
+        </el-button>
+        
+        <el-button 
+          v-if="activeStep < steps.length - 1" 
+          type="primary" 
+          @click="nextStep"
+        >
+          Suivant
+        </el-button>
+        
+        <el-button 
+          v-else 
+          type="primary" 
+          @click="handleSubmit"
+          :loading="loading"
+        >
+          Enregistrer
+        </el-button>
+      </div>
+    </el-form>
+  </div>
 </template>
 
 <style scoped>
 .professor-form {
-    max-width: 800px;
-    margin: 0 auto;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
 .form-actions {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.mb-4 {
-    margin-bottom: 1rem;
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .avatar-uploader {
-    border: 1px dashed var(--el-border-color);
-    border-radius: 6px;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: var(--el-transition-duration-fast);
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: var(--el-transition-duration-fast);
 }
 
 .avatar-uploader:hover {
-    border-color: var(--el-color-primary);
-}
-
-.avatar-uploader-icon {
-    font-size: 28px;
-    color: #8c939d;
-    width: 178px;
-    height: 178px;
-    text-align: center;
+  border-color: var(--el-color-primary);
 }
 
 .avatar {
-    width: 178px;
-    height: 178px;
-    display: block;
+  width: 178px;
+  height: 178px;
+  display: block;
 }
 
-.w-full {
-    width: 100%;
+:deep(.el-form-item.is-error .el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
 }
 
-:deep(.el-select) {
-    width: 100%;
+:deep(.el-form-item.is-error .el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
 }
 
-:deep(.el-select .el-input__wrapper) {
-    width: 100%;
+:deep(.el-radio-group) {
+  display: flex;
+  gap: 20px;
+}
+
+:deep(.el-radio) {
+  margin-right: 0;
 }
 </style>

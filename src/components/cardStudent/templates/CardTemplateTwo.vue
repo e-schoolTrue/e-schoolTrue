@@ -19,7 +19,8 @@
           <div class="student-photo">
             <img v-if="student?.photo?.url && isValidDataUrl(student.photo.url)" 
                  :src="student.photo.url" 
-                 alt="Photo" />
+                 alt="Photo"
+                 class="student-image" />
             <div v-else class="photo-placeholder">
               <Icon icon="mdi:account" />
             </div>
@@ -209,12 +210,38 @@ const isValidDataUrl = (url: string) => {
   gap: 15px;
 }
 
+.student-photo-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
 .student-photo {
   width: 70px;
   height: 90px;
   border: 3px solid var(--primary-color);
   border-radius: 8px;
   overflow: hidden;
+  background-color: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 32px;
 }
 
 .student-name h3 {
