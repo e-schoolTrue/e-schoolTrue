@@ -118,7 +118,7 @@ const isValidDataUrl = (url: string) => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
 
 .card-template-one {
   font-family: 'Poppins', sans-serif;
@@ -132,6 +132,58 @@ const isValidDataUrl = (url: string) => {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Header styles */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem;
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.school-logo-container {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.school-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.student-photo {
+  width: 80px;
+  height: 100px;
+  border: 3px solid white;
+  border-radius: 5px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+}
+
+.student-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder, .logo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #eee;
+  color: #999;
+}
+
+.photo-placeholder :deep(svg), .logo-placeholder :deep(svg) {
+  font-size: 2rem;
+}
 .card-front, .card-back {
   position: absolute;
   width: 100%;
@@ -319,3 +371,5 @@ const isValidDataUrl = (url: string) => {
   transform: rotateY(0deg);
 }
 </style> 
+
+

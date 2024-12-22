@@ -1,10 +1,10 @@
 <template>
-  <div class="card-template-base">
+  <div class="card-template-base" :style="cardStyles">
     <div class="card-content">
       <slot></slot>
     </div>
     <div class="card-footer">
-      <p class="school-year">{{ student?.schoolYear }}</p>
+      <p class="school-year">{{ student?.schoolYear || currentSchoolYear }}</p>
       <p class="validity">Valide jusqu'au {{ formatDate(validUntil) }}</p>
     </div>
   </div>
@@ -13,31 +13,62 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+interface GradeInfo {
+  id?: number;
+  name: string;
+}
+
 interface Student {
+  id?: number;
   firstname?: string;
   lastname?: string;
   matricule?: string;
   schoolYear?: string;
-  grade?: {
-    name: string;
-  };
+  grade?: GradeInfo;
   photoUrl?: string;
 }
 
 interface SchoolInfo {
+  id?: number;
   name?: string;
   address?: string;
+  logo?: {
+    url?: string;
+  };
 }
 
-defineProps<{
+interface Props {
   student: Student;
   schoolInfo: SchoolInfo;
   logoUrl?: string;
-}>();
+  width?: string | number;
+  height?: string | number;
+  backgroundColor?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  width: '85.6mm',  // Format CR80 standard
+  height: '54mm',
+  backgroundColor: '#ffffff'
+});
+
+// Calcul de l'année scolaire actuelle
+const currentSchoolYear = computed(() => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  
+  // Si on est après juillet, on prend l'année suivante
+  const startYear = month >= 7 ? year : year - 1;
+  const endYear = startYear + 1;
+  
+  return `${startYear}-${endYear}`;
+});
 
 const validUntil = computed(() => {
   const currentYear = new Date().getFullYear();
-  return new Date(currentYear + 1, 6, 31); // July 31st of next year
+  // Date de fin fixée au 31 juillet de l'année suivante
+  return new Date(currentYear + 1, 6, 31);
 });
 
 const formatDate = (date: Date) => {
@@ -47,6 +78,19 @@ const formatDate = (date: Date) => {
     year: 'numeric'
   }).format(date);
 };
+
+// Styles calculés pour la carte
+const cardStyles = computed(() => ({
+  width: typeof props.width === 'number' ? `${props.width}px` : props.width,
+  height: typeof props.height === 'number' ? `${props.height}px` : props.height,
+  backgroundColor: props.backgroundColor
+}));
+
+// Exposer certaines méthodes pour les composants parents
+defineExpose({
+  formatDate,
+  currentSchoolYear
+});
 </script>
 
 <style scoped>
