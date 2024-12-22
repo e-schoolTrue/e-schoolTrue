@@ -64,17 +64,21 @@
         top="5vh"
       >
         <div class="templates-preview">
-          <div v-for="template in templates" :key="template.id" class="template-preview-item">
+          <div v-for="template in reportTemplates" :key="template.id" class="template-preview-item">
             <h3>{{ template.name }}</h3>
             <p>{{ template.description }}</p>
             <div class="template-preview-content">
-              <component 
+              <component
                 :is="template.component"
-                :student="sampleStudent"
-                :grades="sampleGrades"
+                :student="samplePreviewData.student"
+                :grades="samplePreviewData.grades"
                 :period="selectedPeriod"
-                :config="config"
                 :school-info="schoolInfo"
+                :rank="samplePreviewData.rank"
+                :total-students="samplePreviewData.totalStudents"
+                :average="samplePreviewData.average"
+                :class-average="samplePreviewData.classAverage"
+                :general-appreciation="samplePreviewData.generalAppreciation"
               />
             </div>
           </div>
@@ -142,23 +146,24 @@
     >
       <div class="preview-container" ref="previewRef">
         <component 
-          :is="selectedTemplate"
+          :is="selectedTemplate.component"
           v-if="previewData"
           :student="previewData.student"
           :grades="previewData.grades"
           :period="selectedPeriod"
-          :config="previewData.config"
           :school-info="schoolInfo"
           :rank="previewData.rank"
           :total-students="previewData.totalStudents"
-          :observations="previewData.observations"
+          :average="previewData.average"
+          :class-average="previewData.classAverage"
+          :general-appreciation="previewData.generalAppreciation"
         />
       </div>
 
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="previewVisible = false">Fermer</el-button>
-          <el-button type="primary" @click="printPreview">
+          <el-button type="primary" @click="handlePrint">
             <Icon icon="mdi:printer" class="mr-2" />
             Imprimer
           </el-button>
@@ -234,6 +239,26 @@ const periods = [
   { value: 'TRIMESTER2', label: '2ème Trimestre' },
   { value: 'TRIMESTER3', label: '3ème Trimestre' }
 ];
+
+// Données exemple pour la prévisualisation
+const samplePreviewData = {
+  student: {
+    id: 0,
+    firstname: 'John',
+    lastname: 'Doe',
+    matricule: '12345',
+    grade: { id: 1, name: '6ème A' }
+  },
+  grades: [
+    { courseId: 1, courseName: 'Mathématiques', coefficient: 2, grade: 15, appreciation: 'Bon travail' },
+    { courseId: 2, courseName: 'Français', coefficient: 2, grade: 14, appreciation: 'Peut mieux faire' }
+  ],
+  average: 14.5,
+  classAverage: 13.8,
+  rank: 1,
+  totalStudents: 30,
+  generalAppreciation: 'Excellent trimestre'
+};
 
 // Chargement des données
 const loadGrades = async () => {
@@ -342,6 +367,21 @@ const getInitials = (student: Student): string => {
 
 const goToConfig = () => {
   router.push('/school-notes');
+};
+
+// Fonction d'impression
+const handlePrint = () => {
+  if (!previewRef.value) return;
+  
+  printJS({
+    printable: previewRef.value.innerHTML,
+    type: 'html',
+    targetStyles: ['*'],
+    documentTitle: `Bulletin_${previewData.value?.student?.matricule}`,
+    onPrintDialogClose: () => {
+      console.log('Impression terminée');
+    }
+  });
 };
 
 // Initialisation

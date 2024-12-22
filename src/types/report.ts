@@ -1,3 +1,5 @@
+import { Component } from 'vue';
+
 export interface ReportCard {
     id: number;
     period: string;
@@ -30,5 +32,5 @@ export interface ReportCardTemplate {
     id: string;
     name: string;
     description: string;
-    component: any;
+    component: Component;
 } 
