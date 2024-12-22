@@ -222,7 +222,7 @@ const selectedStudents = ref<Student[]>([]);
 const selectedGrade = ref<number | null>(null);
 const selectedPeriod = ref<string>('');
 const selectedTemplate = ref<ReportCardTemplate>(reportTemplates[0]);
-const templates = ref(reportTemplates);
+const templates = ref<ReportCardTemplate[]>(reportTemplates);
 const loading = ref(false);
 const generating = ref<Record<number, boolean>>({});
 const generatingMultiple = ref(false);
@@ -241,7 +241,33 @@ const periods = [
 ];
 
 // Données exemple pour la prévisualisation
-const samplePreviewData = reactive({
+interface SamplePreviewData {
+  student: {
+    id: number;
+    firstname: string;
+    lastname: string;
+    matricule: string;
+    grade: {
+      id: number;
+      name: string;
+    };
+  };
+  grades: Array<{
+    courseId: number;
+    courseName: string;
+    coefficient: number;
+    grade: number;
+    appreciation: string;
+  }>;
+  average: number;
+  classAverage: number;
+  rank: number;
+  totalStudents: number;
+  generalAppreciation: string;
+  period: string;
+}
+
+const samplePreviewData = reactive<SamplePreviewData>({
   student: {
     id: 0,
     firstname: 'John',
