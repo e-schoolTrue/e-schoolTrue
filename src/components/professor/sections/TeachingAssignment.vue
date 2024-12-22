@@ -18,22 +18,23 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: typeof props.modelValue];
-  'school-type-change': [];
 }>();
 
 const grades = ref<any[]>([]);
 const courses = ref<any[]>([]);
 
 const schoolType = computed({
-  get: () => props.modelValue?.schoolType ?? null,
+  get: () => props.modelValue.schoolType,
   set: (value) => emit('update:modelValue', { 
     ...props.modelValue, 
-    schoolType: value 
+    schoolType: value,
+    selectedClasses: [],
+    selectedCourse: null
   })
 });
 
 const selectedClasses = computed({
-  get: () => props.modelValue?.selectedClasses ?? [],
+  get: () => props.modelValue.selectedClasses,
   set: (value) => emit('update:modelValue', { 
     ...props.modelValue, 
     selectedClasses: value 
@@ -41,7 +42,7 @@ const selectedClasses = computed({
 });
 
 const selectedCourse = computed({
-  get: () => props.modelValue?.selectedCourse ?? null,
+  get: () => props.modelValue.selectedCourse,
   set: (value) => emit('update:modelValue', { 
     ...props.modelValue, 
     selectedCourse: value 
@@ -62,13 +63,6 @@ const loadCourses = async () => {
   }
 };
 
-watch(() => props.modelValue.schoolType, (newType) => {
-  if (newType === SCHOOL_TYPE.PRIMARY) {
-    emit('update:selectedCourse', null);
-  }
-  emit('school-type-change');
-});
-
 onMounted(() => {
   loadGrades();
   loadCourses();
@@ -78,21 +72,18 @@ onMounted(() => {
 <template>
   <div class="teaching-assignment">
     <el-form-item label="Type d'école">
-      <el-select v-model="schoolType">
-        <el-option 
-          v-for="type in Object.values(SCHOOL_TYPE)" 
-          :key="type"
-          :label="type"
-          :value="type"
-        />
-      </el-select>
+      <el-radio-group v-model="schoolType">
+        <el-radio :label="SCHOOL_TYPE.PRIMARY">Primaire</el-radio>
+        <el-radio :label="SCHOOL_TYPE.SECONDARY">Secondaire</el-radio>
+      </el-radio-group>
     </el-form-item>
 
     <template v-if="schoolType === SCHOOL_TYPE.PRIMARY">
       <el-form-item label="Classe">
-        <el-select 
+        <el-select
           v-model="selectedClasses[0]"
           placeholder="Sélectionnez une classe"
+          clearable
         >
           <el-option
             v-for="grade in grades"
@@ -109,6 +100,7 @@ onMounted(() => {
         <el-select
           v-model="selectedCourse"
           placeholder="Sélectionnez une matière"
+          clearable
         >
           <el-option
             v-for="course in courses"
@@ -124,6 +116,7 @@ onMounted(() => {
           v-model="selectedClasses"
           multiple
           placeholder="Sélectionnez les classes"
+          clearable
         >
           <el-option
             v-for="grade in grades"

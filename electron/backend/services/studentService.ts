@@ -476,25 +476,49 @@ export class StudentService {
 
   async getStudentsByGrade(gradeId: number): Promise<ResultType> {
     try {
-        const students = await this.studentRepository.find({
-            where: { grade: { id: gradeId } },
-            relations: ['grade']
-        });
+      const students = await this.studentRepository.find({
+        where: { grade: { id: gradeId } },
+        relations: ['grade', 'photo'], // Ajout de la relation photo
+        order: {
+          lastname: 'ASC',
+          firstname: 'ASC'
+        }
+      });
 
-        return {
-            success: true,
-            data: students,
-            message: "Étudiants récupérés avec succès",
-            error: null
-        };
+      // Charger les URLs des photos
+      const studentsWithPhotos = await Promise.all(students.map(async (student) => {
+        if (student.photo?.path) {
+          try {
+            const photoUrl = await this.fileService.getFileUrl(student.photo.id);
+            return {
+              ...student,
+              photo: {
+                ...student.photo,
+                url: photoUrl
+              }
+            };
+          } catch (error) {
+            console.error(`Erreur lors du chargement de la photo pour l'étudiant ${student.id}:`, error);
+            return student;
+          }
+        }
+        return student;
+      }));
+
+      return {
+        success: true,
+        data: studentsWithPhotos,
+        message: "Étudiants récupérés avec succès",
+        error: null
+      };
     } catch (error) {
-        console.error("Erreur lors de la récupération des étudiants:", error);
-        return {
-            success: false,
-            data: null,
-            message: "Erreur lors de la récupération des étudiants",
-            error: error instanceof Error ? error.message : "Erreur inconnue"
-        };
+      console.error("Erreur lors de la récupération des étudiants:", error);
+      return {
+        success: false,
+        data: null,
+        message: "Erreur lors de la récupération des étudiants",
+        error: error instanceof Error ? error.message : "Erreur inconnue"
+      };
     }
   }
 }

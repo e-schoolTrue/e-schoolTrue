@@ -238,7 +238,7 @@ ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvoke
                 success: false,
                 data: null,
                 error: "Document non trouvé",
-                message: "Le document n'a pas pu être récupéré"
+                message: "Le document n'a pas pu être récup��ré"
             };
         }
     } catch (error) {
@@ -888,10 +888,9 @@ ipcMain.handle('absence:deleteProfessor', async (_, id) => {
 });
 
 // Handler pour récupérer les étudiants d'une classe
-ipcMain.handle('student:getByGrade', async (_, gradeId: number) => {
+ipcMain.handle('student:getByGrade', async (_event: Electron.IpcMainInvokeEvent, gradeId: number): Promise<ResultType> => {
   try {
-    const result = await global.studentService.getStudentsByGrade(gradeId);
-    return result;
+    return await global.studentService.getStudentsByGrade(gradeId);
   } catch (error) {
     return handleError(error);
   }
