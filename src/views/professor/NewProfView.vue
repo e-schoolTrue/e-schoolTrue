@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorForm from '@/components/professor/professor-form.vue';
-import { ROLE, SCHOOL_TYPE } from "#electron/command";
+import { SCHOOL_TYPE } from "#electron/command";
 
 
 interface ProfessorFormData {
@@ -19,11 +19,6 @@ interface ProfessorFormData {
   cni_number: string;
   diploma?: { name: string };
   qualification?: { name: string };
-  user: {
-    username: string;
-    password: string;
-    role: string;
-  };
   documents: Array<{
     name: string;
     content: string;
@@ -66,12 +61,11 @@ const handleSave = async (professorData: ProfessorFormData) => {
       qualification: otherData.qualification?.name ? {
         name: otherData.qualification.name
       } : null,
-      
-      user: {
-        username: otherData.user?.username || '',
-        password: otherData.user?.password || '',
-        role: ROLE.professor
-      },
+  
+      classes: schoolType === SCHOOL_TYPE.PRIMARY ? selectedClasses : undefined,
+      courses: schoolType === SCHOOL_TYPE.SECONDARY ? [{ id: selectedCourse }] : undefined,
+      grades: schoolType === SCHOOL_TYPE.SECONDARY ? selectedClasses : undefined,
+      subjects: schoolType === SCHOOL_TYPE.SECONDARY ? selectedClasses : undefined,
       
       documents: Array.isArray(otherData.documents) ? 
         otherData.documents.map(doc => ({
