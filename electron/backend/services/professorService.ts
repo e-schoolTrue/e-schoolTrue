@@ -2,7 +2,6 @@ import { AppDataSource } from "#electron/data-source";
 import { ProfessorEntity, DiplomaEntity, QualificationEntity } from "#electron/backend/entities/professor";
 import { ResultType } from "#electron/command";
 import { Repository } from "typeorm";
-import { UserEntity } from "#electron/backend/entities/user";
 import { TeachingAssignmentEntity } from "../entities/teaching";
 import { TEACHING_TYPE } from "#electron/command";
 import { GradeEntity } from "../entities/grade";
@@ -15,7 +14,6 @@ export class ProfessorService {
     private professorRepository!: Repository<ProfessorEntity>;
     private diplomaRepository!: Repository<DiplomaEntity>;
     private qualificationRepository!: Repository<QualificationEntity>;
-    private userRepository!: Repository<UserEntity>;
     private teachingAssignmentRepository!: Repository<TeachingAssignmentEntity>;
     private gradeRepository!: Repository<GradeEntity>;
     private courseRepository!: Repository<CourseEntity>;
@@ -35,7 +33,6 @@ export class ProfessorService {
             this.professorRepository = dataSource.getRepository(ProfessorEntity);
             this.diplomaRepository = dataSource.getRepository(DiplomaEntity);
             this.qualificationRepository = dataSource.getRepository(QualificationEntity);
-            this.userRepository = dataSource.getRepository(UserEntity);
             this.teachingAssignmentRepository = dataSource.getRepository(TeachingAssignmentEntity);
             this.gradeRepository = dataSource.getRepository(GradeEntity);
             this.courseRepository = dataSource.getRepository(CourseEntity);
@@ -75,7 +72,7 @@ export class ProfessorService {
 
             // Sauvegarder les documents
             if (professorData.documents?.length) {
-                const savedDocuments = await this.fileService.saveProfessorDocuments(
+                const savedDocuments = await this.fileService.saveDocuments(
                     professorData.documents,
                     professor.id
                 );
@@ -87,13 +84,13 @@ export class ProfessorService {
 
             // Gérer l'affectation d'enseignement
             if (professorData.teaching) {
-                const teaching = this.teachingAssignmentRepository.create({
-                    professor: savedProfessor,
-                    schoolType: professorData.teaching.schoolType,
-                    teachingType: professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY ? 
-                        'CLASS_TEACHER' : 'SUBJECT_TEACHER'
-                });
-
+                const teaching = new TeachingAssignmentEntity();
+                teaching.professor = savedProfessor; // Utilisez l'instance sauvegardée
+                teaching.schoolType = professorData.teaching.schoolType;
+                teaching.teachingType = professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY
+                    ? TEACHING_TYPE.CLASS_TEACHER
+                    : TEACHING_TYPE.SUBJECT_TEACHER;
+            
                 if (professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
                     // Pour le primaire, une seule classe
                     if (professorData.teaching.classId) {
@@ -114,14 +111,16 @@ export class ProfessorService {
                             teaching.course = course;
                         }
                     }
-
+            
                     if (professorData.teaching.gradeIds?.length) {
                         teaching.gradeIds = professorData.teaching.gradeIds.join(',');
                     }
                 }
-
+            
                 await this.teachingAssignmentRepository.save(teaching);
+            
             }
+            
 
             return {
                 success: true,
@@ -150,7 +149,6 @@ export class ProfessorService {
                 relations: [
                     'diploma',
                     'qualification',
-                    'user',
                     'documents',
                     'photo',
                     'teaching'

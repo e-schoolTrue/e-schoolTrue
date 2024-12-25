@@ -1,7 +1,4 @@
 import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, OneToMany } from "typeorm";
-import { CIVILITY, FAMILY_SITUATION } from "#electron/command";
-import { UserEntity } from "#electron/backend/entities/user.ts";
-import { ProfessorPaymentEntity } from "./professorPayment";
 import { TeachingAssignmentEntity } from "./teaching";
 import { FileEntity } from "./file";
 
