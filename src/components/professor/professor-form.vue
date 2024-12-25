@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { CIVILITY, FAMILY_SITUATION, ROLE, SCHOOL_TYPE } from "#electron/command";
+import { CIVILITY, FAMILY_SITUATION } from "#electron/command";
 import TeachingAssignment from './sections/TeachingAssignment.vue';
-import type { UploadProps, FormRules } from 'element-plus';
+import type { FormRules } from 'element-plus';
 
 // État du formulaire
 const activeStep = ref(0);
+type FileData = { name: string; url: string; type: string };
+
 const form = reactive({
   firstname: '',
   lastname: '',
@@ -19,19 +21,15 @@ const form = reactive({
   cni_number: '',
   diploma: { name: '' },
   qualification: { name: '' },
-  user: {
-    username: '',
-    password: '',
-    role: ROLE.PROFESSOR
-  },
-  documents: [],
-  photo: null,
+  documents: [] as FileData[], // Typage explicite pour documents
+  photo: null as FileData | null, // Typage explicite pour photo
   teaching: {
     schoolType: null,
     selectedClasses: [],
     selectedCourse: null
   }
 });
+
 
 // Règles de validation
 const rules = reactive<FormRules>({
@@ -60,13 +58,6 @@ const rules = reactive<FormRules>({
   ],
   cni_number: [
     { required: true, message: 'Le numéro CNI est requis', trigger: 'blur' }
-  ],
-  'user.username': [
-    { required: true, message: "Le nom d'utilisateur est requis", trigger: 'blur' }
-  ],
-  'user.password': [
-    { required: true, message: 'Le mot de passe est requis', trigger: 'blur' },
-    { min: 6, message: 'Minimum 6 caractères', trigger: 'blur' }
   ],
   'teaching.schoolType': [
     { required: true, message: "Le type d'école est requis", trigger: 'change' }
@@ -108,20 +99,32 @@ const prevStep = () => {
 };
 
 // Gestion des fichiers
-const handlePhotoSuccess: UploadProps['onSuccess'] = (response) => {
-  form.photo = {
-    name: response.name,
-    url: response.url,
-    type: response.type
+// Prévisualisation des photos
+const handlePhotoPreview = (file: File) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    form.photo = {
+      name: file.name,
+      url: reader.result as string,
+      type: file.type,
+    };
   };
+  reader.readAsDataURL(file);
+  return false; // Empêche l'upload automatique
 };
 
-const handleDocumentSuccess: UploadProps['onSuccess'] = (response) => {
-  form.documents.push({
-    name: response.name,
-    url: response.url,
-    type: response.type
-  });
+// Prévisualisation des documents
+const handleDocumentPreview = (file: File) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    form.documents.push({
+      name: file.name,
+      url: reader.result as string,
+      type: file.type,
+    });
+  };
+  reader.readAsDataURL(file);
+  return false; // Empêche l'upload automatique
 };
 
 // Soumission du formulaire
@@ -177,29 +180,50 @@ const emit = defineEmits<{
             </el-form-item>
           </el-col>
         </el-row>
-
-        <!-- ... autres champs de l'étape 1 ... -->
+        <!-- Ajout des champs nécessaires -->
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item prop="civility" label="Civilité">
+              <el-select v-model="form.civility" placeholder="Sélectionnez une civilité">
+                <el-option v-for="option in CIVILITY" :key="option" :label="option" :value="option" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item prop="family_situation" label="Situation familiale">
+              <el-select v-model="form.family_situation" placeholder="Sélectionnez une situation">
+                <el-option v-for="option in FAMILY_SITUATION" :key="option" :label="option" :value="option" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </div>
 
       <!-- Étape 2: Documents -->
       <div v-show="activeStep === 1">
+        <!-- Téléchargement photo -->
         <el-upload
           class="avatar-uploader"
-          action="/api/upload"
+          :before-upload="handlePhotoPreview"
           :show-file-list="false"
-          :on-success="handlePhotoSuccess"
         >
           <img v-if="form.photo?.url" :src="form.photo.url" class="avatar" />
           <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
         </el-upload>
 
+        <!-- Téléchargement documents -->
         <el-upload
-          action="/api/upload"
-          :on-success="handleDocumentSuccess"
+          :before-upload="handleDocumentPreview"
           multiple
+          :show-file-list="false"
         >
           <el-button type="primary">Ajouter des documents</el-button>
         </el-upload>
+        <ul>
+          <li v-for="(doc, index) in form.documents" :key="index">
+            <a :href="doc.url" target="_blank">{{ doc.name }}</a>
+          </li>
+        </ul>
       </div>
 
       <!-- Étape 3: Affectation -->
