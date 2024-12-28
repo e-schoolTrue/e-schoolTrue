@@ -51,18 +51,21 @@ export class FileService {
 
     async saveFile(content: string, name: string, type: string): Promise<FileEntity> {
         try {
+            // Nettoyer les données base64
             const base64Data = content.replace(/^data:.*?;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
             
-            const fileName = `${Date.now()}-${this.sanitizeFileName(name)}`;
+            // Créer un nom de fichier unique
+            const fileName = `${Date.now()}-${name}`;
             const filePath = path.join(this.uploadDir, fileName);
             
+            // Écrire le fichier
             await fs.writeFile(filePath, buffer);
             
+            // Créer et sauvegarder l'entité
             const fileEntity = this.fileRepository.create({
                 name,
-                // Stockage du chemin relatif dans la base de données
-                path: this.getRelativePath(filePath),
+                path: filePath,
                 type
             });
             

@@ -7,7 +7,6 @@ import { TEACHING_TYPE } from "#electron/command";
 import { GradeEntity } from "../entities/grade";
 import { CourseEntity } from "../entities/course";
 import { FileService } from "#electron/backend/services/fileService";
-import { SCHOOL_TYPE } from "#electron/command";
 
 
 export class ProfessorService {
@@ -16,7 +15,6 @@ export class ProfessorService {
     private qualificationRepository!: Repository<QualificationEntity>;
     private teachingAssignmentRepository!: Repository<TeachingAssignmentEntity>;
     private gradeRepository!: Repository<GradeEntity>;
-    private courseRepository!: Repository<CourseEntity>;
     private fileService: FileService;
 
     constructor() {
@@ -35,7 +33,6 @@ export class ProfessorService {
             this.qualificationRepository = dataSource.getRepository(QualificationEntity);
             this.teachingAssignmentRepository = dataSource.getRepository(TeachingAssignmentEntity);
             this.gradeRepository = dataSource.getRepository(GradeEntity);
-            this.courseRepository = dataSource.getRepository(CourseEntity);
         } catch (error) {
             console.error("Error initializing repositories:", error);
             throw error;
@@ -45,99 +42,150 @@ export class ProfessorService {
     async createProfessor(professorData: any): Promise<ResultType> {
         try {
             await this.ensureRepositoriesInitialized();
-            
-            // Créer le professeur
-            const professor = this.professorRepository.create({
-                firstname: professorData.firstname,
-                lastname: professorData.lastname,
-                civility: professorData.civility,
-                nbr_child: professorData.nbr_child,
-                family_situation: professorData.family_situation,
-                birth_date: professorData.birth_date,
-                birth_town: professorData.birth_town,
-                address: professorData.address,
-                town: professorData.town,
-                cni_number: professorData.cni_number,
-            });
+            const dataSource = AppDataSource.getInstance();
 
-            // Gérer la photo
-            if (professorData.photo) {
-                const savedPhoto = await this.fileService.saveFile(
-                    professorData.photo.content,
-                    professorData.photo.name,
-                    professorData.photo.type
-                );
-                professor.photo = savedPhoto;
-            }
-
-            // Sauvegarder les documents
-            if (professorData.documents?.length) {
-                const savedDocuments = await this.fileService.saveDocuments(
-                    professorData.documents,
-                    professor.id
-                );
-                professor.documents = savedDocuments;
-            }
-
-            // Sauvegarder le professeur
-            const savedProfessor = await this.professorRepository.save(professor);
-
-            // Gérer l'affectation d'enseignement
-            if (professorData.teaching) {
-                const teaching = new TeachingAssignmentEntity();
-                teaching.professor = savedProfessor; // Utilisez l'instance sauvegardée
-                teaching.schoolType = professorData.teaching.schoolType;
-                teaching.teachingType = professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY
-                    ? TEACHING_TYPE.CLASS_TEACHER
-                    : TEACHING_TYPE.SUBJECT_TEACHER;
-            
-                if (professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
-                    // Pour le primaire, une seule classe
-                    if (professorData.teaching.classId) {
-                        const grade = await this.gradeRepository.findOne({
-                            where: { id: professorData.teaching.classId }
+            const result = await dataSource.manager.transaction(async transactionalEntityManager => {
+                // Create or find diploma if provided
+                let diploma;
+                if (professorData.diploma) {
+                    diploma = await transactionalEntityManager.findOne(DiplomaEntity, {
+                        where: { name: professorData.diploma }
+                    });
+                    
+                    if (!diploma) {
+                        diploma = this.diplomaRepository.create({
+                            name: professorData.diploma
                         });
-                        if (grade) {
-                            teaching.class = grade;
-                        }
-                    }
-                } else {
-                    // Pour le secondaire, matière et plusieurs classes
-                    if (professorData.teaching.courseId) {
-                        const course = await this.courseRepository.findOne({
-                            where: { id: professorData.teaching.courseId }
-                        });
-                        if (course) {
-                            teaching.course = course;
-                        }
-                    }
-            
-                    if (professorData.teaching.gradeIds?.length) {
-                        teaching.gradeIds = professorData.teaching.gradeIds.join(',');
+                        diploma = await transactionalEntityManager.save(diploma);
                     }
                 }
-            
-                await this.teachingAssignmentRepository.save(teaching);
-            
-            }
-            
+
+                // Create or find qualification if provided
+                let qualification;
+                if (professorData.qualification) {
+                    qualification = await transactionalEntityManager.findOne(QualificationEntity, {
+                        where: { name: professorData.qualification }
+                    });
+                    
+                    if (!qualification) {
+                        qualification = this.qualificationRepository.create({
+                            name: professorData.qualification
+                        });
+                        qualification = await transactionalEntityManager.save(qualification);
+                    }
+                }
+
+                const professor = this.professorRepository.create({
+                    firstname: professorData.firstname,
+                    lastname: professorData.lastname,
+                    civility: professorData.civility,
+                    nbr_child: professorData.nbr_child,
+                    family_situation: professorData.family_situation,
+                    birth_date: professorData.birth_date,
+                    birth_town: professorData.birth_town,
+                    address: professorData.address,
+                    town: professorData.town,
+                    cni_number: professorData.cni_number,
+                    diploma: diploma || undefined,
+                    qualification: qualification || undefined
+                });
+
+                if (professorData.photo) {
+                    const savedPhoto = await this.fileService.saveFile(
+                        professorData.photo.content,
+                        professorData.photo.name,
+                        professorData.photo.type
+                    );
+                    professor.photo = savedPhoto;
+                }
+
+                const savedProfessor = await transactionalEntityManager.save(professor);
+
+                if (professorData.documents?.length > 0) {
+                    const savedDocuments = await this.fileService.saveDocuments(
+                        professorData.documents,
+                        savedProfessor.id
+                    );
+                    savedProfessor.documents = savedDocuments;
+                    await transactionalEntityManager.save(savedProfessor);
+                }
+
+                if (professorData.teaching) {
+                    console.log('Création de l\'affectation d\'enseignement:', professorData.teaching);
+
+                    const teachingAssignment = this.teachingAssignmentRepository.create({
+                        professor: savedProfessor,
+                        schoolType: professorData.teaching.schoolType,
+                        teachingType: professorData.teaching.schoolType === 'PRIMARY' 
+                            ? TEACHING_TYPE.CLASS_TEACHER 
+                            : TEACHING_TYPE.SUBJECT_TEACHER
+                    });
+
+                    if (professorData.teaching.schoolType === 'PRIMARY') {
+                        if (professorData.teaching.classId) {
+                            const grade = await transactionalEntityManager.findOne(GradeEntity, {
+                                where: { id: professorData.teaching.classId }
+                            });
+                            teachingAssignment.class = grade || undefined;
+                        }
+                    } else if (professorData.teaching.schoolType === 'SECONDARY') {
+                        if (professorData.teaching.courseId) {
+                            const course = await transactionalEntityManager.findOne(CourseEntity, {
+                                where: { id: professorData.teaching.courseId }
+                            });
+                            teachingAssignment.course = course || undefined;
+                        }
+
+                        if (Array.isArray(professorData.teaching.gradeIds) && professorData.teaching.gradeIds.length > 0) {
+                            const grades = await transactionalEntityManager.findByIds(
+                                GradeEntity,
+                                professorData.teaching.gradeIds
+                            );
+                            teachingAssignment.grades = grades;
+                            teachingAssignment.gradeIds = professorData.teaching.gradeIds.join(',');
+                            teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
+                        }
+                    }
+
+                    await transactionalEntityManager.save(teachingAssignment);
+                }
+
+                const finalProfessor = await transactionalEntityManager.findOne(ProfessorEntity, {
+                    where: { id: savedProfessor.id },
+                    relations: [
+                        'photo',
+                        'documents',
+                        'teaching',
+                        'teaching.class',
+                        'teaching.course',
+                        'teaching.grades',
+                        'diploma',
+                        'qualification'
+                    ]
+                });
+
+                return finalProfessor;
+            });
 
             return {
                 success: true,
-                data: savedProfessor,
+                data: result,
                 message: "Professeur créé avec succès",
                 error: null
             };
+
         } catch (error) {
             console.error("Erreur dans createProfessor:", error);
             return {
                 success: false,
                 data: null,
                 message: "Erreur lors de la création du professeur",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
+
+    
 
     async updateProfessor(id: number, professorData: any): Promise<ResultType> {
         try {
@@ -285,7 +333,6 @@ export class ProfessorService {
                 relations: [
                     'diploma',
                     'qualification',
-                    'user',
                     'teaching',
                     'teaching.class',
                     'teaching.course'
@@ -321,7 +368,6 @@ export class ProfessorService {
                 relations: [
                     'diploma',
                     'qualification',
-                    'user',
                     'documents',
                     'photo',
                     'teaching',

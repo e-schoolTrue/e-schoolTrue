@@ -61,7 +61,7 @@ const paginatedData = computed(() => {
 });
 
 const handleDetail = (professor: Professor) => {
-  emit('detail', professor);
+  router.push(`/professor/${professor.id}`);
 };
 
 const handleEdit = (professor: Professor) => {

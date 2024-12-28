@@ -7,34 +7,34 @@ export class ProfessorEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column()
+    @Column({ type: "text" })
     firstname!: string;
 
-    @Column()
+    @Column({ type: "text" })
     lastname!: string;
 
-    @Column()
+    @Column({ type: "text" })
     civility!: string;
 
-    @Column()
+    @Column({ type: "int", nullable: true })
     nbr_child!: number;
 
-    @Column()
+    @Column({ type: "text" })
     family_situation!: string;
 
     @Column({ type: 'datetime', nullable: true })
     birth_date!: Date;
 
-    @Column()
+    @Column({ type: "text" })
     birth_town!: string;
 
-    @Column()
+    @Column({ type: "text" })
     address!: string;
 
-    @Column()
+    @Column({ type: "text" })
     town!: string;
 
-    @Column()
+    @Column({ type: "text" })
     cni_number!: string;
 
     @OneToOne(() => FileEntity, { nullable: true })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+//studentDetail
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElDialog } from 'element-plus';
@@ -80,6 +81,7 @@ const loadPhoto = async (photo?: { id: number; name: string; type: string }) => 
 
   try {
     const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', photo.id);
+    console.log("photo prof :", photoResult)
     if (photoResult.success && photoResult.data) {
       photoUrl.value = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
     } else {
@@ -115,6 +117,7 @@ onMounted(async () => {
 const downloadDocument = async (document: DocumentData) => {
   try {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
+    console.log("document :", result)
     if (result.success && result.data && result.data.content) {
       try {
         const byteCharacters = atob(result.data.content);

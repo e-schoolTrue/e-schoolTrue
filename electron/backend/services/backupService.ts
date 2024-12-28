@@ -1,4 +1,3 @@
-import { AppDataSource } from '../../data-source';
 import { ResultType } from '#electron/command';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -82,39 +81,7 @@ export class BackupService {
       const backupName = `backup-${timestamp}`;
       const backupPath = path.join(this.backupDir, backupName);
 
-      // Créer le dossier de sauvegarde
-      await fs.mkdir(backupPath, { recursive: true });
-
-      // Sauvegarder la base de données
-      const dataSource = AppDataSource.getInstance();
-      const dbPath = path.join(app.getPath('userData'), 'database.db');
-      const backupDbPath = path.join(backupPath, 'database.db');
-
-      // Copier la base de données
-      await fs.copyFile(dbPath, backupDbPath);
-
-      // Sauvegarder les fichiers si nécessaire
-      if (config.includeFiles) {
-        const filesDir = path.join(app.getPath('userData'), 'files');
-        const backupFilesDir = path.join(backupPath, 'files');
-        await this.fileService.copyDirectory(filesDir, backupFilesDir);
-      }
-
-      // Créer le fichier manifest
-      const manifest = {
-        timestamp,
-        type,
-        config,
-        databaseVersion: '1.0',
-        includesFiles: config.includeFiles,
-      };
-
-      await fs.writeFile(
-        path.join(backupPath, 'manifest.json'),
-        JSON.stringify(manifest, null, 2)
-      );
-
-      // Si c'est une sauvegarde Supabase
+     
       if (type === 'supabase' && this.supabase) {
         // Compresser le dossier
         const zipPath = await this.fileService.compressDirectory(backupPath, `${backupName}.zip`);
@@ -130,7 +97,6 @@ export class BackupService {
       // Nettoyer les anciennes sauvegardes
       await this.cleanOldBackups(config.maxBackups);
 
-      const stats = await this.getBackupStats();
 
       return {
         success: true,
@@ -254,42 +220,5 @@ export class BackupService {
     }
   }
 
-  private async uploadToSupabase(filePath: string, fileName: string): Promise<string> {
-    try {
-      const fileData = await fs.readFile(filePath);
-      const { data, error } = await this.supabase.storage
-        .from(supabaseConfig.bucket)
-        .upload(fileName, fileData, {
-          cacheControl: '3600',
-          upsert: false
-        });
 
-      if (error) throw error;
-      
-      // Obtenir l'URL publique
-      const { data: { publicUrl } } = this.supabase.storage
-        .from(supabaseConfig.bucket)
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error('Erreur lors de l\'upload vers Supabase:', error);
-      throw error;
-    }
-  }
-
-  private async downloadFromSupabase(fileName: string, destinationPath: string): Promise<void> {
-    try {
-      const { data, error } = await this.supabase.storage
-        .from(supabaseConfig.bucket)
-        .download(fileName);
-
-      if (error) throw error;
-
-      await fs.writeFile(destinationPath, Buffer.from(await data.arrayBuffer()));
-    } catch (error) {
-      console.error('Erreur lors du téléchargement depuis Supabase:', error);
-      throw error;
-    }
-  }
 } 
