@@ -53,94 +53,101 @@ export class StudentService {
 
   async createStudent(studentData: any): Promise<ResultType> {
     try {
-      // Gérer la photo si elle existe
-      let photoId: number | undefined;
-      if (studentData.photo && studentData.photo.content) {
-        const savedPhoto = await this.fileService.saveFile(
-          studentData.photo.content,
-          studentData.photo.name,
-          studentData.photo.type
-        );
-        photoId = savedPhoto.id;
-      }
+        // Vérifier la classe (grade)
+        const grade = studentData.gradeId
+            ? await this.gradeRepository.findOne({
+                where: { id: studentData.gradeId },
+            })
+            : null;
 
-      // Vérifier la classe (grade)
-      const grade = studentData.gradeId
-        ? await this.gradeRepository.findOne({
-            where: { id: studentData.gradeId },
-          })
-        : null;
+        if (studentData.gradeId && !grade) {
+            return {
+                success: false,
+                data: null,
+                error: "Classe non trouvée",
+                message: "La classe spécifiée n'existe pas.",
+            };
+        }
 
-      if (studentData.gradeId && !grade) {
+        // Vérifier les champs obligatoires
+        if (
+            !studentData.firstname ||
+            !studentData.lastname ||
+            !studentData.fatherFirstname ||
+            !studentData.fatherLastname
+        ) {
+            return {
+                success: false,
+                data: null,
+                message: "Les informations obligatoires sont manquantes.",
+                error: "Champs obligatoires manquants : prénom, nom, prénom du père, nom du père.",
+            };
+        }
+
+        // Créer l'étudiant
+        const student = this.studentRepository.create({
+            firstname: studentData.firstname,
+            lastname: studentData.lastname,
+            matricule: studentData.matricule,
+            fatherFirstname: studentData.fatherFirstname,
+            fatherLastname: studentData.fatherLastname,
+            motherFirstname: studentData.motherFirstname || "",
+            motherLastname: studentData.motherLastname || "",
+            birthDay: studentData.birthDay,
+            birthPlace: studentData.birthPlace,
+            address: studentData.address,
+            famillyPhone: studentData.famillyPhone,
+            personalPhone: studentData.personalPhone,
+            sex: studentData.sex,
+            schoolYear: studentData.schoolYear,
+            grade: grade || undefined, // Associer la classe si elle existe
+        });
+
+        // Gérer la photo de l'étudiant
+        if (studentData.photo) {
+            const savedPhoto = await this.fileService.saveFile(
+                studentData.photo.content,
+                studentData.photo.name,
+                studentData.photo.type
+            );
+            student.photo = savedPhoto;
+        }
+
+        // Sauvegarder l'étudiant pour obtenir un ID
+        const savedStudent = await this.studentRepository.save(student);
+
+        // Sauvegarder les documents et les associer à l'étudiant
+        if (studentData.documents?.length > 0) {
+            const savedDocuments = await this.fileService.saveDocuments(
+                studentData.documents,
+                savedStudent.id
+            );
+
+            // Ajouter les documents à l'entité étudiant
+            savedStudent.documents = savedDocuments;
+
+            // Sauvegarder à nouveau l'étudiant avec les documents liés
+            await this.studentRepository.save(savedStudent);
+        }
+
         return {
-          success: false,
-          data: null,
-          error: "Classe non trouvée",
-          message: "La classe spécifiée n'existe pas.",
+            success: true,
+            data: savedStudent,
+            message: "Étudiant créé avec succès",
+            error: null,
         };
-      }
-
-      // Créer l'objet étudiant
-      const studentToCreate: Partial<StudentEntity> = {
-        firstname: studentData.firstname,
-        lastname: studentData.lastname,
-        matricule: studentData.matricule,
-        birthDay: studentData.birthDay
-          ? new Date(studentData.birthDay)
-          : undefined,
-        birthPlace: studentData.birthPlace,
-        address: studentData.address,
-        famillyPhone: studentData.famillyPhone,
-        personalPhone: studentData.personalPhone,
-        sex: studentData.sex as "male" | "female",
-        schoolYear: studentData.schoolYear,
-        photoId: photoId,
-        grade: grade ?? undefined,
-        // Ajoutez ces lignes
-        fatherFirstname: studentData.fatherFirstname,
-        fatherLastname: studentData.fatherLastname,
-        motherFirstname: studentData.motherFirstname,
-        motherLastname: studentData.motherLastname,
-      };
-
-      // Sauvegarder l'étudiant
-      const newStudent = this.studentRepository.create(studentToCreate);
-      const savedStudent = await this.studentRepository.save(newStudent);
-
-      // Gérer les documents s'ils existent
-      if (
-        studentData.documents &&
-        Array.isArray(studentData.documents) &&
-        studentData.documents.length > 0
-      ) {
-        await this.fileService.saveDocuments(
-          studentData.documents,
-          savedStudent.id
-        );
-      }
-
-      // Récupérer l'étudiant complet avec relations
-      const studentWithRelations = await this.studentRepository.findOne({
-        where: { id: savedStudent.id },
-        relations: ["photo", "documents", "grade"],
-      });
-
-      return {
-        success: true,
-        data: studentWithRelations,
-        message: "Étudiant créé avec succès.",
-        error: null,
-      };
     } catch (error) {
-      console.error("Erreur détaillée dans createStudent:", error);
-      return {
-        success: false,
-        data: null,
-        error: error instanceof Error ? error.message : "Erreur inconnue",
-        message: "Échec de la création de l'étudiant.",
-      };
+        console.error("Erreur dans createStudent:", error);
+        return {
+            success: false,
+            data: null,
+            message: "Erreur lors de la création de l'étudiant",
+            error: error instanceof Error ? error.message : "Erreur inconnue",
+        };
     }
-  }
+}
+
+
 
   async getAllStudents(): Promise<StudentEntity[]> {
     try {

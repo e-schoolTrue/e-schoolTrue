@@ -16,8 +16,6 @@ import { ProfessorService } from './backend/services/professorService';
 import { DashboardService } from './backend/services/dashboardService';
 import { HomeworkService } from './backend/services/homeworkService';
 import { VacationService } from './backend/services/vacationService';
-import { ReportService } from './backend/services/reportService';
-import { BackupService } from './backend/services/backupService';
 
 
 const global = {
@@ -33,8 +31,6 @@ const global = {
     dashboardService: new DashboardService(),
     homeworkService: new HomeworkService(),
     vacationService: new VacationService(),
-    reportService: new ReportService(),
-    backupService: new BackupService(),
 };
 
 // Fonction utilitaire pour gérer les erreurs
@@ -216,35 +212,36 @@ ipcMain.handle("student:getDetails", async (_event: Electron.IpcMainInvokeEvent,
 });
 
 ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
-    try {
-        const document = await global.fileService.getFileById(documentId);
-        if (document && document.path) {
-            // Lire le contenu du fichier et le convertir en base64
-            const fileContent = await fs.readFile(document.path);
-            const base64Content = fileContent.toString('base64');
+  try {
+      const document = await global.fileService.getFileById(documentId);
+      if (document && document.path) {
+          // Lire le contenu du fichier et le convertir en base64
+          const fileContent = await fs.readFile(document.path);
+          const base64Content = fileContent.toString('base64');
 
-            return { 
-                success: true, 
-                data: {
-                    content: base64Content, // Envoyer directement le contenu base64
-                    type: document.type,
-                    name: document.name
-                },
-                error: null,
-                message: "Document récupéré avec succès"
-            };
-        } else {
-            return {
-                success: false,
-                data: null,
-                error: "Document non trouvé",
-                message: "Le document n'a pas pu être récupéré"
-            };
-        }
-    } catch (error) {
-        return handleError(error);
-    }
+          return { 
+              success: true, 
+              data: {
+                  content: base64Content, // Envoyer directement le contenu base64
+                  type: document.type,
+                  name: document.name
+              },
+              error: null,
+              message: "Document récupéré avec succès"
+          };
+      } else {
+          return {
+              success: false,
+              data: null,
+              error: "Document non trouvé",
+              message: "Le document n'a pas pu être récupéré"
+          };
+      }
+  } catch (error) {
+      return handleError(error);
+  }
 });
+
 
 ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
     try {
@@ -276,6 +273,38 @@ ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, ph
         return handleError(error);
     }
 });
+
+ipcMain.handle("getProfessorPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
+  try {
+      const photo = await global.fileService.getFileById(photoId);
+      if (!photo) {
+          return {
+              success: false,
+              data: null,
+              error: "Photo non trouvée",
+              message: "La photo n'a pas pu être récupérée"
+          };
+      }
+
+      // Convertir le Buffer en base64
+      const base64Content = photo.content.toString('base64');
+      console.log("Taille du contenu base64:", base64Content.length);
+
+      return {
+          success: true,
+          data: {
+              content: base64Content,
+              type: photo.type,
+              name: photo.name
+          },
+          error: null,
+          message: "Photo récupérée avec succès"
+      };
+  } catch (error) {
+      return handleError(error);
+  }
+});
+
 
 // Ajoutez ces nouvelles constantes
 const CONFIG_FILE_PATH = path.join(app.getPath('userData'), 'class-config.json');
@@ -527,6 +556,38 @@ ipcMain.handle('professor:all', async () => {
     }
 });
 
+
+ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
+  try {
+      const document = await global.fileService.getFileById(documentId);
+      if (document && document.path) {
+          // Lire le contenu du fichier et le convertir en base64
+          const fileContent = await fs.readFile(document.path);
+          const base64Content = fileContent.toString('base64');
+
+          return { 
+              success: true, 
+              data: {
+                  content: base64Content, // Envoyer directement le contenu base64
+                  type: document.type,
+                  name: document.name
+              },
+              error: null,
+              message: "Document récupéré avec succès"
+          };
+      } else {
+          return {
+              success: false,
+              data: null,
+              error: "Document non trouvé",
+              message: "Le document n'a pas pu être récupéré"
+          };
+      }
+  } catch (error) {
+      return handleError(error);
+  }
+});
+
 ipcMain.handle('professor:create', async (_, data: any) => {
     try {
         return await global.professorService.createProfessor(data);
@@ -552,12 +613,15 @@ ipcMain.handle('professor:delete', async (_, id: number) => {
 });
 
 ipcMain.handle('professor:getById', async (_, id: number) => {
-    try {
-        return await global.professorService.getProfessorById(id);
-    } catch (error) {
-        return handleError(error);
-    }
+  try {
+      const professor = await global.professorService.getProfessorById(id);
+      console.log("Professor data retrieved:", professor); 
+      return professor;
+  } catch (error) {
+      return handleError(error);
+  }
 });
+
 
 // Gestion des affectations d'enseignement
 ipcMain.handle("professor:assign-teaching", async (_event, { professorId, assignment }) => {
@@ -629,14 +693,6 @@ ipcMain.handle('student:search', async (_event, query: string) => {
     }
 });
 
-
-ipcMain.handle('course:getByStudent', async (_event, studentId: number) => {
-  try {
-    return await global.courseService.getCoursesByStudent(studentId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
 
 // Handlers pour les paiements étudiants
 ipcMain.handle('payment:create', async (_, paymentData) => {
@@ -935,220 +991,4 @@ ipcMain.handle('homework:notify', async (_, data: any) => {
 });
 
 
-// Handlers pour les bulletins
-ipcMain.handle('report:create', async (_event, data) => {
-    try {
-        return await global.reportService.createReport(data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('report:getByStudent', async (_event, studentId: number) => {
-    try {
-        return await global.reportService.getReportsByStudent(studentId);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('report:getByGrade', async (_event, { gradeId, period, schoolYear }) => {
-    try {
-        return await global.reportService.getReportsByGrade(gradeId, period, schoolYear);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-
-
-
-ipcMain.handle('report:generateForGrade', async (_event, { gradeId, period, schoolYear }) => {
-    try {
-        return await global.reportService.generateReportsForGrade(gradeId, period, schoolYear);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-
-
-
-
-ipcMain.handle('report:calculateRanks', async (_event, { gradeId, period, schoolYear }) => {
-    try {
-        return await global.reportService.calculateRanks(gradeId, period, schoolYear);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-
-
-ipcMain.handle('report:generatePDF', async (_event, reportId: number) => {
-    try {
-        return await global.reportService.generatePDF(reportId);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
 // Événements de sauvegarde
-ipcMain.handle('backup:init', async () => {
-    try {
-        const history = await global.backupService.getBackupHistory();
-        const stats = await global.backupService.getBackupStats();
-        
-        return {
-            success: true,
-            data: {
-                history,
-                stats,
-            },
-            message: "Système de sauvegarde initialisé",
-            error: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:create', async (_event, { type, config }) => {
-    try {
-        return await global.backupService.createBackup(type, config);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:history', async () => {
-    try {
-        const history = await global.backupService.getBackupHistory();
-        return {
-            success: true,
-            data: history,
-            message: "Historique récupéré avec succès",
-            error: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:stats', async () => {
-    try {
-        const stats = await global.backupService.getBackupStats();
-        return {
-            success: true,
-            data: stats,
-            message: "Statistiques récupérées avec succès",
-            error: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:restore', async (_event) => {
-    try {
-        // Implémenter la restauration
-        return {
-            success: true,
-            message: "Restauration effectuée avec succès",
-            error: null,
-            data: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:delete', async (_event) => {
-    try {
-        // Implémenter la suppression
-        return {
-            success: true,
-            message: "Sauvegarde supprimée avec succès",
-            error: null,
-            data: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:updateConfig', async (_event, config) => {
-    try {
-        // Implémenter la mise à jour de la configuration
-        return {
-            success: true,
-            data: config,
-            message: "Configuration mise à jour avec succès",
-            error: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('backup:storage', async () => {
-    try {
-        const stats = await global.backupService.getBackupStats();
-        return {
-            success: true,
-            data: stats.storageUsed,
-            message: "Utilisation du stockage récupérée avec succès",
-            error: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Événement pour vérifier la connexion Supabase
-ipcMain.handle('backup:checkSupabase', async (_event, _config) => {
-    try {
-        // Implémenter la vérification de la connexion Supabase
-        return {
-            success: true,
-            message: "Connexion Supabase vérifiée avec succès",
-            error: null,
-            data: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Handler pour générer plusieurs bulletins
-ipcMain.handle('report:generateMultiple', async (_event: Electron.IpcMainInvokeEvent, data: {
-  studentIds: number[];
-  period: string;
-  templateId: string;
-}): Promise<ResultType> => {
-  try {
-    const { studentIds, period, templateId } = data;
-    
-    // Vérifier les paramètres
-    if (!studentIds?.length || !period || !templateId) {
-      return {
-        success: false,
-        data: null,
-        message: "Paramètres manquants",
-        error: "MISSING_PARAMETERS"
-      };
-    }
-
-    // Générer les bulletins
-    const result = await global.reportService.generateMultipleReports({
-      studentIds,
-      period,
-      templateId
-    });
-
-    return result;
-  } catch (error) {
-    return handleError(error);
-  }
-});
-

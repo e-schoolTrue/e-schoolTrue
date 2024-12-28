@@ -18,7 +18,7 @@ export class ProfessorPaymentEntity {
     @CreateDateColumn()
     createdAt!: Date;
 
-    @ManyToOne(() => ProfessorEntity, professor => professor.payments)
+    @ManyToOne(() => ProfessorEntity, professor => professor)
     professor!: ProfessorEntity;
 
     @Column({ type: "integer" })
@@ -55,4 +55,4 @@ export class ProfessorPaymentEntity {
         amount: number;
         description?: string;
     }[];
-} 
+}

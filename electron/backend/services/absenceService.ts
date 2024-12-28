@@ -241,7 +241,7 @@ export class AbsenceService {
     async createProfessorAbsence(data: any): Promise<ResultType> {
         try {
             let documentEntity = null;
-            
+
             // Gérer le document si présent
             if (data.document) {
                 const savedDocument = await this.fileService.saveDocuments(
@@ -262,7 +262,7 @@ export class AbsenceService {
                 reasonType: data.reasonType,
                 justified: data.justified,
                 professor: { id: data.professorId },
-                document: documentEntity
+                document: documentEntity || undefined
             });
 
             const saved = await this.absenceRepository.save(absence);
@@ -289,6 +289,7 @@ export class AbsenceService {
             };
         }
     }
+
 
     async updateProfessorAbsence(data: any): Promise<ResultType> {
         try {

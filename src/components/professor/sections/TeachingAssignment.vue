@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { SCHOOL_TYPE } from "#electron/command";
 
 const props = withDefaults(defineProps<{

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorTable from '@/components/professor/professor-table.vue';
+import { SCHOOL_TYPE } from '#electron/command';
 
 const router = useRouter();
 const professors = ref([]);
