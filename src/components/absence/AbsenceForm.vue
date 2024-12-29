@@ -206,7 +206,7 @@ const handleStudentChange = async (studentId: number) => {
     loadingCourses.value = true;
     const student = students.value.find(s => s.id === studentId);
     if (student?.grade?.id) {
-      await loadStudentCourses(studentId);
+      await loadStudentCourses();
     }
   } catch (error) {
     console.error('Erreur lors du chargement des cours:', error);
@@ -281,10 +281,6 @@ const handleSubmit = async () => {
     }
 
     if (selectedFile.value?.raw) {
-      const fileData = new FormData();
-      fileData.append('file', selectedFile.value.raw);
-      fileData.append('type', 'JUSTIFICATION');
-
       const fileResult = await window.ipcRenderer.invoke('file:upload', {
         file: selectedFile.value.raw,
         type: 'JUSTIFICATION'
@@ -307,12 +303,16 @@ const handleSubmit = async () => {
 
   } catch (error) {
     console.error('Erreur lors de la soumission:', error);
-    ElMessage.error(error instanceof Error ? error.message : "Erreur lors de la soumission");
+    if (error instanceof Error) {
+      ElMessage.error(error.message);
+    } else {
+      console.error('Validation errors:', error);
+      ElMessage.error("Erreur lors de la soumission");
+    }
   } finally {
     saving.value = false;
   }
 };
-
 // Initialisation en mode édition
 watch(() => props.absence, (newAbsence) => {
   if (newAbsence) {
