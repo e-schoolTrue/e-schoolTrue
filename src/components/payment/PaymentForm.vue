@@ -7,7 +7,7 @@
       <div class="form-grid">
         <el-form-item label="Montant" prop="amount">
           <el-input-number v-model="form.amount" :min="0" :max="configData?.annualAmount || 0" :step="getInstallmentAmount()" class="full-width"/>
-          <div class="help-text">Max: {{ formatAmount(configData?.annualAmount || 0) }} FCFA</div>
+          <div class="help-text">Max: <currency-display :amount="configData?.annualAmount || 0" /></div>
         </el-form-item>
 
         <el-form-item label="Type de paiement" prop="paymentType">
@@ -43,6 +43,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
+import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 
 // Interface et propriétés
 interface Props {
@@ -79,9 +80,6 @@ const getInstallmentAmount = () => {
   return 0;
 };
 
-const formatAmount = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR').format(amount);
-};
 
 const getReferenceIcon = () => {
   switch(form.value.paymentType) {

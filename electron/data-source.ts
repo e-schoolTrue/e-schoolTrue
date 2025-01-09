@@ -17,6 +17,7 @@ import { TeachingAssignmentEntity } from "./backend/entities/teaching";
 import { ProfessorPaymentEntity } from "./backend/entities/professorPayment";
 import { HomeworkEntity } from "./backend/entities/homework";
 import { VacationEntity } from "./backend/entities/vacation";
+import { ScholarshipEntity } from "./backend/entities/scholarship";
 
 export class AppDataSource {
     private static instance: DataSource;
@@ -32,7 +33,7 @@ export class AppDataSource {
                 dropSchema:false,
                 database: dbPath,
                 logging: true,
-                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity],
+                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity, ScholarshipEntity],
                 subscribers: [],
                 migrationsRun: true
             });

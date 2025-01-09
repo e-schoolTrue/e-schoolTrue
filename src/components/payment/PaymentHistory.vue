@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     :title="'Historique des paiements - ' + student?.firstname + ' ' + student?.lastname"
     width="700px"
+    @close="handleClose"
   >
     <div class="payment-history">
       <div class="summary-cards">
@@ -12,7 +13,7 @@
               <div class="summary-item">
                 <div class="label">Total payé</div>
                 <div class="value success">
-                  {{ formatAmount(totalPaid) }} FCFA
+                  <currency-display :amount="totalPaid" />
                 </div>
               </div>
             </el-card>
@@ -23,7 +24,7 @@
               <div class="summary-item">
                 <div class="label">Montant annuel</div>
                 <div class="value">
-                  {{ formatAmount(annualAmount) }} FCFA
+                  <currency-display :amount="adjustedAnnualAmount" />
                 </div>
               </div>
             </el-card>
@@ -34,7 +35,7 @@
               <div class="summary-item">
                 <div class="label">Reste à payer</div>
                 <div class="value warning">
-                  {{ formatAmount(remainingAmount) }} FCFA
+                  <currency-display :amount="remainingAmount" />
                 </div>
               </div>
             </el-card>
@@ -51,7 +52,7 @@
 
       <el-table
         v-loading="loading"
-        :data="payments"
+        :data="paymentData"
         border
         stripe
         style="width: 100%"
@@ -80,12 +81,28 @@
 
         <el-table-column
           label="Montant"
-          prop="amount"
-          width="150"
-          align="right"
+          width="200"
         >
           <template #default="{ row }">
-            {{ formatAmount(row.amount) }} FCFA
+            <div class="payment-amount">
+              <currency-display :amount="row.amount" />
+              <template v-if="row.scholarshipPercentage > 0">
+                <el-tooltip
+                  effect="dark"
+                  placement="top"
+                >
+                  <template #content>
+                    <div>
+                      <p>Bourse appliquée: {{ row.scholarshipPercentage }}%</p>
+                      <p>Réduction: <currency-display :amount="row.scholarshipAmount" /></p>
+                    </div>
+                  </template>
+                  <el-tag size="small" type="success">
+                    Bourse {{ row.scholarshipPercentage }}%
+                  </el-tag>
+                </el-tooltip>
+              </template>
+            </div>
           </template>
         </el-table-column>
 
@@ -126,6 +143,8 @@ import { ElMessage } from 'element-plus';
 import { Printer, Download } from '@element-plus/icons-vue';
 import printJS from 'print-js';
 import * as XLSX from 'xlsx';
+import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { useCurrency } from '@/composables/useCurrency';
 
 interface Props {
   visible: boolean;
@@ -141,14 +160,11 @@ const dialogVisible = computed({
 });
 
 const loading = ref(false);
-const payments = ref([]);
+const paymentData = ref([]);
 const totalPaid = ref(0);
 const annualAmount = ref(0);
 const remainingAmount = ref(0);
-
-const formatAmount = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR').format(amount);
-};
+const adjustedAnnualAmount = ref(0);
 
 const formatDate = (date: string): string => {
   return new Date(date).toLocaleDateString('fr-FR');
@@ -186,41 +202,68 @@ const formatPaymentMethod = (method: string): string => {
   return methods[method] || method;
 };
 
+const handleClose = () => {
+  dialogVisible.value = false;
+  emit('update:visible', false);
+};
+
 const loadPayments = async () => {
-  if (!props.student?.id) return;
-  
-  loading.value = true;
   try {
-    const paymentsResult = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
+    if (!props.student?.id) return;
     
-    const configResult = await window.ipcRenderer.invoke('payment:getConfig', props.student.grade?.id);
+    const result = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
+    console.log('Résultat de la requête:', result);
 
-    if (paymentsResult?.success) {
-      payments.value = paymentsResult.data;
-      
-      totalPaid.value = payments.value.reduce((sum: number, payment: any) => {
-        return sum + Number(payment.amount || 0);
-      }, 0);
+    if (!result.success) {
+      ElMessage.warning('Aucun paiement trouvé pour cet étudiant');
+      paymentData.value = [];
+      return;
     }
 
-    if (configResult?.success && configResult.data) {
-      annualAmount.value = Number(configResult.data.annualAmount || 0);
-      
-      remainingAmount.value = Math.max(0, annualAmount.value - totalPaid.value);
+    if (!result.data?.payments || result.data.payments.length === 0) {
+      ElMessage.info('Aucun paiement enregistré pour cet étudiant');
+      paymentData.value = [];
+      return;
     }
 
+    const { 
+      payments: paymentsFromServer, 
+      baseAmount, 
+      scholarshipAmount: scholarshipAmountFromServer,
+      adjustedAmount,
+      scholarshipPercentage 
+    } = result.data;
+    
+    // Mettre à jour les montants avec la bourse
+    annualAmount.value = Number(baseAmount);
+    adjustedAnnualAmount.value = Number(adjustedAmount);
+    
+    // Calculer le total payé
+    totalPaid.value = paymentsFromServer.reduce((sum: number, p: { amount: any; }) => sum + Number(p.amount), 0);
+    
+    // Calculer le reste à payer en utilisant le montant ajusté
+    remainingAmount.value = Math.max(0, adjustedAnnualAmount.value - totalPaid.value);
+    
+    paymentData.value = paymentsFromServer;
+    
+    console.log('Détails du chargement:', {
+      baseAmount,
+      scholarshipAmountFromServer,
+      adjustedAmount,
+      scholarshipPercentage,
+      totalPaid: totalPaid.value,
+      remaining: remainingAmount.value
+    });
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);
     ElMessage.error('Erreur lors du chargement des paiements');
-  } finally {
-    loading.value = false;
   }
 };
 
 const exportToExcel = () => {
   try {
     // Préparer les données pour l'export
-    const exportData = payments.value.map((payment: {
+    const exportData = paymentData.value.map((payment: {
       createdAt: string,
       paymentType: string,
       amount: number,
@@ -256,9 +299,19 @@ const exportToExcel = () => {
 
 const printReceipt = async (payment: any) => {
   try {
+    if (!payment) {
+      ElMessage.warning('Aucun paiement à imprimer');
+      return;
+    }
+
     const schoolInfo = await window.ipcRenderer.invoke('school:get');
+    if (!schoolInfo?.success) {
+      throw new Error('Impossible de récupérer les informations de l\'école');
+    }
+
+    const { currency } = useCurrency();
     const studentName = `${props.student.firstname} ${props.student.lastname}`;
-    
+
     const content = `
       <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -293,7 +346,7 @@ const printReceipt = async (payment: any) => {
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Montant:</strong></td>
-              <td style="padding: 5px;">${formatAmount(payment.amount)} FCFA</td>
+              <td style="padding: 5px;">${new Intl.NumberFormat('fr-FR').format(payment.amount)} ${currency.value}</td>
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Mode de paiement:</strong></td>
@@ -330,15 +383,7 @@ const printReceipt = async (payment: any) => {
       printable: content,
       type: 'raw-html',
       documentTitle: `Reçu de paiement - ${studentName}`,
-      targetStyles: ['*'],
-      style: `
-        .receipt-container { max-width: 800px; margin: 0 auto; }
-        @media print {
-          body { font-size: 12pt; }
-          .receipt-container { padding: 0; }
-          @page { margin: 1cm; }
-        }
-      `
+      targetStyles: ['*']
     });
 
     ElMessage.success('Reçu généré avec succès');
@@ -385,6 +430,10 @@ watch(() => props.student, () => {
 .summary-item .value {
   font-size: 18px;
   font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .summary-item .value.success {
@@ -393,5 +442,12 @@ watch(() => props.student, () => {
 
 .summary-item .value.warning {
   color: var(--el-color-warning);
+}
+
+.scholarship-info {
+  color: var(--el-color-success);
+  font-size: 0.85em;
+  margin-top: 4px;
+  display: block;
 }
 </style>

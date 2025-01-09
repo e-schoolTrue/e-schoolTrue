@@ -27,8 +27,7 @@
               </div>
             </template>
             <div class="stat-content">
-              <span class="stat-value">{{ formatAmount(totalPaid) }}</span>
-              <span class="stat-label">FCFA</span>
+              <currency-display :amount="totalPaid" />
             </div>
           </el-card>
         </el-col>
@@ -131,7 +130,7 @@
             align="right"
           >
             <template #default="{ row }">
-              {{ formatAmount(row.amount) }} FCFA
+              <currency-display :amount="row.amount" />
             </template>
           </el-table-column>
 
@@ -201,6 +200,8 @@ import { Plus, Download, Printer, Edit, Money, User, Refresh } from '@element-pl
 import ProfessorPaymentDialog from '@/components/professor/ProfessorPaymentDialog.vue';
 import * as XLSX from 'xlsx';
 import printJS from 'print-js';
+import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { useCurrency } from '@/composables/useCurrency';
 
 interface Teaching {
   class?: {
@@ -273,9 +274,6 @@ const filters = ref<Filters>({
 });
 
 // Formatage
-const formatAmount = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR').format(amount);
-};
 
 const formatDate = (date: string): string => {
   return new Date(date).toLocaleDateString('fr-FR');
@@ -452,30 +450,26 @@ const exportToExcel = async () => {
 };
 
 // Impression fiche de paie
-const printPayslip = async (payment: Payment) => {
+const printPayslip = async (paymentDetails: any) => {
   try {
-    const [schoolResult, paymentResult] = await Promise.all([
-      window.ipcRenderer.invoke('school:get'),
-      window.ipcRenderer.invoke('professor:payment:getById', payment.id)
-    ]);
-
-    const schoolInfo = schoolResult.data;
-    const paymentDetails = paymentResult.data;
-
-    if (!paymentDetails) {
-      throw new Error('Détails du paiement non trouvés');
+    const schoolInfo = await window.ipcRenderer.invoke('school:get');
+    if (!schoolInfo?.success) {
+      throw new Error('Impossible de récupérer les informations de l\'école');
     }
 
+    const schoolData = schoolInfo.data;
+    const { currency } = useCurrency();
+
     const content = `
-      <div class="payslip" style="font-family: monospace;">
+      <div class="payslip-container" style="padding: 20px;">
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <tr>
             <td style="width: 50%; border: 1px solid black; padding: 10px;">
               KAYA<br>
-              ${schoolInfo.town}<br>
+              ${schoolData.town}<br>
               Bangui<br>
-              Tel: ${schoolInfo.phone}<br>
-              Email: ${schoolInfo.email}
+              Tel: ${schoolData.phone}<br>
+              Email: ${schoolData.email}
             </td>
             <td style="width: 50%; border: 1px solid black; padding: 10px;">
               BULLETIN DE PAIE<br>
@@ -499,30 +493,30 @@ const printPayslip = async (payment: Payment) => {
           </tr>
           <tr style="border: 1px solid black;">
             <td style="border: 1px solid black; padding: 5px;">Salaire de base</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${formatAmount(paymentDetails.grossAmount)}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.grossAmount)} ${currency.value}</td>
             <td style="border: 1px solid black; padding: 5px; text-align: right;">100%</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${formatAmount(paymentDetails.grossAmount)} FCFA</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.grossAmount)} ${currency.value}</td>
           </tr>
-          ${paymentDetails.deductions?.map((d: { name: any; amount: number; }) => `
+          ${paymentDetails.deductions?.map((d: { name: string; amount: number; }) => `
             <tr style="border: 1px solid black;">
               <td style="border: 1px solid black; padding: 5px;">${d.name}</td>
               <td style="border: 1px solid black; padding: 5px; text-align: right;"></td>
               <td style="border: 1px solid black; padding: 5px; text-align: right;"></td>
-              <td style="border: 1px solid black; padding: 5px; text-align: right;">-${formatAmount(d.amount)} FCFA</td>
+              <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(d.amount)} ${currency.value}</td>
             </tr>
           `).join('') || ''}
           <tr style="border: 1px solid black;">
             <td colspan="3" style="border: 1px solid black; padding: 5px;">TOTAL DES RETENUES</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">-${formatAmount(paymentDetails.deductions?.reduce((sum: any, d: { amount: any; }) => sum + d.amount, 0) || 0)} FCFA</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.deductions?.reduce((sum: number, d: { amount: number }) => sum + d.amount, 0) || 0)} ${currency.value}</td>
           </tr>
           <tr style="border: 1px solid black;">
             <td colspan="3" style="border: 1px solid black; padding: 5px;">NET A PAYER</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${formatAmount(paymentDetails.netAmount)} FCFA</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.netAmount)} ${currency.value}</td>
           </tr>
         </table>
 
         <div style="margin-top: 40px; text-align: center;">
-          Fait à ${schoolInfo.town}, le ${new Date(paymentDetails.createdAt).toLocaleDateString('fr-FR')}
+          Fait à ${schoolData.town}, le ${new Date(paymentDetails.createdAt).toLocaleDateString('fr-FR')}
         </div>
 
         <div style="margin-top: 60px; display: flex; justify-content: space-between;">
@@ -541,7 +535,7 @@ const printPayslip = async (payment: Payment) => {
 
   } catch (error) {
     console.error('Erreur lors de l\'impression:', error);
-    ElMessage.error('Erreur lors de l\'impression');
+    ElMessage.error('Erreur lors de l\'impression du bulletin');
   }
 };
 

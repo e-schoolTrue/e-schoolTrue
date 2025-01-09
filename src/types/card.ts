@@ -14,6 +14,13 @@ export interface Student {
     id: number;
     name: string;
   };
+  scholarshipPercentage?: number;
+  scholarship?: Array<{
+    id: number;
+    percentage: number;
+    isActive: boolean;
+    schoolYear: string;
+  }>;
 }
 
 export interface SchoolInfo {

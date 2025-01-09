@@ -1,48 +1,39 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
 import { StudentEntity } from "./students";
-import { GradeEntity } from "./grade";
+import { CourseEntity } from "./course";
 
-@Entity("report_cards")
+@Entity("T_report_card")
 export class ReportCardEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: "varchar" })
-    period!: string; // Trimestre 1, Trimestre 2, etc.
+    @Column({ type: 'int' })
+    studentId!: number;
 
-    @Column({ type: "varchar" })
-    schoolYear!: string;
+    @Column({ type: 'int' })
+    courseId!: number;
 
-    @Column({ type: "simple-json" })
-    grades!: {
-        courseId: number;
-        courseName: string;
-        coefficient: number;
-        grade: number;
-        appreciation: string;
-    }[];
+    @Column({ type: 'varchar' })
+    period!: string;
 
-    @Column({ type: "text", nullable: true })
-    generalAppreciation?: string;
+    @Column('simple-array')
+    assignmentGrades!: number[];
 
-    @Column({ type: "numeric", precision: 5, scale: 2 })
-    average!: number;
+    @Column({ type: 'float' })
+    examGrade!: number;
 
-    @Column({ type: "numeric", precision: 5, scale: 2 })
-    classAverage!: number;
+    @Column({ type: 'float' })
+    finalGrade!: number;
 
-    @Column({ type: "integer" })
-    rank!: number;
+    @Column({ type: 'varchar' })
+    appreciation!: string;
 
-    @Column({ type: "integer" })
-    totalStudents!: number;
+    @CreateDateColumn()
+    createdAt!: Date;
 
     @ManyToOne(() => StudentEntity)
     student!: StudentEntity;
 
-    @ManyToOne(() => GradeEntity)
-    grade!: GradeEntity;
-
-    @CreateDateColumn()
-    createdAt!: Date;
+    @ManyToOne(() => CourseEntity)
+    course!: CourseEntity;
 } 

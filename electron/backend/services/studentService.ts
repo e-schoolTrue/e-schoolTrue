@@ -15,6 +15,10 @@ interface StudentDetailsResponse {
   birthDay?: Date;
   birthPlace?: string;
   address?: string;
+  fatherFirstname?: string;
+  fatherLastname?: string;
+  motherFirstname?: string;
+  motherLastname?: string;
   famillyPhone?: string;
   personalPhone?: string;
   sex?: "male" | "female";
@@ -84,55 +88,70 @@ export class StudentService {
             };
         }
 
-        // Créer l'étudiant
-        const student = this.studentRepository.create({
-            firstname: studentData.firstname,
-            lastname: studentData.lastname,
-            matricule: studentData.matricule,
-            fatherFirstname: studentData.fatherFirstname,
-            fatherLastname: studentData.fatherLastname,
-            motherFirstname: studentData.motherFirstname || "",
-            motherLastname: studentData.motherLastname || "",
-            birthDay: studentData.birthDay,
-            birthPlace: studentData.birthPlace,
-            address: studentData.address,
-            famillyPhone: studentData.famillyPhone,
-            personalPhone: studentData.personalPhone,
-            sex: studentData.sex,
-            schoolYear: studentData.schoolYear,
-            grade: grade || undefined, // Associer la classe si elle existe
+        // Utiliser une transaction pour garantir l'intégrité des données
+        const dataSource = AppDataSource.getInstance();
+        const result = await dataSource.manager.transaction(async transactionalEntityManager => {
+            // Créer l'étudiant
+            const student = this.studentRepository.create({
+                firstname: studentData.firstname,
+                lastname: studentData.lastname,
+                matricule: studentData.matricule,
+                fatherFirstname: studentData.fatherFirstname || "",
+                fatherLastname: studentData.fatherLastname || "",
+                motherFirstname: studentData.motherFirstname || "",
+                motherLastname: studentData.motherLastname || "",
+                birthDay: studentData.birthDay,
+                birthPlace: studentData.birthPlace || "",
+                address: studentData.address || "",
+                famillyPhone: studentData.famillyPhone || "",
+                personalPhone: studentData.personalPhone || "",
+                sex: studentData.sex || "",
+                schoolYear: studentData.schoolYear || "",
+                grade: grade || undefined,
+            });
+
+            // Gérer la photo de l'étudiant
+            if (studentData.photo) {
+                const savedPhoto = await this.fileService.saveFile(
+                    studentData.photo.content,
+                    studentData.photo.name,
+                    studentData.photo.type
+                );
+                student.photo = savedPhoto;
+            }
+
+            // Sauvegarder l'étudiant
+            const savedStudent = await transactionalEntityManager.save(student);
+
+            // Gérer les documents
+            if (studentData.documents?.length > 0) {
+                const savedDocuments = await Promise.all(
+                    studentData.documents.map((doc: any) =>
+                        this.fileService.saveFile(
+                            doc.content,
+                            doc.name,
+                            doc.type
+                        )
+                    )
+                );
+
+                // Associer les documents à l'étudiant
+                savedStudent.documents = savedDocuments;
+                await transactionalEntityManager.save(savedStudent);
+            }
+
+            // Récupérer l'étudiant avec toutes ses relations
+            const finalStudent = await transactionalEntityManager.findOne(StudentEntity, {
+                where: { id: savedStudent.id },
+                relations: ['photo', 'documents', 'grade']
+            });
+
+            return finalStudent;
         });
-
-        // Gérer la photo de l'étudiant
-        if (studentData.photo) {
-            const savedPhoto = await this.fileService.saveFile(
-                studentData.photo.content,
-                studentData.photo.name,
-                studentData.photo.type
-            );
-            student.photo = savedPhoto;
-        }
-
-        // Sauvegarder l'étudiant pour obtenir un ID
-        const savedStudent = await this.studentRepository.save(student);
-
-        // Sauvegarder les documents et les associer à l'étudiant
-        if (studentData.documents?.length > 0) {
-            const savedDocuments = await this.fileService.saveDocuments(
-                studentData.documents,
-                savedStudent.id
-            );
-
-            // Ajouter les documents à l'entité étudiant
-            savedStudent.documents = savedDocuments;
-
-            // Sauvegarder à nouveau l'étudiant avec les documents liés
-            await this.studentRepository.save(savedStudent);
-        }
 
         return {
             success: true,
-            data: savedStudent,
+            data: result,
             message: "Étudiant créé avec succès",
             error: null,
         };
@@ -191,6 +210,9 @@ export class StudentService {
         address: student.address,
         famillyPhone: student.famillyPhone,
         personalPhone: student.personalPhone,
+        fatherLastname: student.fatherLastname,
+        motherFirstname: student.motherFirstname,
+        motherLastname: student.motherLastname,
         sex: student.sex,
         schoolYear: student.schoolYear,
         photo: student.photo ? {
@@ -397,11 +419,36 @@ export class StudentService {
     }
   }
 
-  async getStudentById(id: number): Promise<StudentEntity | null> {
-    return await this.studentRepository.findOne({
+  async getStudentById(id: number): Promise<ResultType> {
+    try {
+        const student = await this.studentRepository.findOne({
       where: { id },
-      relations: ["absences", "payments", "grade"], // Inclure toutes les relations nécessaires
-    });
+            relations: ['grade', 'photo']
+        });
+
+        if (!student) {
+            return {
+                success: false,
+                data: null,
+                error: "Étudiant non trouvé",
+                message: "L'étudiant demandé n'existe pas"
+            };
+        }
+
+        return {
+            success: true,
+            data: student,
+            error: null,
+            message: "Étudiant récupéré avec succès"
+        };
+    } catch (error) {
+        return {
+            success: false,
+            data: null,
+            error: error instanceof Error ? error.message : "Erreur inconnue",
+            message: "Erreur lors de la récupération de l'étudiant"
+        };
+    }
   }
 
   async getTotalStudents(): Promise<ResultType> {

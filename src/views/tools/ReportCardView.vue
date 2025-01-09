@@ -3,20 +3,26 @@
     <el-card class="config-section">
       <template #header>
         <div class="header-content">
-          <h2>Génération des Bulletins</h2>
-          <el-button type="primary" @click="goToConfig">
+          <h2>Gestion des Notes et Bulletins</h2>
+          <div class="header-actions">
+            <el-button type="primary" @click="showConfigDialog = true">
             <Icon icon="mdi:cog" class="mr-2" />
             Configuration
           </el-button>
+          </div>
         </div>
       </template>
 
       <!-- Filtres -->
       <div class="filters">
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="Classe">
         <el-select 
           v-model="selectedGrade" 
           placeholder="Sélectionner une classe"
           @change="loadStudents"
+                class="w-full"
         >
           <el-option 
             v-for="grade in grades" 
@@ -25,10 +31,15 @@
             :value="grade.id"
           />
         </el-select>
+            </el-form-item>
+          </el-col>
 
+          <el-col :span="8">
+            <el-form-item label="Période">
         <el-select 
           v-model="selectedPeriod"
           placeholder="Sélectionner une période"
+                class="w-full"
         >
           <el-option 
             v-for="period in periods" 
@@ -37,54 +48,34 @@
             :value="period.value"
           />
         </el-select>
+            </el-form-item>
+          </el-col>
 
+          <el-col :span="8">
+            <el-form-item label="Modèle de bulletin">
         <el-select 
           v-model="selectedTemplate"
-          placeholder="Modèle de bulletin"
+                placeholder="Choisir un modèle"
+                class="w-full"
         >
           <el-option 
-            v-for="template in templates" 
+            v-for="template in availableTemplates" 
             :key="template.id"
             :label="template.name"
-            :value="template.component"
-          >
-            <div class="template-option">
-              <span>{{ template.name }}</span>
-              <small>{{ template.description }}</small>
-            </div>
-          </el-option>
+                  :value="template.id"
+                />
         </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </div>
 
-      <!-- Prévisualisation des templates -->
-      <el-dialog
-        v-model="templatePreviewVisible"
-        title="Aperçu des modèles de bulletin"
-        width="90%"
-        top="5vh"
-      >
-        <div class="templates-preview">
-          <div v-for="template in templates" :key="template.id" class="template-preview-item">
-            <h3>{{ template.name }}</h3>
-            <p>{{ template.description }}</p>
-            <div class="template-preview-content">
-              <component 
-                :is="template.component"
-        
-                :school-info="schoolInfo"
-              />
-            </div>
-          </div>
-        </div>
-      </el-dialog>
-
-      <!-- Liste des étudiants avec scroll fixe -->
-      <div class="students-table-container">
+      <!-- Liste des étudiants -->
         <el-table 
           :data="students"
           v-loading="loading"
           @selection-change="handleSelectionChange"
-          height="calc(100vh - 350px)"
+        class="mt-4"
         >
           <el-table-column type="selection" width="55" />
           <el-table-column label="Photo" width="80">
@@ -97,39 +88,69 @@
           <el-table-column prop="matricule" label="Matricule" width="120" />
           <el-table-column prop="firstname" label="Prénom" />
           <el-table-column prop="lastname" label="Nom" />
-          <el-table-column label="Actions" width="150" align="center">
+        <el-table-column label="Actions" width="200" align="center">
             <template #default="{ row }">
+            <el-button-group>
+              <el-button 
+                type="warning"
+                size="small"
+                @click="editGrades(row)"
+                :loading="editing[row.id]"
+              >
+                <Icon icon="mdi:pencil" />
+              </el-button>
               <el-button 
                 type="primary" 
+                size="small"
                 @click="previewReport(row)"
                 :loading="generating[row.id]"
               >
                 <Icon icon="mdi:eye" />
               </el-button>
+              <el-button 
+                type="success"
+                size="small"
+                @click="printSingleReport(row)"
+                :loading="printing[row.id]"
+              >
+                <Icon icon="mdi:printer" />
+              </el-button>
+            </el-button-group>
             </template>
           </el-table-column>
         </el-table>
-      </div>
 
-      <!-- Actions fixes en bas -->
-      <div class="fixed-actions">
+      <!-- Actions -->
+      <div class="actions-bar">
         <el-button 
           type="primary" 
-          :disabled="!selectedStudents.length"
-          @click="generateReports"
+          :disabled="!canGenerateReports"
+          @click="generateSelectedReports"
           :loading="generatingMultiple"
         >
           <Icon icon="mdi:printer" class="mr-2" />
-          Générer les bulletins sélectionnés
-        </el-button>
-        <el-button @click="templatePreviewVisible = true">
-          <Icon icon="mdi:eye" class="mr-2" />
-          Aperçu des modèles
+          Imprimer les bulletins sélectionnés ({{ selectedStudents.length }})
         </el-button>
       </div>
     </el-card>
 
-    <!-- Prévisualisation du bulletin -->
+    <!-- Dialogue de saisie des notes -->
+    <el-dialog 
+      v-model="showGradesDialog"
+      :title="`Notes de ${currentStudent?.firstname} ${currentStudent?.lastname}`"
+      width="80%"
+      destroy-on-close
+    >
+      <student-grades-form
+        v-if="showGradesDialog"
+        :student-id="currentStudent?.id"
+        :grade-id="selectedGrade!"
+        :period="selectedPeriod"
+        @saved="onGradesSaved"
+      />
+    </el-dialog>
+
+    <!-- Dialogue de prévisualisation -->
     <el-dialog 
       v-model="previewVisible" 
       title="Prévisualisation du bulletin"
@@ -137,101 +158,221 @@
       top="5vh"
       append-to-body
     >
-      <div class="preview-container" ref="previewRef">
+      <div class="preview-container" ref="previewRef" id="report-preview">
         <component 
-          :is="selectedTemplate"
+          :is="getTemplateComponent"
           v-if="previewData"
-          :student="previewData.student"
-          :grades="previewData.grades"
-          :period="selectedPeriod"
-          
-          :school-info="schoolInfo"
-          :rank="previewData.rank"
-          :total-students="previewData.totalStudents"
-      
+          v-bind="previewData"
         />
       </div>
 
       <template #footer>
-        <div class="dialog-footer">
           <el-button @click="previewVisible = false">Fermer</el-button>
-         
+        <el-button type="primary" @click="printPreview">
             <Icon icon="mdi:printer" class="mr-2" />
             Imprimer
-        </div>
+        </el-button>
       </template>
+    </el-dialog>
+
+    <!-- Dialogue de configuration -->
+    <el-dialog
+      v-model="showConfigDialog"
+      title="Configuration des Notes"
+      width="80%"
+      destroy-on-close
+    >
+      <grade-config-form
+        v-if="showConfigDialog && selectedGrade"
+        :grade-id="selectedGrade"
+        @saved="onConfigSaved"
+        ref="configFormRef"
+      />
+      <template #footer>
+        <el-button @click="showConfigDialog = false">Annuler</el-button>
+        <el-button type="primary" @click="saveConfig" :loading="savingConfig">
+          Enregistrer
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Template Selection Dialog -->
+    <el-dialog
+      v-model="showTemplateSelector"
+      title="Choisissez votre modèle de bulletin"
+      width="80%"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+      class="template-selector"
+    >
+      <div class="template-grid">
+        <div 
+          v-for="template in availableTemplates" 
+          :key="template.id"
+          class="template-card"
+        >
+          <h3>{{ template.name }}</h3>
+          <p class="template-description">{{ template.description }}</p>
+          <div class="template-preview">
+            <component
+              :is="template.component"
+              v-bind="sampleData"
+            />
+          </div>
+          <el-button 
+            type="primary" 
+            @click="selectTemplate(template.id)"
+            class="select-button"
+          >
+            Choisir ce modèle
+          </el-button>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
-import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { reportTemplates } from '@/config/reportTemplates';
-import type { ReportCardTemplate } from '@/types/report';
 import printJS from 'print-js';
-
-interface Student {
-  id: number;
-  firstname: string;
-  lastname: string;
-  matricule: string;
-  photo?: {
-    url?: string;
-  };
-  grade?: {
-    id: number;
-    name: string;
-  };
-}
-
-interface Grade {
-  id: number;
-  name: string;
-}
+import GradeConfigForm from '@/components/report/GradeConfigForm.vue';
+import ReportTemplateOne from '@/components/report/templates/ReportTemplateOne.vue';
+import ReportTemplateTwo from '@/components/report/templates/ReportTemplateTwo.vue';
+import ReportTemplateThree from '@/components/report/templates/ReportTemplateThree.vue';
+import StudentGradesForm from '@/components/report/StudentGradesForm.vue';
+import type { ReportCardTemplate } from '@/types/report';
 
 interface PreviewData {
-  student: Student;
-  grades: {
-    courseId: number;
-    courseName: string;
-    coefficient: number;
-    grade: number;
-    appreciation: string;
-  }[];
-  average: number;
-  classAverage: number;
-  rank: number;
-  totalStudents: number;
-  generalAppreciation?: string;
+  student: any;
+  grades: any[];
+  period: string;
+  config: any;
+  schoolInfo?: any;
+  rank?: number;
+  totalStudents?: number;
+  observations?: string;
 }
 
-const router = useRouter();
-const students = ref<Student[]>([]);
-const selectedStudents = ref<Student[]>([]);
-const selectedGrade = ref<number | null>(null);
-const selectedPeriod = ref<string>('');
-const selectedTemplate = ref<ReportCardTemplate>(reportTemplates[0]);
+// États
 const loading = ref(false);
+const editing = ref<Record<number, boolean>>({});
 const generating = ref<Record<number, boolean>>({});
+const printing = ref<Record<number, boolean>>({});
 const generatingMultiple = ref(false);
 const previewVisible = ref(false);
+const showConfigDialog = ref(false);
+const showGradesDialog = ref(false);
+const currentStudent = ref<any>(null);
+const selectedGrade = ref<number | null>(null);
+const selectedPeriod = ref('');
+const selectedTemplate = ref('template1');
+const students = ref<any[]>([]);
+const selectedStudents = ref<any[]>([]);
 const previewData = ref<PreviewData | null>(null);
-const grades = ref<Grade[]>([]);
-const schoolInfo = ref<any>(null);
-const templatePreviewVisible = ref(false);
+const grades = ref<any[]>([]);
+const configFormRef = ref<InstanceType<typeof GradeConfigForm> | null>(null);
+const savingConfig = ref(false);
+const numberOfAssignments = ref(2);
 const previewRef = ref<HTMLElement | null>(null);
+const showTemplateSelector = ref(false);
+const currentYear = ref<any>(null);
+const currentPeriod = ref('');
+const periods = ref<any[]>([]);
 
-// Périodes
-const periods = [
-  { value: 'TRIMESTER1', label: '1er Trimestre' },
-  { value: 'TRIMESTER2', label: '2ème Trimestre' },
-  { value: 'TRIMESTER3', label: '3ème Trimestre' }
+// Définition des templates disponibles
+const availableTemplates: ReportCardTemplate[] = [
+  { 
+    id: 'template1', 
+    name: 'Modèle Classique', 
+    description: 'Un design simple et efficace, idéal pour une présentation traditionnelle',
+    component: ReportTemplateOne 
+  },
+  { 
+    id: 'template2', 
+    name: 'Modèle Moderne',
+    description: 'Un style contemporain avec une mise en page dynamique',
+    component: ReportTemplateTwo 
+  },
+  { 
+    id: 'template3', 
+    name: 'Modèle Avancé',
+    description: 'Une présentation sophistiquée avec graphiques et analyses détaillées',
+    component: ReportTemplateThree 
+  }
 ];
 
-// Chargement des données
+// Sample data pour la prévisualisation
+const sampleStudent = {
+  firstname: "John",
+  lastname: "Doe",
+  matricule: "12345",
+  grade: { name: "6ème A" },
+  photo: null,
+  birthDay: "2010-01-01",
+  birthPlace: "Paris"
+};
+
+const sampleGrades = [
+  {
+    courseId: 1,
+    courseName: "Mathématiques",
+    courseGroup: "Sciences",
+    coefficient: 2,
+    assignments: [14, 16],
+    exam: 15,
+    average: 15,
+    classAverage: 12.5,
+    appreciation: "Très bon travail"
+  },
+  {
+    courseId: 2,
+    courseName: "Français",
+    courseGroup: "Lettres",
+    coefficient: 2,
+    assignments: [13, 14],
+    exam: 14,
+    average: 13.5,
+    classAverage: 11.5,
+    appreciation: "Bon travail"
+  }
+];
+
+const sampleData = {
+  student: sampleStudent,
+  grades: sampleGrades,
+  period: "trimester1",
+  generalAverage: 14.25,
+  classGeneralAverage: 12,
+  rank: 3,
+  totalStudents: 25,
+  observations: "Élève sérieux et appliqué",
+  conduct: {
+    discipline: "Très bien",
+    attendance: "Excellent",
+    workEthic: "Très bien"
+  },
+  schoolInfo: {
+    name: "Collège Sample",
+    address: "123 rue de l'école",
+    phone: "01 23 45 67 89",
+    email: "contact@college-sample.fr"
+  }
+};
+
+// Computed
+const canGenerateReports = computed(() => {
+  return selectedStudents.value.length > 0 && selectedPeriod.value && selectedTemplate.value;
+});
+
+const getTemplateComponent = computed(() => {
+  const template = availableTemplates.find(t => t.id === selectedTemplate.value);
+  return template?.component || ReportTemplateOne;
+});
+
+// Méthodes
 const loadGrades = async () => {
   try {
     const result = await window.ipcRenderer.invoke('grade:all');
@@ -239,7 +380,7 @@ const loadGrades = async () => {
       grades.value = result.data;
     }
   } catch (error) {
-    console.error('Erreur lors du chargement des classes:', error);
+    console.error('Erreur:', error);
     ElMessage.error('Erreur lors du chargement des classes');
   }
 };
@@ -254,102 +395,229 @@ const loadStudents = async () => {
       students.value = result.data;
     }
   } catch (error) {
-    console.error('Erreur lors du chargement des étudiants:', error);
+    console.error('Erreur:', error);
     ElMessage.error('Erreur lors du chargement des étudiants');
   } finally {
     loading.value = false;
   }
 };
 
-const loadSchoolInfo = async () => {
+const previewReport = async (student: any) => {
   try {
-    const result = await window.ipcRenderer.invoke('school:get');
-    if (result.success) {
-      schoolInfo.value = result.data;
-    }
-  } catch (error) {
-    console.error('Erreur lors du chargement des informations de l\'école:', error);
-  }
-};
-
-// Actions
-const previewReport = async (student: Student) => {
-  generating.value[student.id] = true;
-  try {
-    const result = await window.ipcRenderer.invoke('report:preview', {
+    generating.value[student.id] = true;
+    const result = await window.ipcRenderer.invoke('report:generate', {
       studentId: student.id,
       period: selectedPeriod.value
     });
 
     if (result.success) {
       previewData.value = {
-        student,
         ...result.data,
-        average: Number(result.data.average).toFixed(2),
-        classAverage: Number(result.data.classAverage).toFixed(2)
+        student,
+        schoolInfo: null // À implémenter avec les infos de l'école
       };
       previewVisible.value = true;
     }
   } catch (error) {
-    console.error('Erreur lors de la prévisualisation:', error);
+    console.error('Erreur prévisualisation:', error);
     ElMessage.error('Erreur lors de la prévisualisation');
   } finally {
     generating.value[student.id] = false;
   }
 };
 
-const handleSelectionChange = (selection: Student[]) => {
-  selectedStudents.value = selection;
+const printSingleReport = async (student: any) => {
+  try {
+    printing.value[student.id] = true;
+    const result = await window.ipcRenderer.invoke('report:generate', {
+      studentId: student.id,
+      period: selectedPeriod.value
+    });
+
+    if (result.success) {
+      previewData.value = {
+        ...result.data,
+        student,
+        schoolInfo: null
+      };
+
+      await nextTick();
+      
+      const element = document.getElementById('report-preview');
+      if (element) {
+        printJS({
+          printable: 'report-preview',
+          type: 'html',
+          targetStyles: ['*'],
+          documentTitle: `Bulletin_${student.firstname}_${student.lastname}`,
+          scanStyles: true,
+          css: [
+            'https://unpkg.com/element-plus/dist/index.css',
+            // Ajoutez ici d'autres fichiers CSS si nécessaire
+          ]
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Erreur impression:', error);
+    ElMessage.error('Erreur lors de l\'impression');
+  } finally {
+    printing.value[student.id] = false;
+  }
 };
 
-const generateReports = async () => {
-  if (!selectedPeriod.value || !selectedTemplate.value) {
-    ElMessage.warning('Veuillez sélectionner une période et un modèle');
-    return;
-  }
+const generateSelectedReports = async () => {
+  if (!selectedStudents.value.length) return;
   
   generatingMultiple.value = true;
   try {
     const result = await window.ipcRenderer.invoke('report:generateMultiple', {
       studentIds: selectedStudents.value.map(s => s.id),
       period: selectedPeriod.value,
-      templateId: selectedTemplate.value.id
+      templateId: selectedTemplate.value
     });
     
     if (result.success) {
-      ElMessage.success('Bulletins générés avec succès');
       printJS({
         printable: result.data,
-        type: 'pdf',
-        showModal: true
+        type: 'html',
+        targetStyles: ['*'],
+        documentTitle: 'Bulletins'
       });
     }
   } catch (error) {
-    console.error('Erreur lors de la génération des bulletins:', error);
+    console.error('Erreur:', error);
     ElMessage.error('Erreur lors de la génération');
   } finally {
     generatingMultiple.value = false;
   }
 };
 
-const getInitials = (student: Student): string => {
+const printPreview = () => {
+  if (!previewData.value) return;
+  
+  const element = document.getElementById('report-preview');
+  if (element) {
+    printJS({
+      printable: 'report-preview',
+      type: 'html',
+      targetStyles: ['*'],
+      documentTitle: 'Bulletin_Preview',
+      scanStyles: true,
+      css: [
+        'https://unpkg.com/element-plus/dist/index.css'
+      ]
+    });
+  }
+};
+
+const handleSelectionChange = (selection: any[]) => {
+  selectedStudents.value = selection;
+};
+
+const getInitials = (student: any): string => {
   return `${student.firstname[0]}${student.lastname[0]}`;
 };
 
-const goToConfig = () => {
-  router.push('/school-notes');
+const saveConfig = async () => {
+  if (!configFormRef.value) return;
+  
+  try {
+    await configFormRef.value.saveConfig();
+    showConfigDialog.value = false;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la configuration:', error);
+    ElMessage.error('Erreur lors de la sauvegarde de la configuration');
+  }
+};
+
+const onConfigSaved = () => {
+  ElMessage.success('Configuration enregistrée avec succès');
+  showConfigDialog.value = false;
+};
+
+const editGrades = async (student: any) => {
+  console.log('Édition des notes pour l\'étudiant:', student);
+  currentStudent.value = student;
+  editing.value[student.id] = true;
+  
+  try {
+    // Charger la configuration existante
+    const configResult = await window.ipcRenderer.invoke('gradeConfig:get', {
+      gradeId: selectedGrade.value
+    });
+    console.log('Configuration récupérée:', configResult);
+
+    if (configResult.success) {
+      // Mettre à jour le nombre de devoirs et les pondérations
+      numberOfAssignments.value = configResult.data.defaultAssignments;
+      console.log('Nombre de devoirs configuré:', numberOfAssignments.value);
+    }
+
+    showGradesDialog.value = true;
+  } catch (error) {
+    console.error('Erreur lors de l\'édition:', error);
+    ElMessage.error('Erreur lors du chargement de la configuration');
+  } finally {
+    editing.value[student.id] = false;
+  }
+};
+
+const onGradesSaved = () => {
+  showGradesDialog.value = false;
+  ElMessage.success('Notes enregistrées avec succès');
+};
+
+const initializeYear = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('year:getCurrent');
+    if (result.success) {
+      currentYear.value = result.data;
+      periods.value = result.data.periodConfigurations.map((p: any) => ({
+        value: p.name,
+        label: p.name,
+        start: p.start,
+        end: p.end
+      }));
+    }
+  } catch (error) {
+    console.error('Erreur initialisation année:', error);
+  }
+};
+
+const selectTemplate = async (templateId: string) => {
+  try {
+    const result = await window.ipcRenderer.invoke('preference:saveTemplate', templateId);
+    if (result.success) {
+      selectedTemplate.value = templateId;
+      showTemplateSelector.value = false;
+      ElMessage.success('Modèle de bulletin enregistré avec succès');
+    }
+  } catch (error) {
+    console.error('Erreur lors de la sélection du template:', error);
+    ElMessage.error('Erreur lors de la sélection du modèle');
+  }
 };
 
 // Initialisation
-onMounted(() => {
-  loadGrades();
-  loadSchoolInfo();
-});
-
-// Watcher pour charger les étudiants quand la classe change
-watch(selectedGrade, () => {
-  if (selectedGrade.value) {
-    loadStudents();
+onMounted(async () => {
+  try {
+    // Charger les classes
+    await loadGrades();
+    
+    // Charger l'année scolaire et les périodes
+    await initializeYear();
+    
+    // Vérifier si un template a déjà été choisi
+    const prefResult = await window.ipcRenderer.invoke('preference:getTemplate');
+    if (!prefResult.success || !prefResult.data) {
+      showTemplateSelector.value = true;
+    } else {
+      selectedTemplate.value = prefResult.data;
+    }
+  } catch (error) {
+    console.error('Erreur initialisation:', error);
+    ElMessage.error('Erreur lors de l\'initialisation');
   }
 });
 </script>
@@ -357,9 +625,6 @@ watch(selectedGrade, () => {
 <style scoped>
 .report-card-view {
   padding: 20px;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 .header-content {
@@ -369,8 +634,6 @@ watch(selectedGrade, () => {
 }
 
 .filters {
-  display: flex;
-  gap: 16px;
   margin-bottom: 20px;
 }
 
@@ -384,52 +647,32 @@ watch(selectedGrade, () => {
   font-size: 12px;
 }
 
-.students-table-container {
-  flex: 1;
-  overflow: hidden;
-}
-
-.fixed-actions {
-  position: sticky;
-  bottom: 0;
-  background: white;
+.actions-bar {
+  margin-top: 20px;
   padding: 16px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--el-border-color-lighter);
   display: flex;
   justify-content: flex-end;
-  gap: 16px;
-  z-index: 10;
-}
-
-.templates-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 20px;
-}
-
-.template-preview-item {
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 15px;
-}
-
-.template-preview-content {
-  transform: scale(0.5);
-  transform-origin: top center;
-  height: 400px;
-  overflow: hidden;
 }
 
 .preview-container {
-  background: #f5f7fa;
+  background: white;
   padding: 20px;
   min-height: 60vh;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
+.w-full {
+  width: 100%;
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+
 @media print {
-  .config-section,
+  .el-card,
   .el-dialog__header,
   .el-dialog__footer {
     display: none !important;
@@ -438,6 +681,106 @@ watch(selectedGrade, () => {
   .preview-container {
     padding: 0;
     overflow: visible;
+    height: auto;
+    max-height: none;
   }
+}
+
+.range-config {
+  margin-bottom: 20px;
+}
+
+.range-config h4 {
+  margin-bottom: 10px;
+  color: var(--el-text-color-regular);
+}
+
+.course-config {
+  margin-top: 20px;
+}
+
+.template-carousel {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 20px;
+  height: 600px;
+}
+
+.template-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  height: 100%;
+  padding: 20px;
+}
+
+.preview-container {
+  flex: 1;
+  width: 100%;
+  overflow: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+  transform: scale(0.8);
+}
+
+.template-description {
+  color: #666;
+  margin: 10px 0;
+  text-align: center;
+}
+
+.el-dialog.template-selector {
+  margin: 5vh auto !important;
+}
+
+.el-carousel {
+  height: 100%;
+}
+
+.el-carousel__item {
+  padding: 20px;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: white;
+}
+
+.template-preview {
+  width: 100%;
+  height: 400px;
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  margin: 15px 0;
+  padding: 10px;
+  transform: scale(0.5);
+  transform-origin: top center;
+}
+
+.select-button {
+  width: 200px;
+  margin-top: 15px;
+}
+
+.template-description {
+  color: #666;
+  text-align: center;
+  margin: 10px 0;
 }
 </style> 

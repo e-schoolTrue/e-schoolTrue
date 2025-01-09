@@ -3,21 +3,6 @@
     <el-header class="payment-header">
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-card class="stat-card" shadow="hover">
-            <template #header>
-              <div class="stat-header">
-                <el-icon><User /></el-icon>
-                <span>Total Élèves</span>
-              </div>
-            </template>
-            <div class="stat-content">
-              <span class="stat-value">{{ totalStudents }}</span>
-              <span class="stat-label">élèves</span>
-            </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="8">
           <el-card class="stat-card success" shadow="hover">
             <template #header>
               <div class="stat-header">
@@ -26,8 +11,7 @@
               </div>
             </template>
             <div class="stat-content">
-              <span class="stat-value">{{ formatAmount(getTotalCollectedAmount()) }}</span>
-              <span class="stat-label">FCFA</span>
+              <currency-display :amount="getTotalCollectedAmount()" />
             </div>
           </el-card>
         </el-col>
@@ -41,8 +25,21 @@
               </div>
             </template>
             <div class="stat-content">
-              <span class="stat-value">{{ formatAmount(getTotalRemainingAmount()) }}</span>
-              <span class="stat-label">FCFA</span>
+              <currency-display :amount="getTotalRemainingAmount()" />
+            </div>
+          </el-card>
+        </el-col>
+        
+        <el-col :span="6">
+          <el-card class="stat-card info" shadow="hover">
+            <template #header>
+              <div class="stat-header">
+                <el-icon><Discount /></el-icon>
+                <span>Réductions Bourses</span>
+              </div>
+            </template>
+            <div class="stat-content">
+              <currency-display :amount="getTotalScholarshipAmount()" />
             </div>
           </el-card>
         </el-col>
@@ -144,7 +141,36 @@
             </template>
           </el-table-column>
 
-          <!-- ... autres colonnes existantes ... -->
+          <el-table-column 
+            label="Bourse" 
+            width="150"
+            align="center"
+          >
+            <template #default="{ row }">
+              <template v-if="getActiveScholarship(row)">
+                <el-tooltip
+                  effect="dark"
+                  placement="top"
+                >
+                  <template #content>
+                    <div>
+                      <currency-display :amount="getAnnualAmount(row.grade?.id)" />
+                          <p>Montant initial: <currency-display :amount="getAnnualAmount(row.grade?.id)" /></p>
+                          <p>Réduction: {{ getActiveScholarship(row)?.percentage }}%</p>
+                      <p>Économie: <currency-display :amount="getScholarshipAmount(row)" /></p>
+                    </div>
+                  </template>
+                <el-tag type="success" effect="dark" size="small">
+                  {{ getActiveScholarship(row)?.percentage }}%
+                </el-tag>
+                </el-tooltip>
+                <div class="scholarship-amount">
+                  -<currency-display :amount="getScholarshipAmount(row)" />
+                </div>
+              </template>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
 
           <el-table-column 
             label="Progression" 
@@ -160,8 +186,8 @@
                   :stroke-width="10"
                 />
                 <small class="progress-details">
-                  {{ formatAmount(getPaidAmount(row.id)) }} / 
-                  {{ formatAmount(getAnnualAmount(row.grade?.id)) }} FCFA
+                  <currency-display :amount="getPaidAmount(row.id)" /> / 
+                  <currency-display :amount="getStudentAdjustedAmount(row)" />
                 </small>
               </div>
             </template>
@@ -251,18 +277,21 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { ElMessage } from "element-plus";
-import { Plus, Document, Download, Refresh, Printer } from "@element-plus/icons-vue";
+import { Plus, Document, Download, Refresh, Printer, Discount } from "@element-plus/icons-vue";
 import PaymentDialog from '@/components/payment/PaymentDialog.vue';
 import PaymentHistoryDialog from '@/components/payment/PaymentHistory.vue';
 import printJS from 'print-js';
 import * as XLSX from 'xlsx';
+import { PaymentConfig } from '@/types/payment';
+import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { useCurrency } from '@/composables/useCurrency';
 
 interface Student {
   id: number;
   firstname: string;
   lastname: string;
   matricule: string;
-  grade: {
+  grade?: {
     id: number;
     name: string;
   };
@@ -278,6 +307,13 @@ interface Student {
     createdAt: Date;
     paymentType: string;
   }>;
+  scholarshipPercentage?: number;
+  scholarship?: Array<{
+    id: number;
+    percentage: number;
+    isActive: boolean;
+    schoolYear: string;
+  }>;
 }
 
 interface Grade {
@@ -285,16 +321,14 @@ interface Grade {
   name: string;
 }
 
-interface PaymentConfig {
-  classId: number;
-  className: string;
-  annualAmount: number;
-  installments: number;
-}
-
 interface PaymentAmounts {
   paid: number;
   remaining: number;
+  studentId: number;
+  baseAmount: number;
+  scholarshipPercentage: number;
+  scholarshipAmount: number;
+  adjustedAmount: number;
 }
 
 interface Filters {
@@ -304,7 +338,7 @@ interface Filters {
 }
 
 const filteredStudents = ref<Student[]>([]);
-  const grades = ref<Grade[]>([]);
+const grades = ref<Grade[]>([]);
 const tableHeight = "calc(100vh - 350px)";
 
 const students = ref<Student[]>([]);
@@ -314,7 +348,7 @@ const pageSize = ref(5);
 const totalStudents = ref(0);
 const paymentDialogVisible = ref(false);
 const historyDialogVisible = ref(false);
-const selectedStudent = ref<Student | null>(null);
+const selectedStudent = ref<Student>(null as unknown as Student);
 const classConfigs = ref(new Map<number, PaymentConfig>());
 const paymentAmounts = ref(new Map<number, PaymentAmounts>());
 const filters = ref<Filters>({
@@ -377,9 +411,6 @@ const loadGrades = async () => {
   }
 };
 
-const formatAmount = (amount: number) => {
-  return new Intl.NumberFormat("fr-FR").format(amount);
-};
 
 const getAnnualAmount = (gradeId: number | undefined): number => {
   if (!gradeId) return 0;
@@ -392,55 +423,68 @@ const getPaidAmount = (studentId: number): number => {
   return amounts?.paid || 0;
 };
 
-
 const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
-  if (!student) {
-    console.warn("Étudiant non défini");
-    return null;
-  }
-
-  if (!student.grade?.id) {
-    console.warn("Grade non défini pour l'étudiant:", student);
+  if (!student?.grade?.id) {
+    console.log('Pas de grade pour l\'étudiant');
     return null;
   }
 
   const config = classConfigs.value.get(student.grade.id);
-  console.log("Configuration trouvée:", config);
-
-  if (!config) {
-    console.warn(`Aucune configuration trouvée pour la classe ${student.grade.name}`);
-    return null;
-  }
-
-  return {
-    ...config,
-    className: student.grade.name
-  };
+  console.log('Configuration trouvée pour l\'étudiant:', config);
+  return config || null;
 };
 
 const loadStudents = async () => {
-  loading.value = true;
   try {
-    const queryParams = {
-      page: currentPage.value,
-      limit: pageSize.value,
-      ...filters.value,
-    };
+    loading.value = true;
+    const result = await window.ipcRenderer.invoke('student:all');
+    
+    if (result.success) {
+      const studentsWithData = await Promise.all(
+        result.data.map(async (student: Student) => {
+          // Charger les bourses
+          const scholarshipResult = await window.ipcRenderer.invoke(
+            'scholarship:getByStudent', 
+            student.id
+          );
 
-    const result = await window.ipcRenderer.invoke("student:all", queryParams);
+          console.log(`=== Données pour l'étudiant ${student.firstname} ===`);
+          console.log('Bourses:', scholarshipResult);
 
-    if (result?.success && Array.isArray(result.data)) {
-      students.value = result.data;
-      totalStudents.value = result.total || students.value.length;
-      // Charger les montants immédiatement après avoir chargé les étudiants
-      await loadStudentAmounts();
+          // Charger les paiements
+          const paymentsResult = await window.ipcRenderer.invoke(
+            'payment:getByStudent',
+            student.id
+          );
+
+          if (paymentsResult.success) {
+            const { baseAmount, scholarshipPercentage, scholarshipAmount, adjustedAmount, payments } = paymentsResult.data;
+            const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+
+            paymentAmounts.value.set(student.id, {
+              paid: totalPaid,
+              remaining: adjustedAmount - totalPaid,
+              studentId: student.id,
+              baseAmount,
+              scholarshipPercentage,
+              scholarshipAmount,
+              adjustedAmount
+            });
+          }
+
+          return {
+            ...student,
+            scholarship: scholarshipResult.success ? scholarshipResult.data : []
+          };
+        })
+      );
+
+      students.value = studentsWithData;
+      handleFilter();
     }
-    filteredStudents.value = students.value;
   } catch (error) {
-    console.error("Erreur lors du chargement des étudiants:", error);
-    ElMessage.error("Erreur lors du chargement des étudiants");
-    students.value = [];
-    totalStudents.value = 0;
+    console.error('Erreur lors du chargement des étudiants:', error);
+    ElMessage.error('Erreur lors du chargement des étudiants');
   } finally {
     loading.value = false;
   }
@@ -456,26 +500,31 @@ const handleSizeChange = async (size: number) => {
   currentPage.value = 1;
   await loadStudents();
 };
+
 const handleFilter = () => {
-  filteredStudents.value = students.value.filter((student) => {
+  if (!students.value) return;
+
+  filteredStudents.value = students.value.filter(student => {
     // Filtre par nom/prénom
-    const nameMatch = filters.value.studentFullName
-      ? student.firstname.toLowerCase().includes(filters.value.studentFullName.toLowerCase()) ||
-        student.lastname.toLowerCase().includes(filters.value.studentFullName.toLowerCase())
-      : true;
+    const fullName = `${student.firstname} ${student.lastname}`.toLowerCase();
+    const searchName = filters.value.studentFullName.toLowerCase();
+    const nameMatch = !searchName || fullName.includes(searchName);
 
     // Filtre par classe
-    const gradeMatch = filters.value.grade
-      ? student.grade?.id === filters.value.grade
-      : true;
+    const gradeMatch = !filters.value.grade || student.grade?.id === filters.value.grade;
 
     // Filtre par statut de paiement
-    const paymentStatus = filters.value.paymentStatus
-      ? getPaymentStatus(student.id) === filters.value.paymentStatus
-      : true;
+    let statusMatch = true;
+    if (filters.value.paymentStatus) {
+      const status = getPaymentStatus(student.id);
+      statusMatch = status === filters.value.paymentStatus;
+    }
 
-    return nameMatch && gradeMatch && paymentStatus;
+    return nameMatch && gradeMatch && statusMatch;
   });
+
+  // Mettre à jour le total
+  totalStudents.value = filteredStudents.value.length;
 };
 
 const showNewPaymentDialog = (student: Student) => {
@@ -506,19 +555,20 @@ const showPaymentHistory = (student: Student) => {
 };
 
 const handlePaymentAdded = async () => {
-  paymentDialogVisible.value = false;
   loading.value = true;
-  
   try {
-    // Recharger les données
     await loadStudents();
-    await loadPaymentConfigs();
-    await loadStudentAmounts();
-    
-    ElMessage.success("Paiement ajouté avec succès");
+    // Recharger les paiements pour l'étudiant concerné
+    if (selectedStudent.value?.id) {
+      await loadStudentPayments(selectedStudent.value.id);
+    }
+    // Mettre à jour les montants pour tous les étudiants
+    for (const student of students.value) {
+      await loadStudentPayments(student.id);
+    }
+    ElMessage.success('Paiement enregistré avec succès');
   } catch (error) {
-    console.error('Erreur lors du rechargement des données:', error);
-    ElMessage.error("Erreur lors de la mise à jour des données");
+    console.error('Erreur lors du rechargement:', error);
   } finally {
     loading.value = false;
   }
@@ -586,9 +636,10 @@ const exportToExcel = async () => {
   }
 };
 
-const refreshData = () => {
-  loadStudentAmounts;
-  loadStudents();
+const refreshData = async () => {
+  await loadStudentAmounts();
+  await loadStudents();
+  handleFilter();
 };
 
 const loadStudentAmounts = async () => {
@@ -611,7 +662,12 @@ const loadStudentAmounts = async () => {
 
         paymentAmounts.value.set(student.id, {
           paid: paidAmount,
-          remaining: Math.max(0, annualAmount - paidAmount)
+          remaining: Math.max(0, annualAmount - paidAmount),
+          studentId: student.id,
+          baseAmount: annualAmount,
+          scholarshipPercentage: student.scholarshipPercentage || 0,
+          scholarshipAmount: 0,
+          adjustedAmount: 0
         });
       }
     }
@@ -623,15 +679,15 @@ const loadStudentAmounts = async () => {
   }
 };
 
-const getPaymentProgress = (studentId: number): number => {
-  const student = students.value.find((s) => s.id === studentId);
-  if (!student?.grade?.id) return 0;
-
-  const annualAmount = getAnnualAmount(student.grade.id);
-  if (annualAmount === 0) return 0;
-
-  const paidAmount = getPaidAmount(studentId);
-  return Math.round((paidAmount / annualAmount) * 100);
+const getPaymentProgress = (studentId: number) => {
+  const student = students.value.find(s => s.id === studentId);
+  if (!student) return 0;
+  
+  const total = getStudentAdjustedAmount(student);
+  const paid = paymentAmounts.value.get(studentId)?.paid || 0;
+  
+  if (total === 0) return 0;
+  return Math.round((paid / total) * 100);
 };
 
 const getProgressStatus = (studentId: number) => {
@@ -649,10 +705,11 @@ const getTotalCollectedAmount = () => {
 };
 
 const getTotalRemainingAmount = () => {
-  return Array.from(paymentAmounts.value.values()).reduce(
-    (sum, amounts) => sum + amounts.remaining,
-    0
-  );
+  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => {
+    const adjustedAmount = amounts.adjustedAmount || amounts.baseAmount;
+    const paidAmount = amounts.paid;
+    return sum + Math.max(0, adjustedAmount - paidAmount);
+  }, 0);
 };
 
 const verifyPaymentConfigs = () => {
@@ -699,59 +756,71 @@ const getInitials = (student: Student): string => {
   return `${student.firstname[0]}${student.lastname[0]}`.toUpperCase();
 };
 
-const getPaymentStatusType = (studentId: number): string => {
-  const progress = getPaymentProgress(studentId);
-  if (progress >= 100) return 'success';
-  if (progress >= 50) return 'warning';
-  return 'danger';
+const getPaymentStatusType = (studentId: number) => {
+  const status = getPaymentStatus(studentId);
+  const types = {
+    paid: 'success',
+    partial: 'warning',
+    unpaid: 'danger'
+  };
+  return types[status] || 'info';
 };
 
-const getPaymentStatusLabel = (studentId: number): string => {
-  const progress = getPaymentProgress(studentId);
-  if (progress >= 100) return 'Payé';
-  if (progress >= 50) return 'En cours';
-  return 'En retard';
+const getPaymentStatusLabel = (studentId: number) => {
+  const status = getPaymentStatus(studentId);
+  const labels = {
+    paid: 'Payé',
+    partial: 'Partiel',
+    unpaid: 'Non payé'
+  };
+  return labels[status] || status;
 };
 
-const getPaymentStatus = (studentId: number): 'paid' | 'late' | 'unpaid' => {
-  const progress = getPaymentProgress(studentId);
-  if (progress >= 100) return 'paid';
-  if (progress >= 50) return 'late';
+const getPaymentStatus = (studentId: number) => {
+  const student = students.value.find(s => s.id === studentId);
+  if (!student?.grade?.id) return 'unpaid';
+
+  const adjustedAmount = getAdjustedAnnualAmount(studentId);
+  const paidAmount = getPaidAmount(studentId);
+  
+  if (paidAmount >= adjustedAmount) return 'paid';
+  if (paidAmount > 0) return 'partial';
   return 'unpaid';
 };
 
 const printReceipt = async (student: Student) => {
   try {
-    const schoolInfo = await window.ipcRenderer.invoke('school:get');
-    const paymentsResult = await window.ipcRenderer.invoke('payment:getByStudent', student.id);
-    
-    if (!paymentsResult?.success) {
-      throw new Error('Erreur lors de la récupération des paiements');
-    }
+    const result = await window.ipcRenderer.invoke('payment:getByStudent', student.id);
+    console.log('Résultat pour impression:', result);
 
-    const payments = paymentsResult.data;
-    if (!payments.length) {
+    if (!result.success || !result.data?.payments || result.data.payments.length === 0) {
       ElMessage.warning('Aucun paiement trouvé pour cet étudiant');
       return;
     }
 
-    // Calculer le total des paiements
-    const totalAmount = payments.reduce((sum: number, p: { amount: any; }) => sum + Number(p.amount), 0);
+    const lastPayment = result.data.payments[result.data.payments.length - 1];
+    const schoolInfo = await window.ipcRenderer.invoke('school:get');
+    if (!schoolInfo?.success) {
+      throw new Error('Impossible de récupérer les informations de l\'école');
+    }
+
+    const studentName = `${student.firstname} ${student.lastname}`;
+    const { currency } = useCurrency();
 
     const content = `
       <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif;">
         <div style="text-align: center; margin-bottom: 20px;">
           ${schoolInfo?.data?.logo ? `<img src="data:${schoolInfo.data.logo.type};base64,${schoolInfo.data.logo.content}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
           <h2>${schoolInfo?.data?.name || 'École'}</h2>
-          <h3>État des Paiements</h3>
-          <p style="margin: 5px 0;">Date d'impression: ${formatDate(new Date().toISOString())}</p>
+          <h3>Reçu de Paiement N°${lastPayment.id}</h3>
+          <p style="margin: 5px 0;">Date: ${formatDate(lastPayment.createdAt)}</p>
         </div>
         
         <div style="margin-bottom: 20px;">
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 5px;"><strong>Élève:</strong></td>
-              <td style="padding: 5px;">${student.firstname} ${student.lastname}</td>
+              <td style="padding: 5px;">${studentName}</td>
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Matricule:</strong></td>
@@ -764,37 +833,36 @@ const printReceipt = async (student: Student) => {
           </table>
         </div>
         
-        <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 10px;">Historique des paiements</h4>
-          <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
-            <thead>
-              <tr style="background-color: #f5f7fa;">
-                <th style="padding: 8px; border: 1px solid #ddd;">Date</th>
-                <th style="padding: 8px; border: 1px solid #ddd;">Type</th>
-                <th style="padding: 8px; border: 1px solid #ddd;">Mode</th>
-                <th style="padding: 8px; border: 1px solid #ddd;">Montant</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${payments.map((payment: { createdAt: string; paymentType: string; paymentMethod: string; amount: number; }) => `
-                <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${formatDate(payment.createdAt)}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${formatPaymentType(payment.paymentType)}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${formatPaymentMethod(payment.paymentMethod)}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatAmount(payment.amount)} FCFA</td>
-                </tr>
-              `).join('')}
-              <tr style="font-weight: bold; background-color: #f5f7fa;">
-                <td colspan="3" style="padding: 8px; border: 1px solid #ddd;">Total payé</td>
-                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatAmount(totalAmount)} FCFA</td>
-              </tr>
-            </tbody>
+        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 5px;"><strong>Type de paiement:</strong></td>
+              <td style="padding: 5px;">${formatPaymentType(lastPayment.paymentType)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px;"><strong>Montant:</strong></td>
+              <td style="padding: 5px;">${new Intl.NumberFormat('fr-FR').format(lastPayment.amount)} ${currency.value}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px;"><strong>Mode de paiement:</strong></td>
+              <td style="padding: 5px;">${formatPaymentMethod(lastPayment.paymentMethod)}</td>
+            </tr>
+            ${lastPayment.reference ? `
+            <tr>
+              <td style="padding: 5px;"><strong>Référence:</strong></td>
+              <td style="padding: 5px;">${lastPayment.reference}</td>
+            </tr>
+            ` : ''}
           </table>
         </div>
-
-        <div style="margin-top: 40px; display: flex; justify-content: flex-end;">
+        
+        <div style="margin-top: 40px; display: flex; justify-content: space-between;">
           <div>
-            <p style="margin-bottom: 40px;">Signature et cachet:</p>
+            <p style="margin-bottom: 40px;">Signature du payeur:</p>
+            <p>_____________________</p>
+          </div>
+          <div>
+            <p style="margin-bottom: 40px;">Signature du caissier:</p>
             <p>_____________________</p>
           </div>
         </div>
@@ -809,7 +877,7 @@ const printReceipt = async (student: Student) => {
     printJS({
       printable: content,
       type: 'raw-html',
-      documentTitle: `État des paiements - ${student.firstname} ${student.lastname}`,
+      documentTitle: `Reçu de paiement - ${studentName}`,
       targetStyles: ['*'],
       style: `
         .receipt-container { max-width: 800px; margin: 0 auto; }
@@ -821,10 +889,10 @@ const printReceipt = async (student: Student) => {
       `
     });
 
-    ElMessage.success('État des paiements généré avec succès');
+    ElMessage.success('Reçu généré avec succès');
   } catch (error) {
     console.error('Erreur lors de l\'impression:', error);
-    ElMessage.error('Erreur lors de l\'impression');
+    ElMessage.error('Erreur lors de l\'impression du reçu');
   }
 };
 
@@ -851,6 +919,120 @@ const formatPaymentMethod = (method: string): string => {
     mobile_money: 'Mobile Money'
   };
   return methods[method] || method;
+};
+
+const getAdjustedAnnualAmount = (studentId: number): number => {
+  const student = students.value.find(s => s.id === studentId);
+  if (!student?.grade?.id) return 0;
+
+  const baseAmount = getAnnualAmount(student.grade.id);
+  if (!student.scholarship?.length) return baseAmount;
+
+  // Utiliser la bourse active
+  const activeScholarship = student.scholarship.find(s => 
+    s.isActive && s.schoolYear === new Date().getFullYear().toString()
+  );
+  
+  if (!activeScholarship) return baseAmount;
+
+  const reductionAmount = baseAmount * (activeScholarship.percentage / 100);
+  return baseAmount - reductionAmount;
+};
+
+const loadStudentPayments = async (studentId: number) => {
+  try {
+    const result = await window.ipcRenderer.invoke('payment:getByStudent', studentId);
+    console.log(`=== Paiements pour l'étudiant ${studentId} ===`);
+    console.log('Résultat brut:', result);
+
+    if (result.success) {
+      const { 
+        payments, 
+        baseAmount, 
+        scholarshipPercentage, 
+        scholarshipAmount, 
+        adjustedAmount 
+      } = result.data;
+
+      console.log('Données extraites:', {
+        payments,
+        baseAmount,
+        scholarshipPercentage,
+        scholarshipAmount,
+        adjustedAmount
+      });
+      
+      const existingAmounts = paymentAmounts.value.get(studentId);
+      console.log('Montants existants:', existingAmounts);
+      
+      const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+      
+      const newAmounts = {
+        paid: totalPaid,
+        remaining: adjustedAmount - totalPaid, // Utiliser le montant ajusté
+        studentId,
+        baseAmount,
+        scholarshipPercentage,
+        scholarshipAmount,
+        adjustedAmount
+      };
+
+      console.log('Nouveaux montants calculés:', newAmounts);
+      paymentAmounts.value.set(studentId, newAmounts);
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des paiements:', error);
+  }
+};
+
+const getStudentAdjustedAmount = (student: Student) => {
+  if (!student?.grade?.id) return 0;
+  
+  const baseAmount = getAnnualAmount(student.grade.id);
+  const scholarship = getActiveScholarship(student);
+  
+  console.log(`Calcul du montant ajusté pour ${student.firstname} ${student.lastname}:`);
+  console.log('- Montant de base:', baseAmount);
+  console.log('- Bourse active:', scholarship);
+  
+  if (!scholarship || !baseAmount) return baseAmount;
+  
+  const reduction = baseAmount * (scholarship.percentage / 100);
+  const finalAmount = baseAmount - reduction;
+  
+  console.log('- Réduction:', reduction);
+  console.log('- Montant final:', finalAmount);
+  
+  return finalAmount;
+};
+
+const getActiveScholarship = (student: Student) => {
+  if (!student?.scholarship) return null;
+  
+  const currentYear = new Date().getFullYear().toString();
+  console.log(`=== Recherche bourse active pour ${student.firstname} ${student.lastname} ===`);
+  console.log('Année courante:', currentYear);
+  console.log('Bourses disponibles:', student.scholarship);
+  
+  const activeScholarship = Array.isArray(student.scholarship) 
+    ? student.scholarship.find(s => s.isActive && s.schoolYear === currentYear)
+    : null;
+    
+  console.log('Bourse active trouvée:', activeScholarship);
+  return activeScholarship;
+};
+
+const getScholarshipAmount = (student: Student) => {
+  const scholarship = getActiveScholarship(student);
+  if (!scholarship) return 0;
+  const baseAmount = getAnnualAmount(student.grade?.id);
+  return baseAmount * (scholarship.percentage / 100);
+};
+
+const getTotalScholarshipAmount = () => {
+  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => {
+    return sum + (amounts.scholarshipAmount || 0);
+  }, 0);
 };
 </script>
 
@@ -942,6 +1124,7 @@ const formatPaymentMethod = (method: string): string => {
 .progress-details {
   color: var(--el-text-color-secondary);
   text-align: center;
+  font-size: 0.9em;
 }
 
 .pagination-container {
@@ -970,5 +1153,45 @@ const formatPaymentMethod = (method: string): string => {
   .el-col {
     margin-bottom: 10px;
   }
+}
+
+.scholarship-info {
+  color: var(--el-color-success);
+  font-size: 0.85em;
+  margin-top: 4px;
+}
+
+.scholarship-amount {
+  font-size: 0.8em;
+  color: var(--el-color-success);
+  margin-top: 4px;
+}
+
+.stat-card.info {
+  background-color: var(--el-color-info-light-9);
+}
+
+.payment-amount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.el-tooltip__content {
+  text-align: left;
+}
+
+.el-tooltip__content p {
+  margin: 4px 0;
+  white-space: nowrap;
+}
+
+.scholarship-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--el-color-success);
+  font-size: 0.85em;
 }
 </style>
