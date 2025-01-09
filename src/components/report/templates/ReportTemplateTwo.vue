@@ -1,40 +1,48 @@
 <template>
   <div class="report-template-two">
-    <!-- En-tête avec bannière -->
-    <div class="report-banner">
-      <div class="banner-content">
+    <!-- En-tête moderne -->
+    <header class="modern-header">
+      <div class="header-content">
+        <div class="school-brand">
         <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" alt="Logo" class="school-logo">
-        <div class="banner-text">
+          <div class="school-info">
           <h1>{{ schoolInfo?.name }}</h1>
-          <h2>Bulletin de Notes - {{ periodLabel }}</h2>
+            <p class="subtitle">{{ schoolInfo?.address }}</p>
         </div>
       </div>
-    </div>
-
-    <!-- Carte d'information de l'élève -->
-    <div class="student-card">
-      <div class="student-photo">
-        <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo">
-        <div v-else class="photo-placeholder">
-          <Icon icon="mdi:account" />
+        <div class="report-meta">
+          <div class="period-badge">{{ periodLabel }}</div>
+          <div class="academic-year">{{ currentYear }}</div>
         </div>
+    </div>
+    </header>
+
+    <!-- Carte d'identité de l'élève -->
+    <div class="student-card">
+      <div class="photo-section">
+        <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo" class="student-photo">
+        <div v-else class="photo-placeholder">{{ studentInitials }}</div>
       </div>
       <div class="student-details">
         <div class="detail-row">
-          <span class="label">Nom:</span>
-          <span class="value">{{ student?.lastname }}</span>
+          <div class="detail-item">
+            <label>Nom</label>
+            <span>{{ student?.lastname }}</span>
+          </div>
+          <div class="detail-item">
+            <label>Prénom</label>
+            <span>{{ student?.firstname }}</span>
+          </div>
         </div>
         <div class="detail-row">
-          <span class="label">Prénom:</span>
-          <span class="value">{{ student?.firstname }}</span>
+          <div class="detail-item">
+            <label>Matricule</label>
+            <span>{{ student?.matricule }}</span>
         </div>
-        <div class="detail-row">
-          <span class="label">Matricule:</span>
-          <span class="value">{{ student?.matricule }}</span>
+          <div class="detail-item">
+            <label>Classe</label>
+            <span>{{ student?.grade?.name }}</span>
         </div>
-        <div class="detail-row">
-          <span class="label">Classe:</span>
-          <span class="value">{{ student?.grade?.name }}</span>
         </div>
       </div>
     </div>
@@ -46,74 +54,89 @@
         <div class="summary-label">Moyenne Générale</div>
       </div>
       <div class="summary-card">
+        <div class="summary-value">{{ rank || '-' }}/{{ totalStudents || '-' }}</div>
+        <div class="summary-label">Rang</div>
+      </div>
+      <div class="summary-card">
         <div class="summary-value">{{ getGeneralAppreciation() }}</div>
         <div class="summary-label">Mention</div>
       </div>
-      <div class="summary-card">
-        <div class="summary-value">{{ rank }}/{{ totalStudents }}</div>
-        <div class="summary-label">Rang</div>
-      </div>
     </div>
 
-    <!-- Tableau des notes avec groupes de matières -->
-    <div class="grades-section">
-      <template v-for="(group) in groupedGrades" :key="index">
-        <div class="subject-group">
-          <h3>{{ group.name }}</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Matière</th>
-                <th>Coef.</th>
-                <th>Note</th>
-                <th>Moy. Classe</th>
-                <th>Appréciation</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="grade in group.grades" :key="grade.courseId">
-                <td>{{ grade.courseName }}</td>
-                <td class="text-center">{{ grade.coefficient }}</td>
-                <td class="text-center grade-cell" :class="getGradeClass(grade.grade)">
-                  {{ formatGrade(grade.grade) }}
-                </td>
-                <td class="text-center">{{ formatGrade(grade.classAverage) }}</td>
-                <td>{{ grade.appreciation }}</td>
-              </tr>
-            </tbody>
-          </table>
+    <!-- Notes par groupe de matières -->
+    <div class="grades-groups">
+      <div v-for="(group, groupName) in groupedGrades" :key="groupName" class="grade-group">
+        <h3>{{ groupName }}</h3>
+        <div class="grades-table">
+          <div class="table-header">
+            <div class="col-subject">Matière</div>
+            <div class="col-coef">Coef</div>
+            <div class="col-assignments">
+              <div v-for="i in maxAssignments" :key="i">Dev {{ i }}</div>
+            </div>
+            <div class="col-exam">Exam</div>
+            <div class="col-average">Moyenne</div>
+            <div class="col-appreciation">Appréciation</div>
+          </div>
+          <div 
+            v-for="grade in group" 
+            :key="grade.courseId" 
+            class="grade-row"
+            :class="getGradeRowClass(grade.average)"
+          >
+            <div class="col-subject">{{ grade.courseName }}</div>
+            <div class="col-coef">{{ grade.coefficient }}</div>
+            <div class="col-assignments">
+              <div 
+                v-for="(assignment, index) in grade.assignments" 
+                :key="index"
+                class="assignment-grade"
+              >
+                {{ formatGrade(assignment) }}
+              </div>
+            </div>
+            <div class="col-average">{{ formatGrade(grade.average) }}</div>
+            <div class="col-appreciation">{{ grade.appreciation }}</div>
         </div>
-      </template>
     </div>
-
-    <!-- Graphique des performances -->
-    <div class="performance-chart">
-      <h3>Évolution des moyennes</h3>
-      <div class="chart-container">
-        <PerformanceChart v-bind="chartData" />
       </div>
     </div>
 
-    <!-- Observations et signatures -->
-    <div class="footer-section">
-      <div class="observations">
+    <!-- Observations et comportement -->
+    <div class="feedback-section">
+      <div class="observations" v-if="observations">
         <h3>Observations du conseil de classe</h3>
         <p>{{ observations }}</p>
       </div>
+      <div class="conduct-grid" v-if="conduct">
+        <div class="conduct-item">
+          <label>Discipline</label>
+          <span>{{ conduct.discipline }}</span>
+        </div>
+        <div class="conduct-item">
+          <label>Assiduité</label>
+          <span>{{ conduct.attendance }}</span>
+        </div>
+        <div class="conduct-item">
+          <label>Travail</label>
+          <span>{{ conduct.workEthic }}</span>
+        </div>
+      </div>
+      </div>
 
+    <!-- Signatures -->
       <div class="signatures">
         <div class="signature-block">
-          <div class="signature-title">Le Directeur</div>
-          <div class="signature-box"></div>
+        <span>Le Directeur</span>
+        <div class="signature-area"></div>
         </div>
         <div class="signature-block">
-          <div class="signature-title">Le Professeur Principal</div>
-          <div class="signature-box"></div>
+        <span>Le Professeur Principal</span>
+        <div class="signature-area"></div>
         </div>
         <div class="signature-block">
-          <div class="signature-title">Les Parents</div>
-          <div class="signature-box"></div>
-        </div>
+        <span>Les Parents</span>
+        <div class="signature-area"></div>
       </div>
     </div>
   </div>
@@ -121,19 +144,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Icon } from '@iconify/vue';
-import PerformanceChart from '../charts/PerformanceChart.vue';
+import type { ReportCardData } from '@/types/report';
 
-const props = defineProps<{
-  student: any;
-  grades: any[];
-  period: string;
-  config: any;
-  schoolInfo?: any;
-  rank?: number;
-  totalStudents?: number;
-  observations?: string;
-}>();
+const props = defineProps<ReportCardData>();
 
 // Computed properties
 const periodLabel = computed(() => {
@@ -168,7 +181,7 @@ const generalAverage = computed(() => {
   if (!props.grades?.length) return 0;
   
   const totalWeightedGrades = props.grades.reduce((sum, grade) => {
-    return sum + (grade.grade * grade.coefficient);
+    return sum + (grade.average * grade.coefficient);
   }, 0);
   
   const totalCoefficients = props.grades.reduce((sum, grade) => {
@@ -178,14 +191,22 @@ const generalAverage = computed(() => {
   return totalWeightedGrades / totalCoefficients;
 });
 
-// Données pour le graphique
-const chartData = computed(() => {
-  return {
-    studentGrades: props.grades.map(g => g.grade),
-    classAverages: props.grades.map(g => g.classAverage),
-    labels: props.grades.map(g => g.courseName)
-  };
+const currentYear = computed(() => {
+  const now = new Date();
+  const year = now.getFullYear();
+  return `${year-1}/${year}`;
 });
+
+const studentInitials = computed(() => {
+  if (!props.student) return '';
+  return `${props.student.firstname[0]}${props.student.lastname[0]}`.toUpperCase();
+});
+
+const maxAssignments = computed(() => {
+  return Math.max(...props.grades.map(g => g.assignments.length), 0);
+});
+
+// Données pour le graphique
 
 // Méthodes
 const formatGrade = (grade: number): string => {
@@ -193,40 +214,47 @@ const formatGrade = (grade: number): string => {
 };
 
 const getGeneralAppreciation = () => {
-  const average = generalAverage.value;
-  if (average >= 16) return 'Excellent';
-  if (average >= 14) return 'Très Bien';
-  if (average >= 12) return 'Bien';
-  if (average >= 10) return 'Assez Bien';
+  const avg = props.generalAverage;
+  if (avg >= 16) return 'Excellent';
+  if (avg >= 14) return 'Très Bien';
+  if (avg >= 12) return 'Bien';
+  if (avg >= 10) return 'Assez Bien';
   return 'Insuffisant';
 };
 
-const getGradeClass = (grade: number) => {
-  if (grade >= 16) return 'grade-excellent';
-  if (grade >= 14) return 'grade-very-good';
-  if (grade >= 12) return 'grade-good';
-  if (grade >= 10) return 'grade-average';
-  return 'grade-poor';
-};
+const getGradeRowClass = (average: number) => ({
+  'excellent': average >= 16,
+  'very-good': average >= 14,
+  'good': average >= 12,
+  'average': average >= 10,
+  'poor': average < 10
+});
+
 </script>
 
 <style scoped>
 .report-template-two {
   background: white;
-  max-width: 210mm;
-  margin: 0 auto;
-  padding: 0;
   font-family: 'Segoe UI', Roboto, sans-serif;
+  padding: 30px;
+  color: #2c3e50;
 }
 
-.report-banner {
+.modern-header {
   background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
   color: white;
-  padding: 20px;
+  padding: 30px;
+  border-radius: 10px;
   margin-bottom: 30px;
 }
 
-.banner-content {
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.school-brand {
   display: flex;
   align-items: center;
   gap: 20px;
@@ -241,149 +269,90 @@ const getGradeClass = (grade: number) => {
   padding: 5px;
 }
 
-.banner-text h1 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.banner-text h2 {
-  margin: 5px 0 0;
-  font-size: 18px;
-  font-weight: normal;
+.period-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
 }
 
 .student-card {
-  display: flex;
-  gap: 20px;
   background: #f8f9fa;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 20px;
-  margin: 0 20px 30px;
-}
-
-.student-photo img {
-  width: 120px;
-  height: 150px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-
-.student-details {
-  flex: 1;
-}
-
-.detail-row {
   display: flex;
-  margin-bottom: 10px;
+  gap: 30px;
+  margin-bottom: 30px;
 }
 
-.label {
-  font-weight: 600;
-  width: 100px;
+.photo-section {
+  width: 150px;
+  height: 180px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.student-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #e9ecef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: bold;
+  color: #adb5bd;
 }
 
 .performance-summary {
-  display: flex;
-  justify-content: space-around;
-  margin: 0 20px 30px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+  margin-bottom: 30px;
 }
 
 .summary-card {
-  flex: 1;
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
   text-align: center;
-  padding: 15px;
-  background: #fff;
-  border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .summary-value {
-  font-size: 24px;
+  font-size: 32px;
   font-weight: bold;
-  color: #2a5298;
+  color: #1e3c72;
+  margin-bottom: 8px;
 }
 
-.summary-label {
-  font-size: 14px;
-  color: #666;
-  margin-top: 5px;
-}
-
-.grades-section {
-  padding: 0 20px;
-}
-
-.subject-group {
-  margin-bottom: 30px;
-}
-
-.subject-group h3 {
-  color: #2a5298;
-  border-bottom: 2px solid #2a5298;
-  padding-bottom: 5px;
-  margin-bottom: 15px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-}
-
-th, td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-th {
-  background: #f8f9fa;
-  font-weight: 600;
-}
-
-.grade-cell {
-  font-weight: bold;
-}
-
-.grade-excellent { color: #28a745; }
-.grade-very-good { color: #17a2b8; }
-.grade-good { color: #007bff; }
-.grade-average { color: #ffc107; }
-.grade-poor { color: #dc3545; }
-
-.footer-section {
-  padding: 20px;
-}
-
-.observations {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
-}
-
-.signatures {
+.grades-groups {
   display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  margin-top: 40px;
+  flex-direction: column;
+  gap: 30px;
 }
 
-.signature-block {
-  flex: 1;
-  text-align: center;
+.grade-group {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.signature-title {
-  font-weight: 600;
-  margin-bottom: 10px;
+.grade-group h3 {
+  color: #1e3c72;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e9ecef;
 }
 
-.signature-box {
-  height: 80px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
+/* ... Autres styles spécifiques ... */
 
 @media print {
   .report-template-two {

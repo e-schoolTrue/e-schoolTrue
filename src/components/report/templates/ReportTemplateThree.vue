@@ -1,145 +1,172 @@
 <template>
   <div class="report-template-three">
-    <!-- Header minimaliste -->
-    <header class="modern-header">
-      <div class="school-brand">
-        <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" alt="Logo" class="school-logo">
-        <div class="school-name">{{ schoolInfo?.name }}</div>
+    <!-- En-tête avec bannière -->
+    <div class="report-banner">
+      <div class="banner-content">
+        <div class="school-brand">
+          <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" alt="Logo" class="school-logo">
+          <div class="school-info">
+            <h1>{{ schoolInfo?.name }}</h1>
+            <div class="school-contact">
+              <span>{{ schoolInfo?.phone }}</span>
+              <span>{{ schoolInfo?.email }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="report-title">
+          <h2>Bulletin de Notes</h2>
+          <div class="period-chip">{{ periodLabel }}</div>
+          <div class="year-label">{{ currentYear }}</div>
+        </div>
       </div>
-      <div class="report-info">
-        <h1>Bulletin de Notes</h1>
-        <div class="period-badge">{{ periodLabel }}</div>
-        <div class="academic-year">{{ currentYear }}</div>
-      </div>
-    </header>
+    </div>
 
-    <!-- Profil étudiant -->
-    <section class="student-profile">
-      <div class="profile-grid">
-        <div class="profile-photo">
-          <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo">
-          <div v-else class="photo-placeholder">
-            <Icon icon="mdi:account" class="placeholder-icon" />
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="info-grid">
-            <div class="info-item">
-              <label>Nom</label>
-              <span>{{ student?.lastname }}</span>
-            </div>
-            <div class="info-item">
-              <label>Prénom</label>
-              <span>{{ student?.firstname }}</span>
-            </div>
-            <div class="info-item">
-              <label>Matricule</label>
-              <span>{{ student?.matricule }}</span>
-            </div>
-            <div class="info-item">
-              <label>Classe</label>
-              <span>{{ student?.grade?.name }}</span>
+    <!-- Profil étudiant avec carte moderne -->
+    <div class="student-profile">
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="profile-photo">
+            <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo">
+            <div v-else class="photo-placeholder">
+              {{ studentInitials }}
             </div>
           </div>
-        </div>
-        <div class="performance-metrics">
-          <div class="metric">
-            <div class="metric-value">{{ formatGrade(generalAverage) }}/20</div>
-            <div class="metric-label">Moyenne Générale</div>
-          </div>
-          <div class="metric">
-            <div class="metric-value">{{ rank }}/{{ totalStudents }}</div>
-            <div class="metric-label">Classement</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Résultats par matière -->
-    <section class="results-section">
-      <div class="results-grid">
-        <div v-for="(group, index) in groupedGrades" 
-             :key="index"
-             class="subject-group">
-          <h3 class="group-title">{{ group.name }}</h3>
-          <div class="grades-cards">
-            <div v-for="grade in group.grades" 
-                 :key="grade.courseId"
-                 class="grade-card"
-                 :class="getGradeClass(grade.grade)">
-              <div class="grade-header">
-                <span class="course-name">{{ grade.courseName }}</span>
-                <span class="coefficient">Coef. {{ grade.coefficient }}</span>
+          <div class="profile-info">
+            <h3>{{ student?.firstname }} {{ student?.lastname }}</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <i class="fas fa-id-card"></i>
+                <span>{{ student?.matricule }}</span>
               </div>
-              <div class="grade-body">
-                <div class="grade-value">{{ formatGrade(grade.grade) }}</div>
-                <div class="grade-average">
-                  Moyenne classe: {{ formatGrade(grade.classAverage) }}
+              <div class="info-item">
+                <i class="fas fa-graduation-cap"></i>
+                <span>{{ student?.grade?.name }}</span>
+              </div>
+              <div class="info-item" v-if="student?.birthDay">
+                <i class="fas fa-birthday-cake"></i>
+                <span>{{ formatDate(student.birthDay) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Résumé des performances -->
+      <div class="performance-overview">
+        <div class="stat-card">
+          <div class="stat-value">{{ formatGrade(generalAverage) }}/20</div>
+          <div class="stat-label">Moyenne Générale</div>
+          <div class="stat-trend" :class="getTrendClass(generalAverage)">
+            {{ getTrendLabel(generalAverage) }}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ rank || '-' }}<small>/{{ totalStudents }}</small></div>
+          <div class="stat-label">Rang</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ getSuccessRate() }}%</div>
+          <div class="stat-label">Taux de réussite</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphique de performance -->
+    <div class="performance-chart">
+      <h3>Performance par matière</h3>
+      <div class="chart-container">
+        <canvas ref="chartRef"></canvas>
+      </div>
+    </div>
+
+    <!-- Tableau des notes avec design moderne -->
+    <div class="grades-section">
+      <div v-for="(group, groupName) in groupedGrades" :key="groupName" class="subject-group">
+        <h3>{{ groupName }}</h3>
+        <div class="grades-grid">
+          <div class="grade-card" v-for="grade in group" :key="grade.courseId">
+            <div class="grade-header">
+              <h4>{{ grade.courseName }}</h4>
+              <span class="coefficient">Coef. {{ grade.coefficient }}</span>
+            </div>
+            <div class="grade-details">
+              <div class="assignments">
+                <div class="assignment" v-for="(assignment, index) in grade.assignments" :key="index">
+                  <small>Dev {{ index + 1 }}</small>
+                  <span>{{ formatGrade(assignment) }}</span>
                 </div>
               </div>
-              <div class="grade-footer">
-                <p class="appreciation">{{ grade.appreciation }}</p>
+              <div class="exam-grade">
+                <small>Examen</small>
+                <span>{{ formatGrade(grade.exam) }}</span>
               </div>
+              <div class="final-grade" :class="getGradeClass(grade.average)">
+                <small>Moyenne</small>
+                <span>{{ formatGrade(grade.average) }}</span>
+              </div>
+            </div>
+            <div class="grade-footer">
+              <div class="appreciation">{{ grade.appreciation }}</div>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Graphique radar des compétences -->
-    <section class="skills-chart">
-      <h3>Compétences par domaine</h3>
-      <div class="chart-container">
-        <!-- Intégrer ici un graphique radar -->
-      </div>
-    </section>
-
-    <!-- Observations -->
-    <section class="observations-section">
-      <div class="observation-card">
-        <h3>Appréciation générale</h3>
+    <!-- Observations avec design moderne -->
+    <div class="feedback-section" v-if="observations || conduct">
+      <div class="observation-card" v-if="observations">
+        <h3>Observations</h3>
         <p>{{ observations }}</p>
-        <div class="mention">
-          <span class="mention-label">Mention :</span>
-          <span class="mention-value">{{ getGeneralAppreciation() }}</span>
+      </div>
+      <div class="conduct-card" v-if="conduct">
+        <h3>Comportement</h3>
+        <div class="conduct-grid">
+          <div class="conduct-item">
+            <i class="fas fa-user-check"></i>
+            <label>Discipline</label>
+            <span>{{ conduct.discipline }}</span>
+          </div>
+          <div class="conduct-item">
+            <i class="fas fa-clock"></i>
+            <label>Assiduité</label>
+            <span>{{ conduct.attendance }}</span>
+          </div>
+          <div class="conduct-item">
+            <i class="fas fa-book-reader"></i>
+            <label>Travail</label>
+            <span>{{ conduct.workEthic }}</span>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Signatures modernes -->
-    <section class="signatures-section">
-      <div class="signature-grid">
-        <div class="signature-card">
-          <span class="signature-role">Direction</span>
-          <div class="signature-area"></div>
-        </div>
-        <div class="signature-card">
-          <span class="signature-role">Professeur Principal</span>
-          <div class="signature-area"></div>
-        </div>
-        <div class="signature-card">
-          <span class="signature-role">Parents</span>
-          <div class="signature-area"></div>
-        </div>
+    <!-- Signatures avec style moderne -->
+    <div class="signatures-modern">
+      <div class="signature-block">
+        <div class="signature-title">Direction</div>
+        <div class="signature-area"></div>
       </div>
-    </section>
+      <div class="signature-block">
+        <div class="signature-title">Professeur Principal</div>
+        <div class="signature-area"></div>
+      </div>
+      <div class="signature-block">
+        <div class="signature-title">Parents</div>
+        <div class="signature-area"></div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Icon } from '@iconify/vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import type { ReportCardData } from '@/types/report';
+import Chart from 'chart.js/auto';
 
-const props = defineProps<{
-  student: any;
-  grades: any[];
-  period: string;
-  config: any;
-  schoolInfo?: any;
-  rank?: number;
-  totalStudents?: number;
-  observations?: string;
-}>();
+const props = defineProps<ReportCardData>();
+const chartRef = ref<HTMLCanvasElement | null>(null);
+let chart: Chart | null = null;
 
 // Computed properties et méthodes similaires aux autres templates...
 const periodLabel = computed(() => {
@@ -163,7 +190,7 @@ const generalAverage = computed(() => {
   if (!props.grades?.length) return 0;
   
   const totalWeightedGrades = props.grades.reduce((sum, grade) => {
-    return sum + (grade.grade * grade.coefficient);
+    return sum + (grade.average * grade.coefficient);
   }, 0);
   
   const totalCoefficients = props.grades.reduce((sum, grade) => {
@@ -171,6 +198,27 @@ const generalAverage = computed(() => {
   }, 0);
   
   return totalWeightedGrades / totalCoefficients;
+});
+
+const groupedGrades = computed(() => {
+  // Grouper les notes par catégorie de matière
+  const groups: Record<string, any> = {};
+  props.grades.forEach(grade => {
+    const groupName = grade.courseGroup || 'Autres';
+    if (!groups[groupName]) {
+      groups[groupName] = {
+        name: groupName,
+        grades: []
+      };
+    }
+    groups[groupName].grades.push(grade);
+  });
+  return Object.values(groups);
+});
+
+const studentInitials = computed(() => {
+  if (!props.student) return '';
+  return `${props.student.firstname[0]}${props.student.lastname[0]}`.toUpperCase();
 });
 
 // Méthodes
@@ -186,233 +234,111 @@ const getGradeClass = (grade: number): string => {
   return 'grade-poor';
 };
 
-const getGeneralAppreciation = () => {
-  const average = generalAverage.value;
-  if (average >= 16) return 'Excellent';
-  if (average >= 14) return 'Très Bien';
-  if (average >= 12) return 'Bien';
-  if (average >= 10) return 'Assez Bien';
-  return 'Insuffisant';
+
+const getSuccessRate = () => {
+  const passedCourses = props.grades.filter(g => g.average >= 10).length;
+  return Math.round((passedCourses / props.grades.length) * 100);
 };
+
+const getTrendClass = (average: number) => ({
+  'trend-up': average >= 14,
+  'trend-stable': average >= 10 && average < 14,
+  'trend-down': average < 10
+});
+
+const getTrendLabel = (average: number) => {
+  if (average >= 14) return '↑ Excellent';
+  if (average >= 10) return '→ Satisfaisant';
+  return '↓ À améliorer';
+};
+
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleDateString('fr-FR');
+};
+
+const initChart = () => {
+  if (!chartRef.value || !props.grades.length) return;
+
+  const ctx = chartRef.value.getContext('2d');
+  if (!ctx) return;
+
+  const data = {
+    labels: props.grades.map(g => g.courseName),
+    datasets: [
+      {
+        label: 'Notes de l\'élève',
+        data: props.grades.map(g => g.average),
+        borderColor: '#4CAF50',
+        backgroundColor: 'rgba(76, 175, 80, 0.2)',
+      },
+      {
+        label: 'Moyenne de classe',
+        data: props.grades.map(g => g.classAverage),
+        borderColor: '#2196F3',
+        backgroundColor: 'rgba(33, 150, 243, 0.2)',
+      }
+    ]
+  };
+
+  chart = new Chart(ctx, {
+    type: 'radar',
+    data,
+    options: {
+      scales: {
+        r: {
+          min: 0,
+          max: 20,
+          ticks: {
+            stepSize: 5
+          }
+        }
+      }
+    }
+  });
+};
+
+// Lifecycle hooks
+onMounted(() => {
+  initChart();
+});
+
+watch(() => props.grades, () => {
+  if (chart) {
+    chart.destroy();
+  }
+  initChart();
+}, { deep: true });
 </script>
 
 <style scoped>
+/* Styles modernes avec des variables CSS pour la personnalisation */
+:root {
+  --primary-color: #1e3c72;
+  --secondary-color: #2a5298;
+  --success-color: #4CAF50;
+  --warning-color: #FFC107;
+  --danger-color: #F44336;
+  --text-color: #2c3e50;
+  --border-radius: 10px;
+  --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
 .report-template-three {
-  background: #fff;
-  max-width: 210mm;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-}
-
-.modern-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 40px;
-}
-
-.school-brand {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.school-logo {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-}
-
-.school-name {
-  font-size: 24px;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.report-info {
-  text-align: right;
-}
-
-.period-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  background: #3498db;
-  color: white;
-  border-radius: 20px;
-  font-size: 14px;
-  margin: 8px 0;
-}
-
-.student-profile {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 30px;
-}
-
-.profile-grid {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 20px;
-  align-items: center;
-}
-
-.profile-photo img {
-  width: 120px;
-  height: 150px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
-}
-
-.info-item label {
-  display: block;
-  color: #666;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-
-.info-item span {
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.performance-metrics {
-  text-align: center;
-}
-
-.metric {
-  margin-bottom: 15px;
-}
-
-.metric-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-.metric-label {
-  font-size: 12px;
-  color: #666;
-}
-
-.results-grid {
-  display: grid;
-  gap: 30px;
-}
-
-.subject-group {
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.group-title {
-  padding: 15px;
-  margin: 0;
-  background: #f8f9fa;
-  color: #2c3e50;
-}
-
-.grades-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 15px;
-  padding: 15px;
-}
-
-.grade-card {
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  padding: 15px;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  color: var(--text-color);
+  padding: 30px;
 }
 
-.grade-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.course-name {
-  font-weight: 500;
-}
-
-.coefficient {
-  font-size: 12px;
-  color: #666;
-}
-
-.grade-value {
-  font-size: 24px;
-  font-weight: bold;
-  text-align: center;
-  margin: 15px 0;
-}
-
-.grade-average {
-  font-size: 12px;
-  color: #666;
-  text-align: center;
-}
-
-.observations-section {
-  margin: 30px 0;
-}
-
-.observation-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.mention {
-  margin-top: 15px;
-  text-align: right;
-}
-
-.mention-value {
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-.signatures-section {
-  margin-top: 40px;
-}
-
-.signature-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.signature-card {
-  text-align: center;
-}
-
-.signature-role {
-  display: block;
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 10px;
-}
-
-.signature-area {
-  height: 80px;
-  border: 1px dashed #ddd;
-  border-radius: 8px;
-}
+/* ... Styles spécifiques pour chaque section ... */
 
 @media print {
   .report-template-three {
     padding: 0;
+  }
+  
+  .performance-chart {
+    page-break-before: always;
   }
 }
 </style> 

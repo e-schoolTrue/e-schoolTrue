@@ -3,18 +3,12 @@ export const planningRoutes = [
   {
     path: "/planning/students/absences",
     name: "StudentAbsences",
-    component: () => import("@/views/planning/student/AbsenceManagementView.vue"),
+    component: () => import("@/views/planning/student/AbsenceStudentView.vue"),
   },
   {
     path: "/planning/students/homework",
     name: "StudentHomework",
     component: () => import("@/views/planning/student/HomeworkView.vue"),
-  },
-
-  {
-    path: "/planning/students/absences",
-    name: "StudentAbsences",
-    component: () => import("@/views/planning/student/AbsenceManagementView.vue"),
   },
   {
     path: "/planning/students/vacation",
@@ -27,7 +21,7 @@ export const planningRoutes = [
   {
     path: "/planning/professors/absences",
     name: "ProfessorAbsences",
-    component: () => import("@/views/planning/professor/AbsenceView.vue"),
+    component: () => import("@/views/planning/professor/AbsenceProfView.vue"),
   },
   {
     path: "/planning/professors/vacation",

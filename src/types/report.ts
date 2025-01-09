@@ -1,30 +1,55 @@
 import { Component } from 'vue';
 
-export interface ReportCard {
-    id: number;
-    period: string;
-    schoolYear: string;
-    grades: {
-        courseId: number;
-        courseName: string;
-        coefficient: number;
-        grade: number;
-        appreciation: string;
-    }[];
-    generalAppreciation?: string;
-    average: number;
-    classAverage: number;
-    rank: number;
-    totalStudents: number;
-    student: {
-        id: number;
+export interface SchoolInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  logo?: {
+    url: string;
+  };
+}
+
+export interface StudentInfo {
         firstname: string;
         lastname: string;
         matricule: string;
+  birthDay?: string;
+  birthPlace?: string;
         grade: {
-            id: number;
             name: string;
         };
+  photo?: {
+    url: string;
+  };
+}
+
+export interface GradeInfo {
+  courseId: number;
+  courseName: string;
+  courseGroup?: string;
+  coefficient: number;
+  assignments: number[];
+  exam: number;
+  average: number;
+  classAverage: number;
+  appreciation: string;
+}
+
+export interface ReportCardData {
+  student: StudentInfo;
+  schoolInfo: SchoolInfo;
+  period: string;
+  grades: GradeInfo[];
+  generalAverage: number;
+  classGeneralAverage?: number;
+  rank?: number;
+  totalStudents?: number;
+  observations?: string;
+  conduct?: {
+    discipline: string;
+    attendance: string;
+    workEthic: string;
     };
 }
 

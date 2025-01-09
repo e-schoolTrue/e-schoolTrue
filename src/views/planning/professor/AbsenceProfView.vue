@@ -457,12 +457,19 @@ const loadProfessors = async () => {
 const loadAbsences = async () => {
   loading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('absence:getAllProfessors');
-    if (result.success) {
+    console.log('=== Client - Début chargement absences professeurs ===');
+    const result = await window.ipcRenderer.invoke('absence:allProfessor');
+    console.log('=== Client - Résultat reçu ===', result);
+    
+    if (result?.success) {
       absences.value = result.data;
+      console.log('=== Client - Nombre d\'absences chargées ===', absences.value.length);
+    } else {
+      console.error('=== Client - Erreur dans la réponse ===', result?.error);
     }
   } catch (error) {
-    ElMessage.error('Erreur lors du chargement des absences');
+    console.error("=== Client - Erreur lors du chargement des absences ===", error);
+    ElMessage.error("Erreur lors du chargement des absences des professeurs");
   } finally {
     loading.value = false;
   }

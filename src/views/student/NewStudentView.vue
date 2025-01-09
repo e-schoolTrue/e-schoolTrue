@@ -4,10 +4,12 @@ import StudentForm from '@/components/student/student-form.vue';
 import FileUploader from '@/components/student/student-file.vue';
 import { ElMessage } from 'element-plus';
 import type { StudentData } from '@/types/student';
+import type { StudentFormInstance } from '@/components/student/student-form.vue';
 
 
 const isLoading = ref(false);
 const classes = ref([]); // Initialisation vide
+const formRef = ref<StudentFormInstance | null>(null); // Ajouter cette référence
 
 
 const fetchClasses = async () => {
@@ -31,20 +33,19 @@ const saveStudent = async (studentData: any) => {
   try {
     console.log("Données reçues de student-form:", studentData);
     
-    // S'assurer que documents est un tableau
     if (studentData.documents && !Array.isArray(studentData.documents)) {
       studentData.documents = Object.values(studentData.documents);
     }
     
-    console.log("Données de l'étudiant à enregistrer:", studentData);
-    
-    // Sérialiser puis désérialiser pour s'assurer que l'objet est clonable
     const serializedData = JSON.parse(JSON.stringify(studentData));
     
     const result = await window.ipcRenderer.invoke('save-student', serializedData);
     if (result.success) {
       ElMessage.success('Étudiant enregistré avec succès');
-      // Réinitialiser le formulaire ou rediriger vers la liste des étudiants
+      // Réinitialiser le formulaire via la référence
+      if (formRef.value) {
+        formRef.value.resetForm();
+      }
     } else {
       let errorMessage = "Échec de l'enregistrement";
       if (result.message) {
@@ -109,7 +110,11 @@ const handleFileLoaded = async (students: StudentData[]) => {
 
       <!-- Section du formulaire d'ajout manuel -->
       <el-col :span="16" class="section-container">
-        <student-form :classes="classes" @save="saveStudent" />
+        <student-form 
+          ref="formRef"
+          :classes="classes" 
+          @save="saveStudent" 
+        />
       </el-col>
     </el-row>
   </el-card>

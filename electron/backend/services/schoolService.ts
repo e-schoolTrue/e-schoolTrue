@@ -1,52 +1,51 @@
 import { Repository } from "typeorm";
 import { SchoolEntity } from "../entities/school";
-import { FileEntity } from "../entities/file"; // Import de FileEntity pour gérer le logo
 import { AppDataSource } from "../../data-source";
 import { ResultType } from "#electron/command";
+import { FileService } from "./fileService";
 
 export class SchoolService {
     private schoolRepository: Repository<SchoolEntity>;
-    private fileRepository: Repository<FileEntity>;
+    private fileService: FileService;
 
     constructor() {
         const dataSource = AppDataSource.getInstance();
         this.schoolRepository = dataSource.getRepository(SchoolEntity);
-        this.fileRepository = dataSource.getRepository(FileEntity);
+        this.fileService = new FileService();
     }
 
-    // Enregistrer ou mettre à jour les informations de l'école
-    async saveOrUpdateSchool(schoolData: Partial<SchoolEntity>): Promise<ResultType> {
+    async saveOrUpdateSchool(schoolData: any): Promise<ResultType> {
         try {
-            // Gestion du logo (charger l'entité si un logoId est fourni)
-            if (schoolData.logo && typeof schoolData.logo === 'number') {
-                const logoEntity = await this.fileRepository.findOne({
-                    where: { id: schoolData.logo }
-                });
-
-                if (!logoEntity) {
-                    return {
-                        success: false,
-                        data: null,
-                        error: "Logo introuvable",
-                        message: "Le logo spécifié n'existe pas dans la base de données"
-                    };
-                }
-
-                schoolData.logo = logoEntity; // Associer le logo à l'école
+            // Déterminer la devise en fonction du pays
+            const currencyMap: { [key: string]: string } = {
+                'MAR': 'MAD',
+                'SEN': 'FCFA',
+                'CAF': 'FCFA',
+                'GIN': 'GNF'
+            };
+            
+            // S'assurer que la devise est toujours définie
+            schoolData.currency = currencyMap[schoolData.country] || 'FCFA';
+            
+            // Gestion du logo si un nouveau logo est fourni
+            if (schoolData.logo && schoolData.logo.content) {
+                const savedLogo = await this.fileService.saveFile(
+                    schoolData.logo.content,
+                    schoolData.logo.name,
+                    schoolData.logo.type
+                );
+                schoolData.logo = savedLogo;
             }
 
-            // Rechercher une école existante
             const existingSchool = await this.schoolRepository.findOne({
                 where: {},
                 relations: ['logo']
             });
 
             if (existingSchool) {
-                // Mise à jour des informations
                 const updatedSchool = this.schoolRepository.merge(existingSchool, schoolData);
                 const savedSchool = await this.schoolRepository.save(updatedSchool);
                 
-                // Charger l'école avec toutes les relations après la sauvegarde
                 const refreshedSchool = await this.schoolRepository.findOne({
                     where: { id: savedSchool.id },
                     relations: ['logo']
@@ -59,7 +58,6 @@ export class SchoolService {
                     message: "Informations de l'école mises à jour avec succès"
                 };
             } else {
-                // Enregistrement d'une nouvelle école
                 const newSchool = this.schoolRepository.create(schoolData);
                 const savedSchool = await this.schoolRepository.save(newSchool);
 
@@ -82,12 +80,11 @@ export class SchoolService {
         }
     }
 
-    // Récupérer les informations de l'école
     async getSchool(): Promise<ResultType> {
         try {
             const school = await this.schoolRepository.findOne({
                 where: {},
-                relations: ['logo']  //relation
+                relations: ['logo']
             });
     
             return {

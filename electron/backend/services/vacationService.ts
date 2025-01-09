@@ -2,7 +2,15 @@ import { Repository } from "typeorm";
 import { VacationEntity } from "../entities/vacation";
 import { AppDataSource } from "../../data-source";
 import { ResultType } from "#electron/command";
-import { ProfessorEntity } from "../entities/professor";
+import { IsNull } from "typeorm";
+
+interface VacationDTO {
+  startDate: string;
+  endDate: string;
+  reason: string;
+  studentId?: number;
+  professorId?: number;
+}
 
 export class VacationService {
     private vacationRepository: Repository<VacationEntity>;
@@ -11,38 +19,28 @@ export class VacationService {
         this.vacationRepository = AppDataSource.getInstance().getRepository(VacationEntity);
     }
 
-    async createVacation(data: Partial<VacationEntity>): Promise<ResultType> {
+    async createVacation(data: VacationDTO): Promise<ResultType> {
         try {
-            console.log("Données reçues:", data); // Debug
+            console.log("=== Service - createVacation - Données reçues ===", data);
 
-            // Vérifier que le professeur existe
-            const professor = await this.vacationRepository.manager
-                .getRepository(ProfessorEntity)
-                .findOne({ where: { id: data.professorId } });
-
-            if (!professor) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Professeur non trouvé",
-                    error: "PROFESSOR_NOT_FOUND"
-                };
-            }
-
-            // Créer l'entité vacation avec le professeur
             const vacation = this.vacationRepository.create({
-                ...data,
-                professor,
-                status: 'pending'
+                startDate: data.startDate,
+                endDate: data.endDate,
+                reason: data.reason,
+                status: 'pending',
+                student: data.studentId ? { id: data.studentId } : undefined,
+                professor: data.professorId ? { id: data.professorId } : undefined
             });
 
+            console.log("=== Service - createVacation - Entité créée ===", vacation);
+
             const saved = await this.vacationRepository.save(vacation);
-            console.log("Vacation sauvegardée:", saved); // Debug
+            console.log("=== Service - createVacation - Sauvegarde effectuée ===", saved);
 
             // Récupérer la vacation avec toutes les relations
             const result = await this.vacationRepository.findOne({
                 where: { id: saved.id },
-                relations: ['professor', 'professor.teaching']
+                relations: ['student', 'student.grade', 'professor', 'professor.teaching']
             });
 
             return {
@@ -52,7 +50,7 @@ export class VacationService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur dans createVacation:", error);
+            console.error("=== Service - createVacation - Erreur ===", error);
             return {
                 success: false,
                 data: null,
@@ -65,7 +63,10 @@ export class VacationService {
     async getVacationsByStudent(studentId: number): Promise<ResultType> {
         try {
             const vacations = await this.vacationRepository.find({
-                where: { student: { id: studentId } },
+                where: { 
+                    student: { id: studentId },
+                    professor: IsNull()
+                },
                 relations: ['student']
             });
 
@@ -90,17 +91,14 @@ export class VacationService {
             const query = this.vacationRepository
                 .createQueryBuilder('vacation')
                 .leftJoinAndSelect('vacation.professor', 'professor')
-                .leftJoinAndSelect('professor.teaching', 'teaching')
-                .leftJoinAndSelect('teaching.course', 'course')
-                .leftJoinAndSelect('teaching.class', 'class')
+                .where('vacation.student IS NULL') // S'assurer qu'il n'y a pas d'étudiant associé
                 .orderBy('vacation.createdAt', 'DESC');
 
             if (professorId) {
-                query.where('professor.id = :professorId', { professorId });
+                query.andWhere('professor.id = :professorId', { professorId });
             }
 
             const vacations = await query.getMany();
-            console.log("Vacations récupérées:", vacations); // Debug
 
             return {
                 success: true,
@@ -109,7 +107,6 @@ export class VacationService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur dans getVacationsByProfessor:", error);
             return {
                 success: false,
                 data: null,

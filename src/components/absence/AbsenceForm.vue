@@ -60,6 +60,21 @@ interface AbsenceFormData {
   justificationDocument?: string;
 }
 
+interface AbsenceSubmitData {
+  studentId: number;
+  gradeId: number;
+  date: string;
+  absenceType: "FULL_DAY" | "MORNING" | "AFTERNOON" | "COURSE";
+  reasonType: "OTHER" | "MEDICAL" | "FAMILY" | "UNAUTHORIZED" | "SCHOOL_ACTIVITY";
+  reason: string;
+  justified: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  courseId: number | null;
+  comments: string;
+  justificationDocument?: string;
+}
+
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   student: null,
@@ -92,7 +107,8 @@ const form = ref<AbsenceFormData>({
   startTime: null,
   endTime: null,
   courseId: null,
-  comments: ''
+  comments: '',
+  justificationDocument: undefined,
 });
 
 // Options
@@ -138,7 +154,7 @@ const rules = {
   date: [{ required: true, message: 'La date est requise', trigger: 'change' }],
   absenceType: [{ required: true, message: "Le type d'absence est requis", trigger: 'change' }],
   reasonType: [{ required: true, message: 'Le type de motif est requis', trigger: 'change' }],
-  reason: [{ required: true, message: 'Le motif est requis', trigger: 'blur' }],
+  reason: [{ required: false }],
   courseId: [{
     required: false,
     validator: (_: any, value: number | null) => {
@@ -157,6 +173,14 @@ const rules = {
     validator: validateTimes,
     trigger: 'change'
   }]
+};
+
+// Ajouter des tooltips d'aide
+const tooltips = {
+  absenceType: "Sélectionnez le type d'absence approprié",
+  reasonType: "Catégorisez le motif de l'absence",
+  reason: "Description optionnelle pour plus de détails",
+  justified: "Cochez si l'absence est justifiée par un document",
 };
 
 // Computed
@@ -249,15 +273,11 @@ const handleSubmit = async () => {
       return;
     }
 
-    if (!form.value.reasonType || !form.value.absenceType || !form.value.reason) {
-      ElMessage.error("Tous les champs obligatoires doivent être remplis");
-      return;
-    }
-
-    const submitData: AbsenceFormData = {
+    // Créer un objet simple sans méthodes ou références circulaires
+    const submitData: AbsenceSubmitData = {
       studentId: student.id,
       gradeId: student.grade.id,
-      date: form.value.date,
+      date: new Date(form.value.date).toISOString(),
       absenceType: form.value.absenceType,
       reasonType: form.value.reasonType,
       reason: form.value.reason.trim(),
@@ -268,18 +288,7 @@ const handleSubmit = async () => {
       comments: form.value.comments.trim()
     };
 
-    if (!submitData.date || !submitData.reasonType || !submitData.reason) {
-      ElMessage.error("Veuillez remplir tous les champs obligatoires");
-      return;
-    }
-
-    if (submitData.absenceType === 'COURSE') {
-      if (!submitData.courseId || !submitData.startTime || !submitData.endTime) {
-        ElMessage.error("Pour une absence par cours, veuillez sélectionner le cours et les horaires");
-        return;
-      }
-    }
-
+    // Gérer le fichier justificatif si présent
     if (selectedFile.value?.raw) {
       const fileResult = await window.ipcRenderer.invoke('file:upload', {
         file: selectedFile.value.raw,
@@ -303,12 +312,7 @@ const handleSubmit = async () => {
 
   } catch (error) {
     console.error('Erreur lors de la soumission:', error);
-    if (error instanceof Error) {
-      ElMessage.error(error.message);
-    } else {
-      console.error('Validation errors:', error);
-      ElMessage.error("Erreur lors de la soumission");
-    }
+    ElMessage.error(error instanceof Error ? error.message : "Erreur lors de la soumission");
   } finally {
     saving.value = false;
   }
@@ -365,7 +369,7 @@ const formatTime = (time: Date | string | null): string => {
   <el-dialog
     :title="isEdit ? 'Modifier une absence' : 'Nouvelle absence'"
     v-model="dialogVisible"
-    width="60%"
+    width="700px"
     :close-on-click-modal="false"
     destroy-on-close
   >
@@ -376,8 +380,16 @@ const formatTime = (time: Date | string | null): string => {
       label-position="top"
       class="absence-form"
     >
+      <!-- Section Informations principales -->
+      <div class="form-section">
+        <h3>Informations principales</h3>
       <!-- Sélection de l'élève -->
-      <el-form-item label="Élève" prop="studentId" v-if="!isEdit">
+        <el-form-item 
+          label="Élève" 
+          prop="studentId" 
+          v-if="!isEdit"
+          :tooltip="tooltips.absenceType"
+        >
         <el-select
           v-model="form.studentId"
           filterable
@@ -403,8 +415,12 @@ const formatTime = (time: Date | string | null): string => {
         </el-select>
       </el-form-item>
 
-      <!-- Type d'absence -->
-      <el-form-item label="Type d'absence" prop="absenceType">
+        <!-- Type d'absence avec tooltip -->
+        <el-form-item 
+          label="Type d'absence" 
+          prop="absenceType"
+          :tooltip="tooltips.absenceType"
+        >
         <el-select
           v-model="form.absenceType"
           placeholder="Sélectionner le type"
@@ -419,9 +435,10 @@ const formatTime = (time: Date | string | null): string => {
         </el-select>
       </el-form-item>
 
-      <!-- Date et heures -->
-      <div class="form-row">
-        <el-form-item label="Date" prop="date" class="date-input">
+        <!-- Date et heures dans une grille responsive -->
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="Date" prop="date">
           <el-date-picker
             v-model="form.date"
             type="date"
@@ -429,53 +446,40 @@ const formatTime = (time: Date | string | null): string => {
             :disabled-date="disablePastDates"
           />
         </el-form-item>
-
-        <template v-if="form.absenceType === 'COURSE'">
-          <el-form-item label="Début" prop="startTime" class="time-input">
+          </el-col>
+          <el-col :xs="24" :sm="12" v-if="form.absenceType === 'COURSE'">
+            <el-row :gutter="10">
+              <el-col :span="12">
+                <el-form-item label="Début" prop="startTime">
             <el-time-picker
               v-model="form.startTime"
               format="HH:mm"
               placeholder="Heure début"
             />
           </el-form-item>
-
-          <el-form-item label="Fin" prop="endTime" class="time-input">
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="Fin" prop="endTime">
             <el-time-picker
               v-model="form.endTime"
               format="HH:mm"
               placeholder="Heure fin"
             />
           </el-form-item>
-        </template>
+              </el-col>
+            </el-row>
+          </el-col>
+        </el-row>
       </div>
 
-      <!-- Cours (si type COURSE) -->
+      <!-- Section Motif -->
+      <div class="form-section">
+        <h3>Motif et Justification</h3>
       <el-form-item
-        v-if="form.absenceType === 'COURSE'"
-        label="Cours"
-        prop="courseId"
-      >
-        <el-select
-          v-model="form.courseId"
-          placeholder="Sélectionner le cours"
-          :loading="loadingCourses"
+          label="Type de motif" 
+          prop="reasonType"
+          :tooltip="tooltips.reasonType"
         >
-          <el-option
-            v-for="course in availableCourses"
-            :key="course.id"
-            :label="course.name"
-            :value="course.id"
-          >
-            <div class="course-option">
-              <span>{{ course.name }}</span>
-              <small>{{ course.professor?.firstname }} {{ course.professor?.lastname }}</small>
-            </div>
-          </el-option>
-        </el-select>
-      </el-form-item>
-
-      <!-- Motif -->
-      <el-form-item label="Type de motif" prop="reasonType">
         <el-select
           v-model="form.reasonType"
           placeholder="Sélectionner le motif"
@@ -489,23 +493,30 @@ const formatTime = (time: Date | string | null): string => {
         </el-select>
       </el-form-item>
 
-      <el-form-item label="Description du motif" prop="reason">
+        <el-form-item 
+          label="Description (optionnelle)" 
+          prop="reason"
+          :tooltip="tooltips.reason"
+        >
         <el-input
           v-model="form.reason"
           type="textarea"
           :rows="3"
-          placeholder="Détails sur le motif de l'absence"
+            placeholder="Détails additionnels sur le motif de l'absence (optionnel)"
         />
       </el-form-item>
 
-      <!-- Justification -->
-      <div class="form-row">
-        <el-form-item label="Justifiée" class="justify-switch">
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="8">
+            <el-form-item 
+              label="Justifiée" 
+              :tooltip="tooltips.justified"
+            >
           <el-switch v-model="form.justified" />
         </el-form-item>
-
+          </el-col>
+          <el-col :xs="24" :sm="16" v-if="form.justified">
         <el-form-item
-          v-if="form.justified"
           label="Document justificatif"
           prop="justificationDocument"
         >
@@ -522,6 +533,8 @@ const formatTime = (time: Date | string | null): string => {
             </template>
           </el-upload>
         </el-form-item>
+          </el-col>
+        </el-row>
       </div>
 
       <!-- Commentaires -->
@@ -552,9 +565,25 @@ const formatTime = (time: Date | string | null): string => {
 
 <style scoped>
 .absence-form {
-  max-height: 60vh;
+  max-height: 70vh;
   overflow-y: auto;
-  padding-right: 16px;
+  padding: 0 16px;
+}
+
+.form-section {
+  background-color: var(--el-fill-color-blank);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--el-box-shadow-lighter);
+}
+
+.form-section h3 {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding-bottom: 10px;
 }
 
 .form-row {

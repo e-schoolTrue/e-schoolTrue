@@ -116,6 +116,32 @@
       width="500px"
     >
       <el-form :model="form" label-width="120px">
+        <el-form-item label="Élève" required>
+          <el-select
+            v-model="form.studentId"
+            filterable
+            placeholder="Sélectionner un élève"
+            :disabled="isEditing"
+          >
+            <el-option
+              v-for="student in students"
+              :key="student.id"
+              :label="`${student.firstname} ${student.lastname}${student.grade ? ` - ${student.grade.name}` : ''}`"
+              :value="student.id"
+            >
+              <div class="student-option">
+                <el-avatar :size="24">
+                  {{ getInitials(student) }}
+                </el-avatar>
+                <div class="student-info">
+                  <span>{{ student.firstname }} {{ student.lastname }}</span>
+                  <small v-if="student.grade">{{ student.grade.name }}</small>
+                </div>
+              </div>
+            </el-option>
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="Période" required>
           <el-date-picker
             v-model="form.dateRange"
@@ -147,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Icon } from '@iconify/vue';
 
@@ -155,6 +181,10 @@ interface Student {
   id: number;
   firstname: string;
   lastname: string;
+  grade?: {
+    id: number;
+    name: string;
+  };
 }
 
 interface Vacation {
@@ -175,10 +205,12 @@ const isEditing = ref(false);
 const vacations = ref<Vacation[]>([]);
 const selectedStatus = ref<string | null>(null);
 const dateRange = ref<[Date, Date] | null>(null);
+const students = ref<Student[]>([]);
 
 const form = ref({
   dateRange: null as [Date, Date] | null,
-  reason: ''
+  reason: '',
+  studentId: null as number | null
 });
 
 // Computed
@@ -230,24 +262,38 @@ const loadVacations = async () => {
   }
 };
 
+const loadStudents = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('student:all');
+    if (result.success) {
+      students.value = result.data;
+    } else {
+      throw new Error(result.message || 'Erreur lors du chargement des étudiants');
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    ElMessage.error('Erreur lors du chargement des étudiants');
+  }
+};
+
 const showAddDialog = () => {
   isEditing.value = false;
   form.value = {
     dateRange: null,
-    reason: ''
+    reason: '',
+    studentId: null
   };
   dialogVisible.value = true;
 };
 
 const saveVacation = async () => {
-  if (!form.value.dateRange || !form.value.reason) {
+  if (!form.value.dateRange || !form.value.reason || !form.value.studentId) {
     ElMessage.warning('Veuillez remplir tous les champs');
     return;
   }
 
   saving.value = true;
   try {
-    const studentId = 1; // À remplacer par l'ID réel de l'étudiant
     const [startDate, endDate] = form.value.dateRange;
     const data = {
       id: undefined,
@@ -255,7 +301,7 @@ const saveVacation = async () => {
       endDate: endDate.toISOString(), 
       reason: form.value.reason,
       status: 'pending',
-      studentId
+      studentId: form.value.studentId
     };
 
     const result = await window.ipcRenderer.invoke(
@@ -325,7 +371,8 @@ const editVacation = (vacation: Vacation) => {
   isEditing.value = true;
   form.value = {
     dateRange: [new Date(vacation.startDate), new Date(vacation.endDate)],
-    reason: vacation.reason
+    reason: vacation.reason,
+    studentId: vacation.student?.id || null
   };
   dialogVisible.value = true;
 };
@@ -387,7 +434,9 @@ const rejectVacation = async (vacation: Vacation) => {
 };
 
 // Initialisation
-loadVacations();
+onMounted(async () => {
+  await Promise.all([loadStudents(), loadVacations()]);
+});
 </script>
 
 <style scoped>
@@ -415,5 +464,21 @@ loadVacations();
 
 :deep(.el-select) {
   width: 200px;
+}
+
+.student-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.student-info small {
+  color: var(--el-text-color-secondary);
+  font-size: 0.85em;
 }
 </style> 

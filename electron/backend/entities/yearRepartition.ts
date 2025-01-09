@@ -25,4 +25,7 @@ export class YearRepartitionEntity {
 
     @UpdateDateColumn()
     updatedAt?: Date;
+
+    @Column({ type: 'boolean', default: false })
+    isCurrent?: boolean;
 }

@@ -2,7 +2,7 @@ import { Repository } from "typeorm";
 import { YearRepartitionEntity } from "#electron/backend/entities/yearRepartition";
 import { AppDataSource } from "#electron/data-source";
 import { ResultType } from "#electron/command";
-import { messages } from "#app/messages";
+
 
 export class YearRepartitionService {
     private yearRepartitionRepository: Repository<YearRepartitionEntity>;
@@ -27,14 +27,14 @@ export class YearRepartitionService {
                 success: true,
                 data: newYearRepartition,
                 error: null,
-                message: messages.year_repartition_created_successfully,
+                message: "Répartition d'année scolaire créée avec succès",
             };
         } catch (error: any) {
             return {
                 success: false,
                 data: null,
                 error: error.message,
-                message: messages.year_repartition_creation_failed,
+                message: "Échec de la création de la répartition d'année scolaire",
             };
         }
     }
@@ -55,7 +55,7 @@ export class YearRepartitionService {
                     success: false,
                     data: null,
                     error: "YearRepartition not found",
-                    message: messages.year_repartition_not_found,
+                    message: "Répartition d'année scolaire non trouvée",
                 };
             }
 
@@ -70,14 +70,14 @@ export class YearRepartitionService {
                 success: true,
                 data: yearRepartition,
                 error: null,
-                message: messages.year_repartition_updated_successfully,
+                message: "Répartition d'année scolaire mise à jour avec succès",
             };
         } catch (error: any) {
             return {
                 success: false,
                 data: null,
                 error: error.message,
-                message: messages.year_repartition_update_failed,
+                message: "Échec de la mise à jour de la répartition d'année scolaire",
             };
         }
     }
@@ -97,7 +97,7 @@ export class YearRepartitionService {
                 success: false,
                 data: null,
                 error: error.message,
-                message: messages.year_repartition_retrieve_failed,
+                message: "Échec de la récupération des répartitions d'années scolaires",
             };
         }
     }
@@ -112,7 +112,7 @@ export class YearRepartitionService {
                     success: false,
                     data: null,
                     error: "YearRepartition not found",
-                    message: messages.year_repartition_not_found,
+                    message: "Répartition d'année scolaire non trouvée",
                 };
             }
 
@@ -120,14 +120,85 @@ export class YearRepartitionService {
                 success: true,
                 data: null,
                 error: null,
-                message: messages.year_repartition_deleted_successfully,
+                message: "Répartition d'année scolaire supprimée avec succès",
             };
         } catch (error: any) {
             return {
                 success: false,
                 data: null,
                 error: error.message,
-                message: messages.year_repartition_delete_failed,
+                message: "Échec de la suppression de la répartition d'année scolaire",
+            };
+        }
+    }
+
+    // Ajouter cette nouvelle méthode
+    async getCurrentYearRepartition(): Promise<ResultType> {
+        try {
+            const allRepartitions = await this.yearRepartitionRepository.find();
+            const currentDate = new Date();
+            
+            const currentRepartition = allRepartitions.find(repartition => {
+                const periods = repartition.periodConfigurations;
+                if (!periods || periods.length === 0) return false;
+                
+                const startDate = new Date(periods[0].start);
+                const endDate = new Date(periods[periods.length - 1].end);
+                
+                return currentDate >= startDate && currentDate <= endDate;
+            });
+
+            return {
+                success: true,
+                data: currentRepartition || null,
+                error: null,
+                message: currentRepartition ? "Année scolaire courante trouvée" : "Aucune année scolaire active trouvée"
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                data: null,
+                error: error.message,
+                message: "Erreur lors de la récupération de l'année scolaire courante"
+            };
+        }
+    }
+
+    // Ajouter cette méthode
+    async setCurrentYearRepartition(id: number): Promise<ResultType> {
+        try {
+            const yearRepartition = await this.yearRepartitionRepository.findOne({
+                where: { id }
+            });
+
+            if (!yearRepartition) {
+                return {
+                    success: false,
+                    data: null,
+                    error: "YearRepartition not found",
+                    message: "Répartition d'année scolaire non trouvée"
+                };
+            }
+
+            // Mettre à jour tous les enregistrements pour désactiver isCurrent
+            await this.yearRepartitionRepository.update({}, { isCurrent: false });
+
+            // Définir la répartition sélectionnée comme courante
+            yearRepartition.isCurrent = true;
+            await this.yearRepartitionRepository.save(yearRepartition);
+
+            return {
+                success: true,
+                data: yearRepartition,
+                message: "Année scolaire courante définie avec succès",
+                error: null
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                data: null,
+                error: error.message,
+                message: "Erreur lors de la définition de l'année scolaire courante"
             };
         }
     }

@@ -125,31 +125,31 @@
             style="width: 100%"
             :height="tableHeight"
             v-loading="loading"
-            :row-class-name="getRowClassName"
           >
             <el-table-column
-              prop="student.matricule"
-              label="Matricule"
-              width="120"
-              sortable
-            />
-            
-            <el-table-column 
-              label="Élève" 
-              width="200" 
+              label="Élève"
+              min-width="200"
               sortable
             >
               <template #default="{ row }">
-                {{ row.student.firstname }} {{ row.student.lastname }}
+                <div class="student-info">
+                  <div class="student-details">
+                    <span>{{ row.student?.firstname }} {{ row.student?.lastname }}</span>
+                    <small>{{ row.student?.matricule }}</small>
+                  </div>
+                </div>
               </template>
             </el-table-column>
 
-            <el-table-column 
-              prop="grade.name" 
-              label="Classe" 
-              width="120" 
-              sortable 
-            />
+            <el-table-column
+              label="Classe"
+              width="120"
+              sortable
+            >
+              <template #default="{ row }">
+                {{ row.grade?.name }}
+              </template>
+            </el-table-column>
 
             <el-table-column label="Date" width="180" sortable>
               <template #default="{ row }">
@@ -208,7 +208,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus, Download } from '@element-plus/icons-vue';
 import * as XLSX from 'xlsx';
@@ -218,41 +218,31 @@ interface Grade {
   name: string;
 }
 
-interface Course {
-  id: number;
-  name: string;
-  professor: {
-    id: number;
-    firstname: string;
-    lastname: string;
-  };
-}
 
-interface Student {
-  id: number;
-  firstname: string;
-  lastname: string;
-  matricule: string;
-  grade: Grade;
-  absences?: Absence[];
-}
 
 interface Absence {
   id: number;
   date: Date;
-  startTime?: string;
-  endTime?: string;
   reason: string;
-  reasonType: 'MEDICAL' | 'FAMILY' | 'UNAUTHORIZED' | 'SCHOOL_ACTIVITY' | 'OTHER';
-  absenceType: 'FULL_DAY' | 'MORNING' | 'AFTERNOON' | 'COURSE';
+  reasonType: string;
+  absenceType: string;
   justified: boolean;
-  student: Student;
-  grade: Grade;
-  course?: Course;
-  justificationDocument?: string;
   comments?: string;
-  parentNotified: boolean;
-  notificationDate?: Date;
+  student?: {
+    id: number;
+    firstname: string;
+    lastname: string;
+    matricule: string;
+  };
+  grade?: {
+    id: number;
+    name: string;
+  };
+  course?: {
+    id: number;
+    name: string;
+  };
+  type: 'STUDENT' | 'PROFESSOR';
 }
 
 interface Filters {
@@ -334,7 +324,7 @@ const filteredAbsences = computed(() => {
       if (absenceDate < start || absenceDate > end) return false;
     }
 
-    if (filters.value.gradeId && absence.grade.id !== filters.value.gradeId) {
+    if (filters.value.gradeId && absence.grade?.id !== filters.value.gradeId) {
       return false;
     }
 
@@ -356,7 +346,7 @@ const filteredAbsences = computed(() => {
 
     if (filters.value.studentSearch) {
       const searchTerm = filters.value.studentSearch.toLowerCase();
-      const studentName = `${absence.student.firstname} ${absence.student.lastname} ${absence.student.matricule}`.toLowerCase();
+      const studentName = `${absence.student?.firstname} ${absence.student?.lastname} ${absence.student?.matricule}`.toLowerCase();
       if (!studentName.includes(searchTerm)) return false;
     }
 
@@ -401,27 +391,24 @@ const loadGrades = async () => {
 
 
 const loadAbsences = async () => {
+  console.log('=== Vue - Début loadAbsences ===');
   loading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('absence:all');
-    console.log('Résultat du chargement des absences:', result);
+    const result = await window.ipcRenderer.invoke('absence:allStudent');
+    console.log('Résultat brut du chargement des absences:', result);
     
     if (result?.success) {
       absences.value = result.data.map((absence: any) => ({
         ...absence,
         date: new Date(absence.date),
-        notificationDate: absence.notificationDate ? new Date(absence.notificationDate) : undefined,
-        student: {
-          ...absence.student,
-          grade: absence.grade
-        }
+        student: absence.student || null,
+        grade: absence.grade || null,
+        course: absence.course || null
       }));
-      console.log('Absences chargées:', absences.value);
-    } else {
-      throw new Error(result?.error || 'Erreur lors du chargement des absences');
+      console.log('Absences traitées:', absences.value);
     }
   } catch (error) {
-    console.error('Erreur lors du chargement des absences:', error);
+    console.error('Erreur détaillée lors du chargement des absences:', error);
     ElMessage.error("Erreur lors du chargement des absences");
   } finally {
     loading.value = false;
@@ -430,22 +417,33 @@ const loadAbsences = async () => {
 
 // Gestion des absences
 const handleAbsenceAdded = async (newAbsence: Partial<Absence>) => {
+  console.log('=== Vue - Début handleAbsenceAdded ===');
+  console.log('Nouvelle absence à ajouter:', newAbsence);
+  
   try {
     const result = await window.ipcRenderer.invoke('absence:add', newAbsence);
+    console.log('Résultat de l\'ajout:', result);
+    
     if (result?.success) {
       ElMessage.success("Absence ajoutée avec succès");
-      await loadAbsences();
       showAddDialog.value = false;
+      // Recharger immédiatement les absences
+      await loadAbsences();
     } else {
       throw new Error(result?.error || "Erreur lors de l'ajout");
     }
   } catch (error) {
-    console.error('Erreur lors de l\'ajout de l\'absence:', error);
+    console.error('Erreur détaillée lors de l\'ajout:', error);
     ElMessage.error(error instanceof Error ? error.message : "Erreur lors de l'ajout de l'absence");
   }
 };
 
-
+// Ajouter un watcher pour recharger les absences quand le dialogue se ferme
+watch(() => showAddDialog.value, (newValue) => {
+  if (!newValue) { // Si le dialogue vient de se fermer
+    loadAbsences(); // Recharger les absences
+  }
+});
 
 // Gestion des notifications
 
@@ -454,11 +452,11 @@ const exportToExcel = () => {
   try {
     const exportData = filteredAbsences.value.map(absence => ({
       'Date': new Date(absence.date).toLocaleDateString(),
-      'Élève': `${absence.student.firstname} ${absence.student.lastname}`,
-      'Matricule': absence.student.matricule,
-      'Classe': absence.grade.name,
-      'Type': absenceTypes.find(t => t.value === absence.absenceType)?.label,
-      'Motif': reasonTypes.find(r => r.value === absence.reasonType)?.label,
+      'Élève': absence.student ? `${absence.student.firstname} ${absence.student.lastname}` : 'N/A',
+      'Matricule': absence.student?.matricule || 'N/A',
+      'Classe': absence.grade?.name || 'N/A',
+      'Type': absenceTypes.find(t => t.value === absence.absenceType)?.label || 'N/A',
+      'Motif': reasonTypes.find(r => r.value === absence.reasonType)?.label || 'N/A',
       'Justifiée': absence.justified ? 'Oui' : 'Non',
       'Cours': absence.course?.name || 'N/A',
       'Commentaires': absence.comments || ''
@@ -540,10 +538,6 @@ const getReasonTypeTag = (type: string) => {
   return types[type] || 'default';
 };
 
-const getRowClassName = ({ row }: { row: Absence }) => {
-  if (!row.justified) return 'warning-row';
-  return 'success-row';
-};
 </script>
 
 <style scoped>

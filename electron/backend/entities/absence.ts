@@ -61,4 +61,11 @@ export class AbsenceEntity {
 
     @Column({ type: "boolean", default: false })
     parentNotified!: boolean;
+
+    @Column({
+        type: "varchar",
+        enum: ["STUDENT", "PROFESSOR"],
+        default: "STUDENT"
+    })
+    type!: string;
 }

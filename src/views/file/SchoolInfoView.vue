@@ -2,27 +2,33 @@
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
-// Interfaces
-interface FileInfo {
-  id?: number
-  path: string
-  originalName: string
-  type: string
-  content?: string
+interface SchoolInfo {
+  id?: number;
+  name: string;
+  address: string;
+  town: string;
+  country: 'MAR' | 'SEN' | 'CAF' | 'GIN';
+  phone: string;
+  email: string;
+  type: 'publique' | 'privée';
+  foundationYear: number;
+  logo?: {
+    id: number;
+    name: string;
+    type: string;
+    path?: string;
+    content?: string;
+  } | null;
+  logoFile?: File | null;
 }
 
-interface SchoolInfo {
-  id?: number
-  name: string
-  address: string
-  town: string
-  phone: string
-  email: string
-  type: 'publique' | 'privée'
-  foundationYear: number
-  logo?: FileInfo | null
-  logoFile?: File | null
-}
+// Constantes pour les pays
+const countries = [
+  { code: 'MAR', name: 'Maroc', currency: 'MAD' },
+  { code: 'SEN', name: 'Sénégal', currency: 'FCFA' },
+  { code: 'CAF', name: 'Centrafrique', currency: 'FCFA' },
+  { code: 'GIN', name: 'Guinée', currency: 'GNF' }
+];
 
 // État initial avec valeurs par défaut
 const initialSchoolInfo: SchoolInfo = {
@@ -30,17 +36,16 @@ const initialSchoolInfo: SchoolInfo = {
   name: '',
   address: '',
   town: '',
+  country: 'SEN',
   phone: '',
   email: '',
   type: 'publique',
   foundationYear: new Date().getFullYear(),
-  logo: null,
-  logoFile: null
-}
+  logo: null
+};
 
 // États
 const schoolInfo = ref<SchoolInfo>({ ...initialSchoolInfo })
-const previousData = ref<SchoolInfo | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const logoPreview = ref<string>('')
 const isLoading = ref(false)
@@ -103,10 +108,12 @@ const saveSchoolInfo = async () => {
       name: schoolInfo.value.name,
       address: schoolInfo.value.address,
       town: schoolInfo.value.town,
+      country: schoolInfo.value.country,
       phone: schoolInfo.value.phone,
       email: schoolInfo.value.email,
       type: schoolInfo.value.type,
-      foundationYear: schoolInfo.value.foundationYear
+      foundationYear: schoolInfo.value.foundationYear,
+      logo: undefined
     };
 
     // Gérer le logo séparément si un nouveau fichier a été sélectionné
@@ -114,7 +121,7 @@ const saveSchoolInfo = async () => {
       const reader = new FileReader();
       const file = schoolInfo.value.logoFile;
       
-      const logoData = await new Promise((resolve) => {
+      const logoData = await new Promise<{ content: string; name: string; type: string }>((resolve) => {
         reader.onload = (e) => {
           resolve({
             content: e.target?.result as string,
@@ -125,10 +132,11 @@ const saveSchoolInfo = async () => {
         reader.readAsDataURL(file);
       });
 
-      payload.logo = logoData;
+      payload.logo = logoData as any; 
     }
 
     const result = await window.ipcRenderer.invoke('school:save', { data: payload });
+    console.log(result);
 
     if (result.success) {
       ElMessage.success('Informations sauvegardées avec succès');
@@ -145,40 +153,73 @@ const saveSchoolInfo = async () => {
   }
 };
 
-// Chargement initial
+// Ajout de la méthode loadLogo similaire à loadPhoto dans StudentDetailsView
+const loadLogo = async (logo?: { id: number; name: string; type: string; path?: string; content?: string }) => {
+  if (!logo) {
+    logoPreview.value = '';
+    return;
+  }
+
+  try {
+    const logoResult = await window.ipcRenderer.invoke('school:getLogo', logo.id);
+    if (logoResult.success && logoResult.data) {
+      logoPreview.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+    } else {
+      console.error("Erreur lors du chargement du logo:", logoResult.error);
+      logoPreview.value = '';
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement du logo:", error);
+    logoPreview.value = '';
+  }
+};
+
+// Modifier loadSchoolInfo pour utiliser loadLogo
 const loadSchoolInfo = async () => {
   try {
+    isLoading.value = true;
     const result = await window.ipcRenderer.invoke('school:get');
-    if (result.success) {
-      const school = result.data;
+    console.log(result);
+    if (result?.success && result.data) {
+      schoolInfo.value = {
+        ...initialSchoolInfo,
+        ...result.data
+      };
       
-      // Charger l'URL de l'image du logo si elle existe
-      if (school?.logo?.path) {
-        const fileResult = await window.ipcRenderer.invoke('file:getUrl', school.logo.path);
-        if (fileResult.success) {
-          school.logo.url = `data:${fileResult.data.type};base64,${fileResult.data.content}`;
-        }
+      // Charger le logo si présent
+      if (schoolInfo.value.logo?.id) {
+        await loadLogo(schoolInfo.value.logo);
       }
-      
-      schoolInfo.value = school;
+    } else {
+      ElMessage.warning('Aucune information d\'école trouvée');
     }
   } catch (error) {
     console.error('Erreur:', error);
     ElMessage.error('Erreur lors du chargement des informations');
+  } finally {
+    isLoading.value = false;
   }
 };
 
-const toggleEditMode = () => {
-  if (isEditMode.value) {
-    saveSchoolInfo();
-  } else {
-    isEditMode.value = true;
+const toggleEditMode = async () => {
+  try {
+    if (isEditMode.value) {
+      await saveSchoolInfo();
+      isEditMode.value = false;
+    } else {
+      isEditMode.value = true;
+    }
+  } catch (error) {
+    console.error('Erreur lors du basculement du mode édition:', error);
+    ElMessage.error('Une erreur est survenue');
   }
-}
+};
 
 const triggerFileInput = () => {
   fileInput.value?.click();
 };
+
+// Computed pour la devise
 
 onMounted(loadSchoolInfo)
 </script>
@@ -213,14 +254,27 @@ onMounted(loadSchoolInfo)
             <div class="logo-container">
               <div 
                 class="logo-preview" 
-                :class="{ 'has-logo': logoPreview || schoolInfo.logo }"
+                :class="{ 'has-logo': logoPreview }"
               >
-                <img 
-                  v-if="logoPreview || schoolInfo.logo?.path" 
-                  :src="logoPreview || `data:${schoolInfo.logo?.type || 'image/png'};base64,${schoolInfo.logo?.content}`"
+                <el-image 
+                  v-if="logoPreview" 
+                  :src="logoPreview" 
+                  fit="cover" 
                   class="logo-image" 
-                  alt="Logo de l'école"
-                />
+                  :preview-src-list="logoPreview ? [logoPreview] : []"
+                  @error="(e: any) => {
+                    console.error('Erreur de chargement de l\'image:', e);
+                    console.log('URL de l\'image:', logoPreview);
+                  }"
+                >
+                  <template #error>
+                    <div class="image-slot">
+                      <el-icon><i-mdi-image-broken /></el-icon>
+                      <span>Erreur de chargement</span>
+                      <small>{{ logoPreview ? 'URL invalide' : 'Pas d\'URL' }}</small>
+                    </div>
+                  </template>
+                </el-image>
                 <el-icon v-else><Picture /></el-icon>
               </div>
 
@@ -326,6 +380,25 @@ onMounted(loadSchoolInfo)
                       :key="year"
                       :label="year"
                       :value="year"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="Pays" required>
+                  <el-select 
+                    v-model="schoolInfo.country"
+                    :disabled="!isEditMode"
+                    class="full-width"
+                  >
+                    <el-option
+                      v-for="country in countries"
+                      :key="country.code"
+                      :label="`${country.name} (${country.currency})`"
+                      :value="country.code"
                     />
                   </el-select>
                 </el-form-item>
