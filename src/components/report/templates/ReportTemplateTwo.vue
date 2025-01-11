@@ -1,362 +1,487 @@
 <template>
-  <div class="report-template-two">
-    <!-- En-tête moderne -->
-    <header class="modern-header">
-      <div class="header-content">
-        <div class="school-brand">
-        <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" alt="Logo" class="school-logo">
-          <div class="school-info">
-          <h1>{{ schoolInfo?.name }}</h1>
-            <p class="subtitle">{{ schoolInfo?.address }}</p>
+  <div class="report-card">
+    <!-- En-tête avec logos et infos ministère -->
+    <div class="header">
+      <div class="ministry-section">
+        <div class="ministry-logo"></div>
+        <div class="ministry-info">
+          <h4>{{ getCountryInfo.ministry }}</h4>
+          <p v-if="getCountryInfo.motto">{{ getCountryInfo.motto }}</p>
+          <p>{{ getCountryInfo.country }}</p>
+          <p>{{ schoolInfo?.name }} | Téléphone: {{ schoolInfo?.phone }}</p>
         </div>
       </div>
-        <div class="report-meta">
-          <div class="period-badge">{{ periodLabel }}</div>
-          <div class="academic-year">{{ currentYear }}</div>
+      <div class="school-section">
+        <div class="school-logo">
+          <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" alt="Logo">
         </div>
+        <div class="academic-year">
+          Année Scolaire: 2023-2024
+        </div>
+      </div>
     </div>
-    </header>
 
-    <!-- Carte d'identité de l'élève -->
-    <div class="student-card">
-      <div class="photo-section">
-        <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo" class="student-photo">
-        <div v-else class="photo-placeholder">{{ studentInitials }}</div>
+    <!-- Titre du bulletin -->
+    <div class="bulletin-header">
+      <h3>BULLETIN - {{ period }}</h3>
+    </div>
+
+    <!-- Informations de l'élève -->
+    <div class="student-section">
+      <div class="student-photo">
+        <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo">
       </div>
       <div class="student-details">
         <div class="detail-row">
-          <div class="detail-item">
-            <label>Nom</label>
-            <span>{{ student?.lastname }}</span>
-          </div>
-          <div class="detail-item">
-            <label>Prénom</label>
-            <span>{{ student?.firstname }}</span>
-          </div>
+          <span class="label">NIA/N°:</span>
+          <span class="value">{{ student?.matricule }}</span>
         </div>
         <div class="detail-row">
-          <div class="detail-item">
-            <label>Matricule</label>
-            <span>{{ student?.matricule }}</span>
+          <span class="label">Nom:</span>
+          <span class="value">{{ student?.lastname }} {{ student?.firstname }}</span>
         </div>
-          <div class="detail-item">
-            <label>Classe</label>
-            <span>{{ student?.grade?.name }}</span>
-        </div>
+        <div class="detail-row">
+          <span class="label">Classe:</span>
+          <span class="value">{{ student?.grade?.name }}</span>
         </div>
       </div>
     </div>
 
-    <!-- Résumé des performances -->
-    <div class="performance-summary">
-      <div class="summary-card">
-        <div class="summary-value">{{ formatGrade(generalAverage) }}</div>
-        <div class="summary-label">Moyenne Générale</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-value">{{ rank || '-' }}/{{ totalStudents || '-' }}</div>
-        <div class="summary-label">Rang</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-value">{{ getGeneralAppreciation() }}</div>
-        <div class="summary-label">Mention</div>
+    <!-- Tableau des notes -->
+    <div class="grades-container">
+      <table class="grades-table">
+        <thead>
+          <tr>
+            <th>DISCIPLINES</th>
+            <th>MOYENNE</th>
+            <th>COEF</th>
+            <th>NOTE x</th>
+            <th>Appréciation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="grade in grades" :key="grade.courseId">
+            <td class="discipline">{{ grade.courseName }}</td>
+            <td class="center">{{ grade.average.toFixed(2) }}</td>
+            <td class="center">{{ grade.coefficient }}</td>
+            <td class="center">{{ (grade.average * grade.coefficient).toFixed(2) }}</td>
+            <td>{{ grade.appreciation }}</td>
+          </tr>
+          <tr class="totals">
+            <td>TOTAUX</td>
+            <td class="center">{{ calculateTotalAverages() }}</td>
+            <td class="center">{{ calculateTotalCoef() }}</td>
+            <td class="center">{{ calculateWeightedTotal() }}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Absences -->
+   
+
+    <!-- Bilan dynamique -->
+    <div class="summary-section">
+      <div class="results-section">
+        <h5>BILAN</h5>
+        <table class="results-table">
+          <tbody>
+            <template v-if="period.includes('Semestre')">
+              <tr v-if="previousResults?.semester1">
+                <td>Semestre 1</td>
+                <td class="center">{{ previousResults.semester1.average.toFixed(2) }}</td>
+              </tr>
+              <tr v-if="period === 'Semestre 2'">
+                <td>Semestre 2</td>
+                <td class="center">{{ generalAverage.toFixed(2) }}</td>
+              </tr>
+              <tr v-if="previousResults?.semester1" class="annual-average">
+                <td>Moyenne Annuelle</td>
+                <td class="center">{{ calculateAnnualAverage().toFixed(2) }}</td>
+              </tr>
+            </template>
+            <template v-else>
+              <tr v-if="previousResults?.term1">
+                <td>1er Trimestre</td>
+                <td class="center">{{ previousResults.term1.average.toFixed(2) }}</td>
+              </tr>
+              <tr v-if="previousResults?.term2">
+                <td>2ème Trimestre</td>
+                <td class="center">{{ previousResults.term2.average.toFixed(2) }}</td>
+              </tr>
+              <tr v-if="period === 'Trimestre 3'">
+                <td>3ème Trimestre</td>
+                <td class="center">{{ generalAverage.toFixed(2) }}</td>
+              </tr>
+              <tr v-if="previousResults?.term1" class="annual-average">
+                <td>Moyenne Annuelle</td>
+                <td class="center">{{ calculateAnnualAverage().toFixed(2) }}</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- Notes par groupe de matières -->
-    <div class="grades-groups">
-      <div v-for="(group, groupName) in groupedGrades" :key="groupName" class="grade-group">
-        <h3>{{ groupName }}</h3>
-        <div class="grades-table">
-          <div class="table-header">
-            <div class="col-subject">Matière</div>
-            <div class="col-coef">Coef</div>
-            <div class="col-assignments">
-              <div v-for="i in maxAssignments" :key="i">Dev {{ i }}</div>
-            </div>
-            <div class="col-exam">Exam</div>
-            <div class="col-average">Moyenne</div>
-            <div class="col-appreciation">Appréciation</div>
-          </div>
-          <div 
-            v-for="grade in group" 
-            :key="grade.courseId" 
-            class="grade-row"
-            :class="getGradeRowClass(grade.average)"
-          >
-            <div class="col-subject">{{ grade.courseName }}</div>
-            <div class="col-coef">{{ grade.coefficient }}</div>
-            <div class="col-assignments">
-              <div 
-                v-for="(assignment, index) in grade.assignments" 
-                :key="index"
-                class="assignment-grade"
-              >
-                {{ formatGrade(assignment) }}
-              </div>
-            </div>
-            <div class="col-average">{{ formatGrade(grade.average) }}</div>
-            <div class="col-appreciation">{{ grade.appreciation }}</div>
-        </div>
-    </div>
+    <!-- Décision et signature -->
+    <div class="footer-section">
+      <div class="decision">
+        <strong>DÉCISION DU CONSEIL DE CLASSE:</strong>
+        <span>{{ getDecision() }}</span>
       </div>
-    </div>
-
-    <!-- Observations et comportement -->
-    <div class="feedback-section">
-      <div class="observations" v-if="observations">
-        <h3>Observations du conseil de classe</h3>
-        <p>{{ observations }}</p>
-      </div>
-      <div class="conduct-grid" v-if="conduct">
-        <div class="conduct-item">
-          <label>Discipline</label>
-          <span>{{ conduct.discipline }}</span>
-        </div>
-        <div class="conduct-item">
-          <label>Assiduité</label>
-          <span>{{ conduct.attendance }}</span>
-        </div>
-        <div class="conduct-item">
-          <label>Travail</label>
-          <span>{{ conduct.workEthic }}</span>
-        </div>
-      </div>
-      </div>
-
-    <!-- Signatures -->
-      <div class="signatures">
-        <div class="signature-block">
-        <span>Le Directeur</span>
-        <div class="signature-area"></div>
-        </div>
-        <div class="signature-block">
-        <span>Le Professeur Principal</span>
-        <div class="signature-area"></div>
-        </div>
-        <div class="signature-block">
-        <span>Les Parents</span>
-        <div class="signature-area"></div>
+      <div class="signature">
+        <p>Le Proviseur</p>
+        <div class="stamp-area"></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { ReportCardData } from '@/types/report';
+import { defineProps, computed } from 'vue';
+import { SchoolInfo } from '@/types/report';
 
-const props = defineProps<ReportCardData>();
-
-// Computed properties
-const periodLabel = computed(() => {
-  const labels: Record<string, string> = {
-    trimester1: '1er Trimestre',
-    trimester2: '2ème Trimestre',
-    trimester3: '3ème Trimestre',
-    semester1: '1er Semestre',
-    semester2: '2ème Semestre',
-    year: 'Année Scolaire'
+interface Props {
+  student: {
+    lastname: string;
+    firstname: string;
+    matricule: string;
+    grade: {
+      name: string;
+    };
+    photo?: {
+      url?: string;
+    };
   };
-  return labels[props.period] || props.period;
-});
+  grades: Array<{
+    courseId: number;
+    courseName: string;
+    coefficient: number;
+    average: number;
+    exam: number;
+    appreciation: string;
+    assignments: number[];
+  }>;
+  period: string;
+  schoolInfo: SchoolInfo;
+  generalAverage: number;
+  maxClassAverage?: number;
+  minClassAverage?: number;
+  classAverage?: number;
+  currentRank?: number;
+  previousResults?: {
+    term1?: { average: number; rank: number };
+    term2?: { average: number; rank: number };
+    semester1?: { average: number; rank: number };
+    semester2?: { average: number; rank: number };
+  };
+}
 
-const groupedGrades = computed(() => {
-  // Grouper les notes par catégorie de matière
-  const groups: Record<string, any> = {};
-  props.grades.forEach(grade => {
-    const groupName = grade.courseGroup || 'Autres';
-    if (!groups[groupName]) {
-      groups[groupName] = {
-        name: groupName,
-        grades: []
+const props = defineProps<Props>();
+
+const getCountryInfo = computed(() => {
+  switch (props.schoolInfo?.country) {
+    case 'MAR':
+      return {
+        country: 'Royaume du Maroc',
+        ministry: 'Ministère de l\'Education Nationale',
+        motto: 'الله - الوطن - الملك', // Dieu, la Patrie, le Roi
       };
-    }
-    groups[groupName].grades.push(grade);
-  });
-  return Object.values(groups);
+    case 'SEN':
+      return {
+        country: 'République du Sénégal',
+        ministry: 'Ministère de l\'Education Nationale',
+        motto: 'Un Peuple - Un But - Une Foi',
+      };
+    case 'CAF':
+      return {
+        country: 'République Centrafricaine',
+        ministry: 'Ministère de l\'Enseignement National',
+        motto: 'Unité - Dignité - Travail',
+      };
+    case 'GIN':
+      return {
+        country: 'République de Guinée',
+        ministry: 'Ministère de l\'Education Nationale et de l\'Alphabétisation',
+        motto: 'Travail - Justice - Solidarité',
+      };
+    default:
+      return {
+        country: '',
+        ministry: 'Ministère de l\'Education Nationale',
+        motto: '',
+      };
+  }
 });
 
-const generalAverage = computed(() => {
-  if (!props.grades?.length) return 0;
-  
-  const totalWeightedGrades = props.grades.reduce((sum, grade) => {
-    return sum + (grade.average * grade.coefficient);
-  }, 0);
-  
-  const totalCoefficients = props.grades.reduce((sum, grade) => {
-    return sum + grade.coefficient;
-  }, 0);
-  
-  return totalWeightedGrades / totalCoefficients;
-});
-
-const currentYear = computed(() => {
-  const now = new Date();
-  const year = now.getFullYear();
-  return `${year-1}/${year}`;
-});
-
-const studentInitials = computed(() => {
-  if (!props.student) return '';
-  return `${props.student.firstname[0]}${props.student.lastname[0]}`.toUpperCase();
-});
-
-const maxAssignments = computed(() => {
-  return Math.max(...props.grades.map(g => g.assignments.length), 0);
-});
-
-// Données pour le graphique
-
-// Méthodes
-const formatGrade = (grade: number): string => {
-  return grade.toFixed(2);
+const calculateTotalCoef = () => {
+  return props.grades.reduce((sum, grade) => sum + grade.coefficient, 0);
 };
 
-const getGeneralAppreciation = () => {
-  const avg = props.generalAverage;
-  if (avg >= 16) return 'Excellent';
-  if (avg >= 14) return 'Très Bien';
-  if (avg >= 12) return 'Bien';
-  if (avg >= 10) return 'Assez Bien';
-  return 'Insuffisant';
+const calculateTotalAverages = () => {
+  const total = props.grades.reduce((sum, grade) => sum + grade.average, 0);
+  return total.toFixed(2);
 };
 
-const getGradeRowClass = (average: number) => ({
-  'excellent': average >= 16,
-  'very-good': average >= 14,
-  'good': average >= 12,
-  'average': average >= 10,
-  'poor': average < 10
-});
+const getDecision = () => {
+  const average = props.generalAverage;
+  return average >= 10 ? 'Admis(e)' : 'Non admis(e)';
+};
 
+const calculateWeightedTotal = () => {
+  return props.grades.reduce((sum, grade) => 
+    sum + (grade.average * grade.coefficient), 0).toFixed(2);
+};
+
+const calculateAnnualAverage = () => {
+  if (props.period.includes('Semestre')) {
+    const sem1 = props.previousResults?.semester1?.average || 0;
+    const sem2 = props.period === 'Semestre 2' ? props.generalAverage : 0;
+    return (sem1 + sem2) / (sem2 ? 2 : 1);
+  } else {
+    const term1 = props.previousResults?.term1?.average || 0;
+    const term2 = props.previousResults?.term2?.average || 0;
+    const term3 = props.period === 'Trimestre 3' ? props.generalAverage : 0;
+    const divisor = [term1, term2, term3].filter(t => t > 0).length;
+    return (term1 + term2 + term3) / divisor;
+  }
+};
 </script>
 
 <style scoped>
-.report-template-two {
+.report-card {
+  width: 210mm;
+  height: 297mm;
+  padding: 15mm;
+  margin: 0;
+  box-sizing: border-box;
   background: white;
-  font-family: 'Segoe UI', Roboto, sans-serif;
-  padding: 30px;
-  color: #2c3e50;
+  position: relative;
+  overflow: hidden;
 }
 
-.modern-header {
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-  color: white;
-  padding: 30px;
-  border-radius: 10px;
-  margin-bottom: 30px;
-}
-
-.header-content {
+.header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  margin-bottom: 10mm;
 }
 
-.school-brand {
+.ministry-section {
   display: flex;
-  align-items: center;
-  gap: 20px;
+  gap: 10px;
+}
+
+.ministry-logo {
+  width: 50px;
+  height: 50px;
+  background-image: url('@/assets/ministry-logo.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.ministry-info {
+  text-align: center;
+}
+
+.ministry-info h4 {
+  margin: 0 0 5px 0;
+  font-size: 12pt;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.ministry-info p {
+  margin: 2px 0;
+  font-size: 9pt;
+}
+
+.ministry-info p:nth-child(2) {
+  font-style: italic;
+  font-weight: 500;
+}
+
+.school-section {
+  text-align: right;
 }
 
 .school-logo {
-  width: 80px;
-  height: 80px;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 5px;
+}
+
+.school-logo img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  background: white;
-  border-radius: 50%;
-  padding: 5px;
 }
 
-.period-badge {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 14px;
+.academic-year {
+  font-size: 9pt;
 }
 
-.student-card {
-  background: #f8f9fa;
-  border-radius: 10px;
-  padding: 20px;
+.bulletin-header {
+  text-align: center;
+  border-bottom: 1px solid #000;
+  margin: 10mm 0;
+}
+
+.bulletin-header h3 {
+  margin: 0;
+  padding: 5px 0;
+  font-size: 12pt;
+}
+
+.student-section {
   display: flex;
-  gap: 30px;
-  margin-bottom: 30px;
-}
-
-.photo-section {
-  width: 150px;
-  height: 180px;
-  overflow: hidden;
-  border-radius: 8px;
+  gap: 15px;
+  margin: 10mm 0;
 }
 
 .student-photo {
+  width: 25mm;
+  height: 30mm;
+  border: 1px solid #000;
+}
+
+.student-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.photo-placeholder {
+.student-details {
+  flex: 1;
+}
+
+.detail-row {
+  margin: 5px 0;
+  font-size: 10pt;
+}
+
+.label {
+  font-weight: bold;
+  display: inline-block;
+  width: 80px;
+}
+
+.grades-table {
   width: 100%;
-  height: 100%;
-  background: #e9ecef;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
+  border-collapse: collapse;
+  margin: 10mm 0;
+  font-size: 9pt;
+}
+
+.grades-table th,
+.grades-table td {
+  border: 1px solid #000;
+  padding: 4px 6px;
+}
+
+.grades-table th {
+  background-color: #fff;
   font-weight: bold;
-  color: #adb5bd;
-}
-
-.performance-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.summary-card {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
   text-align: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.summary-value {
-  font-size: 32px;
+.discipline {
   font-weight: bold;
-  color: #1e3c72;
-  margin-bottom: 8px;
 }
 
-.grades-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
+.center {
+  text-align: center;
 }
 
-.grade-group {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.totals {
+  font-weight: bold;
 }
 
-.grade-group h3 {
-  color: #1e3c72;
+.summary-section {
+  margin: 10mm 0;
+  font-size: 10pt;
+}
+
+.results-section {
+  width: 50%;
+  margin: 0 auto;
+}
+
+.results-section h5 {
+  margin: 0 0 10px 0;
+  font-size: 11pt;
+  text-transform: uppercase;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 1px solid #000;
+  padding-bottom: 5px;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.results-table td {
+  border: 1px solid #000;
+  padding: 6px 10px;
+}
+
+.results-table td:first-child {
+  width: 60%;
+}
+
+.annual-average {
+  font-weight: bold;
+  background-color: #f5f5f5;
+}
+
+.annual-average td {
+  border-top: 2px solid #000;
+}
+
+.footer-section {
+  margin-top: 10mm;
+  position: absolute;
+  bottom: 15mm;
+  left: 15mm;
+  right: 15mm;
+}
+
+.decision {
   margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #e9ecef;
+  font-size: 10pt;
 }
 
-/* ... Autres styles spécifiques ... */
+.signature {
+  text-align: right;
+  margin-top: 40px;
+}
+
+.stamp-area {
+  width: 100px;
+  height: 100px;
+  margin-left: auto;
+  margin-top: 10px;
+}
+
+.absences-section {
+  margin: 15px 0;
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
 
 @media print {
-  .report-template-two {
-    padding: 0;
+  .report-card {
+    margin: 0;
+    padding: 10mm;
+  }
+  
+  @page {
+    size: A4 portrait;
+    margin: 0;
   }
 }
-</style> 
+</style>

@@ -1132,14 +1132,21 @@ ipcMain.handle('grades:save', async (_event, data: {
         courseId: number;
         assignments: number[];
         exam: number;
-        teacherId: number;
+        average: number;
         appreciation: string;
     }>;
 }) => {
     try {
-        return await global.reportCardService.generateReportCard(data);
+        console.log('Handler grades:save appelé avec:', data);
+        return await global.reportCardService.saveStudentGrades(data);
     } catch (error) {
-        return handleError(error);
+        console.error('Erreur dans le handler grades:save:', error);
+        return {
+            success: false,
+            data: null,
+            message: "Erreur lors de la sauvegarde des notes",
+            error: error instanceof Error ? error.message : "Erreur inconnue"
+        };
     }
 });
 
@@ -1177,28 +1184,12 @@ ipcMain.handle('grades:get', async (_event, { studentId, period }) => {
     }
 });
 
-ipcMain.handle('report:generate', async (_event, { studentId, period }) => {
-    try {
-        return await global.reportCardService.generateReportCard({ studentId, period });
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('preference:saveTemplate', async (_event, templateId: string) => {
-  try {
+ipcMain.handle('preference:saveTemplate', async (_, templateId: string) => {
     return await global.preferenceService.saveTemplatePreference(templateId);
-  } catch (error) {
-    return handleError(error);
-  }
 });
 
 ipcMain.handle('preference:getTemplate', async () => {
-  try {
     return await global.preferenceService.getTemplatePreference();
-  } catch (error) {
-    return handleError(error);
-  }
 });
 
 // Handler pour récupérer la configuration des notes
@@ -1209,6 +1200,48 @@ ipcMain.handle('gradeConfig:get', async (_event, { gradeId }) => {
     return handleError(error);
   }
 });
+
+export function registerReportEvents() {
+  const reportService = new ReportCardService();
+
+  // Génération du bulletin
+  ipcMain.handle('report:generate', async (_, data: { studentId: number; period: string }) => {
+    console.log('Demande de génération de bulletin:', data);
+    try {
+      const result = await reportService.generateReportCard(data);
+      console.log('Résultat de la génération:', result);
+      return result;
+    } catch (error) {
+      console.error('Erreur génération bulletin:', error);
+      return {
+        success: false,
+        data: null,
+        message: "Erreur lors de la génération du bulletin",
+        error: error instanceof Error ? error.message : "Erreur inconnue",
+        generalAverage: 0
+      };
+    }
+  });
+
+  // Récupération des notes
+  ipcMain.handle('report:getGrades', async (_, data: { studentId: number; period: string }) => {
+    console.log('Demande de récupération des notes:', data);
+    try {
+      const result = await reportService.getStudentGrades(data.studentId, data.period);
+      console.log('Notes récupérées:', result);
+      return result;
+    } catch (error) {
+      console.error('Erreur récupération notes:', error);
+      return {
+        success: false,
+        data: [],
+        message: "Erreur lors de la récupération des notes",
+        error: error instanceof Error ? error.message : "Erreur inconnue",
+        generalAverage: 0
+      };
+    }
+  });
+}
 
 
 

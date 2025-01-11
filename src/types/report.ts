@@ -2,9 +2,13 @@ import { Component } from 'vue';
 
 export interface SchoolInfo {
   name: string;
-  address: string;
-  phone: string;
-  email: string;
+  type?: string;
+  address?: string;
+  town?: string;
+  phone?: string;
+  email?: string;
+  bp?: string;
+  country?: 'MAR' | 'SEN' | 'CAF' | 'GIN';
   logo?: {
     url: string;
   };
@@ -58,4 +62,12 @@ export interface ReportCardTemplate {
     name: string;
     description: string;
     component: Component;
+}
+
+export interface ResultType {
+  success: boolean;
+  data: any;
+  message: string;
+  error: string | null;
+  generalAverage: number;
 } 
