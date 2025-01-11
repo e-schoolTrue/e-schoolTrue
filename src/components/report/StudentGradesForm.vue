@@ -122,6 +122,7 @@ const props = defineProps<{
   studentId: number;
   gradeId: number;
   period: string;
+  numberOfAssignments: number;
 }>();
 
 const emit = defineEmits(['saved']);
@@ -238,39 +239,49 @@ const saveGrades = async () => {
   try {
     const gradesData = courseGrades.value.map(course => ({
       courseId: course.id,
-      assignments: Array.from(course.assignments),
-      exam: course.exam,
+      assignments: course.assignments.map((grade: number | null) => Number(grade) || 0),
+      exam: Number(course.exam) || 0,
       average: Number(course.finalAverage.toFixed(2)),
       appreciation: getAppreciation(course.finalAverage)
     }));
 
-    console.log('Données à sauvegarder:', JSON.stringify({
+    const payload = {
       studentId: props.studentId,
       gradeId: props.gradeId,
       period: props.period,
       grades: gradesData
-    }, null, 2));
+    };
 
-    const result = await window.ipcRenderer.invoke('grades:save', {
-      studentId: props.studentId,
-      gradeId: props.gradeId,
-      period: props.period,
-      grades: gradesData
-    });
+    console.log('Envoi des notes:', payload);
+    const result = await window.ipcRenderer.invoke('grades:save', payload);
 
     if (result.success) {
       emit('saved');
       ElMessage.success('Notes enregistrées avec succès');
+    } else {
+      throw new Error(result.message || 'Erreur lors de la sauvegarde');
     }
   } catch (error) {
     console.error('Erreur:', error);
-    ElMessage.error('Erreur lors de la sauvegarde des notes');
+    ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde des notes');
   } finally {
     saving.value = false;
   }
 };
 
 onMounted(() => {
+  console.log('StudentGradesForm monté avec les props:', {
+    studentId: props.studentId,
+    gradeId: props.gradeId,
+    period: props.period,
+    numberOfAssignments: props.numberOfAssignments
+  });
+
+  if (!props.period) {
+    ElMessage.warning('Aucune période sélectionnée');
+    return;
+  }
+
   loadStudent();
   loadCourses();
 });

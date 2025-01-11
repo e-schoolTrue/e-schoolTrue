@@ -137,15 +137,16 @@
     <!-- Dialogue de saisie des notes -->
     <el-dialog 
       v-model="showGradesDialog"
-      :title="`Notes de ${currentStudent?.firstname} ${currentStudent?.lastname}`"
-      width="80%"
+      title="Saisie des Notes"
+      width="90%"
       destroy-on-close
     >
       <student-grades-form
-        v-if="showGradesDialog"
-        :student-id="currentStudent?.id"
-        :grade-id="selectedGrade!"
+        v-if="showGradesDialog && currentStudent"
+        :student-id="currentStudent.id"
+        :grade-id="selectedGrade ?? 0"
         :period="selectedPeriod"
+        :number-of-assignments="numberOfAssignments"
         @saved="onGradesSaved"
       />
     </el-dialog>
@@ -200,50 +201,63 @@
     <el-dialog
       v-model="showTemplateSelector"
       title="Choisissez votre modèle de bulletin"
-      width="80%"
+      width="95%"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
       :show-close="false"
       class="template-selector"
     >
-      <div class="template-grid">
-        <div 
-          v-for="template in availableTemplates" 
-          :key="template.id"
-          class="template-card"
-        >
-          <h3>{{ template.name }}</h3>
-          <p class="template-description">{{ template.description }}</p>
-          <div class="template-preview">
-            <component
-              :is="template.component"
-              v-bind="sampleData"
-            />
-          </div>
-          <el-button 
-            type="primary" 
-            @click="selectTemplate(template.id)"
-            class="select-button"
+      <div class="templates-accordion">
+        <el-collapse v-model="activeTemplate">
+          <el-collapse-item 
+            v-for="template in availableTemplates" 
+            :key="template.id"
+            :name="template.id"
           >
-            Choisir ce modèle
-          </el-button>
-        </div>
+            <template #title>
+              <div class="template-header" :class="{ 'selected': selectedTemplate === template.id }">
+                <h3>{{ template.name }}</h3>
+                <p class="template-description">{{ template.description }}</p>
+                <el-button 
+                  type="primary"
+                  size="small"
+                  :class="{ 'is-selected': selectedTemplate === template.id }"
+                  @click.stop="selectTemplate(template.id)"
+                >
+                  {{ selectedTemplate === template.id ? 'Modèle sélectionné' : 'Choisir ce modèle' }}
+                </el-button>
+              </div>
+            </template>
+            
+            <div class="template-preview-container">
+              <div class="template-preview-wrapper">
+                <div class="template-preview">
+                  <component
+                    :is="template.component"
+                    v-bind="sampleData"
+                  />
+                </div>
+              </div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, markRaw, createVNode, render } from 'vue';
 import { Icon } from '@iconify/vue';
 import { ElMessage } from 'element-plus';
-import printJS from 'print-js';
 import GradeConfigForm from '@/components/report/GradeConfigForm.vue';
 import ReportTemplateOne from '@/components/report/templates/ReportTemplateOne.vue';
 import ReportTemplateTwo from '@/components/report/templates/ReportTemplateTwo.vue';
-import ReportTemplateThree from '@/components/report/templates/ReportTemplateThree.vue';
 import StudentGradesForm from '@/components/report/StudentGradesForm.vue';
-import type { ReportCardTemplate } from '@/types/report';
+import { ReportCardTemplate, SchoolInfo } from '@/types/report';
+import printJS from 'print-js';
+import '@/assets/base.css';
+import 'element-plus/dist/index.css';
 
 interface PreviewData {
   student: any;
@@ -254,6 +268,7 @@ interface PreviewData {
   rank?: number;
   totalStudents?: number;
   observations?: string;
+  generalAverage?: number;
 }
 
 // États
@@ -279,86 +294,92 @@ const numberOfAssignments = ref(2);
 const previewRef = ref<HTMLElement | null>(null);
 const showTemplateSelector = ref(false);
 const currentYear = ref<any>(null);
-const currentPeriod = ref('');
+
 const periods = ref<any[]>([]);
+const activeTemplate = ref(['template1']); // Le template actif dans l'accordéon
 
 // Définition des templates disponibles
 const availableTemplates: ReportCardTemplate[] = [
   { 
     id: 'template1', 
     name: 'Modèle Classique', 
-    description: 'Un design simple et efficace, idéal pour une présentation traditionnelle',
-    component: ReportTemplateOne 
+    description: 'Un design simple et efficace',
+    component: markRaw(ReportTemplateOne)
   },
   { 
     id: 'template2', 
     name: 'Modèle Moderne',
     description: 'Un style contemporain avec une mise en page dynamique',
-    component: ReportTemplateTwo 
-  },
-  { 
-    id: 'template3', 
-    name: 'Modèle Avancé',
-    description: 'Une présentation sophistiquée avec graphiques et analyses détaillées',
-    component: ReportTemplateThree 
+    component: markRaw(ReportTemplateTwo)
   }
 ];
 
 // Sample data pour la prévisualisation
-const sampleStudent = {
-  firstname: "John",
-  lastname: "Doe",
-  matricule: "12345",
-  grade: { name: "6ème A" },
-  photo: null,
-  birthDay: "2010-01-01",
-  birthPlace: "Paris"
-};
 
-const sampleGrades = [
-  {
-    courseId: 1,
-    courseName: "Mathématiques",
-    courseGroup: "Sciences",
-    coefficient: 2,
-    assignments: [14, 16],
-    exam: 15,
-    average: 15,
-    classAverage: 12.5,
-    appreciation: "Très bon travail"
-  },
-  {
-    courseId: 2,
-    courseName: "Français",
-    courseGroup: "Lettres",
-    coefficient: 2,
-    assignments: [13, 14],
-    exam: 14,
-    average: 13.5,
-    classAverage: 11.5,
-    appreciation: "Bon travail"
-  }
-];
+
+
 
 const sampleData = {
-  student: sampleStudent,
-  grades: sampleGrades,
-  period: "trimester1",
-  generalAverage: 14.25,
-  classGeneralAverage: 12,
-  rank: 3,
-  totalStudents: 25,
-  observations: "Élève sérieux et appliqué",
+  student: {
+    firstname: "Thomas",
+    lastname: "Dupont",
+    matricule: "2024-001",
+    grade: { name: "6ème A" },
+    photo: null
+  },
+  grades: [
+    {
+      courseId: 1,
+      courseName: "Mathématiques",
+      courseGroup: "Sciences",
+      coefficient: 4,
+      assignments: [16, 15, 17],
+      assignmentsAverage: 16,
+      exam: 16,
+      average: 16,
+      classAverage: 12.5,
+      appreciation: "Excellent niveau. Continue ainsi!"
+    },
+    {
+      courseId: 2,
+      courseName: "Français",
+      courseGroup: "Lettres",
+      coefficient: 4,
+      assignments: [14, 15, 13],
+      exam: 15,
+      average: 14.5,
+      classAverage: 11.8,
+      appreciation: "Très bon travail ce trimestre"
+    },
+    {
+      courseId: 3,
+      courseName: "Histoire-Géographie",
+      courseGroup: "Sciences Humaines",
+      coefficient: 3,
+      assignments: [15, 14],
+      exam: 16,
+      average: 15,
+      classAverage: 12,
+      appreciation: "Participation active et travail sérieux"
+    }
+  ],
+  period: "Premier Trimestre",
+  generalAverage: 15.2,
+  classGeneralAverage: 12.1,
+  rank: 2,
+  totalStudents: 28,
+  observations: "Excellent trimestre. Thomas fait preuve d'une grande motivation et d'une participation active en classe.",
   conduct: {
-    discipline: "Très bien",
-    attendance: "Excellent",
-    workEthic: "Très bien"
+    discipline: "Excellent",
+    attendance: "Très bien",
+    workEthic: "Excellent"
   },
   schoolInfo: {
-    name: "Collège Sample",
-    address: "123 rue de l'école",
+    name: "Collège Saint-Joseph",
+    address: "12 rue de l'Education",
     phone: "01 23 45 67 89",
-    email: "contact@college-sample.fr"
+    email: "contact@saint-joseph.fr",
+    logo: null
   }
 };
 
@@ -402,21 +423,59 @@ const loadStudents = async () => {
   }
 };
 
+const formatSchoolInfo = (schoolData: any): SchoolInfo => {
+  return {
+    name: schoolData.name,
+    type: schoolData.type,
+    address: schoolData.address,
+    town: schoolData.town,
+    phone: schoolData.phone,
+    email: schoolData.email,
+    country: schoolData.country as 'MAR' | 'SEN' | 'CAF' | 'GIN',
+    logo: schoolData.logo ? {
+      url: `data:${schoolData.logo.type};base64,${schoolData.logo.content}`
+    } : undefined
+  };
+};
+
 const previewReport = async (student: any) => {
   try {
+    if (!selectedPeriod.value) {
+      ElMessage.warning('Veuillez sélectionner une période');
+      return;
+    }
+
     generating.value[student.id] = true;
-    const result = await window.ipcRenderer.invoke('report:generate', {
+    console.log('Demande de prévisualisation pour:', {
+      studentId: student.id,
+      period: selectedPeriod.value
+    });
+    
+    // Récupérer les notes
+    const gradesResult = await window.ipcRenderer.invoke('report:getGrades', {
       studentId: student.id,
       period: selectedPeriod.value
     });
 
-    if (result.success) {
+    console.log('Résultat des notes:', gradesResult);
+
+    // Récupérer les infos de l'école
+    const schoolResult = await window.ipcRenderer.invoke('school:get');
+    console.log('Résultat école:', schoolResult);
+    
+    if (gradesResult.success && gradesResult.data) {
       previewData.value = {
-        ...result.data,
         student,
-        schoolInfo: null // À implémenter avec les infos de l'école
+        period: selectedPeriod.value,
+        grades: gradesResult.data.grades || [],
+        generalAverage: gradesResult.generalAverage,
+        config: {},
+        schoolInfo: schoolResult.success ? formatSchoolInfo(schoolResult.data) : null
       };
+      console.log('Preview data:', previewData.value);
       previewVisible.value = true;
+    } else {
+      ElMessage.error(gradesResult.message || 'Erreur lors de la récupération des notes');
     }
   } catch (error) {
     console.error('Erreur prévisualisation:', error);
@@ -426,37 +485,35 @@ const previewReport = async (student: any) => {
   }
 };
 
+
 const printSingleReport = async (student: any) => {
   try {
-    printing.value[student.id] = true;
-    const result = await window.ipcRenderer.invoke('report:generate', {
-      studentId: student.id,
-      period: selectedPeriod.value
-    });
+    if (!selectedPeriod.value) {
+      ElMessage.warning('Veuillez sélectionner une période');
+      return;
+    }
 
-    if (result.success) {
+    printing.value[student.id] = true;
+
+    const [gradesResult, schoolResult] = await Promise.all([
+      window.ipcRenderer.invoke('report:getGrades', {
+        studentId: student.id,
+        period: selectedPeriod.value
+      }),
+      window.ipcRenderer.invoke('school:get')
+    ]);
+
+    if (gradesResult.success && gradesResult.data) {
       previewData.value = {
-        ...result.data,
         student,
-        schoolInfo: null
+        period: selectedPeriod.value,
+        grades: gradesResult.data.grades || [],
+        generalAverage: gradesResult.generalAverage,
+        config: {},
+        schoolInfo: schoolResult.success ? formatSchoolInfo(schoolResult.data) : null
       };
 
-      await nextTick();
-      
-      const element = document.getElementById('report-preview');
-      if (element) {
-        printJS({
-          printable: 'report-preview',
-          type: 'html',
-          targetStyles: ['*'],
-          documentTitle: `Bulletin_${student.firstname}_${student.lastname}`,
-          scanStyles: true,
-          css: [
-            'https://unpkg.com/element-plus/dist/index.css',
-            // Ajoutez ici d'autres fichiers CSS si nécessaire
-          ]
-        });
-      }
+      printPreview();
     }
   } catch (error) {
     console.error('Erreur impression:', error);
@@ -471,23 +528,78 @@ const generateSelectedReports = async () => {
   
   generatingMultiple.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('report:generateMultiple', {
-      studentIds: selectedStudents.value.map(s => s.id),
-      period: selectedPeriod.value,
-      templateId: selectedTemplate.value
-    });
-    
-    if (result.success) {
-      printJS({
-        printable: result.data,
-        type: 'html',
-        targetStyles: ['*'],
-        documentTitle: 'Bulletins'
-      });
+    const schoolResult = await window.ipcRenderer.invoke('school:get');
+    const schoolInfo = schoolResult.success ? formatSchoolInfo(schoolResult.data) : null;
+
+    // Créer le contenu HTML pour tous les bulletins
+    const reportsHTML = await Promise.all(
+      selectedStudents.value.map(async (student) => {
+        const gradesResult = await window.ipcRenderer.invoke('report:getGrades', {
+          studentId: student.id,
+          period: selectedPeriod.value
+        });
+
+        if (gradesResult.success && gradesResult.data) {
+          const reportData = {
+            student,
+            period: selectedPeriod.value,
+            grades: gradesResult.data.grades,
+            generalAverage: gradesResult.generalAverage,
+            schoolInfo
+          };
+
+          const template = availableTemplates.find(t => t.id === selectedTemplate.value);
+          if (template) {
+            const component = template.component;
+            // Créer une instance temporaire pour le rendu
+            const vm = createVNode(component, reportData);
+            const container = document.createElement('div');
+            render(vm, container);
+            return container.innerHTML;
+          }
+        }
+        return '';
+      })
+    );
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Bulletins</title>
+            <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+            <style>
+              body { margin: 0; padding: 0; }
+              .report-card {
+                width: 210mm;
+                min-height: 297mm;
+                padding: 10mm;
+                margin: 0;
+                box-sizing: border-box;
+                page-break-after: always;
+              }
+              @media print {
+                @page { margin: 0; }
+                body { margin: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            ${reportsHTML.join('')}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
     }
   } catch (error) {
     console.error('Erreur:', error);
-    ElMessage.error('Erreur lors de la génération');
+    ElMessage.error('Erreur lors de la génération des bulletins');
   } finally {
     generatingMultiple.value = false;
   }
@@ -501,12 +613,52 @@ const printPreview = () => {
     printJS({
       printable: 'report-preview',
       type: 'html',
-      targetStyles: ['*'],
-      documentTitle: 'Bulletin_Preview',
-      scanStyles: true,
       css: [
-        'https://unpkg.com/element-plus/dist/index.css'
-      ]
+        'https://fonts.googleapis.com/css2?family=Arial:wght@400;500;600;700&display=swap',
+        '/src/assets/base.css',
+      ],
+      style: `
+        @page { 
+          size: 210mm 297mm; 
+          margin: 0; 
+        }
+        body { 
+          margin: 0;
+          padding: 0;
+          background: white;
+        }
+        #report-preview {
+          width: 210mm;
+          height: 297mm;
+          margin: 0;
+          padding: 0;
+          background: white;
+        }
+        .report-card {
+          width: 210mm;
+          height: 297mm;
+          padding: 15mm;
+          margin: 0;
+          box-sizing: border-box;
+          background: white;
+        }
+        .grades-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .grades-table th,
+        .grades-table td {
+          border: 1px solid #000;
+          padding: 4px 6px;
+        }
+        .center { text-align: center; }
+        .totals { font-weight: bold; }
+      `,
+      scanStyles: true,
+      targetStyles: ['*'],
+      documentTitle: `Bulletin_${previewData.value.student.firstname}_${previewData.value.student.lastname}`,
+      honorColor: true,
+      maxWidth: 210,
     });
   }
 };
@@ -537,27 +689,34 @@ const onConfigSaved = () => {
 };
 
 const editGrades = async (student: any) => {
-  console.log('Édition des notes pour l\'étudiant:', student);
+  if (!selectedPeriod.value) {
+    ElMessage.warning('Veuillez sélectionner une période');
+    return;
+  }
+
+  if (!selectedGrade.value) {
+    ElMessage.warning('Veuillez sélectionner une classe');
+    return;
+  }
+
   currentStudent.value = student;
   editing.value[student.id] = true;
   
   try {
-    // Charger la configuration existante
+    // Utiliser une valeur par défaut si la config n'existe pas
     const configResult = await window.ipcRenderer.invoke('gradeConfig:get', {
       gradeId: selectedGrade.value
     });
-    console.log('Configuration récupérée:', configResult);
 
-    if (configResult.success) {
-      // Mettre à jour le nombre de devoirs et les pondérations
-      numberOfAssignments.value = configResult.data.defaultAssignments;
-      console.log('Nombre de devoirs configuré:', numberOfAssignments.value);
-    }
+    numberOfAssignments.value = configResult.success ? 
+      configResult.data?.defaultAssignments || 2 : 2;
 
     showGradesDialog.value = true;
   } catch (error) {
     console.error('Erreur lors de l\'édition:', error);
-    ElMessage.error('Erreur lors du chargement de la configuration');
+    // Utiliser une valeur par défaut en cas d'erreur
+    numberOfAssignments.value = 2;
+    showGradesDialog.value = true;
   } finally {
     editing.value[student.id] = false;
   }
@@ -570,7 +729,7 @@ const onGradesSaved = () => {
 
 const initializeYear = async () => {
   try {
-    const result = await window.ipcRenderer.invoke('year:getCurrent');
+    const result = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (result.success) {
       currentYear.value = result.data;
       periods.value = result.data.periodConfigurations.map((p: any) => ({
@@ -586,12 +745,19 @@ const initializeYear = async () => {
 };
 
 const selectTemplate = async (templateId: string) => {
+  console.log('Template sélectionné:', templateId);
+  selectedTemplate.value = templateId;
+  
   try {
+    console.log('Envoi de la requête de sauvegarde...');
     const result = await window.ipcRenderer.invoke('preference:saveTemplate', templateId);
+    console.log('Résultat de la sauvegarde:', result);
+    
     if (result.success) {
-      selectedTemplate.value = templateId;
       showTemplateSelector.value = false;
       ElMessage.success('Modèle de bulletin enregistré avec succès');
+    } else {
+      throw new Error('Échec de la sauvegarde');
     }
   } catch (error) {
     console.error('Erreur lors de la sélection du template:', error);
@@ -656,11 +822,13 @@ onMounted(async () => {
 }
 
 .preview-container {
-  background: white;
+  background: #f5f5f5;
   padding: 20px;
-  min-height: 60vh;
-  max-height: 70vh;
-  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 70vh;
+  overflow: auto;
 }
 
 .w-full {
@@ -707,22 +875,12 @@ onMounted(async () => {
 }
 
 .template-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  height: 100%;
-  padding: 20px;
-}
-
-.preview-container {
-  flex: 1;
-  width: 100%;
-  overflow: auto;
+  width: 210mm;
+  height: 297mm;
+  margin: 0 auto;
   background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  transform-origin: top center;
   transform: scale(0.8);
 }
 
@@ -746,8 +904,8 @@ onMounted(async () => {
 
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 30px;
   padding: 20px;
 }
 
@@ -756,31 +914,169 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   padding: 20px;
+  border: 2px solid #eee;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 500px;
+}
+
+.template-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.template-card.selected {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.template-preview-wrapper {
+  width: 100%;
+  height: 600px;
+  overflow: hidden;
   border: 1px solid #eee;
   border-radius: 8px;
+  margin: 15px 0;
+  position: relative;
   background: white;
 }
 
 .template-preview {
-  width: 100%;
-  height: 400px;
-  overflow: auto;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  margin: 15px 0;
-  padding: 10px;
-  transform: scale(0.5);
+  width: 210mm;
+  height: 297mm;
+  transform: scale(0.35);
   transform-origin: top center;
+  overflow-y: auto;
+  padding: 20px;
+  margin: 0 auto;
 }
 
-.select-button {
-  width: 200px;
-  margin-top: 15px;
+.template-card h3 {
+  font-size: 1.2em;
+  margin-bottom: 10px;
+  color: var(--el-color-primary);
 }
 
 .template-description {
   color: #666;
   text-align: center;
   margin: 10px 0;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.is-selected {
+  background-color: var(--el-color-success);
+  border-color: var(--el-color-success);
+}
+
+.templates-accordion {
+  margin: -20px;
+}
+
+.template-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.template-header.selected {
+  background-color: var(--el-color-primary-light-9);
+}
+
+.template-header h3 {
+  margin: 0;
+  font-size: 1.2em;
+  color: var(--el-color-primary);
+  flex: 0 0 auto;
+}
+
+.template-description {
+  margin: 0;
+  color: #666;
+  font-size: 0.9em;
+  flex: 1;
+}
+
+.template-preview-container {
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.template-preview-wrapper {
+  width: 100%;
+  height: 800px;
+  overflow: hidden;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.template-preview {
+  width: 210mm;
+  height: 297mm;
+  transform: scale(0.45);
+  transform-origin: top center;
+  margin: 0 auto;
+  background: white;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+:deep(.el-collapse-item__header) {
+  background: transparent;
+}
+
+:deep(.el-collapse-item__wrap) {
+  background: transparent;
+}
+
+:deep(.el-collapse) {
+  border: none;
+}
+
+:deep(.el-collapse-item__content) {
+  padding-bottom: 20px;
+}
+
+
+#multiple-reports-container {
+  display: none; /* Caché par défaut */
+}
+
+@media print {
+  #multiple-reports-container {
+    display: block;
+  }
+  
+  /* Cacher les autres éléments lors de l'impression */
+  .el-card,
+  .el-dialog,
+  .actions-bar {
+    display: none !important;
+  }
+}
+.is-selected {
+  background-color: var(--el-color-success);
+  border-color: var(--el-color-success);
+}
+
+@media print {
+  .preview-container {
+    padding: 0;
+    background: none;
+  }
+
+  .template-preview {
+    transform: none;
+    box-shadow: none;
+  }
 }
 </style> 

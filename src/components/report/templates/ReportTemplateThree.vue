@@ -222,7 +222,8 @@ const studentInitials = computed(() => {
 });
 
 // Méthodes
-const formatGrade = (grade: number): string => {
+const formatGrade = (grade: number | undefined): string => {
+  if (grade === undefined || grade === null) return '-';
   return grade.toFixed(2);
 };
 

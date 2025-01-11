@@ -35,11 +35,12 @@ export interface TeachingAssignment {
     gradeIds?: number[];   // Classes pour les profs de matière
 }
 
-export type ResultType = {
-    success: boolean | null;
-    message: string | null;
-    data: any|null;
-    error: any|null;
+export interface ResultType {
+    success: boolean;
+    data: any;
+    message: string;
+    error: string | null;
+    generalAverage?: number;  // Ajout de generalAverage optionnel
 }
 
 export class Mapper{
