@@ -256,7 +256,6 @@ import ReportTemplateTwo from '@/components/report/templates/ReportTemplateTwo.v
 import StudentGradesForm from '@/components/report/StudentGradesForm.vue';
 import { ReportCardTemplate, SchoolInfo } from '@/types/report';
 import printJS from 'print-js';
-import '@/assets/base.css';
 import 'element-plus/dist/index.css';
 
 interface PreviewData {

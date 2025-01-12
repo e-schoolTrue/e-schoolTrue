@@ -81,47 +81,9 @@
     <!-- Absences -->
    
 
-    <!-- Bilan dynamique -->
-    <div class="summary-section">
-      <div class="results-section">
-        <h5>BILAN</h5>
-        <table class="results-table">
-          <tbody>
-            <template v-if="period.includes('Semestre')">
-              <tr v-if="previousResults?.semester1">
-                <td>Semestre 1</td>
-                <td class="center">{{ previousResults.semester1.average.toFixed(2) }}</td>
-              </tr>
-              <tr v-if="period === 'Semestre 2'">
-                <td>Semestre 2</td>
-                <td class="center">{{ generalAverage.toFixed(2) }}</td>
-              </tr>
-              <tr v-if="previousResults?.semester1" class="annual-average">
-                <td>Moyenne Annuelle</td>
-                <td class="center">{{ calculateAnnualAverage().toFixed(2) }}</td>
-              </tr>
-            </template>
-            <template v-else>
-              <tr v-if="previousResults?.term1">
-                <td>1er Trimestre</td>
-                <td class="center">{{ previousResults.term1.average.toFixed(2) }}</td>
-              </tr>
-              <tr v-if="previousResults?.term2">
-                <td>2ème Trimestre</td>
-                <td class="center">{{ previousResults.term2.average.toFixed(2) }}</td>
-              </tr>
-              <tr v-if="period === 'Trimestre 3'">
-                <td>3ème Trimestre</td>
-                <td class="center">{{ generalAverage.toFixed(2) }}</td>
-              </tr>
-              <tr v-if="previousResults?.term1" class="annual-average">
-                <td>Moyenne Annuelle</td>
-                <td class="center">{{ calculateAnnualAverage().toFixed(2) }}</td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+    <!-- Remplacer toute la div summary-section par : -->
+    <div class="general-average">
+      <strong>Moyenne Générale:</strong> {{ generalAverage?.toFixed(2) || '0.00' }}/20
     </div>
 
     <!-- Décision et signature -->
@@ -234,19 +196,6 @@ const calculateWeightedTotal = () => {
     sum + (grade.average * grade.coefficient), 0).toFixed(2);
 };
 
-const calculateAnnualAverage = () => {
-  if (props.period.includes('Semestre')) {
-    const sem1 = props.previousResults?.semester1?.average || 0;
-    const sem2 = props.period === 'Semestre 2' ? props.generalAverage : 0;
-    return (sem1 + sem2) / (sem2 ? 2 : 1);
-  } else {
-    const term1 = props.previousResults?.term1?.average || 0;
-    const term2 = props.previousResults?.term2?.average || 0;
-    const term3 = props.period === 'Trimestre 3' ? props.generalAverage : 0;
-    const divisor = [term1, term2, term3].filter(t => t > 0).length;
-    return (term1 + term2 + term3) / divisor;
-  }
-};
 </script>
 
 <style scoped>
@@ -397,48 +346,12 @@ const calculateAnnualAverage = () => {
   font-weight: bold;
 }
 
-.summary-section {
-  margin: 10mm 0;
-  font-size: 10pt;
-}
-
-.results-section {
-  width: 50%;
-  margin: 0 auto;
-}
-
-.results-section h5 {
-  margin: 0 0 10px 0;
-  font-size: 11pt;
-  text-transform: uppercase;
-  font-weight: bold;
+.general-average {
   text-align: center;
-  border-bottom: 1px solid #000;
-  padding-bottom: 5px;
-}
-
-.results-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-}
-
-.results-table td {
+  padding: 10px;
   border: 1px solid #000;
-  padding: 6px 10px;
-}
-
-.results-table td:first-child {
-  width: 60%;
-}
-
-.annual-average {
-  font-weight: bold;
-  background-color: #f5f5f5;
-}
-
-.annual-average td {
-  border-top: 2px solid #000;
+  margin: 20px 0;
+  font-size: 12pt;
 }
 
 .footer-section {
@@ -477,10 +390,13 @@ const calculateAnnualAverage = () => {
   .report-card {
     margin: 0;
     padding: 10mm;
+    width: 210mm;
+    height: 297mm;
+    page-break-after: always;
   }
   
   @page {
-    size: A4 portrait;
+    size: A4;
     margin: 0;
   }
 }

@@ -19,6 +19,7 @@ import { HomeworkEntity } from "./backend/entities/homework";
 import { VacationEntity } from "./backend/entities/vacation";
 import { ScholarshipEntity } from "./backend/entities/scholarship";
 import { PreferenceEntity } from "./backend/entities/preference";
+import { GradeConfigEntity } from "./backend/entities/gradeConfig";
 
 
 
@@ -33,10 +34,10 @@ export class AppDataSource {
             AppDataSource.instance = new DataSource({
                 type: "better-sqlite3",
                 synchronize: true,
-                dropSchema:false,
+                dropSchema:true,
                 database: dbPath,
                 logging: true,
-                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity, ScholarshipEntity, PreferenceEntity],
+                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity, ScholarshipEntity, PreferenceEntity, GradeConfigEntity],
                 subscribers: [],
                 migrationsRun: true
             });

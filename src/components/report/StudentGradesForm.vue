@@ -32,7 +32,7 @@
         <template #default="{ row }">
           <div class="assignments-container">
             <el-input-number
-              v-for="(_note, index) in row.assignments"
+              v-for="(, index) in row.assignments"
               :key="index"
               v-model="row.assignments[index]"
               :min="0"
@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 
 const props = defineProps<{
@@ -130,7 +130,6 @@ const emit = defineEmits(['saved']);
 const courses = ref<any[]>([]);
 const student = ref<any>(null);
 const courseGrades = ref<any[]>([]);
-const numberOfAssignments = ref(2);
 const saving = ref(false);
 const generalAverage = ref(0);
 
@@ -156,32 +155,43 @@ const loadStudent = async () => {
 };
 
 const loadCourses = async () => {
-  console.log('Chargement des cours');
+  console.log('Chargement des cours et de la configuration');
   try {
+    // Charger la configuration de la classe
+    const configResult = await window.ipcRenderer.invoke('gradeConfig:get', {
+      gradeId: props.gradeId
+    });
+    console.log('Configuration chargée:', configResult);
+
+    // Charger les cours
     const result = await window.ipcRenderer.invoke('course:all');
     console.log('Résultat cours:', result);
+    
     if (result.success) {
       courses.value = result.data;
       console.log('Cours chargés:', courses.value);
-      initializeCourseGrades();
+      
+      // Utiliser le nombre de devoirs de la configuration
+      const numberOfAssignments = configResult.success ? 
+        configResult.data.numberOfAssignments : props.numberOfAssignments;
+
+      // Initialiser les notes avec le bon nombre de devoirs
+      courseGrades.value = courses.value.map(course => ({
+        id: course.id,
+        name: course.name,
+        coefficient: course.coefficient,
+        assignments: Array(numberOfAssignments).fill(0),
+        exam: 0,
+        assignmentAverage: 0,
+        finalAverage: 0
+      }));
+      
+      console.log('Notes initialisées avec', numberOfAssignments, 'devoirs:', courseGrades.value);
     }
   } catch (error) {
-    console.error('Erreur chargement cours:', error);
+    console.error('Erreur chargement cours et config:', error);
     ElMessage.error('Erreur lors du chargement des cours');
   }
-};
-
-const initializeCourseGrades = () => {
-  courseGrades.value = courses.value.map(course => ({
-    id: course.id,
-    name: course.name,
-    coefficient: course.coefficient,
-    assignments: Array(numberOfAssignments.value).fill(0),
-    exam: 0,
-    assignmentAverage: 0,
-    finalAverage: 0
-  }));
-  console.log('Notes initialisées:', courseGrades.value);
 };
 
 const calculateAverages = () => {
@@ -190,9 +200,10 @@ const calculateAverages = () => {
 
   courseGrades.value.forEach(course => {
     // Moyenne des devoirs
-    const validAssignments = course.assignments.filter((n: number | null): n is number => 
-      n !== null && n > 0
-    );
+    const validAssignments = course.assignments
+      .filter((n: number | null) => n !== null)
+      .map((n: any) => Number(n) || 0);
+      
     course.assignmentAverage = validAssignments.length 
       ? validAssignments.reduce((a: any, b: any) => a + b, 0) / validAssignments.length 
       : 0;
@@ -268,6 +279,16 @@ const saveGrades = async () => {
     saving.value = false;
   }
 };
+
+watch(() => props.numberOfAssignments, async (newValue) => {
+  console.log('Nombre de devoirs mis à jour:', newValue);
+  if (courseGrades.value.length > 0) {
+    courseGrades.value = courseGrades.value.map(course => ({
+      ...course,
+      assignments: Array(newValue).fill(0)
+    }));
+  }
+});
 
 onMounted(() => {
   console.log('StudentGradesForm monté avec les props:', {

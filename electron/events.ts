@@ -1110,14 +1110,12 @@ ipcMain.handle('report:preview', async (_event, data) => {
 // Handler pour la configuration des notes
 ipcMain.handle('gradeConfig:save', async (_event, config) => {
     try {
-        // Implémenter la sauvegarde de la configuration
-        return {
-            success: true,
-            data: config,
-            message: "Configuration sauvegardée",
-            error: null
-        };
+        console.log('=== Events - Début gradeConfig:save ===', config);
+        const result = await global.gradeConfigService.saveConfiguration(config);
+        console.log('=== Events - Résultat gradeConfig:save ===', result);
+        return result;
     } catch (error) {
+        console.error('=== Events - Erreur dans gradeConfig:save ===', error);
         return handleError(error);
     }
 });
@@ -1194,11 +1192,16 @@ ipcMain.handle('preference:getTemplate', async () => {
 
 // Handler pour récupérer la configuration des notes
 ipcMain.handle('gradeConfig:get', async (_event, { gradeId }) => {
-  try {
-    return await global.gradeConfigService.getConfigurationByGrade(gradeId);
-  } catch (error) {
-    return handleError(error);
-  }
+    try {
+        console.log('=== Events - Début gradeConfig:get ===', gradeId);
+        const gradeConfigService = new GradeConfigService();
+        const result = await gradeConfigService.getConfigurationByGrade(gradeId);
+        console.log('=== Events - Résultat gradeConfig:get ===', result);
+        return result;
+    } catch (error) {
+        console.error('=== Events - Erreur dans gradeConfig:get ===', error);
+        return handleError(error);
+    }
 });
 
 export function registerReportEvents() {

@@ -1,18 +1,17 @@
 <template>
   <div class="student-card-view">
     <el-row :gutter="20">
-      <!-- Colonne de gauche pour la configuration -->
+      <!-- Configuration -->
       <el-col :span="8">
-        <el-card class="config-section">
+        <el-card>
           <template #header>
             <h2>Configuration des cartes</h2>
           </template>
 
           <el-tabs v-model="activeTab">
-            <!-- Onglet Template -->
             <el-tab-pane label="Template" name="template">
               <div class="templates-list">
-                <el-radio-group v-model="selectedTemplate" class="template-radio-group">
+                <el-radio-group v-model="selectedTemplate">
                   <div v-for="template in templates" :key="template.id" class="template-item">
                     <el-radio :label="template.id">
                       <div class="template-info">
@@ -20,27 +19,36 @@
                         <p>{{ template.description }}</p>
                       </div>
                     </el-radio>
-                    <div class="template-preview">
-                      <component :is="template.component" :student="previewStudent" :school-info="schoolInfo"
-                        :color-scheme="selectedColorScheme" />
-                    </div>
                   </div>
                 </el-radio-group>
               </div>
-
             </el-tab-pane>
 
-            <!-- Onglet Couleurs -->
             <el-tab-pane label="Couleurs" name="colors">
-              <ColorSchemeSelector v-model="selectedColorScheme" @update:modelValue="updatePreview" />
+              <ColorSchemeSelector v-model="selectedColorScheme" />
             </el-tab-pane>
           </el-tabs>
         </el-card>
+
+        <!-- Aperçu -->
+        <el-card class="mt-4 preview-card">
+          <template #header>
+            <h2>Aperçu</h2>
+          </template>
+          <div class="preview-container">
+            <component
+              :is="getCurrentTemplate"
+              :student="previewStudent || selectedStudents[0] || {}"
+              :school-info="schoolInfo"
+              :color-scheme="selectedColorScheme"
+            />
+          </div>
+        </el-card>
       </el-col>
 
-      <!-- Colonne de droite pour la liste des étudiants -->
+      <!-- Liste des étudiants -->
       <el-col :span="16">
-        <el-card class="students-section">
+        <el-card>
           <template #header>
             <div class="students-header">
               <div class="filters">
@@ -55,75 +63,46 @@
                 </el-input>
               </div>
 
-              <el-button type="primary" @click="printSelectedCards" :disabled="!selectedStudents.length">
+              <el-button type="primary" @click="handlePrint" :disabled="!selectedStudents.length">
                 <Icon icon="mdi:printer" class="mr-2" />
                 Imprimer ({{ selectedStudents.length }})
               </el-button>
             </div>
           </template>
 
-          <!-- Table des étudiants -->
-          <el-table :data="filteredStudents" @selection-change="handleSelectionChange" v-loading="loading"
-            height="calc(100vh - 300px)">
+          <el-table 
+            :data="filteredStudents" 
+            @selection-change="handleSelectionChange" 
+            v-loading="loading"
+            height="calc(100vh - 300px)"
+          >
             <el-table-column type="selection" width="55" />
-
             <el-table-column label="Photo" width="80">
               <template #default="{ row }">
-                <el-avatar :size="40" :src="row.photo?.path">
+                <el-avatar :size="40" :src="row.photo?.url">
                   {{ getInitials(row) }}
                 </el-avatar>
               </template>
             </el-table-column>
-
             <el-table-column prop="matricule" label="Matricule" width="120" />
             <el-table-column prop="firstname" label="Prénom" />
             <el-table-column prop="lastname" label="Nom" />
             <el-table-column prop="grade.name" label="Classe" width="120" />
-
-            <el-table-column label="Aperçu" width="100" align="center">
-              <template #default="{ row }">
-                <el-button type="primary" @click="previewStudent = row">
-                  <Icon icon="mdi:eye" />
-                </el-button>
-              </template>
-            </el-table-column>
           </el-table>
         </el-card>
       </el-col>
     </el-row>
-
-    <!-- Dialog d'impression -->
-    <el-dialog v-model="printDialogVisible" title="Impression des cartes" width="80%" top="5vh">
-      <div class="print-preview">
-        <div v-for="student in selectedStudents" :key="student.id" class="print-card">
-          <component :is="getCurrentTemplate" :student="student" :school-info="schoolInfo"
-            :color-scheme="selectedColorScheme" />
-        </div>
-      </div>
-
-      <template #footer>
-        <el-button @click="printDialogVisible = false">Annuler</el-button>
-        <el-button type="primary" @click="handlePrint">
-          <Icon icon="mdi:printer" class="mr-2" />
-          Imprimer
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Icon } from '@iconify/vue';
 import CardTemplateOne from '@/components/cardStudent/templates/CardTemplateOne.vue';
 import CardTemplateTwo from '@/components/cardStudent/templates/CardTemplateTwo.vue';
 import CardTemplateThree from '@/components/cardStudent/templates/CardTemplateThree.vue';
-import ColorSchemeSelector from '@/components/cardStudent/ColorSchemeSelector.vue';
 import { DEFAULT_COLOR_SCHEME } from '@/constants/colorSchemes';
 import type { ColorScheme } from '@/types/card';
-
-
 
 // États
 const loading = ref(false);
@@ -135,7 +114,6 @@ const students = ref<any[]>([]);
 const selectedStudents = ref<any[]>([]);
 const grades = ref<any[]>([]);
 const schoolInfo = ref<any>(null);
-const printDialogVisible = ref(false);
 const previewStudent = ref<any>(null);
 const selectedColorScheme = ref<ColorScheme>({ ...DEFAULT_COLOR_SCHEME });
 
@@ -161,7 +139,7 @@ const templates = [
   }
 ];
 
-// Computed properties
+// Computed
 const getCurrentTemplate = computed(() => {
   const template = templates.find(t => t.id === selectedTemplate.value);
   return template ? template.component : CardTemplateOne;
@@ -169,11 +147,9 @@ const getCurrentTemplate = computed(() => {
 
 const filteredStudents = computed(() => {
   let filtered = [...students.value];
-
   if (selectedGrade.value) {
     filtered = filtered.filter(s => s.grade?.id === selectedGrade.value);
   }
-
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(s =>
@@ -182,82 +158,52 @@ const filteredStudents = computed(() => {
       s.matricule?.toLowerCase().includes(query)
     );
   }
-
   return filtered;
 });
 
 // Méthodes
 const loadData = async () => {
   try {
-    // Chargement des infos de l'école avec logo
-    const schoolResult = await window.ipcRenderer.invoke('school:get');
+    loading.value = true;
+    const [schoolResult, gradesResult, studentsResult] = await Promise.all([
+      window.ipcRenderer.invoke('school:get'),
+      window.ipcRenderer.invoke('grade:all'),
+      window.ipcRenderer.invoke('student:all')
+    ]);
+
     if (schoolResult.success && schoolResult.data) {
       const school = schoolResult.data;
-
       if (school.logo?.id) {
-        // Utiliser la même méthode que pour les photos d'étudiants
         const logoResult = await window.ipcRenderer.invoke('getStudentPhoto', school.logo.id);
         if (logoResult.success && logoResult.data) {
           school.logo.url = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
-          console.log("Logo chargé avec succès:", school.logo.url.substring(0, 50) + "...");
-        } else {
-          console.warn('Erreur lors de la récupération du logo:', logoResult);
         }
       }
-
       schoolInfo.value = school;
-      console.log("Informations de l'école chargées:", schoolInfo.value);
-    } else {
-      console.warn('Les informations de l\'école sont introuvables ou incorrectes:', schoolResult);
     }
 
-    // Chargement des grades (classes)
-    const gradesResult = await window.ipcRenderer.invoke('grade:all');
     if (gradesResult.success) {
       grades.value = gradesResult.data;
-      console.log("Grades chargés:", grades.value.length);
     }
 
-    // Chargement des étudiants avec photos
-    const studentsResult = await window.ipcRenderer.invoke('student:all');
     if (studentsResult.success) {
-      loading.value = true;
-      const loadedStudents = await Promise.all(studentsResult.data.map(async (student: any) => {
+      students.value = await Promise.all(studentsResult.data.map(async (student: any) => {
         if (student.photo?.id) {
-          try {
-            const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', student.photo.id);
-            if (photoResult.success && photoResult.data) {
-              student.photo.url = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
-              console.log(`Photo chargée pour l'étudiant ${student.firstname} ${student.lastname}`);
-            }
-          } catch (error) {
-            console.error(`Erreur lors du chargement de la photo pour l'étudiant ${student.firstname} ${student.lastname}:`, error);
+          const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', student.photo.id);
+          if (photoResult.success && photoResult.data) {
+            student.photo.url = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
           }
         }
         return student;
       }));
-
-      students.value = loadedStudents;
-      console.log("Nombre d'étudiants chargés:", students.value.length);
-
-      if (students.value.length > 0) {
-        previewStudent.value = students.value[0];
-        console.log("Premier étudiant sélectionné pour la prévisualisation");
-      }
-      
-      loading.value = false;
-    } else {
-      console.error('Erreur lors du chargement des étudiants:', studentsResult);
-      ElMessage.error('Erreur lors du chargement des étudiants');
     }
-
   } catch (error) {
-    console.error('Erreur lors du chargement des données:', error);
+    console.error('Erreur chargement:', error);
     ElMessage.error('Erreur lors du chargement des données');
+  } finally {
     loading.value = false;
   }
 };
-
 
 const handleSelectionChange = (selection: any[]) => {
   selectedStudents.value = selection;
@@ -267,51 +213,196 @@ const getInitials = (student: any) => {
   return `${student.firstname?.[0] || ''}${student.lastname?.[0] || ''}`.toUpperCase();
 };
 
-const updatePreview = () => {
-  // Mise à jour de la prévisualisation si nécessaire
-};
-
 const handlePrint = () => {
-  // Logique d'impression
-  printDialogVisible.value = false;
-};
+  if (!selectedStudents.value.length) return;
 
-const printSelectedCards = () => {
-  if (selectedStudents.value.length === 0) {
-    ElMessage.warning('Veuillez sélectionner au moins un étudiant');
-    return;
-  }
-  printDialogVisible.value = true;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  // Styles spécifiques pour l'impression
+  const styles = document.createElement('style');
+  styles.textContent = `
+    @page {
+      size: 85.6mm 54mm landscape;
+      margin: 0;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 85.6mm;
+      height: 54mm;
+      background: white;
+    }
+    .print-container {
+      width: 85.6mm;
+    }
+    .print-card {
+      width: 85.6mm;
+      height: 54mm;
+      padding: 5mm;
+      page-break-after: always;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 5mm;
+      margin-bottom: 3mm;
+      height: 8mm;
+    }
+    .school-info {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+    .school-logo {
+      width: 6mm;
+      height: 6mm;
+      object-fit: contain;
+    }
+    .school-name {
+      font-size: 3mm;
+      color: ${selectedColorScheme.value.primary};
+      font-weight: bold;
+    }
+    .card-content {
+      display: flex;
+      gap: 5mm;
+      flex: 1;
+    }
+    .photo-section {
+      width: 25mm;
+    }
+    .student-photo {
+      width: 25mm;
+      height: 32mm;
+      object-fit: cover;
+      border: 0.3mm solid #ddd;
+      border-radius: 1mm;
+    }
+    .info-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2mm;
+    }
+    .student-name {
+      font-size: 4mm;
+      font-weight: bold;
+      color: ${selectedColorScheme.value.secondary};
+    }
+    .student-details {
+      font-size: 3mm;
+      color: #666;
+    }
+    .matricule {
+      color: ${selectedColorScheme.value.primary};
+      font-weight: 500;
+    }
+    @media print {
+      .print-card {
+        break-inside: avoid;
+      }
+    }
+  `;
+
+  // Création du HTML pour chaque carte
+  const createCardHTML = (student: any) => `
+    <div class="print-card">
+      <div class="card-header">
+        <div class="school-info">
+          <img src="${schoolInfo.value?.logo?.url || ''}" class="school-logo" alt="Logo">
+          <div class="school-name">${schoolInfo.value?.name || ''}</div>
+        </div>
+      </div>
+      <div class="card-content">
+        <div class="photo-section">
+          <img src="${student.photo?.url || ''}" class="student-photo" alt="Photo">
+        </div>
+        <div class="info-section">
+          <div class="student-name">${student.firstname || ''} ${student.lastname || ''}</div>
+          <div class="student-details matricule">№ ${student.matricule || ''}</div>
+          <div class="student-details">Classe: ${student.grade?.name || ''}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=85.6mm, height=54mm, initial-scale=1.0">
+        <title>Cartes Étudiants</title>
+      </head>
+      <body>
+        <div class="print-container">
+          ${selectedStudents.value.map(student => createCardHTML(student)).join('')}
+        </div>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(html);
+  printWindow.document.head.appendChild(styles);
+
+  // Script pour l'impression
+  const printScript = document.createElement('script');
+  printScript.textContent = `
+    window.onload = () => {
+      setTimeout(() => {
+        window.print();
+        window.close();
+      }, 1000);
+    };
+  `;
+  printWindow.document.body.appendChild(printScript);
+  printWindow.document.close();
 };
 
 // Initialisation
-onMounted(loadData);
-
-const emit = defineEmits<{
-  'update:zoom': [value: number];
-  'flip': [value: boolean];
-  'print': [];
-}>();
+loadData();
 </script>
+
 
 <style scoped>
 .student-card-view {
   padding: 20px;
-  min-height: calc(100vh - 40px);
+  height: calc(100vh - 40px);
   background-color: #f5f7fa;
+  overflow: hidden;
 }
 
-.template-radio-group {
+.el-row {
+  height: 100%;
+}
+
+.el-col {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: 100%;
+}
+
+.templates-list {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
 }
 
 .template-item {
   border: 1px solid #eee;
   border-radius: 8px;
-  padding: 15px;
+  padding: 10px;
+  margin-bottom: 8px;
   transition: all 0.3s ease;
 }
 
@@ -320,26 +411,70 @@ const emit = defineEmits<{
   background-color: var(--el-color-primary-light-9);
 }
 
-.template-info {
-  margin-bottom: 15px;
-}
-
 .template-info h3 {
-  margin: 0 0 5px 0;
-  font-size: 16px;
+  margin: 0 0 3px 0;
+  font-size: 14px;
 }
 
 .template-info p {
   margin: 0;
   color: #666;
-  font-size: 14px;
+  font-size: 12px;
 }
 
-.template-preview {
+.preview-card {
+  margin-top: 15px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 400px);
+}
+
+.preview-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-container {
+  flex: 1;
+  padding: 30px;
   display: flex;
   justify-content: center;
-  margin-top: 15px;
-  transform: scale(0.8);
+  align-items: center;
+  background: linear-gradient(45deg, #f8f9fa, #fff);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.preview-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(0, 0, 0, 0.01) 10px,
+    rgba(0, 0, 0, 0.01) 20px
+  );
+  border-radius: 8px;
+}
+
+.preview-container :deep(.card-template) {
+  transform: scale(1.5);
+  transition: transform 0.3s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  position: relative;
+  z-index: 1;
+}
+
+.preview-container:hover :deep(.card-template) {
+  transform: scale(1.6);
 }
 
 .students-header {
@@ -355,39 +490,13 @@ const emit = defineEmits<{
   flex: 1;
 }
 
-.print-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(85.6mm, 1fr));
-  gap: 20px;
-  padding: 20px;
+.el-table {
+  height: calc(100vh - 160px) !important;
 }
 
 @media print {
-
-  .config-section,
-  .students-section,
-  .el-dialog__header,
-  .el-dialog__footer {
+  .student-card-view > *:not(.print-content) {
     display: none !important;
   }
-
-  .print-preview {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10mm;
-  }
-
-  .print-card {
-    page-break-inside: avoid;
-  }
-}
-
-.templates-list {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 10px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  background-color: #f9f9f9;
 }
 </style>

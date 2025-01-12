@@ -142,12 +142,6 @@ export const AppItems: MenuItem[] = [
                 title: "Carte d'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
-            },
-            {
-                id: "submenu-5-3",
-                title: "Sauvegarde",
-                icon: "fluent-emoji:incoming-envelope",
-                route: "/tools/save-data",
             }
         ]
     },
@@ -185,12 +179,6 @@ export const AppItems: MenuItem[] = [
                 title: "Configuration des notes",
                 icon: "fluent-emoji:pencil",
                 route: "/school-notes",
-            },
-            {
-                id: "submenu-6-6",
-                title: "Configuration des paiements",
-                icon: "fluent-emoji:coin",
-                route: "/payment-config",
             },
             {
                 id: "submenu-6-7",

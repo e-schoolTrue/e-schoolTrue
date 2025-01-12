@@ -14,10 +14,5 @@ export const toolRoutes = [
       name: "ReportCard",
       component: () => import("@/views/tools/ReportCardView.vue"),
     },
-    {
-      path: "/tools/save-data",
-      name: "Backup",
-      component: () => import("@/views/tools/BackupView.vue"),
-    },
     
   ]; 
