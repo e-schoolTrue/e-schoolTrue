@@ -1,36 +1,22 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index } from "typeorm";
 import { GradeEntity } from "./grade";
-import { CourseEntity } from "./course";
 
-@Entity("grade_configurations")
+@Entity('grade_config')
 export class GradeConfigEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @ManyToOne(() => GradeEntity)
+    @ManyToOne(() => GradeEntity, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'grade_id' })
+    @Index({ unique: true })
     grade!: GradeEntity;
 
-    @ManyToOne(() => CourseEntity)
-    course!: CourseEntity;
-
-    @Column({ type: "varchar" })
-    schoolYear!: string;
-
-    @Column({ type: "int" })
+    @Column({ type: 'integer', default: 2 })
     numberOfAssignments!: number;
 
-    @Column({ type: "int" })
+    @Column({ type: 'real', default: 0.4 })
     assignmentWeight!: number;
 
-    @Column({ type: "int" })
+    @Column({ type: 'real', default: 0.6 })
     examWeight!: number;
-
-    @Column({ type: 'simple-json', nullable: true })
-    appreciationRanges!: {
-        excellent: { min: number; max: number };
-        veryGood: { min: number; max: number };
-        good: { min: number; max: number };
-        average: { min: number; max: number };
-        poor: { min: number; max: number };
-    };
 } 

@@ -212,10 +212,11 @@ const getDecision = () => {
     padding: 10mm;
     width: 210mm;
     height: 297mm;
+    page-break-after: always;
   }
   
   @page {
-    size: A4 portrait;
+    size: A4;
     margin: 0;
   }
 }
