@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { Chart, registerables } from 'chart.js';
+import { useCurrency } from '@/composables/useCurrency';
+
 Chart.register(...registerables);
 
 interface DashboardStats {
@@ -25,6 +27,7 @@ const stats = ref<DashboardStats | null>(null);
 const loading = ref(true);
 const paymentChartRef = ref<HTMLCanvasElement | null>(null);
 const absenceChartRef = ref<HTMLCanvasElement | null>(null);
+const { currency } = useCurrency();
 
 const loadDashboardStats = async () => {
   try {
@@ -54,7 +57,7 @@ const loadDashboardStats = async () => {
         data: {
           labels: Object.keys(paymentStats.data),
           datasets: [{
-            label: 'Paiements mensuels (FCFA)',
+            label: 'Paiements mensuels ' + currency.value,
             data: Object.values(paymentStats.data),
             borderColor: '#409EFF',
             tension: 0.4
@@ -62,7 +65,16 @@ const loadDashboardStats = async () => {
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false
+          maintainAspectRatio: false,
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${context.dataset.label}: ${new Intl.NumberFormat('fr-FR').format(context.raw as number)} ${currency.value}`;
+                }
+              }
+            }
+          }
         }
       });
     }
@@ -90,7 +102,6 @@ const loadDashboardStats = async () => {
       });
     }
   } catch (error) {
-    console.error('Erreur détaillée lors du chargement des statistiques:', error);
     ElMessage.error('Impossible de charger les statistiques');
   } finally {
     loading.value = false;

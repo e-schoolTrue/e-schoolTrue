@@ -9,7 +9,7 @@
             <p class="school-type">{{ schoolInfo?.type }}</p>
           </div>
           <div class="logo-container">
-            <img v-if="schoolInfo?.logo" :src="schoolInfo.logo" class="school-logo" alt="Logo" />
+            <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
           </div>
         </div>
       </div>
@@ -17,7 +17,10 @@
       <div class="card-content">
         <div class="student-photo-container">
           <div class="student-photo">
-            <img v-if="student?.photo" :src="student.photo" alt="Photo" />
+            <img v-if="student?.photo?.url && isValidDataUrl(student.photo.url)" 
+                 :src="student.photo.url" 
+                 alt="Photo"
+                 class="student-image" />
             <div v-else class="photo-placeholder">
               <Icon icon="mdi:account" />
             </div>
@@ -135,6 +138,10 @@ const formatDate = (date: string | Date | undefined) => {
   if (!date) return '';
   return new Date(date).toLocaleDateString('fr-FR');
 };
+
+const isValidDataUrl = (url: string) => {
+  return typeof url === 'string' && url.startsWith('data:') && url.includes('base64,');
+};
 </script>
 
 <style scoped>
@@ -203,12 +210,38 @@ const formatDate = (date: string | Date | undefined) => {
   gap: 15px;
 }
 
+.student-photo-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
 .student-photo {
   width: 70px;
   height: 90px;
   border: 3px solid var(--primary-color);
   border-radius: 8px;
   overflow: hidden;
+  background-color: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 32px;
 }
 
 .student-name h3 {

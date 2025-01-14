@@ -38,25 +38,27 @@ interface Professor {
   qualification?: {
     name: string;
   };
-  photo?: {
-    path: string;
-    type: string;
-    url?: string;
-  };
+  photo?: { id: number; name: string; type: string };
   documents?: Array<{
     id: number;
     name: string;
-    path: string;
     type: string;
   }>;
   teaching?: Teaching[];
 }
 
-interface DocumentType {
+interface DocumentData {
   id: number;
   name: string;
   type: string;
-  path: string;
+  content?: string;
+}
+
+interface CurrentDocument {
+  id?: number;
+  content?: string;
+  type?: string;
+  name?: string;
 }
 
 const route = useRoute();
@@ -64,39 +66,44 @@ const router = useRouter();
 const professor = ref<Professor | null>(null);
 const loading = ref(false);
 const dialogVisible = ref(false);
-const currentDocument = ref<{
-  id?: number;
-  content?: string;
-  type?: string;
-  name?: string;
-  path?: string;
-} | null>(null);
 
-const getImageUrl = async (path: string) => {
+const currentDocument = ref<CurrentDocument | null>(null);
+
+const photoUrl = ref<string | null>(null);
+
+const loadPhoto = async (photo?: { id: number; name: string; type: string }) => {
+  if (!photo) {
+    photoUrl.value = null;
+    return;
+  }
+
   try {
-    const result = await window.ipcRenderer.invoke('file:getUrl', path);
-    if (result.success) {
-      return `data:${result.data.type};base64,${result.data.content}`;
+    const photoResult = await window.ipcRenderer.invoke('getProfessorPhoto', photo.id); 
+    console.log("photo prof :", photoResult)
+    if (photoResult.success && photoResult.data) {
+      photoUrl.value = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
+    } else {
+      console.error("Erreur lors du chargement de la photo:", photoResult.error);
+      photoUrl.value = null;
     }
   } catch (error) {
-    console.error('Erreur lors du chargement de l\'image:', error);
+    console.error("Erreur lors du chargement de la photo:", error);
+    photoUrl.value = null;
   }
-  return '';
 };
-
-const viewDocument = async (document: DocumentType) => {
+const viewDocument = async (document: DocumentData) => {
   try {
-    const result = await window.ipcRenderer.invoke('file:getUrl', document.path);
-    if (result.success) {
+    const result = await window.ipcRenderer.invoke('professor:downloadDocument', document.id);
+    if (result.success && result.data && result.data.content) {
+      const content = `data:${result.data.type};base64,${result.data.content}`;
+
       currentDocument.value = {
         id: document.id,
-        content: result.data.type === 'application/pdf' 
-          ? result.data.content 
-          : `data:${result.data.type};base64,${result.data.content}`,
+        content: content,
         type: result.data.type,
-        name: document.name,
-        path: document.path
+        name: document.name
       };
+
       dialogVisible.value = true;
     } else {
       ElMessage.error("Erreur lors du chargement du document");
@@ -107,25 +114,53 @@ const viewDocument = async (document: DocumentType) => {
   }
 };
 
+const downloadDocument = async (document: DocumentData) => {
+  try {
+    const result = await window.ipcRenderer.invoke('professor:downloadDocument', document.id);
+    if (result.success && result.data && result.data.content) {
+      try {
+        const byteCharacters = atob(result.data.content);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: result.data.type });
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = window.document.createElement('a');
+        a.href = url;
+        a.download = document.name;
+        window.document.body.appendChild(a);
+        a.click();
+        window.document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Erreur de décodage:", error);
+        ElMessage.error("Erreur lors du décodage du document");
+      }
+    } else {
+      ElMessage.error("Erreur lors du téléchargement du document");
+    }
+  } catch (error) {
+    console.error("Erreur lors du téléchargement du document:", error);
+    ElMessage.error("Une erreur s'est produite lors du téléchargement du document");
+  }
+};
+
 const loadProfessor = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('professor:getById', Number(route.params.id));
-    console.log("les result", result);
+    console.log("données :", result)
     if (result.success) {
-      const prof = result.data;
-      if (prof.photo?.path) {
-        const photoUrl = await getImageUrl(prof.photo.path);
-        prof.photo.url = photoUrl;
+      professor.value = result.data; // Cette ligne manque
+      await loadPhoto(professor.value?.photo);}
+      else {
+        ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
       }
-      professor.value = prof;
-    } else {
-      throw new Error(result.message || 'Erreur lors du chargement du professeur');
-    }
   } catch (error) {
     console.error('Erreur:', error);
-    ElMessage.error("Erreur lors du chargement du professeur");
-    router.push('/professor');
   } finally {
     loading.value = false;
   }
@@ -166,39 +201,8 @@ const getTeachingInfo = (teachings: Teaching[]) => {
     }
   }).join(', ');
 };
-
-const downloadDocument = async (doc: { path: string; name: string; id?: number; type?: string }) => {
-  try {
-    const result = await window.ipcRenderer.invoke('file:getUrl', doc.path);
-    if (result.success) {
-      const byteCharacters = atob(result.data.content);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: result.data.type });
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = doc.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      ElMessage.success('Document téléchargé avec succès');
-    }
-  } catch (error) {
-    console.error("Erreur lors du téléchargement:", error);
-    ElMessage.error('Erreur lors du téléchargement');
-  }
-};
-
 onMounted(loadProfessor);
 </script>
-
 <template>
   <div class="professor-details-view">
     <el-card v-if="professor" class="details-card">
@@ -221,96 +225,119 @@ onMounted(loadProfessor);
         </div>
       </template>
 
-      <div class="profile-section">
-        <div class="photo-container">
-          <img 
-            v-if="professor.photo?.url"
-            :src="professor.photo.url"
-            class="profile-photo"
-            alt="Photo de profil"
-          />
-          <el-avatar v-else :size="150">
-            {{ professor.firstname[0] }}{{ professor.lastname[0] }}
-          </el-avatar>
+      <div class="profile-content">
+        <div class="photo-section">
+          <div class="photo-container">
+            <el-image 
+              v-if="photoUrl" 
+              :src="photoUrl" 
+              fit="cover" 
+              class="student-photo"
+              :preview-src-list="photoUrl ? [photoUrl] : []"
+              @error="(e: any) => {
+                console.error('Erreur de chargement de l\'image:', e);
+                console.log('URL de l\'image:', photoUrl);
+              }"
+            >
+              <template #error>
+                <div class="image-slot">
+                  <el-icon><i-mdi-image-broken /></el-icon>
+                  <span>Erreur de chargement</span>
+                  <small>{{ photoUrl ? 'URL invalide' : 'Pas d\'URL' }}</small>
+                </div>
+              </template>
+            </el-image>
+            <el-avatar v-else :size="200">
+              {{ professor.firstname[0] }}{{ professor.lastname[0] }}
+            </el-avatar>
+          </div>
         </div>
 
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="Civilité">
-            {{ getCivilityLabel(professor.civility) }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Situation familiale">
-            {{ getFamilySituationLabel(professor.family_situation) }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Nombre d'enfants">
-            {{ professor.nbr_child }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Date de naissance">
-            {{ formatDate(professor.birth_date) }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Lieu de naissance">
-            {{ professor.birth_town }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Adresse">
-            {{ professor.address }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Ville">
-            {{ professor.town }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Numéro CNI">
-            {{ professor.cni_number }}
-          </el-descriptions-item>
-        </el-descriptions>
+        <div class="info-section">
+          <el-collapse accordion>
+            <el-collapse-item title="Informations personnelles" name="1">
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="Civilité">
+                  {{ getCivilityLabel(professor.civility) }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Situation familiale">
+                  {{ getFamilySituationLabel(professor.family_situation) }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Nombre d'enfants">
+                  {{ professor.nbr_child }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Date de naissance">
+                  {{ formatDate(professor.birth_date) }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Lieu de naissance">
+                  {{ professor.birth_town }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Adresse">
+                  {{ professor.address }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Ville">
+                  {{ professor.town }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Numéro CNI">
+                  {{ professor.cni_number }}
+                </el-descriptions-item>
+              </el-descriptions>
+            </el-collapse-item>
 
-        <el-divider>Qualifications</el-divider>
+            <el-collapse-item title="Qualifications" name="2">
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="Diplôme">
+                  {{ professor.diploma?.name || 'Non spécifié' }}
+                </el-descriptions-item>
+                
+                <el-descriptions-item label="Qualification">
+                  {{ professor.qualification?.name || 'Non spécifié' }}
+                </el-descriptions-item>
+              </el-descriptions>
+            </el-collapse-item>
 
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="Diplôme">
-            {{ professor.diploma?.name || 'Non spécifié' }}
-          </el-descriptions-item>
-          
-          <el-descriptions-item label="Qualification">
-            {{ professor.qualification?.name || 'Non spécifié' }}
-          </el-descriptions-item>
-        </el-descriptions>
+            <el-collapse-item title="Affectation" name="3">
+              <el-descriptions :column="1" border>
+                <el-descriptions-item label="Poste actuel">
+                  {{ professor.teaching ? getTeachingInfo(professor.teaching) : 'Non assigné' }}
+                </el-descriptions-item>
+              </el-descriptions>
+            </el-collapse-item>
 
-        <el-divider>Affectation</el-divider>
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="Poste actuel">
-            {{ professor.teaching ? getTeachingInfo(professor.teaching) : 'Non assigné' }}
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <el-divider>Documents</el-divider>
-        <div class="documents-section">
-          <el-empty v-if="!professor.documents?.length" description="Aucun document" />
-          <el-table v-else :data="professor.documents" border>
-            <el-table-column prop="name" label="Nom" />
-            <el-table-column label="Actions" width="120" align="center">
-              <template #default="{ row }">
-                <el-button-group>
-                  <el-button 
-                    type="primary" 
-                    :icon="View"
-                    circle
-                    @click="viewDocument(row)"
-                  />
-                  <el-button 
-                    type="success" 
-                    :icon="Download"
-                    circle
-                    @click="downloadDocument(row)"
-                  />
-                </el-button-group>
-              </template>
-            </el-table-column>
-          </el-table>
+            <el-collapse-item title="Documents" name="4">
+              <div class="documents-section">
+                <el-empty v-if="!professor.documents?.length" description="Aucun document" />
+                <el-table v-else :data="professor.documents" border>
+                  <el-table-column prop="name" label="Nom" />
+                  <el-table-column label="Actions" width="120" align="center">
+                    <template #default="{ row }">
+                      <el-button-group>
+                        <el-button 
+                          type="primary" 
+                          :icon="View"
+                          circle
+                          @click="viewDocument(row)"
+                        />
+                        <el-button 
+                          type="success" 
+                          :icon="Download"
+                          circle
+                          @click="downloadDocument(row)"
+                        />
+                      </el-button-group>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
         </div>
       </div>
     </el-card>
@@ -325,19 +352,22 @@ onMounted(loadProfessor);
     </div>
 
     <el-dialog
-      v-if="currentDocument"
       v-model="dialogVisible"
-      :title="currentDocument.name"
+      :title="currentDocument?.name"
       width="80%"
+      :fullscreen="true"
       destroy-on-close
     >
       <div class="document-viewer">
         <template v-if="currentDocument?.type?.includes('pdf')">
-          <iframe
-            :src="currentDocument.content"
-            style="width: 100%; height: 100%;"
-            frameborder="0"
-          />
+          <object
+            :data="currentDocument.content"
+            type="application/pdf"
+            width="100%"
+            height="100%"
+          >
+            <p>Ce navigateur ne supporte pas l'affichage des PDF.</p>
+          </object>
         </template>
         <template v-else-if="currentDocument?.type?.includes('image')">
           <img
@@ -351,11 +381,10 @@ onMounted(loadProfessor);
             <p>Ce type de document ne peut pas être prévisualisé</p>
             <el-button 
               type="primary" 
-              @click="currentDocument?.id && professor ? downloadDocument({
+              @click="currentDocument?.id ? downloadDocument({
                 id: currentDocument.id,
-                name: currentDocument?.name || '',
-                type: currentDocument?.type || '',
-                path: professor?.documents?.find(d => Number(d.id) === Number(currentDocument?.id))?.path || ''
+                name: currentDocument.name || '',
+                type: currentDocument.type || ''
               }) : undefined"
               :disabled="!currentDocument?.id"
             >
@@ -376,7 +405,7 @@ onMounted(loadProfessor);
 }
 
 .details-card {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -385,6 +414,7 @@ onMounted(loadProfessor);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 
 .card-header h2 {
@@ -393,16 +423,48 @@ onMounted(loadProfessor);
   color: #303133;
 }
 
-.loading-container {
-  max-width: 1000px;
+.profile-content {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 30px;
+}
+
+.photo-section {
+  position: sticky;
+  top: 20px;
+}
+
+.photo-container {
+  width: 250px;
+  height: 250px;
   margin: 0 auto;
-  padding: 20px;
-  background-color: white;
-  border-radius: 4px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.photo-container :deep(.el-image),
+.photo-container :deep(.el-avatar) {
+  width: 250px !important;
+  height: 250px !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 48px;
+}
+
+.info-section {
+  flex: 1;
+}
+
+:deep(.el-collapse-item__header) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #409EFF;
 }
 
 :deep(.el-descriptions) {
-  margin-bottom: 20px;
+  margin: 10px 0;
 }
 
 :deep(.el-descriptions__label) {
@@ -410,42 +472,8 @@ onMounted(loadProfessor);
   color: #606266;
 }
 
-.profile-section {
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 30px;
-  align-items: start;
-}
-
-.photo-container {
-  position: sticky;
-  top: 20px;
-}
-
-.info-section {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-}
-
-.profile-photo {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.profile-photo:hover {
-  transform: scale(1.05);
-}
-
 .documents-section {
-  margin-top: 20px;
-}
-
-.el-descriptions, .el-divider, .documents-section {
-  transition: all 0.3s ease;
+  margin-top: 10px;
 }
 
 .document-viewer {
@@ -470,6 +498,14 @@ onMounted(loadProfessor);
   color: #909399;
 }
 
+.loading-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: white;
+  border-radius: 4px;
+}
+
 :deep(.el-dialog__body) {
   padding: 0;
   margin: 10px;
@@ -479,4 +515,4 @@ onMounted(loadProfessor);
   margin-right: 0;
   padding: 10px;
 }
-</style> 
+</style>

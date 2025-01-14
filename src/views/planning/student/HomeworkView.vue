@@ -190,7 +190,7 @@
 
       <template #footer>
         <el-button @click="notifyDialogVisible = false">Annuler</el-button>
-        <el-button type="primary" @click="sendNotification" :loading="sending">
+        <el-button type="primary" @click="notifyStudents" :loading="sending">
           Envoyer
         </el-button>
       </template>
@@ -256,27 +256,7 @@ const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('fr-FR');
 };
 
-const loadGrades = async () => {
-  try {
-    const result = await window.ipcRenderer.invoke('grade:all');
-    if (result.success) {
-      grades.value = result.data;
-    }
-  } catch (error) {
-    ElMessage.error('Erreur lors du chargement des classes');
-  }
-};
 
-const loadCourses = async () => {
-  try {
-    const result = await window.ipcRenderer.invoke('course:all');
-    if (result.success) {
-      courses.value = result.data;
-    }
-  } catch (error) {
-    ElMessage.error('Erreur lors du chargement des matières');
-  }
-};
 
 const loadHomework = async () => {
   if (!selectedGrade.value) return;
@@ -389,33 +369,6 @@ const handleSelectionChange = (selection: any[]) => {
   notifyForm.value.selectedStudents = selection;
 };
 
-const sendNotification = async () => {
-  if (!notifyForm.value.message || notifyForm.value.selectedStudents.length === 0) {
-    ElMessage.warning('Veuillez sélectionner des étudiants et saisir un message');
-    return;
-  }
-
-  sending.value = true;
-  try {
-    const result = await window.ipcRenderer.invoke('homework:notify', {
-      homeworkId: selectedHomework.value?.id,
-      message: notifyForm.value.message,
-      students: notifyForm.value.selectedStudents.map(s => ({
-        id: s.id,
-        phone: s.phone
-      }))
-    });
-
-    if (result.success) {
-      ElMessage.success('Notifications envoyées avec succès');
-      notifyDialogVisible.value = false;
-    }
-  } catch (error) {
-    ElMessage.error('Erreur lors de l\'envoi des notifications');
-  } finally {
-    sending.value = false;
-  }
-};
 
 // Computed pour filtrer les devoirs
 const filteredHomework = computed(() => {
@@ -490,6 +443,31 @@ const schoolInfo = ref<any>(null);
 
 const useDefaultMessage = () => {
   notifyForm.value.message = defaultMessage.value;
+};
+
+const notifyStudents = async () => {
+  try {
+    // Afficher le message de version ultérieure
+    ElMessage({
+      message: 'Cette fonctionnalité sera disponible dans une version ultérieure',
+      type: 'info',
+      duration: 3000,
+      showClose: true
+    });
+    
+    // Fermer le dialogue
+    notifyDialogVisible.value = false;
+    
+    // Pour la démo, on peut quand même simuler un succès
+    await window.ipcRenderer.invoke('homework:notify', {
+      homeworkId: selectedHomework.value?.id,
+      students: notifyForm.value.selectedStudents
+    });
+    
+  } catch (error) {
+    console.error('Erreur:', error);
+    ElMessage.error('Une erreur est survenue');
+  }
 };
 </script>
 

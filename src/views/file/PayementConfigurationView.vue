@@ -59,6 +59,43 @@
               <template #suffix>FCFA</template>
             </el-input-number>
           </el-form-item>
+
+          <el-divider>Configuration des bourses</el-divider>
+
+          <el-form-item label="Autoriser les bourses">
+            <el-switch
+              v-model="currentConfig.allowScholarship"
+              active-text="Oui"
+              inactive-text="Non"
+            />
+          </el-form-item>
+
+          <template v-if="currentConfig.allowScholarship">
+            <el-form-item label="Pourcentages de bourse disponibles">
+              <el-select
+                v-model="currentConfig.scholarshipPercentages"
+                multiple
+                class="full-width"
+                placeholder="Sélectionnez les pourcentages"
+              >
+                <el-option
+                  v-for="percent in [25, 50, 75, 100]"
+                  :key="percent"
+                  :label="`${percent}%`"
+                  :value="percent"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="Critères d'éligibilité">
+              <el-input
+                v-model="currentConfig.scholarshipCriteria"
+                type="textarea"
+                :rows="3"
+                placeholder="Décrivez les critères d'éligibilité pour les bourses"
+              />
+            </el-form-item>
+          </template>
         </el-form>
 
         <template #footer>
@@ -84,6 +121,9 @@ interface PaymentConfig {
   classId: string;
   className: string;
   annualAmount: number;
+  allowScholarship: boolean;
+  scholarshipPercentages?: number[];
+  scholarshipCriteria?: string;
 }
 
 const configurations = ref<PaymentConfig[]>([]);
@@ -93,7 +133,10 @@ const showModal = ref(false);
 const currentConfig = ref<PaymentConfig>({
   classId: '',
   className: '',
-  annualAmount: 0
+  annualAmount: 0,
+  allowScholarship: false,
+  scholarshipPercentages: [],
+  scholarshipCriteria: ''
 });
 
 const modalTitle = computed(() => 
@@ -116,10 +159,24 @@ const editConfiguration = (config: PaymentConfig) => {
 const saveConfiguration = async () => {
   try {
     isSaving.value = true;
-    const result = await window.ipcRenderer.invoke('payment:saveConfig', {
-      classId: currentConfig.value.classId,
-      annualAmount: currentConfig.value.annualAmount
-    });
+    
+    if (!currentConfig.value.classId || !currentConfig.value.annualAmount) {
+      throw new Error('Veuillez remplir tous les champs obligatoires');
+    }
+
+    const configData = {
+      classId: String(currentConfig.value.classId),
+      annualAmount: Number(currentConfig.value.annualAmount),
+      allowScholarship: Boolean(currentConfig.value.allowScholarship),
+      scholarshipPercentages: Array.isArray(currentConfig.value.scholarshipPercentages) 
+        ? currentConfig.value.scholarshipPercentages.map(Number) 
+        : [],
+      scholarshipCriteria: String(currentConfig.value.scholarshipCriteria || '')
+    };
+
+    const serializedData = JSON.parse(JSON.stringify(configData));
+
+    const result = await window.ipcRenderer.invoke('payment:saveConfig', serializedData);
 
     if (result.success) {
       ElMessage.success('Configuration sauvegardée avec succès');
@@ -129,7 +186,8 @@ const saveConfiguration = async () => {
       throw new Error(result.message || 'Erreur lors de la sauvegarde');
     }
   } catch (error) {
-    ElMessage.error('Erreur lors de la sauvegarde');
+    console.error('Erreur lors de la sauvegarde:', error);
+    ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
   } finally {
     isSaving.value = false;
   }
@@ -143,24 +201,25 @@ const loadConfigurations = async () => {
       window.ipcRenderer.invoke('payment:getConfigs')
     ]);
 
-    console.log("Résultat des grades:", gradesResult);
-    console.log("Résultat des configs:", configsResult);
-
-    if (gradesResult.success && gradesResult.data) {
-      const grades = gradesResult.data;
-      const configs = configsResult.success ? configsResult.data : [];
-
-      configurations.value = grades.map((grade: { id: any; name: any; }) => {
-        const config = configs.find((c: { classId: any; }) => String(c.classId) === String(grade.id));
-        return {
-          classId: String(grade.id),
-          className: grade.name,
-          annualAmount: config ? Number(config.annualAmount) : 0
-        };
-      });
-
-      console.log("Configurations finales:", configurations.value);
+    if (!gradesResult.success || !gradesResult.data) {
+      throw new Error('Erreur lors du chargement des classes');
     }
+
+    const grades = gradesResult.data;
+    const configs = configsResult.success ? configsResult.data : [];
+
+    configurations.value = grades.map((grade: { id: any; name: any; }) => {
+      const config = configs.find((c: { classId: any; }) => String(c.classId) === String(grade.id));
+      return {
+        classId: String(grade.id),
+        className: grade.name,
+        annualAmount: config ? Number(config.annualAmount) : 0,
+        allowScholarship: config ? config.allowScholarship : false,
+        scholarshipPercentages: config ? config.scholarshipPercentages : [],
+        scholarshipCriteria: config ? config.scholarshipCriteria : ''
+      };
+    });
+
   } catch (error) {
     console.error("Erreur lors du chargement:", error);
     ElMessage.error('Erreur lors du chargement des configurations');

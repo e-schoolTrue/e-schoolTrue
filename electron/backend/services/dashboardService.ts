@@ -147,6 +147,8 @@ export class DashboardService {
 
     async getAbsenceStats(): Promise<ResultType> {
         try {
+            console.log('=== Service Dashboard - Début getAbsenceStats ===');
+            
             const dataSource = AppDataSource.getInstance();
             const absenceRepo = dataSource.getRepository(AbsenceEntity);
             
@@ -156,15 +158,25 @@ export class DashboardService {
             const absences = await absenceRepo
                 .createQueryBuilder('absence')
                 .leftJoinAndSelect('absence.grade', 'grade')
+                .leftJoinAndSelect('absence.student', 'student')
+                .leftJoinAndSelect('absence.professor', 'professor')
                 .where('absence.createdAt >= :startDate', { startDate: lastThreeMonths })
                 .andWhere('absence.createdAt <= :endDate', { endDate: new Date() })
                 .getMany();
 
+            console.log('Types des absences trouvées:', absences.map(a => a.type));
+
             const absencesByGrade = absences.reduce((acc: { [key: string]: number }, absence) => {
-                const gradeName = absence.grade?.name || 'Professeurs';
-                acc[gradeName] = (acc[gradeName] || 0) + 1;
+                if (absence.type === 'STUDENT' && absence.grade?.name) {
+                    const gradeName = absence.grade.name;
+                    acc[gradeName] = (acc[gradeName] || 0) + 1;
+                } else if (absence.type === 'PROFESSOR') {
+                    acc['Professeurs'] = (acc['Professeurs'] || 0) + 1;
+                }
                 return acc;
             }, {});
+
+            console.log('Statistiques calculées:', absencesByGrade);
 
             return {
                 success: true,
@@ -173,6 +185,7 @@ export class DashboardService {
                 error: null
             };
         } catch (error) {
+            console.error("Erreur détaillée dans getAbsenceStats:", error);
             return {
                 success: false,
                 data: null,

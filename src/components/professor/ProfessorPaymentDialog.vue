@@ -38,7 +38,7 @@
               class="w-full"
               @change="calculateNetAmount"
             >
-              <template #suffix>FCFA</template>
+              <currency-display/>
             </el-input-number>
           </el-form-item>
 
@@ -96,7 +96,7 @@
             :max="form.grossAmount"
             @change="calculateNetAmount"
           >
-            <template #suffix>FCFA</template>
+            <currency-display/>
           </el-input-number>
           <el-tooltip content="Supprimer">
             <el-button type="danger" circle @click="removeDeduction(index)">
@@ -111,7 +111,7 @@
       </div>
 
       <el-form-item label="Total déductions" class="total-deductions">
-        <span class="amount">{{ formatAmount(totalDeductions) }} FCFA</span>
+        <currency-display :amount="totalDeductions" />
       </el-form-item>
 
       <el-form-item label="Montant net" prop="netAmount" required>
@@ -120,7 +120,7 @@
           disabled
           class="w-full"
         >
-          <template #suffix>FCFA</template>
+        <currency-display/>
         </el-input-number>
       </el-form-item>
     </el-form>
@@ -299,7 +299,7 @@ const handleSubmit = async () => {
     }
   } catch (error) {
     console.error('Erreur:', error);
-    ElMessage.error(error.message || 'Erreur lors de l\'enregistrement');
+    ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement');
   } finally {
     loading.value = false;
   }
@@ -355,9 +355,6 @@ const removeDeduction = (index: number) => {
   calculateNetAmount();
 };
 
-const formatAmount = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR').format(amount);
-};
 
 const totalDeductions = computed(() => {
   return form.value.deductions.reduce((sum, d) => sum + d.amount, 0);

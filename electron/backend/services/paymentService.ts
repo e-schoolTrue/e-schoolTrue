@@ -5,6 +5,7 @@ import { AppDataSource } from '../../data-source';
 import { StudentEntity } from '../entities/students';
 import { ProfessorEntity } from '../entities/professor';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
+import { ScholarshipEntity } from '../entities/scholarship';
 
 export interface ResultType {
     success: boolean;
@@ -13,6 +14,13 @@ export interface ResultType {
     error: string | null;
 }
 
+// Créer un type pour les données de paiement
+type PaymentCreateData = Omit<PaymentEntity, 'id'> & {
+    scholarshipPercentage?: number;
+    scholarshipAmount?: number;
+    adjustedAmount?: number;
+    baseAmount?: number;
+};
 
 export class PaymentService {
     [x: string]: any;
@@ -21,6 +29,7 @@ export class PaymentService {
     private studentRepository: Repository<StudentEntity>;
     private professorRepository: Repository<ProfessorEntity>;
     private professorPaymentRepository: Repository<ProfessorPaymentEntity>;
+    private scholarshipRepository: Repository<ScholarshipEntity>;
     private initialized: boolean = false;
 
     constructor() {
@@ -29,6 +38,7 @@ export class PaymentService {
         this.studentRepository = AppDataSource.getInstance().getRepository(StudentEntity);
         this.professorRepository = AppDataSource.getInstance().getRepository(ProfessorEntity);
         this.professorPaymentRepository = AppDataSource.getInstance().getRepository(ProfessorPaymentEntity);
+        this.scholarshipRepository = AppDataSource.getInstance().getRepository(ScholarshipEntity);
     }
 
     private async ensureRepositoriesInitialized(): Promise<void> {
@@ -42,6 +52,7 @@ export class PaymentService {
             this.studentRepository = dataSource.getRepository(StudentEntity);
             this.professorRepository = dataSource.getRepository(ProfessorEntity);
             this.professorPaymentRepository = dataSource.getRepository(ProfessorPaymentEntity);
+            this.scholarshipRepository = dataSource.getRepository(ScholarshipEntity);
             this.initialized = true;
         }
     }
@@ -55,7 +66,13 @@ export class PaymentService {
             });
 
             if (existingConfig) {
-                existingConfig.annualAmount = configData.annualAmount;
+                Object.assign(existingConfig, {
+                    annualAmount: configData.annualAmount,
+                    allowScholarship: configData.allowScholarship,
+                    scholarshipPercentages: configData.scholarshipPercentages,
+                    scholarshipCriteria: configData.scholarshipCriteria
+                });
+                
                 const savedConfig = await this.configRepository.save(existingConfig);
                 return {
                     success: true,
@@ -65,8 +82,10 @@ export class PaymentService {
                 };
             } else {
                 const newConfig = this.configRepository.create({
-                    classId: configData.classId,
-                    annualAmount: configData.annualAmount
+                    ...configData,
+                    allowScholarship: configData.allowScholarship || false,
+                    scholarshipPercentages: configData.scholarshipPercentages || [],
+                    scholarshipCriteria: configData.scholarshipCriteria || ''
                 });
                 const savedConfig = await this.configRepository.save(newConfig);
                 return {
@@ -90,14 +109,18 @@ export class PaymentService {
     async getConfigs(): Promise<ResultType> {
         try {
             await this.ensureRepositoriesInitialized();
-            console.log("Récupération des configurations");
-            
             const configs = await this.configRepository.find();
-            console.log("Configurations trouvées:", configs);
-
+            console.log("Configurations récupérées:", configs);
+            
             return {
                 success: true,
-                data: configs,
+                data: configs.map(config => ({
+                    ...config,
+                    allowScholarship: Boolean(config.allowScholarship),
+                    scholarshipPercentages: Array.isArray(config.scholarshipPercentages) 
+                        ? config.scholarshipPercentages 
+                        : []
+                })),
                 message: "Configurations récupérées avec succès",
                 error: null
             };
@@ -113,72 +136,76 @@ export class PaymentService {
     }
 
     async addPayment(paymentData: Partial<PaymentEntity>): Promise<ResultType> {
-        console.log('=== Début du traitement dans PaymentService ===');
-        console.log('Données de paiement reçues:', JSON.stringify(paymentData, null, 2));
-        
         try {
-            if (!paymentData.studentId) {
-                throw new Error('StudentId est requis');
-            }
-
-            if (!paymentData.paymentType) {
-                throw new Error('Le type de paiement est requis');
-            }
-
-            if (!paymentData.amount) {
-                throw new Error('Le montant est requis');
-            }
+            await this.ensureRepositoriesInitialized();
             
+            console.log('=== Tentative d\'ajout de paiement ===');
+            console.log('Données reçues:', paymentData);
+
+            // Vérifier l'étudiant
             const student = await this.studentRepository.findOne({
-                where: { id: paymentData.studentId }
+                where: { id: paymentData.studentId },
+                relations: ['scholarship']
             });
 
             if (!student) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Étudiant non trouvé",
-                    error: "STUDENT_NOT_FOUND"
-                };
+                throw new Error('Étudiant non trouvé');
             }
 
-            // Création du paiement avec les champs requis
+            // Si une bourse est spécifiée, créer ou mettre à jour la bourse
+            let activeScholarship = null;
+            if ((paymentData.scholarshipPercentage ?? 0) > 0) {
+                // Désactiver les bourses existantes
+                await this.scholarshipRepository.update(
+                    { 
+                        studentId: student.id,
+                        isActive: true,
+                        schoolYear: new Date().getFullYear().toString()
+                    },
+                    { isActive: false }
+                );
+
+                // Créer la nouvelle bourse
+                const scholarship = this.scholarshipRepository.create({
+                    studentId: student.id,
+                    percentage: paymentData.scholarshipPercentage,
+                    schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
+                    isActive: true,
+                    createdAt: new Date()
+                });
+
+                activeScholarship = await this.scholarshipRepository.save(scholarship);
+                console.log('Nouvelle bourse créée:', activeScholarship);
+            }
+
+            // Créer le paiement avec la bourse
             const payment = this.paymentRepository.create({
-                amount: paymentData.amount,
-                paymentType: paymentData.paymentType,
-                student,
-                createdAt: new Date(),
-                installmentNumber: paymentData.installmentNumber || 1,
-                schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
-                comment: paymentData.comment || ''
-            });
-            
+                ...paymentData,
+                scholarshipPercentage: Number(paymentData.scholarshipPercentage) || 0,
+                scholarshipAmount: Number(paymentData.scholarshipAmount) || 0,
+                adjustedAmount: Number(paymentData.adjustedAmount) || Number(paymentData.baseAmount) || 0,
+                baseAmount: Number(paymentData.baseAmount) || 0,
+                scholarshipId: activeScholarship?.id || null,
+                createdAt: new Date()
+            } as PaymentCreateData);
+
+            console.log('Paiement à sauvegarder:', payment);
+
             const savedPayment = await this.paymentRepository.save(payment);
-
-            const verifiedPayment = await this.paymentRepository.findOne({
-                where: { id: savedPayment.id },
-                relations: ['student']
-            });
-
-            if (!verifiedPayment) {
-                throw new Error('Le paiement a été créé mais non retrouvé en base');
-            }
+            console.log('Paiement sauvegardé:', savedPayment);
 
             return {
                 success: true,
-                data: verifiedPayment,
+                data: savedPayment,
                 message: "Paiement enregistré avec succès",
                 error: null
             };
-
         } catch (error) {
-            console.error('=== Erreur dans PaymentService ===');
-            console.error('Message d\'erreur:', error);
-            
+            console.error("Erreur lors de l'ajout du paiement:", error);
             return {
                 success: false,
                 data: null,
-                message: error instanceof Error ? error.message : "Erreur lors de l'enregistrement",
+                message: "Erreur lors de l'enregistrement du paiement",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
@@ -187,7 +214,7 @@ export class PaymentService {
     async getPayments(page: number = 1, limit: number = 10): Promise<ResultType> {
         try {
             const [payments, total] = await this.paymentRepository.findAndCount({
-                relations: ['student'],
+                relations: ['student', 'scholarship'],
                 skip: (page - 1) * limit,
                 take: limit,
                 order: { createdAt: 'DESC' }
@@ -213,13 +240,48 @@ export class PaymentService {
         try {
             const payments = await this.paymentRepository.find({
                 where: { studentId },
-                relations: ['student'],
+                relations: ['student', 'scholarship'],
                 order: { createdAt: 'DESC' }
             });
 
+            // Récupérer la configuration de paiement
+            const student = await this.studentRepository.findOne({
+                where: { id: studentId },
+                relations: ['grade']
+            });
+
+            if (!student?.grade) {
+                throw new Error("Grade de l'étudiant non trouvé");
+            }
+
+            const config = await this.configRepository.findOne({
+                where: { classId: student.grade?.id?.toString() }
+            });
+
+            // Récupérer la bourse active
+            const activeScholarship = await this.scholarshipRepository.findOne({
+                where: {
+                    studentId,
+                    isActive: true,
+                    schoolYear: new Date().getFullYear().toString()
+                }
+            });
+
+            // Calculer les montants avec la bourse
+            const baseAmount = config?.annualAmount || 0;
+            const scholarshipPercentage = activeScholarship?.percentage || 0;
+            const scholarshipAmount = (baseAmount * scholarshipPercentage) / 100;
+            const adjustedAmount = baseAmount - scholarshipAmount;
+
             return {
                 success: true,
-                data: payments,
+                data: {
+                    payments,
+                    baseAmount,
+                    scholarshipPercentage,
+                    scholarshipAmount,
+                    adjustedAmount
+                },
                 message: "Paiements récupérés avec succès",
                 error: null
             };
@@ -322,7 +384,7 @@ export class PaymentService {
     async getRecentPayments(limit: number = 5): Promise<ResultType> {
         try {
             const payments = await this.paymentRepository.find({
-                relations: ['student'],
+                relations: ['student', 'scholarship'],
                 order: { createdAt: 'DESC' },
                 take: limit
             });
@@ -331,6 +393,8 @@ export class PaymentService {
                 id: payment.id,
                 studentName: `${payment.student.firstname} ${payment.student.lastname}`,
                 amount: payment.amount,
+                scholarshipPercentage: payment.scholarshipPercentage,
+                scholarshipAmount: payment.scholarshipAmount,
                 date: payment.createdAt
             }));
 
@@ -585,6 +649,162 @@ export class PaymentService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la mise à jour du paiement",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    calculateAmountWithScholarship(amount: number, scholarshipPercentage: number): number {
+        if (scholarshipPercentage <= 0 || scholarshipPercentage > 100) {
+            return amount;
+        }
+        return amount * (1 - scholarshipPercentage / 100);
+    }
+
+    async assignScholarship(data: {
+        studentId: number;
+        configId: number;
+        percentage: number;
+        reason?: string;
+    }): Promise<ResultType> {
+        try {
+            const scholarship = this.scholarshipRepository.create({
+                studentId: data.studentId,
+                percentage: data.percentage,
+                reason: data.reason,
+                schoolYear: new Date().getFullYear().toString(),
+                isActive: true
+            });
+
+            await this.scholarshipRepository.save(scholarship);
+
+            return {
+                success: true,
+                data: scholarship,
+                message: "Bourse attribuée avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de l'attribution de la bourse",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getActiveScholarship(studentId: number): Promise<ResultType> {
+        try {
+            const scholarship = await this.scholarshipRepository.findOne({
+                where: {
+                    studentId,
+                    isActive: true,
+                    schoolYear: new Date().getFullYear().toString()
+                }
+            });
+
+            return {
+                success: true,
+                data: scholarship,
+                message: "Bourse récupérée avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération de la bourse",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getByStudent(studentId: number): Promise<ResultType> {
+        try {
+            const student = await this.studentRepository.findOne({
+                where: { id: studentId },
+                relations: ['grade', 'scholarship']
+            });
+
+            if (!student) {
+                throw new Error('Étudiant non trouvé');
+            }
+
+            const payments = await this.paymentRepository.find({
+                where: { studentId },
+                relations: ['scholarship'],
+                order: { createdAt: 'DESC' }
+            });
+
+            const config = await this.configRepository.findOne({
+                where: { classId: student.grade?.id?.toString() }
+            });
+
+            if (!config) {
+                throw new Error('Configuration de paiement non trouvée');
+            }
+
+            const activeScholarship = student.scholarship?.find(s => 
+                s.isActive && s.schoolYear === new Date().getFullYear().toString()
+            );
+
+            const baseAmount = config.annualAmount;
+            const scholarshipPercentage = activeScholarship?.percentage || 0;
+            const scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
+            const adjustedAmount = baseAmount - scholarshipAmount;
+
+            return {
+                success: true,
+                data: {
+                    payments,
+                    baseAmount,
+                    scholarshipPercentage,
+                    scholarshipAmount,
+                    adjustedAmount,
+                    config
+                },
+                message: "Paiements récupérés avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur lors de la récupération des paiements:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des paiements",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getActiveByStudent(studentId: number): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            const scholarship = await this.scholarshipRepository.findOne({
+                where: {
+                    studentId,
+                    isActive: true,
+                    schoolYear: new Date().getFullYear().toString()
+                }
+            });
+
+            console.log(`=== Bourse active pour l'étudiant ${studentId} ===`);
+            console.log('Bourse trouvée:', scholarship);
+
+            return {
+                success: true,
+                data: scholarship,
+                message: scholarship ? "Bourse active trouvée" : "Aucune bourse active",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur lors de la récupération de la bourse active:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération de la bourse active",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }

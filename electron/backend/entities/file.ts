@@ -1,5 +1,5 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { StudentEntity } from "./students";  // Assurez-vous que le chemin d'importation est correct
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, CreateDateColumn } from "typeorm";
+import { StudentEntity } from "./students";
 import { ProfessorEntity } from "./professor";
 
 @Entity("T_file")
@@ -16,7 +16,7 @@ export class FileEntity {
     @Column({ type: "text" })
     type!: string;
 
-    @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
+    @CreateDateColumn()
     createdAt!: Date;
 
     @ManyToOne(() => StudentEntity, student => student.documents, { onDelete: "CASCADE" })
