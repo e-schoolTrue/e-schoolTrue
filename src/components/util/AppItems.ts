@@ -66,12 +66,6 @@ export const AppItems: MenuItem[] = [
                 icon: "mdi:cash",
                 route: "/payment/students",
                 description: "Gérer les frais de scolarité et autres paiements"
-            },
-            {
-                id: "submenu-3-3",
-                title: "Paiements Personnel",
-                icon: "mdi:cash-fast",
-                route: "/payment/staff",
             }
         ]
     },
@@ -179,6 +173,12 @@ export const AppItems: MenuItem[] = [
                 title: "Configuration des notes",
                 icon: "fluent-emoji:pencil",
                 route: "/school-notes",
+            },
+            {
+                id: "submenu-6-6",
+                title: "Configuration des paiements",
+                icon: "fluent-emoji:cash-register",
+                route: "/payment-config",
             },
             {
                 id: "submenu-6-7",
