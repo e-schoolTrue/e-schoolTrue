@@ -3,7 +3,14 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorForm from '@/components/professor/professor-form.vue';
-import { ROLE, SCHOOL_TYPE } from "#electron/command";
+import { SCHOOL_TYPE } from "#electron/command";
+
+// Définition de l'interface des données du formulaire
+interface TeachingData {
+  schoolType: SCHOOL_TYPE;
+  selectedClasses: number[];
+  selectedCourse: number;
+}
 
 interface ProfessorFormData {
   firstname: string;
@@ -18,11 +25,6 @@ interface ProfessorFormData {
   cni_number: string;
   diploma?: { name: string };
   qualification?: { name: string };
-  user: {
-    username: string;
-    password: string;
-    role: string;
-  };
   documents: Array<{
     name: string;
     content: string;
@@ -33,81 +35,60 @@ interface ProfessorFormData {
     content: string;
     type: string;
   };
-  teaching?: {
-    teachingType: string;
-    schoolType: SCHOOL_TYPE | null;
-    classId?: number;
-    courseId?: number | null;
-    gradeIds?: string;
-  };
-  schoolType: SCHOOL_TYPE | null;
-  selectedClasses: number[];
-  selectedCourse: number | null;
+  teaching: TeachingData;
 }
 
 const router = useRouter();
 const loading = ref(false);
 
-const handleSave = async (professorData: ProfessorFormData): Promise<boolean> => {
+const handleSave = async (professorData: ProfessorFormData) => {
   loading.value = true;
   try {
-    const { schoolType, selectedClasses, selectedCourse, ...otherData } = professorData;
+    console.log("Données avant construction :", professorData);
 
-    console.log("Données reçues du formulaire:", professorData); // Log de debug
-
-    const serializedData = {
-      firstname: otherData.firstname || '',
-      lastname: otherData.lastname || '',
-      civility: otherData.civility,
-      nbr_child: otherData.nbr_child || 0,
-      family_situation: otherData.family_situation,
-      birth_date: otherData.birth_date ? new Date(otherData.birth_date).toISOString() : null,
-      birth_town: otherData.birth_town || '',
-      address: otherData.address || '',
-      town: otherData.town || '',
-      cni_number: otherData.cni_number || '',
-      
-      diploma: otherData.diploma?.name ? {
-        name: otherData.diploma.name
+    const serializedData = JSON.parse(JSON.stringify({
+      firstname: professorData.firstname,
+      lastname: professorData.lastname,
+      civility: professorData.civility,
+      nbr_child: professorData.nbr_child,
+      family_situation: professorData.family_situation,
+      birth_date: professorData.birth_date ? new Date(professorData.birth_date).toISOString() : null,
+      birth_town: professorData.birth_town,
+      address: professorData.address,
+      town: professorData.town,
+      cni_number: professorData.cni_number,
+      diploma: professorData.diploma?.name,
+      qualification: professorData.qualification?.name,
+      photo: professorData.photo ? {
+        name: professorData.photo.name,
+        content: professorData.photo.content,
+        type: professorData.photo.type,
       } : null,
-      
-      qualification: otherData.qualification?.name ? {
-        name: otherData.qualification.name
-      } : null,
-      
-      user: {
-        username: otherData.user?.username || '',
-        password: otherData.user?.password || '',
-        role: ROLE.professor
-      },
-      
-      documents: Array.isArray(otherData.documents) ? 
-        otherData.documents.map(doc => ({
-          name: doc.name || '',
-          content: doc.content || '',
-          type: doc.type || ''
-        })) : [],
-      
-      photo: otherData.photo ? {
-        name: otherData.photo.name || '',
-        content: otherData.photo.content || '',
-        type: otherData.photo.type || ''
-      } : null,
+      documents: Array.isArray(professorData.documents)
+        ? professorData.documents.map(doc => ({
+            name: doc.name,
+            content: doc.content,
+            type: doc.type,
+          }))
+        : [],
+      teaching: {
+        schoolType: professorData.teaching.schoolType,
+        classId: professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY 
+          ? professorData.teaching.selectedClasses[0] 
+          : null,
+        courseId: professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY 
+          ? professorData.teaching.selectedCourse 
+          : null,
+        gradeIds: professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY 
+          ? professorData.teaching.selectedClasses 
+          : [],
+      }
+    }));
 
-      teaching: schoolType ? {
-        teachingType: schoolType === SCHOOL_TYPE.PRIMARY ? 'CLASS_TEACHER' : 'SUBJECT_TEACHER',
-        schoolType,
-        classId: schoolType === SCHOOL_TYPE.PRIMARY ? selectedClasses?.[0] : undefined,
-        courseId: schoolType === SCHOOL_TYPE.SECONDARY ? selectedCourse : undefined,
-        gradeIds: schoolType === SCHOOL_TYPE.SECONDARY ? selectedClasses?.join(',') : undefined
-      } : undefined
-    };
-
-    console.log("Données à envoyer au backend:", serializedData); // Log de debug
+    console.log("Données après sérialisation :", serializedData);
 
     const result = await window.ipcRenderer.invoke('professor:create', serializedData);
-    console.log("Résultat de la création du professeur:", result);
-    
+
     if (result.success) {
       ElMessage.success('Professeur créé avec succès');
       router.push('/professor');
@@ -124,6 +105,7 @@ const handleSave = async (professorData: ProfessorFormData): Promise<boolean> =>
   }
 };
 </script>
+
 
 <template>
   <div class="new-professor-view">

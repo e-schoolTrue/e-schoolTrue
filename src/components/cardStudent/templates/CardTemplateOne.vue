@@ -3,21 +3,24 @@
     <!-- Face avant -->
     <div class="card-front">
       <div class="card-header">
-        <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
-        <div class="school-info">
-          <h2>{{ schoolInfo?.name }}</h2>
-          <p>{{ schoolInfo?.address }}</p>
+        <div class="school-logo-container">
+          <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" class="school-logo" alt="Logo" />
+          <div v-else class="logo-placeholder">
+            <Icon icon="mdi:school" />
+          </div>
         </div>
-      </div>
 
-      <div class="card-body">
         <div class="student-photo">
-          <img v-if="student?.photo?.url" :src="student.photo.url" alt="Photo" />
+          <img v-if="student?.photo?.url && isValidDataUrl(student.photo.url)" 
+               :src="student.photo.url" 
+               alt="Photo" />
           <div v-else class="photo-placeholder">
             <Icon icon="mdi:account" />
           </div>
         </div>
+      </div>
 
+      <div class="card-body">
         <div class="student-info">
           <h3>{{ student?.firstname }} {{ student?.lastname }}</h3>
           <p class="matricule">{{ student?.matricule }}</p>
@@ -108,10 +111,14 @@ const formatDate = (date: string | Date | undefined) => {
   if (!date) return '';
   return new Date(date).toLocaleDateString('fr-FR');
 };
+
+const isValidDataUrl = (url: string) => {
+  return url && url.startsWith('data:') && url.includes('base64,');
+};
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
 
 .card-template-one {
   font-family: 'Poppins', sans-serif;
@@ -125,6 +132,58 @@ const formatDate = (date: string | Date | undefined) => {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Header styles */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem;
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.school-logo-container {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.school-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.student-photo {
+  width: 80px;
+  height: 100px;
+  border: 3px solid white;
+  border-radius: 5px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+}
+
+.student-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder, .logo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #eee;
+  color: #999;
+}
+
+.photo-placeholder :deep(svg), .logo-placeholder :deep(svg) {
+  font-size: 2rem;
+}
 .card-front, .card-back {
   position: absolute;
   width: 100%;
@@ -152,10 +211,26 @@ const formatDate = (date: string | Date | undefined) => {
   padding-bottom: 8px;
 }
 
-.school-logo {
-  width: 40px;
-  height: 40px;
+.school-logo-container, .student-photo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.school-logo, .student-photo img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+}
+
+.logo-placeholder, .photo-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f5f5;
+  width: 100%;
+  height: 100%;
 }
 
 .school-info h2 {
@@ -296,3 +371,5 @@ const formatDate = (date: string | Date | undefined) => {
   transform: rotateY(0deg);
 }
 </style> 
+
+

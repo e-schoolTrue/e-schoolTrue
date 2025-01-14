@@ -24,6 +24,11 @@
           <el-input v-model="formData.birthPlace" placeholder="Lieu de naissance" />
         </el-form-item>
       </el-col>
+      <el-col :span="8">
+        <el-form-item label="Numéro personnel (optionnel)">
+          <el-input v-model="formData.personalPhone" placeholder="Numéro de téléphone" />
+        </el-form-item>
+      </el-col>
     </el-row>
     <el-row :gutter="20">
       <el-col :span="12">
@@ -39,7 +44,6 @@
           <el-input v-model="formData.address" placeholder="Adresse de l'élève" />
         </el-form-item>
       </el-col>
-      
     </el-row>
   </div>
 </template>

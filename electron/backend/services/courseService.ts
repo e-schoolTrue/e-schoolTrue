@@ -4,16 +4,13 @@ import {AppDataSource} from "#electron/data-source.ts";
 import {CourseCommand} from "#electron/command/settingsCommand.ts";
 import {Mapper, ResultType} from "#electron/command";
 import {messages} from "#app/messages.ts";
-import {StudentEntity} from "#electron/backend/entities/students";
 
 
 export class CourseService{
     private courseRepository:Repository<CourseEntity>
-    private dataSource: AppDataSource
 
     constructor() {
         this.courseRepository = AppDataSource.getInstance().getRepository(CourseEntity);
-        this.dataSource = AppDataSource.getInstance();
     }
 
     async newCourse(command:CourseCommand):Promise<ResultType>{
@@ -104,44 +101,6 @@ export class CourseService{
         }
     }
 
-    async getCoursesByStudent(studentId: number): Promise<ResultType> {
-        try {
-            const student = await this.dataSource
-                .getRepository(StudentEntity)
-                .findOne({
-                    where: { id: studentId },
-                    relations: ['grade']
-                });
+    
 
-            if (!student || !student.grade) {
-                return {
-                    success: false,
-                    data: [],
-                    message: "Étudiant ou niveau non trouvé",
-                    error: null
-                };
-            }
-
-            const courses = await this.courseRepository
-                .createQueryBuilder('course')
-                .leftJoinAndSelect('course.professor', 'professor')
-                .where('course.gradeId = :gradeId', { gradeId: student.grade.id })
-                .getMany();
-
-            return {
-                success: true,
-                data: courses,
-                message: "Cours récupérés avec succès",
-                error: null
-            };
-        } catch (error) {
-            console.error("Erreur dans getCoursesByStudent:", error);
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération des cours",
-                error: error instanceof Error ? error.message : "Unknown error"
-            };
-        }
-    }
 }

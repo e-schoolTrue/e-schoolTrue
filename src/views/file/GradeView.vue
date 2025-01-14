@@ -247,7 +247,7 @@ onMounted(async()=>{
       <el-button type="primary" @click="newGradeFormRef.open()" style="width: 200px; --el-button-text-color:var(--button-text-color); --el-button-hover-text-color: var(--button-hover-text-color); --el-button-hover-bg-color: var(--button-hover-bg-color)">Ajouter</el-button>
     </el-row>
     <grade-table
-        :grades="grades"
+        :grades="grades || []"
         @open-update-form="openUpdateGradeForm"
         @delete-action="deleteGrade"
         @open-nested-new-form="openNewBranchForm"

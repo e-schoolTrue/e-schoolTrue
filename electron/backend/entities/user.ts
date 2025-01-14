@@ -1,5 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne } from "typeorm";
-import { ProfessorEntity } from "./professor";
+import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 import { ROLE } from "#electron/command";
 
 @Entity("user")
@@ -20,6 +19,4 @@ export class UserEntity {
     })
     role!: ROLE;
 
-    @OneToOne(() => ProfessorEntity, professor => professor.user)
-    professor?: ProfessorEntity;
 }

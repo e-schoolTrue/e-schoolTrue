@@ -1,0 +1,28 @@
+@media print {
+  @page {
+    size: 85.6mm 54mm;
+    margin: 0;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  .student-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5mm;
+    padding: 5mm;
+  }
+
+  .card-template-one,
+  .card-template-two,
+  .card-template-three {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0;
+    box-shadow: none !important;
+    border: 1px solid #ddd;
+  }
+} 

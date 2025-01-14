@@ -5,6 +5,7 @@ import { ResultType } from '#electron/command';
 import { StudentEntity } from '../entities/students';
 import { GradeEntity } from '../entities/grade';
 import { FileService } from "./fileService";
+import { CourseEntity } from '../entities/course';
 
 export class AbsenceService {
     private absenceRepository: Repository<AbsenceEntity>;
@@ -15,41 +16,22 @@ export class AbsenceService {
         this.fileService = new FileService();
     }
 
-    async addAbsence(absenceData: {
-        date: Date | string;
-        reason: string;
-        reasonType: 'MEDICAL' | 'FAMILY' | 'UNAUTHORIZED' | 'SCHOOL_ACTIVITY' | 'OTHER';
-        absenceType: 'FULL_DAY' | 'MORNING' | 'AFTERNOON' | 'COURSE';
-        justified: boolean;
-        studentId: number;
-        gradeId: number;
-        startTime?: string | null;
-        endTime?: string | null;
-        courseId?: number | null;
-        comments?: string;
-        justificationDocument?: string;
-    }): Promise<ResultType> {
+    async addAbsence(absenceData: any): Promise<ResultType> {
         try {
+            console.log('=== Service - Début addAbsence ===');
+            console.log('Données reçues:', absenceData);
+
             const dataSource = AppDataSource.getInstance();
             const absenceRepo = dataSource.getRepository(AbsenceEntity);
             const studentRepo = dataSource.getRepository(StudentEntity);
             const gradeRepo = dataSource.getRepository(GradeEntity);
-
-            // Vérification des champs obligatoires
-            if (!absenceData.reasonType || !absenceData.absenceType) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Le type de motif et le type d'absence sont requis",
-                    error: "Missing required fields"
-                };
-            }
 
             // Vérifier que l'étudiant existe
             const student = await studentRepo.findOne({
                 where: { id: absenceData.studentId },
                 relations: ['grade']
             });
+            console.log('Étudiant trouvé:', student);
 
             if (!student) {
                 return {
@@ -74,35 +56,41 @@ export class AbsenceService {
                 };
             }
 
-            // Modifier la création de l'absence
-            const newAbsence = new AbsenceEntity();
-            Object.assign(newAbsence, {
+            // Créer l'absence avec les relations
+            const newAbsence = absenceRepo.create({
                 date: new Date(absenceData.date),
                 reason: absenceData.reason,
                 reasonType: absenceData.reasonType,
                 absenceType: absenceData.absenceType,
                 justified: absenceData.justified,
-                studentId: absenceData.studentId,
-                gradeId: absenceData.gradeId,
                 startTime: absenceData.startTime || null,
                 endTime: absenceData.endTime || null,
-                courseId: absenceData.courseId || null,
                 comments: absenceData.comments || '',
-                justificationDocument: absenceData.justificationDocument,
+                type: 'STUDENT',
+                student: student,
+                grade: grade,
+                course: absenceData.courseId ? { id: absenceData.courseId } as CourseEntity : undefined,
                 parentNotified: false
             });
 
-            // Sauvegarder l'absence
+            console.log('Nouvelle absence à sauvegarder:', newAbsence);
             const savedAbsence = await absenceRepo.save(newAbsence);
+
+            // Recharger l'absence avec toutes les relations
+            const completeAbsence = await absenceRepo.findOneBy({
+                id: savedAbsence.id
+            });
+
+            console.log('Absence sauvegardée avec relations:', completeAbsence);
 
             return {
                 success: true,
-                data: savedAbsence,
+                data: completeAbsence,
                 message: "Absence ajoutée avec succès",
                 error: null
             };
         } catch (error) {
-            console.error("Erreur dans addAbsence:", error);
+            console.error("Erreur détaillée dans addAbsence:", error);
             return {
                 success: false,
                 data: null,
@@ -207,28 +195,35 @@ export class AbsenceService {
         }
     }
 
-    async getAllAbsences(): Promise<ResultType> {
+    async getAllAbsences(type: 'STUDENT' | 'PROFESSOR' = 'STUDENT'): Promise<ResultType> {
         try {
-            const absences = await this.absenceRepository.find({
-                relations: {
-                    student: true,
-                    grade: true,
-                    course: true
-                },
-                order: {
-                    date: 'DESC',
-                    createdAt: 'DESC'
-                }
-            });
+            console.log('=== Service - getAllAbsences - Type demandé ===', type);
+            
+            const queryBuilder = this.absenceRepository.createQueryBuilder('absence')
+                .leftJoinAndSelect('absence.student', 'student')
+                .leftJoinAndSelect('absence.grade', 'grade')
+                .leftJoinAndSelect('absence.course', 'course')
+                .leftJoinAndSelect('absence.professor', 'professor')
+                .where('absence.type = :type', { type })
+                .orderBy('absence.date', 'DESC')
+                .addOrderBy('absence.createdAt', 'DESC');
+
+            const absences = await queryBuilder.getMany();
+
+            console.log('=== Service - getAllAbsences - Requête effectuée ===');
+            console.log('Query SQL:', queryBuilder.getSql());
+            console.log('Paramètres:', queryBuilder.getParameters());
+            console.log('Nombre d\'absences trouvées:', absences.length);
+            console.log('Types des absences:', absences.map(a => a.type));
 
             return {
                 success: true,
                 data: absences,
-                message: "Absences récupérées avec succès",
+                message: `Absences de type ${type} récupérées avec succès (${absences.length} trouvées)`,
                 error: null
             };
         } catch (error) {
-            console.error("Erreur dans getAllAbsences:", error);
+            console.error('=== Service - getAllAbsences - Erreur ===', error);
             return {
                 success: false,
                 data: null,
@@ -241,7 +236,7 @@ export class AbsenceService {
     async createProfessorAbsence(data: any): Promise<ResultType> {
         try {
             let documentEntity = null;
-            
+
             // Gérer le document si présent
             if (data.document) {
                 const savedDocument = await this.fileService.saveDocuments(
@@ -262,9 +257,11 @@ export class AbsenceService {
                 reasonType: data.reasonType,
                 justified: data.justified,
                 professor: { id: data.professorId },
-                document: documentEntity
+                document: documentEntity || undefined,
+                type: 'PROFESSOR'
             });
 
+            console.log('=== Service - createProfessorAbsence - Nouvelle absence ===', absence);
             const saved = await this.absenceRepository.save(absence);
 
             // Charger l'absence avec toutes les relations
@@ -289,6 +286,7 @@ export class AbsenceService {
             };
         }
     }
+
 
     async updateProfessorAbsence(data: any): Promise<ResultType> {
         try {

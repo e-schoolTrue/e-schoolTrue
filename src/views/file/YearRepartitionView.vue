@@ -19,6 +19,19 @@
             </div>
           </template>
         </el-table-column>
+        <el-table-column label="Statut" width="120">
+          <template #default="scope">
+            <el-tag v-if="scope.row.isCurrent" type="success">En cours</el-tag>
+            <el-button 
+              v-else 
+              type="primary" 
+              link
+              @click="setCurrentYear(scope.row)"
+            >
+              Définir 
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="Actions" width="150">
           <template #default="scope">
             <el-button size="small" @click="editRepartition(scope.row)">
@@ -31,11 +44,18 @@
         </el-table-column>
       </el-table>
 
-      <el-dialog v-model="showModal" :title="modalTitle" class="modal-dialog" destroy-on-close>
+      <el-dialog 
+        v-model="showModal" 
+        :title="modalTitle" 
+        class="modal-dialog"
+        :destroy-on-close="true"
+        :close-on-click-modal="false"
+      >
         <YearRepartitionForm
           v-if="showModal"
           :initial-data="currentRepartition"
           @submit="handleSubmit"
+          @cancel="showModal = false"
         />
       </el-dialog>
     </div>
@@ -59,6 +79,7 @@ interface YearRepartition {
   id?: string | number;
   schoolYear: string;
   periodConfigurations: Period[];
+  isCurrent?: boolean;
 }
 
 const yearRepartitions = ref<YearRepartition[]>([]);
@@ -78,6 +99,11 @@ const formatDate = (date: string | null) => {
 
 const getPeriodType = (periods: Period[]) => {
   return periods.length === 2 ? 'Semestre' : 'Trimestre';
+};
+
+const closeModal = () => {
+  showModal.value = false;
+  currentRepartition.value = null;
 };
 
 const openCreateModal = () => {
@@ -137,7 +163,7 @@ const handleSubmit = async (data: YearRepartition) => {
     }
 
     await fetchYearRepartitions();
-    showModal.value = false;
+    closeModal();
     ElMessage.success("Opération réussie");
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "Échec de l'opération");
@@ -156,6 +182,38 @@ const fetchYearRepartitions = async () => {
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "Impossible de récupérer les répartitions");
     console.error(error);
+  }
+};
+
+const setCurrentYear = async (repartition: YearRepartition) => {
+  try {
+    await ElMessageBox.confirm(
+      `Êtes-vous sûr de vouloir définir ${repartition.schoolYear} comme année scolaire en cours ?`,
+      'Confirmation',
+      {
+        confirmButtonText: 'Oui',
+        cancelButtonText: 'Non',
+        type: 'warning'
+      }
+    );
+
+    const result = await window.ipcRenderer.invoke(
+      "yearRepartition:setCurrent", 
+      repartition.id
+    );
+
+    if (result.success) {
+      ElMessage.success("Année scolaire en cours mise à jour avec succès");
+      await fetchYearRepartitions();
+    } else {
+      throw new Error(result.message);
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(
+        error instanceof Error ? error.message : "Une erreur est survenue"
+      );
+    }
   }
 };
 

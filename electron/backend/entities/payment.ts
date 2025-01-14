@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn } from "typeorm";
 import { StudentEntity } from "./students";
+import { ScholarshipEntity } from "./scholarship";
 
 @Entity("payments")
 export class PaymentEntity {
@@ -39,4 +40,23 @@ export class PaymentEntity {
 
     @Column({ type: "varchar", nullable: true })
     comment?: string;
+
+    @ManyToOne(() => ScholarshipEntity)
+    @JoinColumn({ name: "scholarshipId" })
+    scholarship?: ScholarshipEntity;
+
+    @Column({ type: "integer", nullable: true })
+    scholarshipId?: number;
+
+    @Column({ type: 'float', nullable: true })
+    baseAmount!: number;
+
+    @Column({ type: 'float', nullable: true })
+    scholarshipAmount!: number;
+
+    @Column({ type: 'float', nullable: true })
+    adjustedAmount!: number;
+
+    @Column({ type: 'float', nullable: true })
+    scholarshipPercentage!: number;
 }

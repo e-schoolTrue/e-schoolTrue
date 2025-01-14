@@ -66,12 +66,6 @@ export const AppItems: MenuItem[] = [
                 icon: "mdi:cash",
                 route: "/payment/students",
                 description: "Gérer les frais de scolarité et autres paiements"
-            },
-            {
-                id: "submenu-3-3",
-                title: "Paiements Personnel",
-                icon: "mdi:cash-fast",
-                route: "/payment/staff",
             }
         ]
     },
@@ -133,34 +127,15 @@ export const AppItems: MenuItem[] = [
         subItems: [
             {
                 id: "submenu-5-1",
-                title: "Génération Bulletin",
-                icon: "fluent-emoji:page-with-curl",
-                subItems: [
-                    {
-                        id: "submenu-5-1-1",
-                        title: "Bulletin de Paie",
-                        icon: "fluent-emoji:money-bag",
-                        route: "/tools/generation/payroll-slip",
-                    },
-                    {
-                        id: "submenu-5-1-2",
-                        title: "Bulletin Scolaire",
-                        icon: "fluent-emoji:graduation-cap",
-                        route: "/tools/generation/school-report",
-                    }
-                ]
+                title: "Bulletin Scolaire",
+                icon: "fluent-emoji:graduation-cap",
+                route: "/tools/school-report",
             },
             {
                 id: "submenu-5-2",
-                title: "Génération Carte d'Identité",
+                title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
-            },
-            {
-                id: "submenu-5-3",
-                title: "Messagerie Automatique",
-                icon: "fluent-emoji:incoming-envelope",
-                route: "/tools/automatic-messaging",
             }
         ]
     },
@@ -202,7 +177,7 @@ export const AppItems: MenuItem[] = [
             {
                 id: "submenu-6-6",
                 title: "Configuration des paiements",
-                icon: "fluent-emoji:coin",
+                icon: "fluent-emoji:cash-register",
                 route: "/payment-config",
             },
             {

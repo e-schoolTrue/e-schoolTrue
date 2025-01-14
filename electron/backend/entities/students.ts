@@ -15,6 +15,7 @@ import { FileEntity } from "./file";
 import { GradeEntity } from "./grade";
 import { AbsenceEntity } from "./absence";
 import { PaymentEntity } from "./payment";
+import { ScholarshipEntity } from "./scholarship";
 
 @Entity("T_student")
 export class StudentEntity {
@@ -112,4 +113,7 @@ export class StudentEntity {
 
   @UpdateDateColumn()
   updatedAt?: Date;
+
+  @OneToMany(() => ScholarshipEntity, scholarship => scholarship.student)
+  scholarship!: ScholarshipEntity[];
 }

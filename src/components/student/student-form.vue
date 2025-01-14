@@ -1,5 +1,17 @@
+export interface StudentFormInstance {
+  resetForm: () => void;
+}
+
+<script lang="ts">
+// Définir l'interface avant le setup
+export interface StudentFormInstance {
+  resetForm: () => void;
+}
+</script>
+
 <script setup lang="ts">
 import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted} from 'vue';
+import { ElMessage } from 'element-plus';
 
 
 interface ClassItem {
@@ -145,10 +157,44 @@ onMounted(async () => {
     const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
     if (result.success && result.data) {
       formData.schoolYear = result.data.schoolYear;
+    } else {
+      ElMessage.warning("Aucune année scolaire active n'a été trouvée. Veuillez en configurer une.");
     }
   } catch (error) {
     console.error("Erreur lors de la récupération de l'année scolaire:", error);
+    ElMessage.error("Erreur lors de la récupération de l'année scolaire");
   }
+});
+
+// Ajouter la méthode resetForm
+const resetForm = () => {
+  // Réinitialiser les données du formulaire
+  Object.assign(formData, {
+    firstname: '',
+    lastname: '',
+    birthDay: null,
+    birthPlace: '',
+    address: '',
+    gradeId: null,
+    fatherFirstname: '',
+    fatherLastname: '',
+    motherFirstname: '',
+    motherLastname: '',
+    famillyPhone: '',
+    personalPhone: '',
+    photo: null,
+    documents: [],
+    sex: 'male',
+    schoolYear: formData.schoolYear // Garder l'année scolaire actuelle
+  });
+  
+  // Réinitialiser l'étape courante
+  currentStep.value = 0;
+};
+
+// Exposer la méthode pour le composant parent
+defineExpose<StudentFormInstance>({
+  resetForm
 });
 </script>
 
