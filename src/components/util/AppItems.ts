@@ -133,7 +133,7 @@ export const AppItems: MenuItem[] = [
             },
             {
                 id: "submenu-5-2",
-                title: "Carte d'Identité Scolaire",
+                title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
             }
