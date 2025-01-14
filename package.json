@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
+    "alsaba-cash": "file:",
     "better-sqlite3": "^9.6.0",
     "chart.js": "^4.4.7",
     "csv-parser": "^3.0.0",
