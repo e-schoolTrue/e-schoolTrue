@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
 import './events'
@@ -12,10 +12,16 @@ let dataSourceInitialized = false;
 
 async function initializeDataSource() {
   if (!dataSourceInitialized) {
-    console.log("Début de l'initialisation de la base de données");
-    await AppDataSource.initialize();
-    console.log("Base de données initialisée avec succès");
-    dataSourceInitialized = true;
+    try {
+      console.log("Début de l'initialisation de la base de données");
+      const dataSource = await AppDataSource.initialize();
+      console.log("État de la connexion:", dataSource.isInitialized);
+      console.log("Base de données initialisée avec succès");
+      dataSourceInitialized = true;
+    } catch (error) {
+      console.error("Erreur lors de l'initialisation de la base de données:", error);
+      throw error;
+    }
   }
 }
 
@@ -52,7 +58,11 @@ async function createWindow() {
       win.loadFile(path.join(process.env.DIST, 'index.html'))
     }
   } catch (error) {
-    console.error("Erreur lors de la création de la fenêtre:", error);
+    console.error("Erreur critique lors de la création de la fenêtre:", error);
+    dialog.showErrorBox(
+      'Erreur de démarrage',
+      `Une erreur est survenue lors du démarrage de l'application: ${error.message}`
+    );
     app.quit();
   }
 }
