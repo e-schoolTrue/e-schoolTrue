@@ -1,13 +1,19 @@
-{
-  "name": "alsaba-cash",
+{ 
+  "name": "eschool",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
+  "description": "Application de gestion scolaire",
+  "author": {
+    "name": "E-School",
+    "email": "eschool@gmail.com"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder",
     "preview": "vite preview",
     "test:unit": "vitest --environment jsdom",
-    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
+    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
@@ -56,5 +62,22 @@
     "vue-router": "^4.3.0",
     "vue-tsc": "^2.1.10"
   },
-  "main": "dist-electron/main.js"
+  "main": "dist-electron/main.js",
+  "build": {
+    "appId": "com.eschool.app",
+    "productName": "E-School",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
 }

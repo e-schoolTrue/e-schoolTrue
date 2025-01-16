@@ -40,7 +40,6 @@ export class AppDataSource {
                 database: dbPath,
                 // Configuration différente selon l'environnement
                 synchronize: !isProd,      // Désactivé en production
-                dropSchema: false,         // Ne jamais supprimer le schéma
                 logging: !isProd,          // Logs uniquement en développement
                 entities: [
                     UserEntity, FileEntity, StudentEntity, GradeEntity,
