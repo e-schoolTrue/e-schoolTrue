@@ -42,7 +42,7 @@ export default defineConfig({
           },
           build:{
             rollupOptions:{
-              external:["typeorm"]
+              external:["typeorm", "electron-print-preview", "typeorm"]
             }
           }
         }

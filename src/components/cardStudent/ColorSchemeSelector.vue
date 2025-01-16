@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import type { ColorScheme } from '@/types/card';
 import { COLOR_SCHEMES, DEFAULT_COLOR_SCHEME } from '@/constants/colorSchemes';
 

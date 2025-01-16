@@ -41,7 +41,7 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:ClassRoomCommand):void
+  (e:"submit-action" , formRef:FormInstance|undefined , form:ClassRoomCommand):void
 }>()
 defineExpose({
   open,

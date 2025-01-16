@@ -3,9 +3,9 @@
  */
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "alsabaCash",
+  "appId": "eschool",
   "asar": true,
-  "productName": "Alsab Cash",
+  "productName": "Eschool",
 
   "directories": {
     "output": "release/${version}" ,
@@ -21,7 +21,7 @@
     "artifactName": "${productName}-${version}-.${ext}"
   },
   "win": {
-    icon: "build/icon.ico",
+    icon: "dist/icon.ico",
     "target": [
       {
         "target": "nsis",

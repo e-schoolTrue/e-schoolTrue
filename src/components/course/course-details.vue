@@ -4,10 +4,6 @@ import {Icon} from "@iconify/vue";
 import {CourseEntity} from "#electron/backend/entities/course.ts";
 import CourseGroupTable from "@/components/course/course-group-table.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
-import {FormInstance} from "element-plus";
-import {CourseCommand} from "#electron/command/settingsCommand.ts";
-import {Loader} from "@/components/util/AppLoader.ts";
-import {cloneDeep} from "lodash";
 
 const dialogVisible = ref(false)
 const course = ref<CourseEntity>()
@@ -42,7 +38,6 @@ defineExpose({
       <course-group-form
           ref="newCourseGroupFormRef"
           form-title="Nouvelle sous matière"
-          @submit-action="addCourseToGroupement"
       />
       <el-space direction="vertical" fill="fill">
         <el-descriptions title="Info Matière">

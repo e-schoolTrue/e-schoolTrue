@@ -16,13 +16,13 @@ const paginator = reactive<{
   currentPage:1
 })
 const filteredGrades = computed(()=>{
-  const result =  props.brnaches?.filter((branch:BranchEntity)=>Object.keys(branch).some((key:string)=>String(branch[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
+  const result =  props.brnaches?.filter((branch:BranchEntity)=>Object.keys(branch).some((key:string)=>String((branch as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
   paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
   return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })
 const emits=defineEmits<{
-  (e:"openUpdateForm" , branch:BranchEntity),
-  (e:"deleteAction" , id:number),
+  (e:"openUpdateForm" , branch:BranchEntity):void,
+  (e:"deleteAction" , id:number):void,
 }>()
 
 function handleCurrentPage(pageNumber:number){

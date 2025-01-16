@@ -18,7 +18,7 @@ const classRooms =  ref<ClassRoomEntity[]>()
 function openUpdateForm(classRoom:ClassRoomEntity){
   updateClassRoomFormRef.value.open(classRoom)
 }
-async function newClassRoom(formRef:FormInstance , form:ClassRoomCommand){
+async function newClassRoom(formRef:FormInstance|undefined , form:ClassRoomCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
@@ -42,7 +42,7 @@ async function newClassRoom(formRef:FormInstance , form:ClassRoomCommand){
   })
 }
 
-async function updateClassRoom(formRef:FormInstance , form:ClassRoomCommand){
+async function updateClassRoom(formRef:FormInstance|undefined , form:ClassRoomCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
@@ -133,12 +133,12 @@ onMounted(async()=>{
   <classe-room-form
       ref="newClassRoomFormRef"
       @submit-action="newClassRoom"
-      :grades="grades"
+      :grades="grades as GradeEntity[] "
   />
   <classe-room-form
       ref="updateClassRoomFormRef"
       @submit-action="updateClassRoom"
-      :grades="grades"
+      :grades="grades as GradeEntity[]"
   />
   <el-space direction="vertical" fill="fill" size="large">
     <el-row justify="center" >
@@ -151,7 +151,7 @@ onMounted(async()=>{
       <el-button type="primary" @click="newClassRoomFormRef.open()" style="width: 200px; --el-button-text-color:var(--button-text-color); --el-button-hover-text-color: var(--button-hover-text-color); --el-button-hover-bg-color: var(--button-hover-bg-color)">Ajouter</el-button>
     </el-row>
     <class-room-table
-        :class-rooms="classRooms"
+        :class-rooms="classRooms as ClassRoomEntity[]"
         @open-update-form="openUpdateForm"
         @delete-action="deleteClassRoom"
     />

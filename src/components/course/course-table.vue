@@ -21,17 +21,17 @@ const paginator = reactive<{
 })
 const courseDetailsRef = ref()
 const filteredCourses = computed(()=>{
-  const result =  props.courses?.filter((course:CourseEntity)=>Object.keys(course).some((key:string)=>String(course[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
+  const result =  props.courses?.filter((course:CourseEntity)=>Object.keys(course).some((key:string)=>String((course as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
   paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
   return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })
 const emits=defineEmits<{
   (e:"openUpdateForm" , classRoom:ClassRoomCommand):any,
-  (e:"addCourseGroup" , formRef:FormInstance , form:CourseCommand):any,
+  (e:"addCourseGroup" , formRef:FormInstance|undefined , form:CourseCommand):any,
   (e:"deleteAction" , id:number):any,
 }>()
 
-function addCourseGroup(formRef: FormInstance, form: ClassRoomCommand){
+function addCourseGroup(formRef: FormInstance|undefined, form: ClassRoomCommand){
   emits("addCourseGroup" , formRef , form)
   newCourseGroupFormRef.value.close()
 }
