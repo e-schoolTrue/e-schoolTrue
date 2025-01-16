@@ -171,7 +171,7 @@ export class AbsenceService {
                 take: limit
             });
 
-            const formattedAbsences = absences.map(absence => ({
+            const formattedAbsences = absences.map((absence:any) => ({
                 id: absence.id,
                 studentName: absence.student ? `${absence.student.firstname} ${absence.student.lastname}` : 'N/A',
                 date: absence.date,
@@ -214,7 +214,7 @@ export class AbsenceService {
             console.log('Query SQL:', queryBuilder.getSql());
             console.log('Paramètres:', queryBuilder.getParameters());
             console.log('Nombre d\'absences trouvées:', absences.length);
-            console.log('Types des absences:', absences.map(a => a.type));
+            console.log('Types des absences:', absences.map((a:any) => a.type));
 
             return {
                 success: true,

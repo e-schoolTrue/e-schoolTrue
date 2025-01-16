@@ -25,7 +25,7 @@ export class GradeService {
             await this.gradeRepository.save(newGrade);
             const grades = await this.gradeRepository.find()
             return {success: true, message: messages.grade_save_successfully, data: grades, error: null};
-        }catch (e) {
+        }catch (e:any) {
             return {success: false, message: messages.grade_save_failed, data: null, error: e};
         }
     }
@@ -37,8 +37,8 @@ export class GradeService {
                     branches: true
                 }
             });
-            return {success: true, message: null, data: grades, error: null};
-        } catch (e) {
+            return {success: true, message: "", data: grades, error: null};
+        } catch (e:any) {
             return {success: false, message: messages.grade_retieve_failed, data: null, error: e};
         }
     }
@@ -58,7 +58,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.grade_update_successfully, data: grades, error: null};
-        } catch (e) {
+        } catch (e:any) {
             return {success: false, message: messages.grade_update_failed, data: null, error: e};
         }
     }
@@ -76,7 +76,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.grade_delete_successfully, data: grades, error: null};
-        } catch (e) {
+        } catch (e:any) {
             return {success: false, message: messages.grade_delete_failed, data: null, error: e};
         }
     }
@@ -95,7 +95,7 @@ export class GradeService {
                 }
             })
             return {success: true, message: messages.class_room_save_successfully, data: classRooms, error: null};
-        }catch (e) {
+        }catch (e:any) {
             return {success: false, message: messages.class_room_save_failed, data: null, error: e};
         }
     }
@@ -117,7 +117,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.class_room_update_successfully, data: classRooms, error: null};
-        } catch (e) {
+        } catch (e:any) {
             return {success: false, message: messages.class_room_update_failed, data: null, error: e};
         }
     }
@@ -135,7 +135,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.class_room_delete_successfully, data: classRooms, error: null};
-        } catch (e) {
+        } catch (e:any) {
             return {success: false, message: messages.class_room_delete_failed, data: null, error: e};
         }
     }
@@ -148,8 +148,8 @@ export class GradeService {
                     grade: true
                 }
             });
-            return {success: true, message: null, data: classRooms, error: null};
-        } catch (e) {
+            return {success: true, message: "", data: classRooms, error: null};
+        } catch (e:any) {
             return {success: false, message: messages.class_room_retieve_failed, data: null, error: e};
         }
     }
@@ -167,7 +167,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.branch_save_successfully, data: grades, error: null};
-        }catch (e) {
+        }catch (e:any) {
             return {success: false, message: messages.branch_save_failed, data: null, error: e};
         }
     }
@@ -185,7 +185,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.branch_delete_successfully, data: grades, error: null};
-        } catch (e) {
+        } catch (e:any) {
             return {success: false, message: messages.branch_delete_failed, data: null, error: e};
         }
     }
@@ -205,7 +205,7 @@ export class GradeService {
                 }
             });
             return {success: true, message: messages.branch_update_successfully, data: grades, error: null};
-        } catch (e) {
+        } catch (e:any) {
             return {success: false, message: messages.branch_update_failed, data: null, error: e};
         }
     }

@@ -18,14 +18,14 @@ const paginator = reactive<{
   currentPage:1
 })
 const filteredClassRooms = computed(()=>{
-  const result =  props.classRooms?.filter((classRoom:ClassRoomEntity)=>Object.keys(classRoom).some((key:string)=>String(classRoom[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
+  const result =  props.classRooms?.filter((classRoom:ClassRoomEntity)=>Object.keys(classRoom).some((key:string)=>String((classRoom as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
   paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
   return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })
 const gradeDetailsRef = ref()
 const emits=defineEmits<{
-  (e:"openUpdateForm" , classRoom:ClassRoomCommand),
-  (e:"deleteAction" , id:number),
+  (e:"openUpdateForm" , classRoom:ClassRoomCommand):void,
+  (e:"deleteAction" , id:number):void,
 }>()
 
 function handleCurrentPage(pageNumber:number){

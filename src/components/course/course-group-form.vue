@@ -23,7 +23,13 @@ const formRule = reactive<FormRules<CourseCommand>>({
   ],
   coefficient:[
     {required:true , message:"ce champ est requis" , trigger:"blur"},
-    {validator :(rule:any, value:any, callback:any)=>value<=10 ,  message:"le coefficient ne peut depasser 10" , trigger:"blur"}
+    {validator :(rule:any, value:any, callback:any)=>{
+      if(value>10){
+        throw("le coefficient ne peut depasser 10"+String(rule));
+      }else{
+        callback()
+      }
+    }, trigger:"blur"}
   ],
 })
 function open(groupement:CourseEntity,  course?:CourseCommand){
@@ -39,7 +45,7 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:ClassRoomCommand):void
+  (e:"submit-action" , formRef:FormInstance|undefined , form:ClassRoomCommand):void
 }>()
 defineExpose({
   open,

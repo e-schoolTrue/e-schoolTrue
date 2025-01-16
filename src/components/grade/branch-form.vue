@@ -11,6 +11,7 @@ const form = reactive<BranchEntity>({
   name:"",
   code:"",
 })
+// @ts-ignore
 const formRule = reactive<FormRules<BranchEntity>>({
   code:[
     {required:true , message:"ce champ est requis" , trigger:"blur"}
@@ -30,7 +31,7 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:BranchEntity):void
+  (e:"submit-action" , formRef:FormInstance|undefined , form:BranchEntity):void
 }>()
 defineExpose({
   open,

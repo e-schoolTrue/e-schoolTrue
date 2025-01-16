@@ -37,10 +37,10 @@
         :style="{ transform: `scale(${zoom / 100})` }"
       >
         <component
-          :is="templateComponent"
-          :student="student"
-          :school-info="schoolInfo"
-          :color-scheme="colorScheme"
+          :is="props.templateComponent"
+          :student="props.student"
+          :school-info="props.schoolInfo"
+          :color-scheme="props.colorScheme"
         />
       </div>
     </div>

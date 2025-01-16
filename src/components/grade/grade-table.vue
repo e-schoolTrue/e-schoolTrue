@@ -17,16 +17,16 @@ const paginator = reactive<{
   currentPage:1
 })
 const filteredGrades = computed(()=>{
-  const result =  props.grades?.filter((grade:GradeEntity)=>Object.keys(grade).some((key:string)=>String(grade[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
+  const result =  props.grades?.filter((grade:GradeEntity)=>Object.keys(grade).some((key:string)=>String((grade as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
   paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
   return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })
 const emits=defineEmits<{
-  (e:"openUpdateForm" , grade:GradeEntity),
-  (e:"deleteAction" , id:number),
-  (e:"openNestedNewForm" , grade:GradeEntity),
-  (e:"openNestedUpdateForm" , branch:BranchEntity , grade:GradeEntity),
-  (e:"deleteNestedAction" , id:number),
+  (e:"openUpdateForm" , grade:GradeEntity):void,
+  (e:"deleteAction" , id:number):void,
+  (e:"openNestedNewForm" , grade:GradeEntity):void,
+  (e:"openNestedUpdateForm" , branch:BranchEntity , grade:GradeEntity):void,
+  (e:"deleteNestedAction" , id:number):void,
 }>()
 
 function handleCurrentPage(pageNumber:number){

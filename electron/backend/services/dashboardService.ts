@@ -83,7 +83,7 @@ export class DashboardService {
                 take: limit
             });
 
-            const formattedPayments = payments.map(payment => ({
+            const formattedPayments = payments.map((payment:any) => ({
                 id: payment.id,
                 studentName: `${payment.student.firstname} ${payment.student.lastname}`,
                 amount: payment.amount,
@@ -123,7 +123,7 @@ export class DashboardService {
                 .orderBy('payment.createdAt', 'ASC')
                 .getMany();
 
-            const monthlyPayments = payments.reduce((acc: { [key: string]: number }, payment) => {
+            const monthlyPayments = payments.reduce((acc: { [key: string]: number }, payment:any) => {
                 const month = new Date(payment.createdAt).toLocaleString('fr-FR', { month: 'long' });
                 acc[month] = (acc[month] || 0) + payment.amount;
                 return acc;
@@ -164,9 +164,9 @@ export class DashboardService {
                 .andWhere('absence.createdAt <= :endDate', { endDate: new Date() })
                 .getMany();
 
-            console.log('Types des absences trouvées:', absences.map(a => a.type));
+            console.log('Types des absences trouvées:', absences.map((a:any) => a.type));
 
-            const absencesByGrade = absences.reduce((acc: { [key: string]: number }, absence) => {
+            const absencesByGrade = absences.reduce((acc: { [key: string]: number }, absence:any) => {
                 if (absence.type === 'STUDENT' && absence.grade?.name) {
                     const gradeName = absence.grade.name;
                     acc[gradeName] = (acc[gradeName] || 0) + 1;

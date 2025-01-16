@@ -34,13 +34,13 @@ defineExpose({
         <template #label>
           <el-text type="primary" style="font-weight: bold">Code:</el-text>
         </template>
-        <el-tag>{{currGrade.code}}</el-tag>
+        <el-tag>{{currGrade?.code}}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item >
         <template #label>
           <el-text type="primary" style="font-weight: bold">Nom:</el-text>
         </template>
-        <el-tag>{{currGrade.name}}</el-tag>
+        <el-tag>{{currGrade?.name}}</el-tag>
       </el-descriptions-item>
     </el-descriptions>
     <template #footer>

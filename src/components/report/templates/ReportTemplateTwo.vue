@@ -224,7 +224,7 @@ const calculateWeightedTotal = () => {
 .ministry-logo {
   width: 50px;
   height: 50px;
-  background-image: url('@/assets/ministry-logo.png');
+  background-image: url('@/assets/ministry-logo.jpg');
   background-size: contain;
   background-repeat: no-repeat;
 }
