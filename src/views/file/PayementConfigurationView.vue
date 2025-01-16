@@ -14,7 +14,7 @@
         <el-table-column prop="className" label="Classe" />
         <el-table-column label="Frais de Scolarité">
           <template #default="{ row }">
-            {{ formatAmount(row.annualAmount) }} FCFA
+            {{ formatAmount(row.annualAmount) }} {{ currency }}
           </template>
         </el-table-column>
         <el-table-column label="Actions" width="150">
@@ -56,7 +56,7 @@
               class="full-width"
               controls-position="right"
             >
-              <template #suffix>FCFA</template>
+              <template #suffix>{{ currency }}</template>
             </el-input-number>
           </el-form-item>
 
@@ -116,6 +116,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
+import { useCurrency } from '@/composables/useCurrency';
 
 interface PaymentConfig {
   classId: string;
@@ -125,6 +126,8 @@ interface PaymentConfig {
   scholarshipPercentages?: number[];
   scholarshipCriteria?: string;
 }
+
+const { currency, loadCurrency } = useCurrency();
 
 const configurations = ref<PaymentConfig[]>([]);
 const isLoading = ref(false);
@@ -228,8 +231,14 @@ const loadConfigurations = async () => {
   }
 };
 
-// Charger les configurations au montage
-loadConfigurations();
+const init = async () => {
+  await Promise.all([
+    loadConfigurations(),
+    loadCurrency()
+  ]);
+};
+
+init();
 </script>
 
 <style scoped>

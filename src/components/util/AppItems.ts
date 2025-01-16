@@ -168,20 +168,15 @@ export const AppItems: MenuItem[] = [
                 icon: "fluent-emoji:open-book",
                 route: "/course",
             },
+           
             {
                 id: "submenu-6-5",
-                title: "Configuration des notes",
-                icon: "fluent-emoji:pencil",
-                route: "/school-notes",
-            },
-            {
-                id: "submenu-6-6",
                 title: "Configuration des paiements",
-                icon: "fluent-emoji:cash-register",
+                icon: "fluent-emoji:money-with-wings",
                 route: "/payment-config",
             },
             {
-                id: "submenu-6-7",
+                id: "submenu-6-6",
                 title: "Répartition année scolaire",
                 icon: "fluent-emoji:calendar",
                 route: "/school-repartition",

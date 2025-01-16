@@ -37,10 +37,9 @@ export interface TeachingAssignment {
 
 export interface ResultType {
     success: boolean;
+    message: string | null;
     data: any;
-    message: string;
     error: string | null;
-    generalAverage?: number;  // Ajout de generalAverage optionnel
 }
 
 export class Mapper{

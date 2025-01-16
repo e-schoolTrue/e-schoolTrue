@@ -29,8 +29,8 @@ function openNewBranchForm(grade:GradeEntity){
 function openUpdateBranchForm(branch:BranchEntity , grade:GradeEntity){
   updateBranchFormRef.value.open(grade , branch)
 }
-async function newGrade(formRef:FormInstance , form:GradeCommand){
-  if(!formRef) return
+async function newGrade(formRef: FormInstance | undefined, form: GradeCommand){
+  if (!formRef) return;
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
     if(isValid){
@@ -53,8 +53,8 @@ async function newGrade(formRef:FormInstance , form:GradeCommand){
   })
 }
 
-async function newBranch(formRef:FormInstance , form:BranchCommand){
-  if(!formRef) return
+async function newBranch(formRef: FormInstance | undefined, form: BranchCommand){
+  if (!formRef) return;
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
     if(isValid){
@@ -77,8 +77,8 @@ async function newBranch(formRef:FormInstance , form:BranchCommand){
   })
 }
 
-async function updateGrade(formRef:FormInstance , form:GradeCommand){
-  if(!formRef) return
+async function updateGrade(formRef: FormInstance | undefined, form: GradeCommand){
+  if (!formRef) return;
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
     if(isValid){
@@ -105,8 +105,8 @@ async function updateGrade(formRef:FormInstance , form:GradeCommand){
   })
 }
 
-async function updateBranch(formRef:FormInstance , form:GradeCommand){
-  if(!formRef) return
+async function updateBranch(formRef: FormInstance | undefined, form: GradeCommand){
+  if (!formRef) return;
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
     if(isValid){

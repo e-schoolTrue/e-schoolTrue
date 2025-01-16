@@ -20,20 +20,26 @@ const paginator = reactive<{
   currentPage:1
 })
 const courseDetailsRef = ref()
-const filteredCourses = computed(()=>{
-  const result =  props.courses?.filter((course:CourseEntity)=>Object.keys(course).some((key:string)=>String(course[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
-  paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
-  return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
-})
-const emits=defineEmits<{
-  (e:"openUpdateForm" , classRoom:ClassRoomCommand):any,
-  (e:"addCourseGroup" , formRef:FormInstance , form:CourseCommand):any,
-  (e:"deleteAction" , id:number):any,
-}>()
+const filteredCourses = computed(() => {
+  const searchValue = searchForm.value.toLowerCase();
+  const result = props.courses?.filter((course: CourseEntity) => 
+    (course.name?.toLowerCase() || '').includes(searchValue) || 
+    (course.code?.toLowerCase() || '').includes(searchValue) ||
+    String(course.coefficient || '').toLowerCase().includes(searchValue) ||
+    ((course.courses && course.courses.length > 0) ? 'groupe' : '').includes(searchValue)
+  ) || [];
+  paginator.totalPage = Math.ceil(result.length / paginator.pageSize);
+  return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize);
+});
+const emits = defineEmits<{
+  (e: "openUpdateForm", classRoom: ClassRoomCommand): void,
+  (e: "addCourseGroup", formRef: FormInstance | undefined, form: CourseCommand): void,
+  (e: "deleteAction", id: number): void,
+}>();
 
-function addCourseGroup(formRef: FormInstance, form: ClassRoomCommand){
-  emits("addCourseGroup" , formRef , form)
-  newCourseGroupFormRef.value.close()
+function addCourseGroup(formRef: FormInstance | undefined, form: CourseCommand) {
+  emits("addCourseGroup", formRef, form);
+  newCourseGroupFormRef.value.close();
 }
 
 function handleCurrentPage(pageNumber:number){

@@ -1,72 +1,37 @@
 <template>
   <div class="student-card-view">
-    <el-row :gutter="20">
-      <!-- Configuration -->
-      <el-col :span="8">
-        <el-card>
-          <template #header>
-            <h2>Configuration des cartes</h2>
-          </template>
-
-          <el-tabs v-model="activeTab">
-            <el-tab-pane label="Template" name="template">
-              <div class="templates-list">
-                <el-radio-group v-model="selectedTemplate">
-                  <div v-for="template in templates" :key="template.id" class="template-item">
-                    <el-radio :label="template.id">
-                      <div class="template-info">
-                        <h3>{{ template.name }}</h3>
-                        <p>{{ template.description }}</p>
-                      </div>
-                    </el-radio>
-                  </div>
-                </el-radio-group>
-              </div>
-            </el-tab-pane>
-
-            <el-tab-pane label="Couleurs" name="colors">
-              <ColorSchemeSelector v-model="selectedColorScheme" />
-            </el-tab-pane>
-          </el-tabs>
-        </el-card>
-
-        <!-- Aperçu -->
-        <el-card class="mt-4 preview-card">
-          <template #header>
-            <h2>Aperçu</h2>
-          </template>
-          <div class="preview-container">
-            <component
-              :is="getCurrentTemplate"
-              :student="previewStudent || selectedStudents[0] || {}"
-              :school-info="schoolInfo"
-              :color-scheme="selectedColorScheme"
-            />
-          </div>
-        </el-card>
-      </el-col>
-
-      <!-- Liste des étudiants -->
-      <el-col :span="16">
-        <el-card>
+    <el-row :gutter="20" class="main-layout">
+      <!-- Liste des étudiants (à gauche) -->
+      <el-col :span="14" class="students-panel">
+        <el-card class="students-card">
           <template #header>
             <div class="students-header">
-              <div class="filters">
-                <el-select v-model="selectedGrade" placeholder="Filtrer par classe" clearable>
-                  <el-option v-for="grade in grades" :key="grade.id" :label="grade.name" :value="grade.id" />
+              <div class="search-filters">
+                <el-select 
+                  v-model="selectedGrade" 
+                  placeholder="Filtrer par classe" 
+                  clearable
+                  class="grade-filter"
+                >
+                  <el-option 
+                    v-for="grade in grades" 
+                    :key="grade.id" 
+                    :label="grade.name" 
+                    :value="grade.id" 
+                  />
                 </el-select>
 
-                <el-input v-model="searchQuery" placeholder="Rechercher un étudiant..." clearable>
+                <el-input 
+                  v-model="searchQuery" 
+                  placeholder="Rechercher un étudiant..." 
+                  clearable
+                  class="search-input"
+                >
                   <template #prefix>
                     <Icon icon="mdi:magnify" />
                   </template>
                 </el-input>
               </div>
-
-              <el-button type="primary" @click="handlePrint" :disabled="!selectedStudents.length">
-                <Icon icon="mdi:printer" class="mr-2" />
-                Imprimer ({{ selectedStudents.length }})
-              </el-button>
             </div>
           </template>
 
@@ -74,7 +39,7 @@
             :data="filteredStudents" 
             @selection-change="handleSelectionChange" 
             v-loading="loading"
-            height="calc(100vh - 300px)"
+            class="students-table"
           >
             <el-table-column type="selection" width="55" />
             <el-table-column label="Photo" width="80">
@@ -89,6 +54,64 @@
             <el-table-column prop="lastname" label="Nom" />
             <el-table-column prop="grade.name" label="Classe" width="120" />
           </el-table>
+        </el-card>
+      </el-col>
+
+      <!-- Panneau de droite (Configuration et Aperçu) -->
+      <el-col :span="10" class="right-panel">
+        <!-- Actions -->
+        <el-card class="actions-card">
+          <el-button 
+            type="primary" 
+            @click="handlePrint" 
+            :disabled="!selectedStudents.length"
+            class="print-button"
+          >
+            <Icon icon="mdi:printer" class="mr-2" />
+            Imprimer les cartes sélectionnées ({{ selectedStudents.length }})
+          </el-button>
+        </el-card>
+
+        <!-- Configuration et Aperçu -->
+        <el-card class="config-preview-card">
+          <el-tabs v-model="activeTab" class="config-tabs" type="border-card">
+            <el-tab-pane label="Template" name="template">
+              <div class="templates-container">
+                <h4>Choisir un modèle de carte</h4>
+                <div class="templates-grid">
+                  <div 
+                    v-for="template in templates" 
+                    :key="template.id"
+                    class="template-card"
+                    :class="{ 'selected': selectedTemplate === template.id }"
+                    @click="selectedTemplate = template.id"
+                  >
+                    <div class="template-content">
+                      <h4>{{ template.name }}</h4>
+                      <p>{{ template.description }}</p>
+                    </div>
+                    <el-radio :label="template.id" v-model="selectedTemplate" />
+                  </div>
+                </div>
+              </div>
+            </el-tab-pane>
+
+            <el-tab-pane label="Couleurs" name="colors">
+              <ColorSchemeSelector v-model="selectedColorScheme" />
+            </el-tab-pane>
+
+            <el-tab-pane label="Aperçu" name="preview">
+              <div class="preview-container">
+                <component
+                  :is="getCurrentTemplate"
+                  :student="previewStudent || selectedStudents[0] || {}"
+                  :school-info="schoolInfo"
+                  :color-scheme="selectedColorScheme"
+                  class="preview-component"
+                />
+              </div>
+            </el-tab-pane>
+          </el-tabs>
         </el-card>
       </el-col>
     </el-row>
@@ -374,129 +397,132 @@ loadData();
 
 <style scoped>
 .student-card-view {
-  padding: 20px;
-  height: calc(100vh - 40px);
-  background-color: #f5f7fa;
-  overflow: hidden;
+  padding: 1rem;
+  height: calc(100vh - 80px);
+  background-color: var(--el-bg-color-page);
 }
 
-.el-row {
+.main-layout {
   height: 100%;
 }
 
-.el-col {
+/* Panel gauche - Liste des étudiants */
+.students-panel {
+  height: 100%;
+}
+
+.students-card {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-.templates-list {
-  max-height: 150px;
-  overflow-y: auto;
-  padding: 10px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+.students-table {
+  flex: 1;
+  height: calc(100% - 60px);
 }
 
-.template-item {
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 8px;
+/* Panel droite */
+.right-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.actions-card {
+  padding: 0.5rem;
+}
+
+.print-button {
+  width: 100%;
+}
+
+.config-preview-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Configuration des templates */
+.templates-container {
+  padding: 1rem;
+}
+
+.templates-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.template-card {
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+  padding: 1rem;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
-.template-item:hover {
+.template-card.selected {
   border-color: var(--el-color-primary);
   background-color: var(--el-color-primary-light-9);
 }
 
-.template-info h3 {
-  margin: 0 0 3px 0;
-  font-size: 14px;
-}
-
-.template-info p {
-  margin: 0;
-  color: #666;
-  font-size: 12px;
-}
-
-.preview-card {
-  margin-top: 15px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - 400px);
-}
-
-.preview-card :deep(.el-card__body) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
+/* Aperçu */
 .preview-container {
-  flex: 1;
-  padding: 30px;
+  height: 400px;
   display: flex;
   justify-content: center;
   align-items: center;
   background: linear-gradient(45deg, #f8f9fa, #fff);
-  border-radius: 8px;
-  position: relative;
-  overflow: hidden;
+  padding: 2rem;
 }
 
-.preview-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 10px,
-    rgba(0, 0, 0, 0.01) 10px,
-    rgba(0, 0, 0, 0.01) 20px
-  );
-  border-radius: 8px;
-}
-
-.preview-container :deep(.card-template) {
-  transform: scale(1.5);
+.preview-component {
+  transform: scale(1.2);
   transition: transform 0.3s ease;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  position: relative;
-  z-index: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.preview-container:hover :deep(.card-template) {
-  transform: scale(1.6);
+.preview-container:hover .preview-component {
+  transform: scale(1.3);
 }
 
-.students-header {
+/* Utilitaires */
+.search-filters {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 15px;
+  gap: 1rem;
 }
 
-.filters {
-  display: flex;
-  gap: 15px;
+.grade-filter {
+  width: 200px;
+}
+
+.search-input {
   flex: 1;
 }
 
-.el-table {
-  height: calc(100vh - 160px) !important;
-}
+/* Responsive */
+@media (max-width: 1200px) {
+  .main-layout {
+    flex-direction: column;
+  }
 
-@media print {
-  .student-card-view > *:not(.print-content) {
-    display: none !important;
+  .el-col {
+    width: 100% !important;
+  }
+
+  .students-panel {
+    height: 50vh;
+    margin-bottom: 1rem;
+  }
+
+  .preview-container {
+    height: 300px;
   }
 }
 </style>

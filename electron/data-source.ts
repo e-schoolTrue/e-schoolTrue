@@ -26,19 +26,35 @@ import { GradeConfigEntity } from "./backend/entities/gradeConfig";
 export class AppDataSource {
     private static instance: DataSource;
     private constructor() {}
+    
     static getInstance(): DataSource {
         if (!AppDataSource.instance) {
             const dbPath = path.join(app.getPath('userData'), 'database.db');
+            const isProd = process.env.NODE_ENV === 'production';
             
-         
+            console.log('Mode de l\'application:', isProd ? 'Production' : 'Développement');
+            console.log('Chemin de la base de données:', dbPath);
+            
             AppDataSource.instance = new DataSource({
                 type: "better-sqlite3",
-                synchronize: true,
                 database: dbPath,
-                logging: true,
-                entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity, ScholarshipEntity, PreferenceEntity, GradeConfigEntity],
+                // Configuration différente selon l'environnement
+                synchronize: !isProd,      // Désactivé en production
+                dropSchema: false,         // Ne jamais supprimer le schéma
+                logging: !isProd,          // Logs uniquement en développement
+                entities: [
+                    UserEntity, FileEntity, StudentEntity, GradeEntity,
+                    ClassRoomEntity, BranchEntity, CourseEntity,
+                    ObservationEntity, AbsenceEntity, PaymentEntity,
+                    PaymentConfigEntity, SchoolEntity, YearRepartitionEntity,
+                    ProfessorEntity, QualificationEntity, DiplomaEntity,
+                    TeachingAssignmentEntity, ProfessorPaymentEntity,
+                    HomeworkEntity, VacationEntity, ReportCardEntity,
+                    ScholarshipEntity, PreferenceEntity, GradeConfigEntity
+                ],
                 subscribers: [],
-                migrationsRun: true
+                migrations: [], // À configurer plus tard si nécessaire
+                migrationsRun: false // Désactivé pour l'instant
             });
         }
         return AppDataSource.instance;
@@ -47,8 +63,27 @@ export class AppDataSource {
     static async initialize(): Promise<DataSource> {
         const instance = AppDataSource.getInstance();
         if (!instance.isInitialized) {
-            await instance.initialize();
-            console.log("Base de données initialisée avec succès.");
+            try {
+                await instance.initialize();
+                
+                // Vérification de l'état de la base de données
+                const isProd = process.env.NODE_ENV === 'production';
+                if (isProd) {
+                    console.log("Mode production : synchronisation automatique désactivée");
+                } else {
+                    console.log("Mode développement : synchronisation automatique activée");
+                }
+                
+                console.log("Base de données initialisée avec succès");
+                
+                // Vérification de la connexion
+                const isConnected = instance.isInitialized;
+                console.log("État de la connexion:", isConnected ? "Connecté" : "Non connecté");
+                
+            } catch (error) {
+                console.error("Erreur lors de l'initialisation de la base de données:", error);
+                throw error;
+            }
         }
         return instance;
     }

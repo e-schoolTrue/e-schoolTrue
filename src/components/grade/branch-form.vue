@@ -11,12 +11,12 @@ const form = reactive<BranchEntity>({
   name:"",
   code:"",
 })
-const formRule = reactive<FormRules<BranchEntity>>({
-  code:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+const formRule = reactive<FormRules>({
+  code: [
+    {required: true, message: "ce champ est requis", trigger: "blur"}
   ],
-  name:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+  name: [
+    {required: true, message: "ce champ est requis", trigger: "blur"}
   ]
 })
 function open(grade:GradeEntity , branch?:BranchEntity){
@@ -30,8 +30,8 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:BranchEntity):void
-}>()
+  (e: "submit-action", formRef: FormInstance | undefined, form: BranchEntity): void
+}>();
 defineExpose({
   open,
   close

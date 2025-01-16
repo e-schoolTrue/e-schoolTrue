@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {ClassRoomCommand, CourseCommand} from "#electron/command/settingsCommand.ts";
+import {CourseCommand} from "#electron/command/settingsCommand.ts";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
 
@@ -20,7 +20,7 @@ const formRule = reactive<FormRules<CourseCommand>>({
   ],
   coefficient:[
     {required:true , message:"ce champ est requis" , trigger:"blur"},
-    {validator :(rule:any, value:any, callback:any)=>value<=10 ,  message:"le coefficient ne peut depasser 10" , trigger:"blur"}
+    {validator :(_rule:any, value:any, _callback:any)=>value<=10 ,  message:"le coefficient ne peut depasser 10" , trigger:"blur"}
   ],
 })
 function open(course?:CourseCommand){
@@ -33,7 +33,7 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:ClassRoomCommand):void
+  (e: 'submit-action', formRef: FormInstance | undefined, form: CourseCommand): void
 }>()
 defineExpose({
   open,

@@ -29,8 +29,8 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:GradeCommand):void
-}>()
+  (e: "submit-action", formRef: FormInstance | undefined, form: GradeCommand): void
+}>();
 defineExpose({
   open,
   close

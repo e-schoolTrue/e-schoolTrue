@@ -16,20 +16,20 @@ const form = reactive<ClassRoomCommand>({
   code:"",
 
 })
-const formRule = reactive<FormRules<ClassRoomCommand>>({
-  code:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+const formRule = reactive<FormRules>({
+  code: [
+    {required: true, message: "ce champ est requis", trigger: "blur"}
   ],
-  name:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+  name: [
+    {required: true, message: "ce champ est requis", trigger: "blur"}
   ],
-  capacity:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+  capacity: [
+    {required: true, message: "ce champ est requis", trigger: "blur"}
   ],
-  grade:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+  grade: [
+    {required: true, message: "ce champ est requis", trigger: "blur"}
   ]
-})
+});
 function open(classRoom?:ClassRoomEntity){
   dialogVisible.value = true
   form.name=classRoom?.name || ""
@@ -41,8 +41,8 @@ function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance , form:ClassRoomCommand):void
-}>()
+  (e: "submit-action", formRef: FormInstance | undefined, form: ClassRoomCommand): void
+}>();
 defineExpose({
   open,
   close

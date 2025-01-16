@@ -5,7 +5,6 @@ import {ResultType} from "#electron/command";
 import {messages} from "#app/messages.ts";
 import {BranchCommand, ClassRoomCommand, GradeCommand} from "#electron/command/settingsCommand.ts";
 
-
 export class GradeService {
     private gradeRepository: Repository<GradeEntity>;
     private classRoomRepository: Repository<ClassRoomEntity>;
@@ -26,7 +25,12 @@ export class GradeService {
             const grades = await this.gradeRepository.find()
             return {success: true, message: messages.grade_save_successfully, data: grades, error: null};
         }catch (e) {
-            return {success: false, message: messages.grade_save_failed, data: null, error: e};
+            return {
+                success: false, 
+                message: messages.grade_save_failed, 
+                data: null, 
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -39,7 +43,12 @@ export class GradeService {
             });
             return {success: true, message: null, data: grades, error: null};
         } catch (e) {
-            return {success: false, message: messages.grade_retieve_failed, data: null, error: e};
+            return {
+                success: false, 
+                message: messages.grade_retieve_failed, 
+                data: null, 
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -59,7 +68,7 @@ export class GradeService {
             });
             return {success: true, message: messages.grade_update_successfully, data: grades, error: null};
         } catch (e) {
-            return {success: false, message: messages.grade_update_failed, data: null, error: e};
+            return {success: false, message: messages.grade_update_failed, data: null, error: null};
         }
     }
 
@@ -77,7 +86,12 @@ export class GradeService {
             });
             return {success: true, message: messages.grade_delete_successfully, data: grades, error: null};
         } catch (e) {
-            return {success: false, message: messages.grade_delete_failed, data: null, error: e};
+            return {
+                success: false, 
+                message: messages.grade_delete_failed, 
+                data: null, 
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -96,7 +110,12 @@ export class GradeService {
             })
             return {success: true, message: messages.class_room_save_successfully, data: classRooms, error: null};
         }catch (e) {
-            return {success: false, message: messages.class_room_save_failed, data: null, error: e};
+            return {
+                success: false,
+                message: messages.class_room_save_failed,
+                data: null,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -118,7 +137,7 @@ export class GradeService {
             });
             return {success: true, message: messages.class_room_update_successfully, data: classRooms, error: null};
         } catch (e) {
-            return {success: false, message: messages.class_room_update_failed, data: null, error: e};
+            return {success: false, message: messages.class_room_update_failed, data: null, error: null};
         }
     }
     async deleteClassRoom(id: number): Promise<ResultType> {
@@ -136,7 +155,12 @@ export class GradeService {
             });
             return {success: true, message: messages.class_room_delete_successfully, data: classRooms, error: null};
         } catch (e) {
-            return {success: false, message: messages.class_room_delete_failed, data: null, error: e};
+            return {
+                success: false,
+                message: messages.class_room_delete_failed,
+                data: null,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -150,7 +174,12 @@ export class GradeService {
             });
             return {success: true, message: null, data: classRooms, error: null};
         } catch (e) {
-            return {success: false, message: messages.class_room_retieve_failed, data: null, error: e};
+            return {
+                success: false,
+                message: messages.class_room_retieve_failed,
+                data: null,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -168,7 +197,12 @@ export class GradeService {
             });
             return {success: true, message: messages.branch_save_successfully, data: grades, error: null};
         }catch (e) {
-            return {success: false, message: messages.branch_save_failed, data: null, error: e};
+            return {
+                success: false,
+                message: messages.branch_save_failed,
+                data: null,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -186,7 +220,12 @@ export class GradeService {
             });
             return {success: true, message: messages.branch_delete_successfully, data: grades, error: null};
         } catch (e) {
-            return {success: false, message: messages.branch_delete_failed, data: null, error: e};
+            return {
+                success: false,
+                message: messages.branch_delete_failed,
+                data: null,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            };
         }
     }
 
@@ -206,7 +245,7 @@ export class GradeService {
             });
             return {success: true, message: messages.branch_update_successfully, data: grades, error: null};
         } catch (e) {
-            return {success: false, message: messages.branch_update_failed, data: null, error: e};
+            return {success: false, message: messages.branch_update_failed, data: null, error: null};
         }
     }
 

@@ -1,7 +1,6 @@
 import { Repository } from "typeorm";
 import { ReportCardEntity } from "../entities/report";
 import { AppDataSource } from "../../data-source";
-import { ResultType } from "#electron/command";
 
 interface ServiceResultType {
     success: boolean;
@@ -23,7 +22,7 @@ export class ReportCardService {
         studentIds: number[];
         period: string;
         templateId: string;
-    }): Promise<ResultType> {
+    }): Promise<ServiceResultType> {
         try {
             const reports = [];
             for (const studentId of data.studentIds) {
@@ -53,7 +52,8 @@ export class ReportCardService {
                 success: true,
                 data: reports,
                 message: "Bulletins générés avec succès",
-                error: null
+                error: null,
+                generalAverage: 0
             };
         } catch (error) {
             return {

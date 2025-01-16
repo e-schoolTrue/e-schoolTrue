@@ -12,13 +12,13 @@ import ClassRoomTable from "@/components/classroom/class-room-table.vue";
 
 const newClassRoomFormRef = ref()
 const updateClassRoomFormRef = ref()
-const grades = ref<GradeEntity[]>()
-const classRooms =  ref<ClassRoomEntity[]>()
+const grades = ref<GradeEntity[]>([])
+const classRooms = ref<ClassRoomEntity[]>([])
 
 function openUpdateForm(classRoom:ClassRoomEntity){
   updateClassRoomFormRef.value.open(classRoom)
 }
-async function newClassRoom(formRef:FormInstance , form:ClassRoomCommand){
+async function newClassRoom(formRef: FormInstance | undefined, form: ClassRoomCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
@@ -42,7 +42,7 @@ async function newClassRoom(formRef:FormInstance , form:ClassRoomCommand){
   })
 }
 
-async function updateClassRoom(formRef:FormInstance , form:ClassRoomCommand){
+async function updateClassRoom(formRef: FormInstance | undefined, form: ClassRoomCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)

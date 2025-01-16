@@ -52,7 +52,7 @@ import { ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { Student, SchoolInfo, ColorScheme } from '@/types/card';
 
-const props = defineProps<{
+defineProps<{
   student: Student;
   schoolInfo: SchoolInfo;
   colorScheme: ColorScheme;

@@ -21,7 +21,7 @@ function openUpdateCourseForm(course:CourseEntity){
   updateCourseFormRef.value.open(course)
 }
 
-async function newCourse(formRef:FormInstance , form:CourseCommand){
+async function newCourse(formRef: FormInstance | undefined, form: CourseCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
@@ -45,7 +45,7 @@ async function newCourse(formRef:FormInstance , form:CourseCommand){
   })
 }
 
-async function addCourseToGroupement(formRef:FormInstance , form:CourseCommand){
+async function addCourseToGroupement(formRef: FormInstance | undefined, form: CourseCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)
@@ -68,7 +68,7 @@ async function addCourseToGroupement(formRef:FormInstance , form:CourseCommand){
   })
 }
 
-async function updateCourse(formRef:FormInstance , form:CourseCommand){
+async function updateCourse(formRef: FormInstance | undefined, form: CourseCommand){
   if(!formRef) return
   await formRef.validate(async(isValid, invalidFields)=>{
     console.log(invalidFields)

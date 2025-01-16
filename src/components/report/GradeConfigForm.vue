@@ -101,8 +101,8 @@ const saving = ref(false);
 
 const config = ref({
   numberOfAssignments: 2,
-  assignmentMax: 20, // Fixé à 20
-  examMax: 40, // Fixé à 40
+  assignmentMax: 20,
+  examMax: 40,
   appreciationRanges: {
     excellent: [16, 20],
     veryGood: [14, 15.99],
@@ -139,12 +139,11 @@ const saveConfig = async () => {
       throw new Error('ID de classe manquant');
     }
 
-    // Simplifier l'objet de configuration
     const configData = {
       gradeId: props.gradeId,
       numberOfAssignments: config.value.numberOfAssignments,
-      assignmentMax: 20,
-      examMax: 40
+      assignmentMax: config.value.assignmentMax,
+      examMax: config.value.examMax
     };
 
     console.log('Configuration à sauvegarder:', configData);
@@ -166,7 +165,6 @@ const saveConfig = async () => {
   }
 };
 
-// Ajouter une méthode pour charger la configuration existante
 const loadConfig = async () => {
   try {
     console.log('Chargement de la configuration pour la classe:', props.gradeId);
@@ -179,8 +177,8 @@ const loadConfig = async () => {
       config.value = {
         ...config.value,
         numberOfAssignments: result.data.numberOfAssignments || 2,
-        assignmentMax: 20,
-        examMax: 40
+        assignmentMax: result.data.assignmentMax || 20,
+        examMax: result.data.examMax || 40
       };
       console.log('Configuration mise à jour:', config.value);
     }
