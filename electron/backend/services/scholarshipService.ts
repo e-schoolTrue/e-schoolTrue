@@ -1,3 +1,4 @@
+import { Scholarship, ScholarshipCreateInput } from '../types/scholarship';
 import { Repository } from 'typeorm';
 import { ScholarshipEntity } from '../entities/scholarship';
 import { AppDataSource } from '../../data-source';
@@ -13,7 +14,7 @@ export class ScholarshipService {
 
 
 
-  async getByStudent(studentId: number): Promise<ResultType> {
+  async getByStudent(studentId: number): Promise<ResultType<Scholarship[]>> {
     try {
       console.log('=== Recherche des bourses pour étudiant', studentId, '===');
       
@@ -41,11 +42,7 @@ export class ScholarshipService {
     }
   }
 
-  async assignScholarship(data: {
-    studentId: number;
-    percentage: number;
-    reason?: string;
-  }): Promise<ResultType> {
+  async assignScholarship(data: ScholarshipCreateInput): Promise<ResultType<Scholarship>> {
     try {
       console.log('=== Tentative d\'attribution de bourse ===');
       console.log('Données reçues:', data);

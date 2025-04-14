@@ -13,7 +13,7 @@ import ClassRoomTable from "@/components/classroom/class-room-table.vue";
 const newClassRoomFormRef = ref()
 const updateClassRoomFormRef = ref()
 const grades = ref<GradeEntity[]>()
-const classRooms =  ref<ClassRoomEntity[]>()
+const classRooms = ref<ClassRoomEntity[]>([])
 
 function openUpdateForm(classRoom:ClassRoomEntity){
   updateClassRoomFormRef.value.open(classRoom)

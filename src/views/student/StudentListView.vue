@@ -6,7 +6,8 @@ import printJS from 'print-js';
 import StudentFilter from "@/components/student/student-filter.vue";
 import StudentTable from "@/components/student/student-table.vue";
 import { ElMessage } from 'element-plus';
-
+import type { IStudentDetails, IStudentFile } from '@/types/student';
+import type { IFilterCriteria } from '@/types/shared';
 
 interface Student {
   id?: number;
@@ -25,24 +26,8 @@ interface Student {
   motherFirstname?: string;
   motherLastname?: string;
   personalPhone?: string;
-  photo?: {
-    id: number;
-    name: string;
-    path: string;
-    type: string;
-  };
-  documents?: Array<{
-    id: number;
-    name: string;
-    path: string;
-    type: string;
-  }>;
-}
-
-interface FilterCriteria {
-  studentFullName?: string;
-  schoolGrade?: string;
-  schoolYear?: string;
+  photo?: IStudentFile;
+  documents?: IStudentFile[];
 }
 
 const router = useRouter();
@@ -63,20 +48,20 @@ onMounted(async () => {
 const loadStudents = async () => {
   try {
     const result = await window.ipcRenderer.invoke('student:all');
-    console.log('Raw student data:', result.data); // Log raw data
+    console.log('Raw student data:', result.data);
 
     if (result.success) {
-      students.value = result.data.map((student: any) => {
-        const mappedStudent = {
+      students.value = result.data.map((student: IStudentDetails) => {
+        const mappedStudent: Student = {
           id: student.id,
-          matricule: student.matricule,
+          matricule: student.matricule || '',
           lastname: student.lastname,
           firstname: student.firstname,
-          schoolYear: student.schoolYear,
-          gradeId: student.grade ? student.grade.id : null,
+          schoolYear: student.schoolYear || '',
+          gradeId: student.gradeId || 0,
           famillyPhone: student.famillyPhone || '',
-          sex: student.sex || null,
-          birthDay: student.birthDay,
+          sex: student.sex || 'male',
+          birthDay: student.birthDay ? new Date(student.birthDay).toISOString() : undefined,
           birthPlace: student.birthPlace,
           address: student.address,
           fatherFirstname: student.fatherFirstname,
@@ -87,17 +72,20 @@ const loadStudents = async () => {
           photo: student.photo ? {
             id: student.photo.id,
             name: student.photo.name,
-            path: student.photo.path,
             type: student.photo.type
           } : undefined,
-          documents: student.documents,
+          documents: student.documents?.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: doc.type
+          }))
         };
 
-        console.log('Mapped student:', mappedStudent); // Log mapped student
+        console.log('Mapped student:', mappedStudent);
         return mappedStudent;
       });
       
-      console.log('Students after mapping:', students.value); // Log students array
+      console.log('Students after mapping:', students.value);
       filteredStudents.value = students.value;
     } else {
       ElMessage.error("Erreur lors du chargement des étudiants");
@@ -109,14 +97,11 @@ const loadStudents = async () => {
 };
 
 const resetFilter = () => {
-  // Réinitialiser les étudiants filtrés avec la liste complète
   filteredStudents.value = students.value;
-  
-  // Réinitialiser les critères de filtrage si nécessaire
   filterCriteria.value = {};
 };
 
-const filterCriteria = ref<FilterCriteria>({});
+const filterCriteria = ref<IFilterCriteria>({});
 
 const handlePrint = async (data: Student[]) => {
   if (!data || data.length === 0) {
@@ -124,7 +109,6 @@ const handlePrint = async (data: Student[]) => {
     return;
   }
 
-  // Vérifier si les données sont filtrées par classe
   const allSameGrade = data.every((student, _i, arr) => 
     student.gradeId === arr[0].gradeId
   );
@@ -136,7 +120,6 @@ const handlePrint = async (data: Student[]) => {
 
   printData.value = data;
   
-  // Mettre à jour les critères de filtrage
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
       ? (document.querySelector('.student-filter input[placeholder="Nom ou prénom"]') as HTMLInputElement)?.value
@@ -280,7 +263,6 @@ const handlePreview = async (data: Student[]) => {
 
   printData.value = data;
   
-  // Mettre à jour les critères de filtrage
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
       ? (document.querySelector('.student-filter input[placeholder="Nom ou prénom"]') as HTMLInputElement)?.value
@@ -296,7 +278,6 @@ const handlePreview = async (data: Student[]) => {
 
 const proceedWithPrint = () => {
   previewDialogVisible.value = false;
-  // Attendre que la dialog soit fermée avant d'imprimer
   setTimeout(async () => {
     printDialogVisible.value = true;
     await nextTick();

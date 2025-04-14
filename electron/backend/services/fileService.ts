@@ -3,14 +3,10 @@ import { FileEntity } from '../entities/file';
 import { AppDataSource } from '../../data-source';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-
-interface FileResponse {
-    id: number;
-    content: Buffer;
-    type: string;
-    name: string;
-    path: string;
-}
+import {
+    IFileResponse,
+    IFileServiceParams
+} from '../types/file';
 
 export class FileService {
     private fileRepository: Repository<FileEntity>;
@@ -18,7 +14,6 @@ export class FileService {
 
     constructor() {
         this.fileRepository = AppDataSource.getInstance().getRepository(FileEntity);
-        // Stockage des fichiers dans un chemin relatif
         this.uploadDir = path.resolve(process.cwd(), 'uploads');
         this.initializeUploadDir();
     }
@@ -49,24 +44,20 @@ export class FileService {
         return path.resolve(process.cwd(), relativePath);
     }
 
-    async saveFile(content: string, name: string, type: string): Promise<FileEntity> {
+    async saveFile(fileData: IFileServiceParams['saveFile']): Promise<FileEntity> {
         try {
-            // Nettoyer les données base64
-            const base64Data = content.replace(/^data:.*?;base64,/, '');
+            const base64Data = fileData.content.replace(/^data:.*?;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
             
-            // Créer un nom de fichier unique
-            const fileName = `${Date.now()}-${name}`;
+            const fileName = `${Date.now()}-${fileData.name}`;
             const filePath = path.join(this.uploadDir, fileName);
             
-            // Écrire le fichier
             await fs.writeFile(filePath, buffer);
             
-            // Créer et sauvegarder l'entité
             const fileEntity = this.fileRepository.create({
-                name,
+                name: fileData.name,
                 path: filePath,
-                type
+                type: fileData.type
             });
             
             return await this.fileRepository.save(fileEntity);
@@ -80,9 +71,9 @@ export class FileService {
         return fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     }
 
-    async getFileById(fileId: number): Promise<FileResponse | null> {
+    async getFileById(params: IFileServiceParams['getFileById']): Promise<IFileResponse | null> {
         try {
-            const file = await this.fileRepository.findOne({ where: { id: fileId } });
+            const file = await this.fileRepository.findOne({ where: { id: params.fileId } });
             if (!file || !file.path || !file.type || !file.name) {
                 console.log("Fichier non trouvé ou données manquantes");
                 return null;
@@ -109,10 +100,10 @@ export class FileService {
         }
     }
 
-    async saveDocuments(documents: any[], professorId: number): Promise<FileEntity[]> {
+    async saveDocuments(params: IFileServiceParams['saveDocuments']): Promise<FileEntity[]> {
         const savedDocuments: FileEntity[] = [];
         
-        for (const doc of documents) {
+        for (const doc of params.documents) {
             try {
                 const base64Data = doc.content.replace(/^data:.*?;base64,/, '');
                 const buffer = Buffer.from(base64Data, 'base64');
@@ -126,7 +117,7 @@ export class FileService {
                     name: doc.name,
                     path: this.getRelativePath(filePath),
                     type: doc.type,
-                    professor: { id: professorId }
+                    professor: { id: params.professorId }
                 });
                 
                 const savedDoc = await this.fileRepository.save(fileEntity);
@@ -147,15 +138,14 @@ export class FileService {
             '.jpeg': 'image/jpeg',
             '.png': 'image/png',
             '.doc': 'application/msword',
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            // Ajoutez d'autres types MIME selon vos besoins
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         };
         
         return mimeTypes[ext] || 'application/octet-stream';
     }
 
-    async getFileUrl(fileId: number): Promise<string> {
-        const file = await this.fileRepository.findOne({ where: { id: fileId } });
+    async getFileUrl(params: IFileServiceParams['getFileUrl']): Promise<string> {
+        const file = await this.fileRepository.findOne({ where: { id: params.fileId } });
         if (!file) {
             throw new Error('File not found in database');
         }

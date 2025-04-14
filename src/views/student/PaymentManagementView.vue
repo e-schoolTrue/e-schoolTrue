@@ -373,9 +373,8 @@ const loadPaymentConfigs = async () => {
         if (!isNaN(classId)) {
           newConfigs.set(classId, {
             ...config,
-            classId: classId,
-            annualAmount: Number(config.annualAmount),
-            installments: Number(config.installments)
+            classId: config.classId, // Garder classId comme string
+            annualAmount: Number(config.annualAmount)
           });
         }
       });

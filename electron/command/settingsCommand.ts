@@ -1,24 +1,48 @@
 import {GradeEntity} from "#electron/backend/entities/grade.ts";
 
-class SettingCommand{
+class SettingCommand {
     id?: number;
     name?: string;
     code?: string;
 }
-export class GradeCommand extends SettingCommand{}
-export class BranchCommand extends SettingCommand{
-    grade?:GradeEntity
+
+export class GradeCommand extends SettingCommand {
+    declare id?: number;
+    declare name: string;
+    declare code: string;
 }
-export class ClassRoomCommand extends SettingCommand{
-    grade?:GradeEntity
-    capacity?:number
+
+export class BranchCommand extends SettingCommand {
+    declare id?: number;
+    declare name: string;
+    declare code: string;
+    declare gradeId?: number;
+    grade?: GradeEntity;
 }
-export class SubCourseCommand extends SettingCommand{
-    coefficient?:number
-    isInGroupement?:boolean
+
+export class ClassRoomCommand extends SettingCommand {
+    declare id?: number;
+    declare name: string;
+    declare code: string;
+    declare capacity: number;
+    declare gradeId: number;
+    declare branchId?: number;
 }
-export class CourseCommand extends SettingCommand{
-    coefficient?:number
-    groupement?:SubCourseCommand
-    isInGroupement?:boolean
+
+export class SubCourseCommand extends SettingCommand {
+    declare id?: number;
+    declare name: string;
+    declare code: string;
+    declare coefficient?: number;
+    declare isInGroupement?: boolean;
+}
+
+export class CourseCommand extends SettingCommand {
+    declare id?: number;
+    declare name: string;
+    declare code: string;
+    declare coefficient: number;
+    declare groupementId?: number;
+    groupement?: SubCourseCommand;
+    declare isInGroupement?: boolean;
 }

@@ -3,20 +3,18 @@ import { ref, onMounted } from 'vue';
 import StudentForm from '@/components/student/student-form.vue';
 import FileUploader from '@/components/student/student-file.vue';
 import { ElMessage } from 'element-plus';
-import type { StudentData } from '@/types/student';
+import type { IStudentData } from '@/types/student';
 import type { StudentFormInstance } from '@/components/student/student-form.vue';
 
-
 const isLoading = ref(false);
-const classes = ref([]); // Initialisation vide
-const formRef = ref<StudentFormInstance | null>(null); // Ajouter cette référence
-
+const classes = ref([]);
+const formRef = ref<StudentFormInstance | null>(null);
 
 const fetchClasses = async () => {
   try {
     const result = await window.ipcRenderer.invoke('grade:all');
     if (result.success) {
-      classes.value = result.data; // Supposons que le résultat contient un tableau de classes
+      classes.value = result.data;
     } else {
       throw new Error(result.message || 'Échec de la récupération des classes');
     }
@@ -26,23 +24,24 @@ const fetchClasses = async () => {
   }
 };
 
-// Charger les classes au montage
 onMounted(fetchClasses);
-// Fonction pour gérer les données du formulaire
-const saveStudent = async (studentData: any) => {
+
+const saveStudent = async (studentData: IStudentData) => {
   try {
     console.log("Données reçues de student-form:", studentData);
     
-    if (studentData.documents && !Array.isArray(studentData.documents)) {
-      studentData.documents = Object.values(studentData.documents);
-    }
+    // Préparation des données pour l'envoi
+    const preparedData = {
+      ...studentData,
+      documents: studentData.documents || [],
+      photo: studentData.photo || null
+    };
     
-    const serializedData = JSON.parse(JSON.stringify(studentData));
+    const serializedData = JSON.parse(JSON.stringify(preparedData));
     
     const result = await window.ipcRenderer.invoke('save-student', serializedData);
     if (result.success) {
       ElMessage.success('Étudiant enregistré avec succès');
-      // Réinitialiser le formulaire via la référence
       if (formRef.value) {
         formRef.value.resetForm();
       }
@@ -59,19 +58,19 @@ const saveStudent = async (studentData: any) => {
   }
 };
 
-// Fonction pour gérer les données importées
-const handleFileLoaded = async (students: StudentData[]) => {
+const handleFileLoaded = async (students: IStudentData[]) => {
   isLoading.value = true;
   console.log('Données importées reçues:', students);
   
   try {
     for (const student of students) {
       try {
-        // Préparation des données
         const preparedData = {
           ...student,
           birthDay: student.birthDay ? new Date(student.birthDay) : null,
-          gradeId: student.gradeId // directement gradeId
+          gradeId: student.gradeId,
+          documents: student.documents || [],
+          photo: student.photo || null
         };
 
         console.log('Tentative d\'enregistrement pour:', preparedData);
@@ -92,12 +91,10 @@ const handleFileLoaded = async (students: StudentData[]) => {
   }
 };
 </script>
+
 <template>
   <el-card :shadow="'hover'" style="border-radius: 8px;">
-
-    <!-- Conteneur principal pour la séparation horizontale -->
     <el-row :gutter="20" class="main-container">
-      <!-- Section d'import de fichier -->
       <el-col :span="6" class="section-container">
         <FileUploader 
           @fileLoaded="handleFileLoaded"
@@ -105,10 +102,8 @@ const handleFileLoaded = async (students: StudentData[]) => {
         />
       </el-col>
 
-      <!-- Séparateur vertical entre les sections -->
       <el-divider direction="vertical" class="divider" />
 
-      <!-- Section du formulaire d'ajout manuel -->
       <el-col :span="16" class="section-container">
         <student-form 
           ref="formRef"

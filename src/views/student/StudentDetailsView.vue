@@ -4,42 +4,10 @@ import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElDialog } from 'element-plus';
 import { View, Download } from '@element-plus/icons-vue';
+import type { IStudentDetails, IStudentFile } from '@/types/student';
+import type { IGrade } from '@/types/shared';
 
-interface Grade {
-  id: number;
-  name: string;
-  description?: string;
-  code?: string;
-}
 
-interface StudentDetails {
-  id: number;
-  lastname: string;
-  firstname: string;
-  matricule: string;
-  birthDay: string | null;
-  birthPlace: string;
-  address: string;
-  grade?: Grade;
-  gradeId: number;
-  fatherFirstname: string;
-  fatherLastname: string;
-  motherFirstname: string;
-  motherLastname: string;
-  famillyPhone: string;
-  personalPhone: string;
-  sex: 'male' | 'female';
-  schoolYear: string;
-  photo?: { id: number; name: string; type: string };
-  documents?: Array<{ id: number; name: string; type: string }>;
-}
-
-interface DocumentData {
-  id: number;
-  name: string;
-  type: string;
-  content?: string;
-}
 
 interface CurrentDocument {
   id?: number;
@@ -49,31 +17,32 @@ interface CurrentDocument {
 }
 
 const route = useRoute();
-const studentDetails = ref<StudentDetails | null>(null);
+const studentDetails = ref<IStudentDetails | null>(null);
 const photoUrl = ref<string | null>(null);
 const activeNames = ref(['1', '2', '3', '4', '6']);
 const dialogVisible = ref(false);
 const currentDocument = ref<CurrentDocument | null>(null);
 
-const getClassName = (grade?: Grade) => {
+const getClassName = (grade?: IGrade | null) => {
   if (!grade) return "Non assigné";
   return grade.name || "Non assigné";
 };
 
-const formatDate = (dateString: string | null) => {
+const formatDate = (dateString: string | Date | null | undefined) => {
   if (!dateString) return 'Non spécifié';
   try {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    return date.toLocaleDateString('fr-FR', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
   } catch {
-    return dateString;
+    return 'Date invalide';
   }
 };
 
-const loadPhoto = async (photo?: { id: number; name: string; type: string }) => {
+const loadPhoto = async (photo?: IStudentFile | null) => {
   if (!photo) {
     photoUrl.value = null;
     return;
@@ -81,7 +50,7 @@ const loadPhoto = async (photo?: { id: number; name: string; type: string }) => 
 
   try {
     const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', photo.id);
-    console.log("photo prof :", photoResult)
+    console.log("Photo de l'étudiant:", photoResult);
     if (photoResult.success && photoResult.data) {
       photoUrl.value = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
     } else {
@@ -99,7 +68,7 @@ onMounted(async () => {
   if (studentId) {
     try {
       const result = await window.ipcRenderer.invoke('student:getDetails', Number(studentId));
-      console.log("Données reçuesBriand :", result);
+      console.log("Données reçues:", result);
       
       if (result.success) {
         studentDetails.value = result.data;
@@ -114,10 +83,10 @@ onMounted(async () => {
   }
 });
 
-const downloadDocument = async (document: DocumentData) => {
+const downloadDocument = async (document: IStudentFile) => {
   try {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
-    console.log("document :", result)
+    console.log("Document à télécharger:", result);
     if (result.success && result.data && result.data.content) {
       try {
         const byteCharacters = atob(result.data.content);
@@ -149,7 +118,7 @@ const downloadDocument = async (document: DocumentData) => {
   }
 };
 
-const viewDocument = async (document: DocumentData) => {
+const viewDocument = async (document: IStudentFile) => {
   try {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
     if (result.success && result.data && result.data.content) {
