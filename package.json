@@ -7,7 +7,9 @@
     "build": "vue-tsc --noEmit && vite build && electron-builder",
     "preview": "vite preview",
     "test:unit": "vitest --environment jsdom",
-    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
+    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3", 
+     "sync-types": "robocopy electron/backend/types src/types /E /PURGE"
+
   },
   "dependencies": {
     "better-sqlite3": "^9.6.0",

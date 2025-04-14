@@ -17,8 +17,11 @@ const paginator = reactive<{
   pageSize:2 ,
   currentPage:1
 })
-const filteredClassRooms = computed(()=>{
-  const result =  props.classRooms?.filter((classRoom:ClassRoomEntity)=>Object.keys(classRoom).some((key:string)=>String((classRoom as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
+const filteredClassRooms = computed(() => {
+  if (!Array.isArray(props.classRooms)) return []
+  const result = props.classRooms.filter(classRoom => 
+    classRoom.name.toLowerCase().includes(searchForm.value.toLowerCase())
+  )
   paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
   return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })

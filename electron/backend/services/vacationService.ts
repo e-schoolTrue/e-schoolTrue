@@ -1,16 +1,13 @@
 import { Repository } from "typeorm";
 import { VacationEntity } from "../entities/vacation";
 import { AppDataSource } from "../../data-source";
-import { ResultType } from "#electron/command";
+import { ResultType } from "./paymentService";
 import { IsNull } from "typeorm";
-
-interface VacationDTO {
-  startDate: string;
-  endDate: string;
-  reason: string;
-  studentId?: number;
-  professorId?: number;
-}
+import { 
+    Vacation, 
+    VacationCreateInput, 
+    VacationStatus 
+} from "../types/vacation";
 
 export class VacationService {
     private vacationRepository: Repository<VacationEntity>;
@@ -19,7 +16,7 @@ export class VacationService {
         this.vacationRepository = AppDataSource.getInstance().getRepository(VacationEntity);
     }
 
-    async createVacation(data: VacationDTO): Promise<ResultType> {
+    async createVacation(data: VacationCreateInput): Promise<ResultType<Vacation>> {
         try {
             console.log("=== Service - createVacation - Données reçues ===", data);
 
@@ -37,7 +34,6 @@ export class VacationService {
             const saved = await this.vacationRepository.save(vacation);
             console.log("=== Service - createVacation - Sauvegarde effectuée ===", saved);
 
-            // Récupérer la vacation avec toutes les relations
             const result = await this.vacationRepository.findOne({
                 where: { id: saved.id },
                 relations: ['student', 'student.grade', 'professor', 'professor.teaching']
@@ -60,7 +56,7 @@ export class VacationService {
         }
     }
 
-    async getVacationsByStudent(studentId: number): Promise<ResultType> {
+    async getVacationsByStudent(studentId: number): Promise<ResultType<Vacation[]>> {
         try {
             const vacations = await this.vacationRepository.find({
                 where: { 
@@ -86,12 +82,12 @@ export class VacationService {
         }
     }
 
-    async getVacationsByProfessor(professorId?: number): Promise<ResultType> {
+    async getVacationsByProfessor(professorId?: number): Promise<ResultType<Vacation[]>> {
         try {
             const query = this.vacationRepository
                 .createQueryBuilder('vacation')
                 .leftJoinAndSelect('vacation.professor', 'professor')
-                .where('vacation.student IS NULL') // S'assurer qu'il n'y a pas d'étudiant associé
+                .where('vacation.student IS NULL')
                 .orderBy('vacation.createdAt', 'DESC');
 
             if (professorId) {
@@ -116,7 +112,7 @@ export class VacationService {
         }
     }
 
-    async updateVacationStatus(id: number, status: 'approved' | 'rejected', comment?: string): Promise<ResultType> {
+    async updateVacationStatus(id: number, status: VacationStatus, comment?: string): Promise<ResultType<Vacation>> {
         try {
             const vacation = await this.vacationRepository.findOne({
                 where: { id }
@@ -152,7 +148,7 @@ export class VacationService {
         }
     }
 
-    async deleteVacation(id: number): Promise<ResultType> {
+    async deleteVacation(id: number): Promise<ResultType<void>> {
         try {
             const result = await this.vacationRepository.delete(id);
             
@@ -181,7 +177,7 @@ export class VacationService {
         }
     }
 
-    async getAllVacations(): Promise<ResultType> {
+    async getAllVacations(): Promise<ResultType<Vacation[]>> {
         try {
             const vacations = await this.vacationRepository.find({
                 relations: ['student', 'professor'],

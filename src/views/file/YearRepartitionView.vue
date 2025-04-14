@@ -68,21 +68,15 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import YearRepartitionForm from "@/components/schoolYear/YearRepartionForm.vue";
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { 
+    YearRepartition, 
+    PeriodConfiguration, 
+    YearRepartitionResponse,
+    YearRepartitionCreateInput,
+    YearRepartitionUpdateInput
+} from '@/types/year';
 
-interface Period {
-  name: string;
-  start: string | null;
-  end: string | null;
-}
-
-interface YearRepartition {
-  id?: string | number;
-  schoolYear: string;
-  periodConfigurations: Period[];
-  isCurrent?: boolean;
-}
-
-const yearRepartitions = ref<YearRepartition[]>([]);
+const yearRepartitions = ref<YearRepartitionResponse[]>([]);
 const showModal = ref(false);
 const currentRepartition = ref<YearRepartition | null>(null);
 
@@ -92,12 +86,12 @@ const modalTitle = computed(() =>
     : "Créer une Répartition Annuelle"
 );
 
-const formatDate = (date: string | null) => {
+const formatDate = (date: string | Date | null) => {
   if (!date) return '';
   return format(new Date(date), 'dd/MM/yyyy', { locale: fr });
 };
 
-const getPeriodType = (periods: Period[]) => {
+const getPeriodType = (periods: PeriodConfiguration[]) => {
   return periods.length === 2 ? 'Semestre' : 'Trimestre';
 };
 
@@ -111,12 +105,24 @@ const openCreateModal = () => {
   showModal.value = true;
 };
 
-const editRepartition = (repartition: YearRepartition) => {
-  currentRepartition.value = JSON.parse(JSON.stringify(repartition));
+const editRepartition = (repartition: YearRepartitionResponse) => {
+  // Convertir les dates string en Date pour le formulaire
+  const convertedRepartition: YearRepartition = {
+    id: repartition.id,
+    schoolYear: repartition.schoolYear,
+    periodConfigurations: repartition.periodConfigurations.map(period => ({
+      name: period.name,
+      start: period.start,
+      end: period.end
+    })),
+    isCurrent: repartition.isCurrent
+  };
+  
+  currentRepartition.value = convertedRepartition;
   showModal.value = true;
 };
 
-const deleteRepartition = async (repartition: YearRepartition) => {
+const deleteRepartition = async (repartition: YearRepartitionResponse) => {
   try {
     await ElMessageBox.confirm(
       'Êtes-vous sûr de vouloir supprimer cette répartition ?',
@@ -144,19 +150,28 @@ const deleteRepartition = async (repartition: YearRepartition) => {
   }
 };
 
-const handleSubmit = async (data: YearRepartition) => {
+const handleSubmit = async (data: YearRepartitionCreateInput | YearRepartitionUpdateInput) => {
   try {
-    const payload = JSON.parse(JSON.stringify(data));
-    if (payload.id) {
+    // Préparer les données en formatant correctement les dates
+    const formattedData = {
+      ...data,
+      periodConfigurations: data.periodConfigurations?.map(period => ({
+        name: period.name,
+        start: period.start ? new Date(period.start).toISOString() : null,
+        end: period.end ? new Date(period.end).toISOString() : null
+      })) || []
+    }
+
+    if ('id' in data && data.id) {
       const result = await window.ipcRenderer.invoke("yearRepartition:update", {
-        id: payload.id,
-        data: payload,
+        id: data.id,
+        data: formattedData,
       });
       if (!result.success) {
         throw new Error(result.message || "Échec de la mise à jour");
       }
     } else {
-      const result = await window.ipcRenderer.invoke("yearRepartition:create", payload);
+      const result = await window.ipcRenderer.invoke("yearRepartition:create", formattedData);
       if (!result.success) {
         throw new Error(result.message || "Échec de la création");
       }
@@ -185,7 +200,7 @@ const fetchYearRepartitions = async () => {
   }
 };
 
-const setCurrentYear = async (repartition: YearRepartition) => {
+const setCurrentYear = async (repartition: YearRepartitionResponse) => {
   try {
     await ElMessageBox.confirm(
       `Êtes-vous sûr de vouloir définir ${repartition.schoolYear} comme année scolaire en cours ?`,

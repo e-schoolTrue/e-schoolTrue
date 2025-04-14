@@ -116,15 +116,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-
-interface PaymentConfig {
-  classId: string;
-  className: string;
-  annualAmount: number;
-  allowScholarship: boolean;
-  scholarshipPercentages?: number[];
-  scholarshipCriteria?: string;
-}
+import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
 
 const configurations = ref<PaymentConfig[]>([]);
 const isLoading = ref(false);
@@ -164,7 +156,7 @@ const saveConfiguration = async () => {
       throw new Error('Veuillez remplir tous les champs obligatoires');
     }
 
-    const configData = {
+    const configData: PaymentConfigCreateInput = {
       classId: String(currentConfig.value.classId),
       annualAmount: Number(currentConfig.value.annualAmount),
       allowScholarship: Boolean(currentConfig.value.allowScholarship),
@@ -174,9 +166,7 @@ const saveConfiguration = async () => {
       scholarshipCriteria: String(currentConfig.value.scholarshipCriteria || '')
     };
 
-    const serializedData = JSON.parse(JSON.stringify(configData));
-
-    const result = await window.ipcRenderer.invoke('payment:saveConfig', serializedData);
+    const result = await window.ipcRenderer.invoke('payment:saveConfig', configData);
 
     if (result.success) {
       ElMessage.success('Configuration sauvegardée avec succès');
@@ -208,8 +198,8 @@ const loadConfigurations = async () => {
     const grades = gradesResult.data;
     const configs = configsResult.success ? configsResult.data : [];
 
-    configurations.value = grades.map((grade: { id: any; name: any; }) => {
-      const config = configs.find((c: { classId: any; }) => String(c.classId) === String(grade.id));
+    configurations.value = grades.map((grade: { id: string; name: string; }) => {
+      const config = configs.find((c: PaymentConfig) => String(c.classId) === String(grade.id));
       return {
         classId: String(grade.id),
         className: grade.name,

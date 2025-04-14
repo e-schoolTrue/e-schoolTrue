@@ -1,16 +1,15 @@
 import { Repository } from "typeorm";
 import { ReportCardEntity } from "../entities/report";
 import { AppDataSource } from "../../data-source";
-import { ResultType } from "#electron/command";
-
-interface ServiceResultType {
-    success: boolean;
-    data: any;
-    message: string;
-    error: string | null;
-    generalAverage: number;
-}
-
+import { ResultType } from "./paymentService";
+import { 
+    ReportCard, 
+    ReportCardData, 
+    GenerateReportCardsInput, 
+    GenerateReportCardInput, 
+    SaveStudentGradesInput,
+    GradeData 
+} from "../types/report";
 
 export class ReportCardService {
     private reportRepository: Repository<ReportCardEntity>;
@@ -19,11 +18,7 @@ export class ReportCardService {
         this.reportRepository = AppDataSource.getInstance().getRepository(ReportCardEntity);
     }
 
-    async generateReportCards(data: {
-        studentIds: number[];
-        period: string;
-        templateId: string;
-    }): Promise<ResultType> {
+    async generateReportCards(data: GenerateReportCardsInput): Promise<ResultType<ReportCard[]>> {
         try {
             const reports = [];
             for (const studentId of data.studentIds) {
@@ -31,10 +26,9 @@ export class ReportCardService {
                 if (!gradesResult.success || !gradesResult.data) continue;
                 
                 const studentGrades = gradesResult.data;
-                if (!studentGrades.length) continue;
+                if (!studentGrades?.grades?.length) continue;
 
-                // Créer un rapport pour chaque matière
-                const reportGrades = await Promise.all(studentGrades.map((grade: any) => {
+                const reportGrades = await Promise.all(studentGrades.grades.map((grade: GradeData) => {
                     return this.reportRepository.create({
                         studentId,
                         courseId: grade.courseId,
@@ -60,13 +54,12 @@ export class ReportCardService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la génération des bulletins",
-                error: error instanceof Error ? error.message : "Erreur inconnue",
-                generalAverage: 0
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
 
-    async getStudentGrades(studentId: number, period: string): Promise<ServiceResultType> {
+    async getStudentGrades(studentId: number, period: string): Promise<ResultType<ReportCardData>> {
         try {
             const grades = await this.reportRepository
                 .createQueryBuilder('report')
@@ -77,17 +70,13 @@ export class ReportCardService {
                 .getMany();
     
             const formattedGrades = grades.map(grade => {
-                // Calcul de la moyenne des devoirs (sur 20)
                 const assignments = grade.assignmentGrades || [];
                 const assignmentAverage = assignments.length > 0 
                     ? assignments.reduce((sum, g) => sum + g, 0) / assignments.length 
                     : 0;
     
-                // Normalisation de la note d'examen (de /40 à /20)
                 const examGrade = Number(grade.examGrade) || 0;
                 const normalizedExamGrade = (examGrade / 40) * 20;
-    
-                // Moyenne finale (devoirs et examen déjà sur 20)
                 const finalGrade = (assignmentAverage + normalizedExamGrade) / 2;
     
                 return {
@@ -95,13 +84,12 @@ export class ReportCardService {
                     courseName: grade.course?.name || 'Cours inconnu',
                     coefficient: Number(grade.course?.coefficient) || 1,
                     assignments: assignments,
-                    exam: examGrade, // Garde la note originale sur 40
+                    exam: examGrade,
                     average: parseFloat(finalGrade.toFixed(2)),
                     appreciation: grade.appreciation || ''
                 };
             });
     
-            // Calcul des totaux pondérés pour la moyenne générale
             let totalPoints = 0;
             let totalCoef = 0;
     
@@ -119,8 +107,7 @@ export class ReportCardService {
                     generalAverage
                 },
                 message: "Notes récupérées avec succès",
-                error: null,
-                generalAverage
+                error: null
             };
         } catch (error) {
             console.error('Erreur récupération notes:', error);
@@ -128,49 +115,23 @@ export class ReportCardService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la récupération des notes",
-                error: error instanceof Error ? error.message : "Erreur inconnue",
-                generalAverage: 0
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
-    
 
-    async generateReportCard(data: {
-        studentId: number;
-        period: string;
-    }): Promise<ServiceResultType> {
+    async generateReportCard(data: GenerateReportCardInput): Promise<ResultType<ReportCardData>> {
         try {
             const gradesResult = await this.getStudentGrades(data.studentId, data.period);
             if (!gradesResult.success) {
                 throw new Error("Erreur lors de la récupération des notes");
             }
 
-            // Formatage des données
-            const formattedGrades = gradesResult.data.map((grade: any) => ({
-                courseId: grade.courseId,
-                courseName: grade.course.name,
-                coefficient: grade.course.coefficient,
-                assignments: grade.assignmentGrades || [],
-                exam: Number(grade.examGrade) || 0,
-                average: Number(grade.finalGrade) || 0,
-                appreciation: grade.appreciation || ''
-            }));
-
-            // Calcul de la moyenne générale
-            const totalCoef = formattedGrades.reduce((sum: any, grade: { coefficient: any; }) => sum + (grade.coefficient || 0), 0);
-            const weightedSum = formattedGrades.reduce((sum: number, grade: { average: number; coefficient: any; }) => 
-                sum + (grade.average * (grade.coefficient || 0)), 0);
-            const generalAverage = totalCoef > 0 ? weightedSum / totalCoef : 0;
-
             return {
                 success: true,
-                data: {
-                    grades: formattedGrades,
-                    generalAverage: generalAverage
-                },
+                data: gradesResult.data,
                 message: "Bulletin généré avec succès",
-                error: null,
-                generalAverage: generalAverage
+                error: null
             };
         } catch (error) {
             console.error('Erreur génération bulletin:', error);
@@ -178,37 +139,23 @@ export class ReportCardService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la génération du bulletin",
-                error: error instanceof Error ? error.message : "Erreur inconnue",
-                generalAverage: 0
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
 
-    async saveStudentGrades(data: {
-        studentId: number;
-        gradeId: number;
-        period: string;
-        grades: Array<{
-            courseId: number;
-            assignments: number[];
-            exam: number;
-            average: number;
-            appreciation: string;
-        }>;
-    }): Promise<ServiceResultType> {
+    async saveStudentGrades(data: SaveStudentGradesInput): Promise<ResultType<ReportCardData>> {
         const queryRunner = AppDataSource.getInstance().createQueryRunner();
         
         try {
             await queryRunner.connect();
             await queryRunner.startTransaction();
 
-            // Suppression des anciennes notes pour cette période
             await queryRunner.manager.delete(ReportCardEntity, {
                 studentId: data.studentId,
                 period: data.period
             });
 
-            // Création des nouvelles notes
             const reportsToSave = data.grades.map(grade => {
                 const report = new ReportCardEntity();
                 report.studentId = data.studentId;
@@ -221,10 +168,8 @@ export class ReportCardService {
                 return report;
             });
 
-            // Sauvegarde des nouvelles notes
             await queryRunner.manager.save(ReportCardEntity, reportsToSave);
             
-            // Vérification de la sauvegarde
             const verificationResult = await this.getStudentGrades(data.studentId, data.period);
             
             if (!verificationResult.success || !verificationResult.data?.grades?.length) {
@@ -237,8 +182,7 @@ export class ReportCardService {
                 success: true,
                 data: verificationResult.data,
                 message: "Notes enregistrées avec succès",
-                error: null,
-                generalAverage: verificationResult.generalAverage
+                error: null
             };
 
         } catch (error) {
@@ -250,8 +194,7 @@ export class ReportCardService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la sauvegarde des notes",
-                error: error instanceof Error ? error.message : "Erreur inconnue",
-                generalAverage: 0
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
             
         } finally {

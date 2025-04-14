@@ -2,7 +2,10 @@ import { Repository } from "typeorm";
 import { AppDataSource } from "../../data-source";
 import { GradeConfigEntity } from "../entities/gradeConfig";
 import { GradeEntity } from "../entities/grade";
-import { ResultType } from "#electron/command";
+import {
+    IGradeConfigServiceParams,
+    IGradeConfigServiceResponse
+} from "../types/gradeConfig";
 
 export class GradeConfigService {
     private gradeConfigRepository: Repository<GradeConfigEntity>;
@@ -18,23 +21,16 @@ export class GradeConfigService {
         }
     }
 
-    async saveConfiguration(data: {
-        gradeId: number;
-        numberOfAssignments: number;
-        assignmentMax: number;
-        examMax: number;
-    }): Promise<ResultType> {
+    async saveConfiguration(data: IGradeConfigServiceParams['saveConfiguration']): Promise<IGradeConfigServiceResponse> {
         try {
             console.log('Début saveConfiguration avec données:', data);
             
-            // Vérifier d'abord si la classe existe
             const grade = await this.gradeRepository.findOneBy({ id: data.gradeId });
 
             if (!grade) {
                 throw new Error('Classe non trouvée');
             }
 
-            // Rechercher la configuration existante
             let gradeConfig = await this.gradeConfigRepository
                 .createQueryBuilder('config')
                 .leftJoinAndSelect('config.grade', 'grade')
@@ -80,7 +76,7 @@ export class GradeConfigService {
         }
     }
 
-    async getConfigurationByGrade(gradeId: number): Promise<ResultType> {
+    async getConfigurationByGrade(gradeId: number): Promise<IGradeConfigServiceResponse> {
         try {
             console.log('Recherche de configuration pour la classe:', gradeId);
             

@@ -5,6 +5,7 @@ import { ProfessorEntity } from "../entities/professor";
 import { GradeEntity } from "../entities/grade";
 import { PaymentEntity } from "../entities/payment";
 import { AbsenceEntity } from "../entities/absence";
+import { IDashboardServiceResponse, IRecentPayment } from "../types/dashboard";
 
 export class DashboardService {
     async getTotalStudents(): Promise<ResultType> {
@@ -83,7 +84,7 @@ export class DashboardService {
                 take: limit
             });
 
-            const formattedPayments = payments.map((payment:any) => ({
+            const formattedPayments: IRecentPayment[] = payments.map(payment => ({
                 id: payment.id,
                 studentName: `${payment.student.firstname} ${payment.student.lastname}`,
                 amount: payment.amount,
@@ -105,8 +106,6 @@ export class DashboardService {
             };
         }
     }
-
-
 
     async getPaymentStats(): Promise<ResultType> {
         try {
@@ -195,7 +194,7 @@ export class DashboardService {
         }
     }
 
-    async getStats(): Promise<ResultType> {
+    async getStats(): Promise<IDashboardServiceResponse> {
         try {
             const [totalStudents, totalProfessors, totalClasses, recentPayments, recentAbsences] = 
                 await Promise.all([
@@ -214,7 +213,7 @@ export class DashboardService {
                         totalProfessors: totalProfessors.data || 0,
                         totalClasses: totalClasses.data || 0,
                         recentPayments: recentPayments.data || [],
-                        recentAbsences: recentAbsences.data || []
+                        recentAbsences: recentAbsences.data || {}
                     }
                 },
                 message: "Statistiques récupérées avec succès",
@@ -230,7 +229,7 @@ export class DashboardService {
                         totalProfessors: 0,
                         totalClasses: 0,
                         recentPayments: [],
-                        recentAbsences: []
+                        recentAbsences: {}
                     }
                 },
                 message: "Erreur lors de la récupération des statistiques",

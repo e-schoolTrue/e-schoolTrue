@@ -12,31 +12,11 @@ export interface StudentFormInstance {
 <script setup lang="ts">
 import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted} from 'vue';
 import { ElMessage } from 'element-plus';
-
+import type { IStudentData, IStudentFile } from '@/types/student';
 
 interface ClassItem {
   id: number;
   name: string;
-}
-
-// Définition de l'interface StudentData
-interface StudentData {
-  firstname: string;
-  lastname: string;
-  birthDay: Date | null;
-  birthPlace: string;
-  address: string;
-  gradeId: number | null; 
-  fatherFirstname: string;
-  fatherLastname: string;
-  motherFirstname: string;
-  motherLastname: string;
-  famillyPhone: string;
-  personalPhone: string;
-  photo: StudentFile | null;
-  documents: StudentFile[];
-  sex: 'male' | 'female';
-  schoolYear: string;
 }
 
 const props = defineProps({
@@ -45,7 +25,7 @@ const props = defineProps({
     required: true
   },
   studentData: {
-    type: Object as PropType<Partial<StudentData>>,
+    type: Object as PropType<Partial<IStudentData>>,
     default: () => ({})
   },
   disabled: {
@@ -54,24 +34,17 @@ const props = defineProps({
   }
 });
 
-interface StudentFile {
-  name: string;
-  type: string;
-  size: number;
-  content: string;  // Changé pour string (base64)
-}
-
 // État de l'étape actuelle
 const currentStep = ref(0);
 
 // État des données de formulaire
-const formData = reactive<StudentData>({
+const formData = reactive<IStudentData>({
   firstname: '',
   lastname: '',
   birthDay: null,
   birthPlace: '',
   address: '',
-  gradeId: null, 
+  gradeId: undefined,
   fatherFirstname: '',
   fatherLastname: '',
   motherFirstname: '',
@@ -86,7 +59,7 @@ const formData = reactive<StudentData>({
 });
 
 const emit = defineEmits<{
-  (e: 'save', data: StudentData): void
+  (e: 'save', data: IStudentData): void
 }>();
 
 // Gérer les étapes "Suivant" et "Précédent"
@@ -175,7 +148,7 @@ const resetForm = () => {
     birthDay: null,
     birthPlace: '',
     address: '',
-    gradeId: null,
+    gradeId: undefined,
     fatherFirstname: '',
     fatherLastname: '',
     motherFirstname: '',

@@ -10,7 +10,7 @@ import {professorRoutes} from "@/routes/professor";
 import {toolRoutes} from '@/routes/tool';
 import {planningRoutes} from '@/routes/planning';
 import {paymentRoutes} from '@/routes/payment';
-import NotesConfigurationView from '@/views/file/NotesConfigurationView.vue';
+
 
 const routes = [
     {
@@ -34,14 +34,6 @@ const routes = [
     {
         path: "/onboarding",
         children: omboardingRoutes
-    },
-    {
-        path: '/settings/notes',
-        name: 'notes-configuration',
-        component: NotesConfigurationView,
-        meta: {
-            title: 'Configuration des Notes'
-        }
     }
 ];
 

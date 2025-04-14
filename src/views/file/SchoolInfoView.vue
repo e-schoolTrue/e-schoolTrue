@@ -1,26 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-
-interface SchoolInfo {
-  id?: number;
-  name: string;
-  address: string;
-  town: string;
-  country: 'MAR' | 'SEN' | 'CAF' | 'GIN';
-  phone: string;
-  email: string;
-  type: 'publique' | 'privée';
-  foundationYear: number;
-  logo?: {
-    id: number;
-    name: string;
-    type: string;
-    path?: string;
-    content?: string;
-  } | null;
-  logoFile?: File | null;
-}
+import { ISchoolData, ISchoolServiceParams } from '@/types/school'
+import { IFileUpload } from '@/types/file'
 
 // Constantes pour les pays
 const countries = [
@@ -31,7 +13,7 @@ const countries = [
 ];
 
 // État initial avec valeurs par défaut
-const initialSchoolInfo: SchoolInfo = {
+const initialSchoolInfo: ISchoolData = {
   id: undefined,
   name: '',
   address: '',
@@ -45,7 +27,7 @@ const initialSchoolInfo: SchoolInfo = {
 };
 
 // États
-const schoolInfo = ref<SchoolInfo>({ ...initialSchoolInfo })
+const schoolInfo = ref<ISchoolData>({ ...initialSchoolInfo })
 const fileInput = ref<HTMLInputElement | null>(null)
 const logoPreview = ref<string>('')
 const isLoading = ref(false)
@@ -59,12 +41,12 @@ const foundationYears = Array.from(
   (_, i) => new Date().getFullYear() - i
 )
 
+
+
 // Surveiller les changements
 watch(schoolInfo, () => {
   hasChanges.value = true
 }, { deep: true })
-
-// Validation
 
 // Gestion du logo
 const handleLogoChange = async (event: Event) => {
@@ -83,6 +65,7 @@ const handleLogoChange = async (event: Event) => {
     return
   }
 
+  // Stocker le fichier pour l'envoi ultérieur
   schoolInfo.value.logoFile = file
   logoPreview.value = URL.createObjectURL(file)
   hasChanges.value = true
@@ -104,7 +87,7 @@ const saveSchoolInfo = async () => {
     isSaving.value = true;
 
     // Préparer les données à envoyer
-    const payload = {
+    const payload: ISchoolServiceParams['saveOrUpdateSchool'] = {
       name: schoolInfo.value.name,
       address: schoolInfo.value.address,
       town: schoolInfo.value.town,
@@ -121,7 +104,7 @@ const saveSchoolInfo = async () => {
       const reader = new FileReader();
       const file = schoolInfo.value.logoFile;
       
-      const logoData = await new Promise<{ content: string; name: string; type: string }>((resolve) => {
+      const logoData = await new Promise<IFileUpload>((resolve) => {
         reader.onload = (e) => {
           resolve({
             content: e.target?.result as string,
@@ -132,10 +115,11 @@ const saveSchoolInfo = async () => {
         reader.readAsDataURL(file);
       });
 
-      payload.logo = logoData as any; 
+      payload.logo = logoData;
     }
 
-    const result = await window.ipcRenderer.invoke('school:save', { data: payload });
+    // Envoyer directement le payload sans l'envelopper dans un objet data
+    const result = await window.ipcRenderer.invoke('school:save', payload);
     console.log(result);
 
     if (result.success) {
@@ -162,8 +146,16 @@ const loadLogo = async (logo?: { id: number; name: string; type: string; path?: 
 
   try {
     const logoResult = await window.ipcRenderer.invoke('school:getLogo', logo.id);
+    console.log("Résultat du chargement du logo:", logoResult);
+    
     if (logoResult.success && logoResult.data) {
-      logoPreview.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+      // Vérifier si le contenu est déjà en base64 ou s'il faut le convertir
+      if (logoResult.data.content) {
+        logoPreview.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+      } else {
+        console.error("Le contenu du logo est manquant");
+        logoPreview.value = '';
+      }
     } else {
       console.error("Erreur lors du chargement du logo:", logoResult.error);
       logoPreview.value = '';
@@ -218,8 +210,6 @@ const toggleEditMode = async () => {
 const triggerFileInput = () => {
   fileInput.value?.click();
 };
-
-// Computed pour la devise
 
 onMounted(loadSchoolInfo)
 </script>

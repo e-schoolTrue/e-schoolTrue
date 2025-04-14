@@ -1,13 +1,17 @@
 import { AppDataSource } from "#electron/data-source";
 import { ProfessorEntity, DiplomaEntity, QualificationEntity } from "#electron/backend/entities/professor";
-import { ResultType } from "#electron/command";
 import { Repository } from "typeorm";
 import { TeachingAssignmentEntity } from "../entities/teaching";
 import { TEACHING_TYPE } from "#electron/command";
 import { GradeEntity } from "../entities/grade";
 import { CourseEntity } from "../entities/course";
 import { FileService } from "#electron/backend/services/fileService";
-
+import { DashboardService } from "#electron/backend/services/dashboardService";
+import {
+    IProfessorServiceParams,
+    IProfessorServiceResponse,
+    IProfessorDetails
+} from "../types/professor";
 
 export class ProfessorService {
     private professorRepository!: Repository<ProfessorEntity>;
@@ -16,9 +20,27 @@ export class ProfessorService {
     private teachingAssignmentRepository!: Repository<TeachingAssignmentEntity>;
     private gradeRepository!: Repository<GradeEntity>;
     private fileService: FileService;
+    private dashboardService: DashboardService;
+
+    private mapToProfessorDetails(professor: ProfessorEntity): IProfessorDetails {
+        return {
+            ...professor,
+            photo: professor.photo ? {
+                id: professor.photo.id,
+                name: professor.photo.name,
+                type: professor.photo.type
+            } : undefined,
+            documents: professor.documents?.map(doc => ({
+                id: doc.id,
+                name: doc.name,
+                type: doc.type
+            })) || []
+        };
+    }
 
     constructor() {
         this.fileService = new FileService();
+        this.dashboardService = new DashboardService();
     }
 
     private async ensureRepositoriesInitialized(): Promise<void> {
@@ -39,7 +61,7 @@ export class ProfessorService {
         }
     }
 
-    async createProfessor(professorData: any): Promise<ResultType> {
+    async createProfessor(professorData: IProfessorServiceParams['createProfessor']): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             const dataSource = AppDataSource.getInstance();
@@ -90,26 +112,35 @@ export class ProfessorService {
                     qualification: qualification || undefined
                 });
 
-                if (professorData.photo) {
-                    const savedPhoto = await this.fileService.saveFile(
-                        professorData.photo.content,
-                        professorData.photo.name,
-                        professorData.photo.type
-                    );
+                // Handle photo upload
+                if (professorData.photo && professorData.photo.content) {
+                    const savedPhoto = await this.fileService.saveFile({
+                        content: professorData.photo.content,
+                        name: professorData.photo.name,
+                        type: professorData.photo.type
+                    });
                     professor.photo = savedPhoto;
                 }
 
                 const savedProfessor = await transactionalEntityManager.save(professor);
 
-                if (professorData.documents?.length > 0) {
-                    const savedDocuments = await this.fileService.saveDocuments(
-                        professorData.documents,
-                        savedProfessor.id
+                // Handle documents upload
+                if (professorData.documents && professorData.documents.length > 0) {
+                    const validDocuments = professorData.documents.filter(doc => doc.content);
+                    const savedDocuments = await Promise.all(
+                        validDocuments.map(doc => 
+                            this.fileService.saveFile({
+                                content: doc.content!,
+                                name: doc.name,
+                                type: doc.type
+                            })
+                        )
                     );
-                    savedProfessor.documents = savedDocuments;
+                    savedProfessor.documents = [...(savedProfessor.documents || []), ...savedDocuments];
                     await transactionalEntityManager.save(savedProfessor);
                 }
 
+                // Handle teaching assignments
                 if (professorData.teaching) {
                     console.log('Création de l\'affectation d\'enseignement:', professorData.teaching);
 
@@ -121,14 +152,16 @@ export class ProfessorService {
                             : TEACHING_TYPE.SUBJECT_TEACHER
                     });
 
-                    if (professorData.teaching.schoolType === 'PRIMARY') {
-                        if (professorData.teaching.classId) {
-                            const grade = await transactionalEntityManager.findOne(GradeEntity, {
-                                where: { id: professorData.teaching.classId }
-                            });
-                            teachingAssignment.class = grade || undefined;
-                        }
-                    } else if (professorData.teaching.schoolType === 'SECONDARY') {
+                    // Handle PRIMARY teaching type
+                    if (professorData.teaching.schoolType === 'PRIMARY' && professorData.teaching.classId) {
+                        const grade = await transactionalEntityManager.findOne(GradeEntity, {
+                            where: { id: professorData.teaching.classId }
+                        });
+                        teachingAssignment.class = grade || undefined;
+                    }
+
+                    // Handle SECONDARY teaching type
+                    else if (professorData.teaching.schoolType === 'SECONDARY') {
                         if (professorData.teaching.courseId) {
                             const course = await transactionalEntityManager.findOne(CourseEntity, {
                                 where: { id: professorData.teaching.courseId }
@@ -137,10 +170,7 @@ export class ProfessorService {
                         }
 
                         if (Array.isArray(professorData.teaching.gradeIds) && professorData.teaching.gradeIds.length > 0) {
-                            const grades = await transactionalEntityManager.findByIds(
-                                GradeEntity,
-                                professorData.teaching.gradeIds
-                            );
+                            const grades = await transactionalEntityManager.findByIds(GradeEntity, professorData.teaching.gradeIds);
                             teachingAssignment.grades = grades;
                             teachingAssignment.gradeIds = professorData.teaching.gradeIds.join(',');
                             teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
@@ -150,6 +180,7 @@ export class ProfessorService {
                     await transactionalEntityManager.save(teachingAssignment);
                 }
 
+                // Fetch the professor with all relations
                 const finalProfessor = await transactionalEntityManager.findOne(ProfessorEntity, {
                     where: { id: savedProfessor.id },
                     relations: [
@@ -167,9 +198,12 @@ export class ProfessorService {
                 return finalProfessor;
             });
 
+            // Update dashboard stats
+            await this.dashboardService.getStats();
+
             return {
                 success: true,
-                data: result,
+                data: result ? this.mapToProfessorDetails(result) : null,
                 message: "Professeur créé avec succès",
                 error: null
             };
@@ -185,13 +219,11 @@ export class ProfessorService {
         }
     }
 
-    
-
-    async updateProfessor(id: number, professorData: any): Promise<ResultType> {
+    async updateProfessor(id: number, professorData: IProfessorServiceParams['updateProfessor']['data']): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
 
-            // Récupérer le professeur existant avec toutes ses relations
+            // Retrieve the existing professor with all relations
             const existingProfessor = await this.professorRepository.findOne({
                 where: { id },
                 relations: [
@@ -212,7 +244,7 @@ export class ProfessorService {
                 };
             }
 
-            // Mettre à jour les informations de base
+            // Update basic information
             Object.assign(existingProfessor, {
                 firstname: professorData.firstname,
                 lastname: professorData.lastname,
@@ -226,7 +258,7 @@ export class ProfessorService {
                 cni_number: professorData.cni_number
             });
 
-            // Mettre à jour le diplôme
+            // Update diploma if provided
             if (professorData.diploma) {
                 if (existingProfessor.diploma) {
                     existingProfessor.diploma.name = professorData.diploma.name;
@@ -238,7 +270,7 @@ export class ProfessorService {
                 }
             }
 
-            // Mettre à jour la qualification
+            // Update qualification if provided
             if (professorData.qualification) {
                 if (existingProfessor.qualification) {
                     existingProfessor.qualification.name = professorData.qualification.name;
@@ -250,32 +282,37 @@ export class ProfessorService {
                 }
             }
 
-            // Gérer les nouveaux documents
-            if (professorData.documents?.length > 0) {
+            // Handle new documents if provided
+            if (professorData.documents && professorData.documents.length > 0) {
+                const validDocuments = professorData.documents.filter(doc => doc.content);
                 const savedDocuments = await Promise.all(
-                    professorData.documents.map((doc: { content: string; name: string; type: string; }) => 
-                        this.fileService.saveFile(doc.content, doc.name, doc.type)
+                    validDocuments.map(doc => 
+                        this.fileService.saveFile({
+                            content: doc.content!,
+                            name: doc.name,
+                            type: doc.type
+                        })
                     )
                 );
                 existingProfessor.documents = [...(existingProfessor.documents || []), ...savedDocuments];
             }
 
-            // Mettre à jour la photo si nécessaire
-            if (professorData.photo) {
-                const savedPhoto = await this.fileService.saveFile(
-                    professorData.photo.content,
-                    professorData.photo.name,
-                    professorData.photo.type
-                );
+            // Handle photo update if provided
+            if (professorData.photo && professorData.photo.content) {
+                const savedPhoto = await this.fileService.saveFile({
+                    content: professorData.photo.content,
+                    name: professorData.photo.name,
+                    type: professorData.photo.type
+                });
                 existingProfessor.photo = savedPhoto;
             }
 
-            // Sauvegarder les modifications
+            // Save the updated professor
             const updatedProfessor = await this.professorRepository.save(existingProfessor);
 
             return {
                 success: true,
-                data: updatedProfessor,
+                data: this.mapToProfessorDetails(updatedProfessor),
                 message: "Professeur mis à jour avec succès",
                 error: null
             };
@@ -290,7 +327,7 @@ export class ProfessorService {
         }
     }
 
-    async deleteProfessor(id: number): Promise<ResultType> {
+    async deleteProfessor(id: number): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
 
@@ -327,7 +364,7 @@ export class ProfessorService {
         }
     }
 
-    async getAllProfessors(): Promise<ResultType> {
+    async getAllProfessors(): Promise<IProfessorServiceResponse> {
         try {
             const professors = await this.professorRepository.find({
                 relations: [
@@ -344,7 +381,7 @@ export class ProfessorService {
 
             return {
                 success: true,
-                data: professors,
+                data: professors.map(p => this.mapToProfessorDetails(p)),
                 message: "Professeurs récupérés avec succès",
                 error: null
             };
@@ -359,7 +396,7 @@ export class ProfessorService {
         }
     }
 
-    async getProfessorById(id: number): Promise<ResultType> {
+    async getProfessorById(id: number): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
@@ -381,7 +418,7 @@ export class ProfessorService {
                 throw new Error('Professeur non trouvé');
             }
 
-            // Si le professeur a des affectations, charger les noms des classes
+            // If teaching assignments exist, process gradeIds for secondary teachers
             if (professor.teaching?.length) {
                 for (const teaching of professor.teaching) {
                     if (teaching.gradeIds && typeof teaching.gradeIds === 'string') {
@@ -399,7 +436,7 @@ export class ProfessorService {
 
             return {
                 success: true,
-                data: professor,
+                data: professor ? this.mapToProfessorDetails(professor) : null,
                 message: "Professeur récupéré avec succès",
                 error: null
             };
@@ -419,7 +456,7 @@ export class ProfessorService {
         classId?: number;
         courseId?: number;
         gradeIds?: number[];
-    }): Promise<ResultType> {
+    }): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             const dataSource = AppDataSource.getInstance();
@@ -470,11 +507,16 @@ export class ProfessorService {
 
             await this.teachingAssignmentRepository.save(teachingAssignment);
 
+            const updatedProfessor = await this.professorRepository.findOne({
+                where: { id: professorId },
+                relations: ['teaching', 'teaching.class', 'teaching.course', 'photo', 'documents', 'diploma', 'qualification']
+            });
+
             return {
                 success: true,
                 message: "Affectation créée avec succès",
                 error: null,
-                data: teachingAssignment
+                data: updatedProfessor ? this.mapToProfessorDetails(updatedProfessor) : null
             };
         } catch (error) {
             return {
@@ -486,20 +528,29 @@ export class ProfessorService {
         }
     }
 
-    async getTeachingAssignments(professorId: number): Promise<ResultType> {
+    async getTeachingAssignments(professorId: number): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
-            const assignments = await this.teachingAssignmentRepository.find({
-                where: { professor: { id: professorId } },
-                relations: ['class', 'course']
+            const professor = await this.professorRepository.findOne({
+                where: { id: professorId },
+                relations: ['teaching', 'teaching.class', 'teaching.course']
             });
+
+            if (!professor) {
+                return {
+                    success: false,
+                    message: "Professeur non trouvé",
+                    error: "NOT_FOUND",
+                    data: null
+                };
+            }
 
             return {
                 success: true,
                 message: "Affectations récupérées avec succès",
                 error: null,
-                data: assignments
+                data: this.mapToProfessorDetails(professor)
             };
         } catch (error) {
             return {
@@ -511,7 +562,7 @@ export class ProfessorService {
         }
     }
 
-    async getTotalProfessors(): Promise<ResultType> {
+    async getTotalProfessors(): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
@@ -521,7 +572,7 @@ export class ProfessorService {
 
             return {
                 success: true,
-                data: count,
+                data: { total: count } as unknown as IProfessorDetails,
                 message: "Nombre total de professeurs récupéré avec succès",
                 error: null
             };
@@ -529,14 +580,14 @@ export class ProfessorService {
             console.error('Erreur lors du comptage des professeurs:', error);
             return {
                 success: false,
-                data: 0,
+                data: null,
                 message: "Erreur lors du comptage des professeurs",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
 
-    async searchProfessors(query: string): Promise<ResultType> {
+    async searchProfessors(query: string): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
@@ -563,4 +614,6 @@ export class ProfessorService {
             };
         }
     }
-} 
+}
+
+   

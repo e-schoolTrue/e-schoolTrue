@@ -83,48 +83,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { ElMessage, ElForm } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { 
+    YearRepartition, 
+    PeriodConfiguration, 
+    YearRepartitionCreateInput, 
+    YearRepartitionUpdateInput 
+} from '@/types/year'
 
-interface Period {
-  name: string
-  start: string | null
-  end: string | null
-}
-
-interface YearRepartition {
-  id?: string | number
-  schoolYear: string
-  periodConfigurations: Period[]
-}
-
-const emit = defineEmits(['submit'])
-
-const props = defineProps<{
+interface Props {
   initialData?: YearRepartition | null
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'submit', data: YearRepartitionCreateInput | YearRepartitionUpdateInput): void
+  (e: 'cancel'): void
 }>()
 
 const formRef = ref<FormInstance>()
-const periodType = ref<'semester' | 'trimester'>('semester')
-const isEditing = ref(!!props.initialData?.id)
 const isSubmitting = ref(false)
+const periodType = ref<'semester' | 'trimester'>('semester')
 
-const createDefaultPeriods = (type: 'semester' | 'trimester') => {
+const createDefaultPeriods = (type: 'semester' | 'trimester'): PeriodConfiguration[] => {
   const count = type === 'semester' ? 2 : 3
   return Array.from({ length: count }, (_, index) => ({
     name: `${type === 'semester' ? 'Semestre' : 'Trimestre'} ${index + 1}`,
-    start: null,
-    end: null
+    start: null as any,
+    end: null as any
   }))
 }
 
 const form = ref<YearRepartition>({
-  schoolYear: props.initialData?.schoolYear || '',
-  periodConfigurations: props.initialData?.periodConfigurations || createDefaultPeriods('semester')
+  schoolYear: '',
+  periodConfigurations: createDefaultPeriods(periodType.value)
 })
 
-// Règles de validation
+const isEditing = computed(() => !!props.initialData?.id)
+
 const rules = ref<FormRules>({
   schoolYear: [
     { 
@@ -160,6 +158,8 @@ const disabledEndDate = (date: Date, index: number) => {
   const currentPeriod = form.value.periodConfigurations[index]
   const nextPeriod = form.value.periodConfigurations[index + 1]
 
+  if (!currentPeriod) return false
+
   // La date de fin doit être après la date de début
   if (currentPeriod.start && new Date(currentPeriod.start) >= date) {
     return true
@@ -188,7 +188,7 @@ const submitForm = async () => {
     const hasOverlap = form.value.periodConfigurations.some((period, index) => {
       if (index < form.value.periodConfigurations.length - 1) {
         const nextPeriod = form.value.periodConfigurations[index + 1]
-        return new Date(period.end!) >= new Date(nextPeriod.start!)
+        return new Date(period.end as string) >= new Date(nextPeriod.start as string)
       }
       return false
     })
@@ -199,11 +199,21 @@ const submitForm = async () => {
     }
 
     isSubmitting.value = true
-    const formData = {
-      ...form.value,
-      id: props.initialData?.id
+    
+    // Préparer les données selon qu'il s'agit d'une création ou d'une mise à jour
+    if (isEditing.value) {
+      const updateData: YearRepartitionUpdateInput = {
+        schoolYear: form.value.schoolYear,
+        periodConfigurations: form.value.periodConfigurations
+      }
+      emit('submit', updateData)
+    } else {
+      const createData: YearRepartitionCreateInput = {
+        schoolYear: form.value.schoolYear,
+        periodConfigurations: form.value.periodConfigurations
+      }
+      emit('submit', createData)
     }
-    emit('submit', JSON.parse(JSON.stringify(formData)))
   } catch (error) {
     console.error('Validation error:', error)
   } finally {
@@ -218,15 +228,13 @@ watch(() => props.initialData, (newValue) => {
       periodConfigurations: [...newValue.periodConfigurations]
     }
     periodType.value = newValue.periodConfigurations.length === 2 ? 'semester' : 'trimester'
-    isEditing.value = !!newValue.id
   } else {
     form.value = {
       schoolYear: '',
       periodConfigurations: createDefaultPeriods(periodType.value)
     }
-    isEditing.value = false
   }
-}, { deep: true })
+}, { immediate: true })
 </script>
 
 <style scoped>

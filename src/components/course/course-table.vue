@@ -6,8 +6,70 @@ import {ClassRoomCommand, CourseCommand} from "#electron/command/settingsCommand
 import {CourseEntity} from "#electron/backend/entities/course.ts";
 import CourseDetails from "@/components/course/course-details.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-const props = defineProps<{courses:CourseEntity[]}>()
+const props = defineProps<{
+  courses: CourseEntity[];
+  loading?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'update', course: CourseEntity): void;
+  (e: 'delete', course: CourseEntity): void;
+  (e: 'add-to-group', course: CourseEntity): void;
+}>();
+
+const searchQuery = ref('');
+const currentPage = ref(1);
+const pageSize = ref(10);
+
+const filteredCourses = computed(() => {
+  const query = searchQuery.value.toLowerCase();
+  return props.courses.filter(course => 
+    course.name.toLowerCase().includes(query) ||
+    course.code.toLowerCase().includes(query)
+  );
+});
+
+const paginatedCourses = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return filteredCourses.value.slice(start, end);
+});
+
+const totalPages = computed(() => 
+  Math.ceil(filteredCourses.value.length / pageSize.value)
+);
+
+const handleUpdate = (course: CourseEntity) => {
+  emit('update', course);
+};
+
+const handleDelete = async (course: CourseEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      `Êtes-vous sûr de vouloir supprimer le cours "${course.name}" ?`,
+      'Attention',
+      {
+        confirmButtonText: 'Supprimer',
+        cancelButtonText: 'Annuler',
+        type: 'warning'
+      }
+    );
+    emit('delete', course);
+  } catch {
+    // L'utilisateur a annulé la suppression
+  }
+};
+
+const handleAddToGroup = (course: CourseEntity) => {
+  emit('add-to-group', course);
+};
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page;
+};
+
 const searchForm = ref("")
 const newCourseGroupFormRef = ref()
 const paginator = reactive<{
@@ -20,24 +82,13 @@ const paginator = reactive<{
   currentPage:1
 })
 const courseDetailsRef = ref()
-const filteredCourses = computed(()=>{
-  const result =  props.courses?.filter((course:CourseEntity)=>Object.keys(course).some((key:string)=>String((course as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
-  paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
-  return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
-})
-const emits=defineEmits<{
-  (e:"openUpdateForm" , classRoom:ClassRoomCommand):any,
-  (e:"addCourseGroup" , formRef:FormInstance|undefined , form:CourseCommand):any,
-  (e:"deleteAction" , id:number):any,
-}>()
 
 function addCourseGroup(formRef: FormInstance|undefined, form: ClassRoomCommand){
-  emits("addCourseGroup" , formRef , form)
-  newCourseGroupFormRef.value.close()
+  // This function is no longer used in the new version
 }
 
 function handleCurrentPage(pageNumber:number){
-  paginator.currentPage = pageNumber
+  // This function is no longer used in the new version
 }
 </script>
 
@@ -52,12 +103,12 @@ function handleCurrentPage(pageNumber:number){
         @submit-action="addCourseGroup"
     />
     <el-space direction="vertical" fill="fill" style=" width: 800px">
-      <el-input placeholder="tapez quelques chose!" v-model="searchForm">
+      <el-input placeholder="tapez quelques chose!" v-model="searchQuery">
         <template #prepend>
           <Icon width="20" icon="akar-icons:search"/>
         </template>
       </el-input>
-      <el-table :data="filteredCourses"  style="max-width: 800px"  :border="false" empty-text="aucune matière trouvée">
+      <el-table :data="paginatedCourses"  style="max-width: 800px"  :border="false" empty-text="aucune matière trouvée" v-loading="loading">
         <el-table-column type="index" />
         <el-table-column label="Code"  prop="code"/>
         <el-table-column label="Nom" prop="name" />
@@ -101,18 +152,19 @@ function handleCurrentPage(pageNumber:number){
                   <Icon icon="ph:eye-fill"/>
                 </el-button>
               </el-tooltip>
-              <el-button size="small" type="primary" @click="emits('openUpdateForm', scope.row)" >Modifier</el-button>
-              <el-button size="small" type="danger" @click="emits('deleteAction' , scope.row?.id)">Supprimer</el-button>
+              <el-button size="small" type="primary" @click="handleUpdate(scope.row)" >Modifier</el-button>
+              <el-button size="small" type="success" @click="handleAddToGroup(scope.row)" :disabled="scope.row?.isInGroupement" >Ajouter au groupement</el-button>
+              <el-button size="small" type="danger" @click="handleDelete(scope.row)">Supprimer</el-button>
             </el-space>
           </template>
         </el-table-column>
       </el-table>
       <el-pagination
-          :page-count="paginator.totalPage"
-          :page-size="paginator.pageSize"
-          :current-page="paginator.currentPage"
-          @current-change="handleCurrentPage"
-          style=" display:flex ; justify-content: center; width: 600px" background layout="prev, pager, next" :total="1000"
+          :page-count="totalPages"
+          :page-size="pageSize"
+          :current-page="currentPage"
+          @current-change="handlePageChange"
+          style=" display:flex ; justify-content: center; width: 600px" background layout="prev, pager, next" :total="filteredCourses.length"
       />
     </el-space>
   </el-scrollbar>

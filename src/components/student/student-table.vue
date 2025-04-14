@@ -203,24 +203,28 @@ import { Icon } from '@iconify/vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import * as XLSX from "xlsx";
 import { Refresh } from '@element-plus/icons-vue';
+import type { IStudentFile } from '@/types/student';
+import type { IGrade, IGradeOption } from '@/types/shared';
 
 interface Student {
   id?: number;
-  matricule: string;
-  lastname: string;
   firstname: string;
+  lastname: string;
+  matricule: string;
   schoolYear: string;
-  gradeId?: number;
+  gradeId: number;
   famillyPhone?: string;
   sex: "male" | "female";
   birthDay?: string;
-  birthTown?: string;
+  birthPlace?: string;
   address?: string;
-}
-
-interface Grade {
-  id: number;
-  name: string;
+  fatherFirstname?: string;
+  fatherLastname?: string;
+  motherFirstname?: string;
+  motherLastname?: string;
+  personalPhone?: string;
+  photo?: IStudentFile;
+  documents?: IStudentFile[];
 }
 
 const props = defineProps({
@@ -247,21 +251,18 @@ const headerStyle = {
 };
 
 // Variables pour stocker les données des grades
-const grades = ref<Grade[]>([]);
+const grades = ref<IGrade[]>([]);
 
 // Charger les grades depuis l'IPC au montage
 onMounted(async () => {
   try {
     const result = await window.ipcRenderer.invoke("grade:all");
     console.log('Grades loaded:', result);
-    // Extract the data array from the result
     grades.value = result.data || [];
   } catch (error) {
     console.error("Erreur lors du chargement des grades :", error);
   }
 });
-
-
 
 // Computed
 const boysCount = computed(
@@ -320,14 +321,10 @@ const handlePageChange = (page: number) => {
   emit("pageChange", page);
 };
 
-
-
 const handleExport = () => {
   try {
-    // Créer un nouveau classeur
     const wb = XLSX.utils.book_new();
     
-    // Préparer les données pour l'export
     const exportData = filteredStudents.value.map(student => ({
       'Matricule': student.matricule,
       'Nom': student.lastname,
@@ -337,18 +334,16 @@ const handleExport = () => {
       'Classe': getGradeName(student.gradeId),
       'Contact Parents': student.famillyPhone,
       'Date de naissance': student.birthDay ? new Date(student.birthDay).toLocaleDateString() : '',
-      'Lieu de naissance': student.birthTown || '',
+      'Lieu de naissance': student.birthPlace || '',
       'Adresse': student.address || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     XLSX.utils.book_append_sheet(wb, ws, 'Élèves');
 
-    // Générer le nom du fichier avec la date
     const date = new Date().toISOString().split('T')[0];
     const fileName = `liste_eleves_${date}.xlsx`;
 
-    // Déclencher le téléchargement
     XLSX.writeFile(wb, fileName);
 
     ElMessage.success('Export réussi !');
@@ -358,26 +353,19 @@ const handleExport = () => {
   }
 };
 
-// Obtenir le nom du grade à partir de son ID
 const getGradeName = (gradeId: number | undefined): string => {
-  console.log('Current gradeId:', gradeId);
-  console.log('Grades type:', typeof grades.value);
-  console.log('Grades content:', grades.value);
-  
   if (!gradeId) return "Non assigné";
   
-  // Additional type checking
   if (!Array.isArray(grades.value)) {
     console.error('Grades is not an array');
     return "Non assigné";
   }
   
   const grade = grades.value.find((g) => g.id === gradeId);
-  
   return grade ? grade.name : "Non assigné";
 };
-// Définir le type de tag pour les grades
-const getGradeTagType = (gradeId: number | undefined) => {
+
+const getGradeTagType = (gradeId: number | undefined): string => {
   if (!gradeId) return "info";
   if (gradeId <= 6) return "success";
   if (gradeId <= 10) return "warning";
@@ -392,7 +380,6 @@ const refreshData = () => {
     loading.value = false;
   }
 };
-
 </script>
 
 <style scoped>

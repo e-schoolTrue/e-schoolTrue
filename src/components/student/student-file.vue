@@ -98,30 +98,11 @@ import { ref, computed } from "vue";
 import { Icon } from "@iconify/vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import * as XLSX from "xlsx";
-
-// Interface des données des étudiants
-interface StudentData {
-  firstname: string;
-  lastname: string;
-  birthDay: Date | null;
-  birthPlace: string;
-  address: string;
-  gradeId: number | null; // Changement de `classId` en `gradeId`
-  fatherFirstname: string;
-  fatherLastname: string;
-  motherFirstname: string;
-  motherLastname: string;
-  famillyPhone: string;
-  personalPhone: string;
-  photo: File | null;
-  document: File | null;
-  sex: "male" | "female";
-  schoolYear: string;
-}
+import type { IStudentData } from '@/types/student';
 
 // Définition des événements pour transmettre les données mappées
 const emit = defineEmits<{
-  (e: "fileLoaded", data: StudentData[]): void;
+  (e: "fileLoaded", data: IStudentData[]): void;
 }>();
 
 // Références et données du composant
@@ -139,15 +120,13 @@ const studentDataFields = {
   birthDay: "Date de naissance",
   birthPlace: "Lieu de naissance",
   address: "Adresse",
-  gradeId: "Classe (Grade)", // Mise à jour
+  gradeId: "Classe (Grade)",
   fatherFirstname: "Prénom du père",
   fatherLastname: "Nom du père",
   motherFirstname: "Prénom de la mère",
   motherLastname: "Nom de la mère",
   famillyPhone: "Téléphone familial",
   personalPhone: "Téléphone personnel",
-  photo: "Photo",
-  document: "Document",
   sex: "Sexe",
   schoolYear: "Année scolaire",
 };
@@ -242,31 +221,24 @@ const validateImport = async () => {
     const notFoundGrades: string[] = [];
 
     const mappedData = excelData.value.map((row) => {
-      const mappedRow: Partial<StudentData> = {};
+      const mappedRow: Partial<IStudentData> = {};
       for (const [header, field] of Object.entries(columnMappings.value)) {
         if (field && row[header] !== undefined) {
           if (field === "birthDay" && row[header]) {
             mappedRow[field] = new Date(row[header]);
           } else if (field === "gradeId" && row[header]) {
-            // Mapper le libellé de grade à son ID
-            const gradeLabel = row[header];
-            const gradeId = gradeMapping[gradeLabel];
-
-            // Si le grade n'est pas trouvé, ajouter à la liste des grades non trouvés
-            if (gradeId === undefined) {
-              if (!notFoundGrades.includes(gradeLabel)) {
-                notFoundGrades.push(gradeLabel);
-              }
-              mappedRow[field] = null;
-            } else {
+            const gradeId = gradeMapping[row[header]];
+            if (gradeId) {
               mappedRow[field] = gradeId;
+            } else {
+              notFoundGrades.push(row[header]);
             }
           } else {
-            mappedRow[field as keyof StudentData] = row[header];
+            mappedRow[field] = row[header];
           }
         }
       }
-      return mappedRow;
+      return mappedRow as IStudentData;
     });
 
     // Gérer les grades non trouvés
@@ -289,7 +261,7 @@ const validateImport = async () => {
       }
     }
 
-    emit("fileLoaded", mappedData as StudentData[]);
+    emit("fileLoaded", mappedData as IStudentData[]);
     showFileReader.value = false;
     ElMessage.success("Données mappées avec succès");
   } catch (error) {
