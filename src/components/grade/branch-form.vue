@@ -2,18 +2,18 @@
 import {reactive, ref} from 'vue'
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {BranchEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {Branch, Grade, BranchCommand} from "@/types/grade";
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
-const form = reactive<BranchEntity>({
+const form = reactive<BranchCommand>({
   name:"",
   code:"",
-  grade: undefined
+  gradeId: undefined
 })
 
-const formRule = reactive<FormRules<BranchEntity>>({
+const formRule = reactive<FormRules<BranchCommand>>({
   code:[
     {required:true, message:"Le code est requis", trigger:"blur"},
     {min: 2, max: 10, message: "Le code doit contenir entre 2 et 10 caractères", trigger: "blur"}
@@ -21,11 +21,18 @@ const formRule = reactive<FormRules<BranchEntity>>({
   name:[
     {required:true, message:"Le nom est requis", trigger:"blur"},
     {min: 3, max: 50, message: "Le nom doit contenir entre 3 et 50 caractères", trigger: "blur"}
+  ],
+  gradeId: [
+    {required:true, message:"Le niveau est requis", trigger:"change"}
   ]
 })
 
-function open(grade:GradeEntity, branch?:BranchEntity){
+let gradeName = ref("");
+
+function open(grade: Grade, branch?: Branch){
   dialogVisible.value = true
+  gradeName.value = grade.name || "";
+  
   if (branch) {
     form.id = branch.id
     form.name = branch.name || ""
@@ -35,7 +42,7 @@ function open(grade:GradeEntity, branch?:BranchEntity){
     form.name = ""
     form.code = ""
   }
-  form.grade = grade
+  form.gradeId = grade.id
 }
 
 function close(){
@@ -44,7 +51,7 @@ function close(){
 }
 
 const emits = defineEmits<{
-  (e:"submit-action", formRef:FormInstance|undefined, form:BranchEntity):void
+  (e:"submit-action", formRef:FormInstance|undefined, form:BranchCommand):void
 }>()
 
 defineExpose({
@@ -80,8 +87,8 @@ defineExpose({
       <el-form-item label="Nom" prop="name">
         <el-input v-model="form.name" placeholder="Ex: Scientifique, Littéraire, etc." />
       </el-form-item>
-      <el-form-item label="Niveau" v-if="form.grade">
-        <el-input v-model="form.grade.name" disabled />
+      <el-form-item label="Niveau" v-if="gradeName">
+        <el-input v-model="gradeName" disabled />
       </el-form-item>
     </el-form>
     <template #footer>

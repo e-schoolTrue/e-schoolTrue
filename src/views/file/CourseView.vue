@@ -6,22 +6,22 @@ import CourseForm from "@/components/course/course-form.vue";
 import CourseTable from "@/components/course/course-table.vue";
 import { Loader } from "@/components/util/AppLoader";
 import { cloneDeep } from "lodash";
-import type { CourseFormData, CourseGroupFormData } from '@/types/course';
-import type { CourseEntity } from '#electron/backend/entities/course';
+import type { Course, CourseFormData } from '@/types/course';
 
 const newCourseFormRef = ref();
 const updateCourseFormRef = ref();
-const courses = ref<CourseEntity[]>([]);
+const courses = ref<Course[]>([]);
 const loading = ref(false);
 
 function openNewCourseForm() {
   newCourseFormRef.value?.openDialog();
 }
 
-function openUpdateCourseForm(course: CourseEntity) {
+function openUpdateCourseForm(course: Course) {
   if (!course.name || !course.code) return;
   
   updateCourseFormRef.value?.openDialog({
+    id: course.id,
     name: course.name,
     code: course.code,
     coefficient: course.coefficient || 1
@@ -54,6 +54,10 @@ async function handleNewCourse(data: CourseFormData) {
 
 async function handleUpdateCourse(data: CourseFormData) {
   try {
+    if (!data.id) {
+      throw new Error("ID de la matière manquant");
+    }
+    
     loading.value = true;
     Loader.showLoader("Mise à jour de la matière en cours");
     
@@ -76,38 +80,67 @@ async function handleUpdateCourse(data: CourseFormData) {
   }
 }
 
-async function handleAddToGroup(course: CourseEntity) {
-  if (!course.name || !course.code) return;
-  
+async function handleAddToGroup(course: Course) {
   try {
-    loading.value = true;
-    Loader.showLoader("Ajout de la sous-matière en cours");
-    
-    const groupData: CourseGroupFormData = {
-      name: course.name,
-      code: course.code,
-      coefficient: course.coefficient || 1
-    };
-    
-    const result = await window.ipcRenderer.invoke("courseGroup:add", cloneDeep(groupData));
-    
-    if (result.success) {
-      courses.value = result.data;
-      ElMessage.success("Sous-matière ajoutée avec succès");
+    // Cas 1: Le cours a un groupement ou est une sous-matière à créer
+    if ((course as any).groupementId || course.isInGroupement) {
+      // C'est une sous-matière à ajouter à une matière existante
+      console.log('Ajout de sous-matière avec ID:', (course as any).groupementId);
+      
+      loading.value = true;
+      Loader.showLoader("Ajout de la sous-matière en cours");
+      
+      const groupData = {
+        name: course.name,
+        code: course.code,
+        coefficient: course.coefficient || 1,
+        groupementId: (course as any).groupementId,
+        isInGroupement: true
+      };
+      
+      console.log('Données envoyées au serveur:', groupData);
+      
+      const result = await window.ipcRenderer.invoke("courseGroup:add", cloneDeep(groupData));
+      console.log('Résultat reçu du serveur:', result);
+      
+      if (result.success) {
+        const updatedResult = await window.ipcRenderer.invoke("course:all");
+        if (updatedResult.success) {
+          courses.value = updatedResult.data;
+          ElMessage.success("Sous-matière ajoutée avec succès");
+        }
+      } else {
+        throw new Error(result.message || "Échec de l'ajout de la sous-matière");
+      }
+      
+      loading.value = false;
+      Loader.hideLoader();
     } else {
-      throw new Error(result.message || "Échec de l'ajout de la sous-matière");
+      // Cas 2: Ajout d'une matière existante à un groupement (temporairement désactivé)
+      await ElMessageBox.alert(
+        'Cette fonctionnalité est en cours de développement. Elle sera disponible prochainement.',
+        'Fonctionnalité non disponible',
+        {
+          confirmButtonText: 'OK',
+          type: 'info'
+        }
+      );
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Une erreur est survenue lors de l'ajout de la sous-matière";
-    ElMessage.error(errorMessage);
-    console.error('Erreur lors de l\'ajout de la sous-matière:', error);
+    if (error !== 'cancel') {
+      const errorMessage = error instanceof Error ? error.message : "Une erreur est survenue";
+      ElMessage.error(errorMessage);
+      console.error('Erreur:', error);
+    }
   } finally {
-    loading.value = false;
-    Loader.hideLoader();
+    if (loading.value) {
+      loading.value = false;
+      Loader.hideLoader();
+    }
   }
 }
 
-async function handleDeleteCourse(course: CourseEntity) {
+async function handleDeleteCourse(course: Course) {
   if (!course.name) return;
   
   try {

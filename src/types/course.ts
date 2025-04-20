@@ -1,14 +1,67 @@
-// Types pour les entités
-export interface CourseEntity {
+// Types pour les entités frontend
+export interface Course {
     id?: number;
     name: string;
     code: string;
     coefficient: number;
     isInGroupement?: boolean;
-    groupement?: CourseEntity;
-    courses?: CourseEntity[];
+    groupementId?: number;  // Relation avec une matière parente
+    groupement?: Course;    // Matière parente
+    courses?: Course[];     // Sous-matières
     createdAt?: Date;
     updatedAt?: Date;
+}
+
+// Types pour les formulaires
+export interface CourseFormData {
+    id?: number;
+    name: string;
+    code: string;
+    coefficient: number;
+}
+
+export interface CourseGroupFormData {
+    id?: number;
+    name: string;
+    code: string;
+    coefficient: number;
+    groupementId?: number;
+}
+
+// Types pour les réponses API
+export interface ApiResponse<T> {
+    success: boolean;
+    data: T | null;
+    message: string;
+    error: string | null;
+}
+
+export interface CourseResponse extends ApiResponse<Course[]> {}
+
+export interface CourseGroupResponse extends ApiResponse<Course[]> {}
+
+// Types pour les commandes (utilisées pour les communications avec le backend)
+export interface CourseCommand {
+    id?: number;
+    name: string;
+    code: string;
+    coefficient: number;
+}
+
+export interface CourseGroupCommand {
+    id?: number;
+    name: string;
+    code: string;
+    coefficient: number;
+    groupementId?: number;
+    isInGroupement?: boolean;
+}
+
+// Types pour la gestion des observations
+export interface CourseObservation {
+    id?: number;
+    observation?: string;
+    note?: number;
 }
 
 export interface ICourseData {
@@ -17,13 +70,9 @@ export interface ICourseData {
     name: string;
     coefficient: number;
     isInGroupement?: boolean;
-    groupement?: CourseEntity;
-    observations?: Array<{
-        id?: number;
-        observation?: string;
-        note?: number;
-    }>;
-    courses?: CourseEntity[];
+    groupement?: Course;
+    observations?: Array<CourseObservation>;
+    courses?: Course[];
 }
 
 export interface ICourseServiceParams {
@@ -53,49 +102,4 @@ export interface ICourseServiceResponse {
     data: ICourseData[] | null;
     error: string | null;
     message: string;
-}
-
-// Types pour les commandes
-export interface CourseCommand {
-    id?: number;
-    name: string;
-    code: string;
-    coefficient: number;
-}
-
-export interface CourseGroupCommand {
-    id?: number;
-    name: string;
-    code: string;
-    coefficient: number;
-    groupementId?: number;
-}
-
-// Types pour les formulaires
-export interface CourseFormData {
-    name: string;
-    code: string;
-    coefficient: number;
-}
-
-export interface CourseGroupFormData {
-    name: string;
-    code: string;
-    coefficient: number;
-    groupementId?: number;
-}
-
-// Types pour les réponses API
-export interface CourseResponse {
-    success: boolean;
-    data: CourseEntity[] | null;
-    message: string;
-    error: string | null;
-}
-
-export interface CourseGroupResponse {
-    success: boolean;
-    data: CourseEntity[] | null;
-    message: string;
-    error: string | null;
 }

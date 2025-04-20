@@ -21,7 +21,6 @@ import { ReportCardService } from './backend/services/reportCardService';
 import { GradeConfigService } from './backend/services/gradeConfigService';
 import { PreferenceService } from './backend/services/preferenceService';
 import { IAbsenceServiceParams } from './backend/types/absence';
-import { IFileServiceResponse } from './backend/types/file';
 
 
 const global = {
@@ -711,6 +710,62 @@ ipcMain.handle('school:getLogo', async (_, logoId: number) => {
     }
 });
 
+// Gestionnaires pour les paiements
+ipcMain.handle('payment:getConfigs', async () => {
+  try {
+    const response = await global.paymentService.getConfigs();
+    console.log('=== payment:getConfigs - Réponse ===', response);
+    return convertToResultType(response);
+  } catch (error) {
+    console.error('=== payment:getConfigs - Erreur ===', error);
+    return handleError(error, 'Erreur lors de la récupération des configurations de paiement');
+  }
+});
+
+ipcMain.handle('payment:saveConfig', async (_event, configData) => {
+  try {
+    const response = await global.paymentService.saveConfig(configData);
+    return convertToResultType(response);
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la sauvegarde de la configuration de paiement');
+  }
+});
+
+ipcMain.handle('payment:getByStudent', async (_event, studentId) => {
+  try {
+    const response = await global.paymentService.getPaymentsByStudent(studentId);
+    return convertToResultType(response);
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération des paiements');
+  }
+});
+
+ipcMain.handle('payment:getConfig', async (_event, classId) => {
+  try {
+    const response = await global.paymentService.getConfigByClass(String(classId));
+    return convertToResultType(response);
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération de la configuration de paiement');
+  }
+});
+
+ipcMain.handle('payment:create', async (_event, paymentData) => {
+  try {
+    const response = await global.paymentService.addPayment(paymentData);
+    return convertToResultType(response);
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la création du paiement');
+  }
+});
+
+ipcMain.handle('payment:getRemainingAmount', async (_event, studentId) => {
+  try {
+    const response = await global.paymentService.getRemainingAmount(studentId);
+    return convertToResultType(response);
+  } catch (error) {
+    return handleError(error, 'Erreur lors du calcul du montant restant');
+  }
+});
 
 // Événements de sauvegarde
 ipcMain.handle('scholarship:getByStudent', async (_, studentId: number) => {
@@ -730,6 +785,64 @@ ipcMain.handle('scholarship:getActiveByStudent', async (_, studentId: number) =>
         return convertToResultType(response);
     } catch (error) {
         return handleError(error, 'Erreur lors de la récupération des bourses');
+    }
+});
+
+// Gestionnaires pour les répartitions d'année scolaire
+ipcMain.handle("yearRepartition:getAll", async () => {
+    try {
+        const result = await global.yearRepartitionService.getAllYearRepartitions();
+        return convertToResultType(result);
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la récupération des répartitions d\'année');
+    }
+});
+
+ipcMain.handle("yearRepartition:getCurrent", async () => {
+    try {
+        const result = await global.yearRepartitionService.getCurrentYearRepartition();
+        return convertToResultType(result);
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la récupération de l\'année scolaire courante');
+    }
+});
+
+ipcMain.handle("yearRepartition:create", async (_, data) => {
+    try {
+        const result = await global.yearRepartitionService.createYearRepartition(data);
+        return convertToResultType(result);
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la création de la répartition d\'année');
+    }
+});
+
+ipcMain.handle("yearRepartition:update", async (_, {id, data}) => {
+    try {
+        console.log(`=== yearRepartition:update - Début - ID: ${id} ===`);
+        console.log('Données reçues:', JSON.stringify({id, data}, null, 2));
+        
+        if (!id) {
+            throw new Error("ID de répartition manquant");
+        }
+        
+        const result = await global.yearRepartitionService.updateYearRepartition(id, data);
+        
+        console.log('=== yearRepartition:update - Résultat ===');
+        console.log(JSON.stringify(result, null, 2));
+        
+        return convertToResultType(result);
+    } catch (error) {
+        console.error('=== yearRepartition:update - Erreur ===', error);
+        return handleError(error, 'Erreur lors de la mise à jour de la répartition d\'année');
+    }
+});
+
+ipcMain.handle("yearRepartition:delete", async (_, id) => {
+    try {
+        const result = await global.yearRepartitionService.deleteYearRepartition(id);
+        return convertToResultType(result);
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la suppression de la répartition d\'année');
     }
 });
 

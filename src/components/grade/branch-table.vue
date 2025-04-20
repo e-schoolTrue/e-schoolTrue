@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import {ElTable} from 'element-plus'
-import {BranchEntity} from "#electron/backend/entities/grade.ts";
+import {Branch} from "@/types/grade";
 import {Icon} from "@iconify/vue";
 import {computed, reactive, ref} from "vue";
 
-const props = defineProps<{brnaches:BranchEntity[]}>()
+const props = defineProps<{branches: Branch[]}>()
 const searchForm = ref("")
 const paginator = reactive<{
   totalPage:number
@@ -12,17 +12,21 @@ const paginator = reactive<{
   currentPage:number
 }>({
   totalPage:0,
-  pageSize:2 ,
+  pageSize:5,
   currentPage:1
 })
 const filteredGrades = computed(()=>{
-  const result =  props.brnaches?.filter((branch:BranchEntity)=>Object.keys(branch).some((key:string)=>String((branch as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
+  const result = props.branches?.filter((branch: Branch)=>
+    Object.keys(branch).some((key:string)=>
+      String((branch as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase())
+    )
+  ) || []
   paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
   return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })
 const emits=defineEmits<{
-  (e:"openUpdateForm" , branch:BranchEntity):void,
-  (e:"deleteAction" , id:number):void,
+  (e:"openUpdateForm", branch: Branch): void,
+  (e:"deleteAction", id: number): void,
 }>()
 
 function handleCurrentPage(pageNumber:number){

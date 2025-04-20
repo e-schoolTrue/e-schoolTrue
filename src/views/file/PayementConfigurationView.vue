@@ -14,7 +14,7 @@
         <el-table-column prop="className" label="Classe" />
         <el-table-column label="Frais de Scolarité">
           <template #default="{ row }">
-            {{ formatAmount(row.annualAmount) }} FCFA
+            <currency-display :amount="row.annualAmount" />
           </template>
         </el-table-column>
         <el-table-column label="Actions" width="150">
@@ -56,7 +56,7 @@
               class="full-width"
               controls-position="right"
             >
-              <template #suffix>FCFA</template>
+              <template #suffix>{{ currency }}</template>
             </el-input-number>
           </el-form-item>
 
@@ -117,7 +117,10 @@
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
+import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { useCurrency } from '@/composables/useCurrency';
 
+const { currency } = useCurrency();
 const configurations = ref<PaymentConfig[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -134,10 +137,6 @@ const currentConfig = ref<PaymentConfig>({
 const modalTitle = computed(() => 
   `Configuration des frais - ${currentConfig.value.className}`
 );
-
-const formatAmount = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR').format(amount);
-};
 
 const openCreateModal = () => {
   showModal.value = true;

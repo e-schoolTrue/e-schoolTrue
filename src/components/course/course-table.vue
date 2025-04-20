@@ -2,21 +2,21 @@
 import {ElTable, FormInstance} from 'element-plus'
 import {Icon} from "@iconify/vue";
 import {computed, reactive, ref} from "vue";
-import {ClassRoomCommand, CourseCommand} from "#electron/command/settingsCommand.ts";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {ClassRoomCommand} from "@/types/grade";
+import {Course, CourseCommand} from "@/types/course";
 import CourseDetails from "@/components/course/course-details.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const props = defineProps<{
-  courses: CourseEntity[];
+  courses: Course[];
   loading?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'update', course: CourseEntity): void;
-  (e: 'delete', course: CourseEntity): void;
-  (e: 'add-to-group', course: CourseEntity): void;
+  (e: 'update', course: Course): void;
+  (e: 'delete', course: Course): void;
+  (e: 'add-to-group', course: Course): void;
 }>();
 
 const searchQuery = ref('');
@@ -41,11 +41,11 @@ const totalPages = computed(() =>
   Math.ceil(filteredCourses.value.length / pageSize.value)
 );
 
-const handleUpdate = (course: CourseEntity) => {
+const handleUpdate = (course: Course) => {
   emit('update', course);
 };
 
-const handleDelete = async (course: CourseEntity) => {
+const handleDelete = async (course: Course) => {
   try {
     await ElMessageBox.confirm(
       `Êtes-vous sûr de vouloir supprimer le cours "${course.name}" ?`,
@@ -62,7 +62,7 @@ const handleDelete = async (course: CourseEntity) => {
   }
 };
 
-const handleAddToGroup = (course: CourseEntity) => {
+const handleAddToGroup = (course: Course) => {
   emit('add-to-group', course);
 };
 
@@ -83,8 +83,37 @@ const paginator = reactive<{
 })
 const courseDetailsRef = ref()
 
-function addCourseGroup(formRef: FormInstance|undefined, form: ClassRoomCommand){
-  // This function is no longer used in the new version
+function addCourseGroup(formRef: FormInstance|undefined, form: CourseCommand){
+  if(!formRef) return;
+  
+  try {
+    // Valide le formulaire avant d'émettre l'événement
+    formRef.validate((valid, fields) => {
+      if (valid) {
+        // Si le formulaire est valide, émettre l'événement pour ajouter la sous-matière
+        const courseData = {
+          name: form.name,
+          code: form.code,
+          coefficient: form.coefficient || 1,
+          isInGroupement: true,
+          // On s'assure d'utiliser l'ID du groupement, qui est la matière parente
+          groupementId: form.groupement?.id
+        };
+        
+        // Afficher les données pour debug
+        console.log('Données de sous-matière à ajouter:', courseData);
+        
+        // Émettre l'événement
+        emit('add-to-group', courseData);
+        
+        // Fermer le formulaire
+        newCourseGroupFormRef.value.close();
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'ajout de la sous-matière:', error);
+    ElMessage.error('Une erreur est survenue lors de l\'ajout de la sous-matière');
+  }
 }
 
 function handleCurrentPage(pageNumber:number){
@@ -152,9 +181,36 @@ function handleCurrentPage(pageNumber:number){
                   <Icon icon="ph:eye-fill"/>
                 </el-button>
               </el-tooltip>
-              <el-button size="small" type="primary" @click="handleUpdate(scope.row)" >Modifier</el-button>
-              <el-button size="small" type="success" @click="handleAddToGroup(scope.row)" :disabled="scope.row?.isInGroupement" >Ajouter au groupement</el-button>
-              <el-button size="small" type="danger" @click="handleDelete(scope.row)">Supprimer</el-button>
+              <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="Modifier"
+                  placement="top-start"
+              >
+                <el-button size="small" type="primary" @click="handleUpdate(scope.row)" >
+                  <Icon icon="mdi:pencil" />
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="Ajouter au groupement"
+                  placement="top-start"
+              >
+                <el-button size="small" type="success" @click="handleAddToGroup(scope.row)" :disabled="scope.row?.isInGroupement" >
+                  <Icon icon="mdi:folder-plus" />
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="Supprimer"
+                  placement="top-start"
+              >
+                <el-button size="small" type="danger" @click="handleDelete(scope.row)">
+                  <Icon icon="mdi:delete" />
+                </el-button>
+              </el-tooltip>
             </el-space>
           </template>
         </el-table-column>

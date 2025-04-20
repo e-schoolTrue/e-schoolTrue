@@ -40,16 +40,23 @@ const rules = reactive<FormRules>({
   ]
 });
 
-const openDialog = () => {
-  if (props.initialData) {
-    Object.assign(form, props.initialData);
+const openDialog = (initialData?: CourseFormData | CourseGroupFormData) => {
+  if (initialData) {
+    form.id = initialData.id;
+    form.name = initialData.name;
+    form.code = initialData.code;
+    form.coefficient = initialData.coefficient;
+    if (props.isGroupement && 'groupementId' in initialData) {
+      form.groupementId = initialData.groupementId;
+    }
   } else {
-    Object.assign(form, {
-      name: '',
-      code: '',
-      coefficient: 1,
-      ...(props.isGroupement && { groupementId: props.groupementId })
-    });
+    form.id = undefined;
+    form.name = '';
+    form.code = '';
+    form.coefficient = 1;
+    if (props.isGroupement) {
+      form.groupementId = props.groupementId;
+    }
   }
   dialogVisible.value = true;
 };
@@ -64,7 +71,14 @@ const handleSubmit = async () => {
 
   try {
     await formRef.value.validate();
-    emit('submit', { ...form });
+    const formData = {
+      id: form.id,
+      name: form.name,
+      code: form.code,
+      coefficient: form.coefficient,
+      ...(props.isGroupement && form.groupementId && { groupementId: form.groupementId })
+    };
+    emit('submit', formData);
     closeDialog();
   } catch (error) {
     ElMessage.error('Veuillez corriger les erreurs dans le formulaire');

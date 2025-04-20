@@ -33,6 +33,7 @@ const formRule = reactive<FormRules<ClassRoomCommand>>({
 })
 function open(classRoom?:ClassRoomEntity){
   dialogVisible.value = true
+  form.id = classRoom?.id
   form.name=classRoom?.name || ""
   form.code=classRoom?.code || ""
   form.capacity=classRoom?.capacity || 0

@@ -201,17 +201,30 @@ const submitForm = async () => {
     isSubmitting.value = true
     
     // Préparer les données selon qu'il s'agit d'une création ou d'une mise à jour
-    if (isEditing.value) {
-      const updateData: YearRepartitionUpdateInput = {
+    if (isEditing.value && props.initialData?.id) {
+      console.log("Préparation des données pour mise à jour - ID:", props.initialData.id);
+      const updateData: YearRepartitionUpdateInput & { id?: number } = {
+        id: props.initialData.id, // Assurer que l'ID est inclus
         schoolYear: form.value.schoolYear,
-        periodConfigurations: form.value.periodConfigurations
+        periodConfigurations: form.value.periodConfigurations.map(period => ({
+          name: period.name,
+          start: period.start,
+          end: period.end
+        }))
       }
+      console.log("Données de mise à jour:", JSON.stringify(updateData));
       emit('submit', updateData)
     } else {
+      console.log("Préparation des données pour création");
       const createData: YearRepartitionCreateInput = {
         schoolYear: form.value.schoolYear,
-        periodConfigurations: form.value.periodConfigurations
+        periodConfigurations: form.value.periodConfigurations.map(period => ({
+          name: period.name,
+          start: period.start,
+          end: period.end
+        }))
       }
+      console.log("Données de création:", JSON.stringify(createData));
       emit('submit', createData)
     }
   } catch (error) {

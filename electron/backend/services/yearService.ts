@@ -19,8 +19,8 @@ export class YearRepartitionService {
             schoolYear: data.schoolYear,
             periodConfigurations: data.periodConfigurations?.map(period => ({
                 name: period.name,
-                start: new Date(period.start),
-                end: new Date(period.end)
+                start: period.start instanceof Date ? period.start : new Date(period.start),
+                end: period.end instanceof Date ? period.end : new Date(period.end)
             })) || []
         };
     }
@@ -64,6 +64,9 @@ export class YearRepartitionService {
 
     async updateYearRepartition(id: number, data: YearRepartitionUpdateInput): Promise<ResultType<YearRepartition>> {
         try {
+            console.log(`Mise à jour de la répartition ${id} avec:`, data);
+            
+            // Trouver la répartition existante avec toutes ses relations
             const yearRepartition = await this.yearRepartitionRepository.findOneBy({ id });
 
             if (!yearRepartition) {
@@ -74,10 +77,35 @@ export class YearRepartitionService {
                     message: "Répartition d'année scolaire non trouvée",
                 };
             }
-
-            Object.assign(yearRepartition, this.convertToEntity(data));
+            
+            // Conserver l'état actuel pour le débogage
+            console.log('État avant modification:', JSON.stringify(yearRepartition));
+            
+            // Mettre à jour seulement les champs fournis dans data
+            if (data.schoolYear) {
+                yearRepartition.schoolYear = data.schoolYear;
+            }
+            
+            // Gérer les périodes séparément pour éviter la création de doublons
+            if (data.periodConfigurations && data.periodConfigurations.length > 0) {
+                // Remplacer complètement les périodes existantes
+                yearRepartition.periodConfigurations = data.periodConfigurations.map(period => ({
+                    name: period.name,
+                    start: period.start instanceof Date ? period.start : new Date(period.start),
+                    end: period.end instanceof Date ? period.end : new Date(period.end)
+                }));
+            }
+            
+            console.log('État après modification, avant sauvegarde:', JSON.stringify(yearRepartition));
+            
+            // Sauvegarder les modifications
             const saved = await this.yearRepartitionRepository.save(yearRepartition);
-
+            console.log('Répartition sauvegardée:', JSON.stringify(saved));
+            
+            // Vérification après sauvegarde
+            const allRepartitions = await this.yearRepartitionRepository.find();
+            console.log(`Nombre total de répartitions après mise à jour: ${allRepartitions.length}`);
+            
             return {
                 success: true,
                 data: this.convertToResponse(saved),
@@ -85,6 +113,7 @@ export class YearRepartitionService {
                 message: "Répartition d'année scolaire mise à jour avec succès",
             };
         } catch (error) {
+            console.error("Erreur lors de la mise à jour:", error);
             return {
                 success: false,
                 data: null,
@@ -97,9 +126,15 @@ export class YearRepartitionService {
     async getAllYearRepartitions(): Promise<ResultType<YearRepartition[]>> {
         try {
             const yearRepartitions = await this.yearRepartitionRepository.find();
+            
+            // Convertir chaque entité en utilisant la méthode convertToResponse
+            const convertedRepartitions = yearRepartitions.map(entity => 
+                this.convertToResponse(entity)
+            );
+            
             return {
                 success: true,
-                data: yearRepartitions.map(this.convertToResponse),
+                data: convertedRepartitions,
                 error: null,
                 message: "Répartitions récupérées avec succès",
             };
@@ -145,8 +180,20 @@ export class YearRepartitionService {
     async getCurrentYearRepartition(): Promise<ResultType<YearRepartition | null>> {
         try {
             const allRepartitions = await this.yearRepartitionRepository.find();
-            const currentDate = new Date();
             
+            // Chercher d'abord une répartition marquée comme courante manuellement
+            const manuallySetCurrent = allRepartitions.find(repartition => repartition.isCurrent === true);
+            if (manuallySetCurrent) {
+                return {
+                    success: true,
+                    data: this.convertToResponse(manuallySetCurrent),
+                    error: null,
+                    message: "Année scolaire courante trouvée (définie manuellement)"
+                };
+            }
+            
+            // Sinon, chercher une répartition basée sur la date actuelle
+            const currentDate = new Date();
             const currentRepartition = allRepartitions.find(repartition => {
                 const periods = repartition.periodConfigurations;
                 if (!periods || periods.length === 0) return false;
@@ -161,7 +208,7 @@ export class YearRepartitionService {
                 success: true,
                 data: currentRepartition ? this.convertToResponse(currentRepartition) : null,
                 error: null,
-                message: currentRepartition ? "Année scolaire courante trouvée" : "Aucune année scolaire active trouvée"
+                message: currentRepartition ? "Année scolaire courante trouvée (basée sur la date)" : "Aucune année scolaire active trouvée"
             };
         } catch (error) {
             return {
@@ -175,6 +222,7 @@ export class YearRepartitionService {
 
     async setCurrentYearRepartition(id: number): Promise<ResultType<YearRepartition>> {
         try {
+            // Vérifier si la répartition existe
             const yearRepartition = await this.yearRepartitionRepository.findOne({
                 where: { id }
             });
@@ -188,9 +236,27 @@ export class YearRepartitionService {
                 };
             }
 
+            // Mettre à jour toutes les répartitions pour désactiver l'année courante
             await this.yearRepartitionRepository.update({}, { isCurrent: false });
+            
+            // Mettre à jour seulement la répartition spécifiée
             yearRepartition.isCurrent = true;
             const saved = await this.yearRepartitionRepository.save(yearRepartition);
+
+            // Rafraîchir la liste des répartitions pour s'assurer qu'une seule est marquée comme courante
+            const allRepartitions = await this.yearRepartitionRepository.find();
+            const currentCount = allRepartitions.filter(rep => rep.isCurrent).length;
+            
+            if (currentCount > 1) {
+                console.warn(`Multiple current year repartitions found (${currentCount}). Fixing...`);
+                // S'il y a plus d'une répartition marquée comme courante, garder uniquement la dernière
+                for (const rep of allRepartitions) {
+                    if (rep.isCurrent && rep.id !== yearRepartition.id) {
+                        rep.isCurrent = false;
+                        await this.yearRepartitionRepository.save(rep);
+                    }
+                }
+            }
 
             return {
                 success: true,

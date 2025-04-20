@@ -152,6 +152,10 @@ const deleteRepartition = async (repartition: YearRepartitionResponse) => {
 
 const handleSubmit = async (data: YearRepartitionCreateInput | YearRepartitionUpdateInput) => {
   try {
+    // Vérifier si c'est une mise à jour (l'ID est présent dans les données)
+    const isUpdate = 'id' in data && data.id !== undefined;
+    console.log(`Mode: ${isUpdate ? 'Mise à jour' : 'Création'}, ID: ${isUpdate ? data.id : 'N/A'}`);
+    
     // Préparer les données en formatant correctement les dates
     const formattedData = {
       ...data,
@@ -160,21 +164,34 @@ const handleSubmit = async (data: YearRepartitionCreateInput | YearRepartitionUp
         start: period.start ? new Date(period.start).toISOString() : null,
         end: period.end ? new Date(period.end).toISOString() : null
       })) || []
+    };
+    
+    let result;
+    
+    if (isUpdate) {
+      // S'assurer que l'ID est correctement extrait avant de l'envoyer
+      const id = (data as any).id;
+      console.log("Mode mise à jour - ID:", id);
+      console.log("Données à envoyer:", JSON.stringify({
+        id,
+        data: formattedData
+      }, null, 2));
+      
+      // Envoi explicite de l'ID et des données séparément
+      result = await window.ipcRenderer.invoke("yearRepartition:update", {
+        id,
+        data: formattedData
+      });
+      
+      console.log("Résultat de la mise à jour:", JSON.stringify(result, null, 2));
+    } else {
+      console.log("Mode création - Données:", JSON.stringify(formattedData, null, 2));
+      result = await window.ipcRenderer.invoke("yearRepartition:create", formattedData);
+      console.log("Résultat de la création:", JSON.stringify(result, null, 2));
     }
 
-    if ('id' in data && data.id) {
-      const result = await window.ipcRenderer.invoke("yearRepartition:update", {
-        id: data.id,
-        data: formattedData,
-      });
-      if (!result.success) {
-        throw new Error(result.message || "Échec de la mise à jour");
-      }
-    } else {
-      const result = await window.ipcRenderer.invoke("yearRepartition:create", formattedData);
-      if (!result.success) {
-        throw new Error(result.message || "Échec de la création");
-      }
+    if (!result.success) {
+      throw new Error(result.message || (isUpdate ? "Échec de la mise à jour" : "Échec de la création"));
     }
 
     await fetchYearRepartitions();

@@ -22,6 +22,8 @@ export class GradeEntity {
     students?: StudentEntity[];
     @OneToMany(() => BranchEntity , branch => branch.grade)
     branches?: BranchEntity[];
+    @OneToMany(() => ClassRoomEntity, classRoom => classRoom.grade)
+    classRooms?: ClassRoomEntity[];
     @CreateDateColumn()
     createdAt?: Date;
     @UpdateDateColumn()
@@ -38,7 +40,7 @@ export class ClassRoomEntity {
     code?: string;
     @Column({type: 'numeric'})
     capacity?: number;
-    @OneToOne(() => GradeEntity , {onDelete: 'CASCADE'})
+    @ManyToOne(() => GradeEntity, {onDelete: 'CASCADE'})
     @JoinColumn()
     grade?: GradeEntity;
     @OneToOne(() => BranchEntity , {onDelete: 'CASCADE'})
