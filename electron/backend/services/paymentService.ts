@@ -6,7 +6,7 @@ import { StudentEntity } from '../entities/students';
 import { ProfessorEntity } from '../entities/professor';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
 import { ScholarshipEntity } from '../entities/scholarship';
-import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse } from '../types/payment';
+import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse, IPaymentServiceParams } from '../types/payment';
 
 export interface ResultType<T = any> {
     success: boolean;
@@ -355,7 +355,7 @@ export class PaymentService {
             }
 
             const config = await this.configRepository.findOne({
-                where: { classId: student.grade.id.toString() }
+                where: { classId: student.grade.id?.toString() || '0' }
             });
 
             if (!config) {

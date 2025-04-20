@@ -5,8 +5,7 @@ import {Icon} from "@iconify/vue";
 import GradeForm from "@/components/grade/grade-form.vue";
 import {onMounted, ref} from "vue";
 import {ElMessage, ElMessageBox, FormInstance} from "element-plus";
-import {GradeCommand} from "#electron/command/settingsCommand.ts";
-import {BranchEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {GradeCommand, Grade, Branch, BranchCommand} from "@/types/grade";
 import {cloneDeep} from "lodash"
 import {Loader} from "@/components/util/AppLoader.ts";
 import BranchForm from "@/components/grade/branch-form.vue";
@@ -15,19 +14,19 @@ const newGradeFormRef = ref()
 const updateGradeFormRef = ref()
 const newBranchFormRef = ref()
 const updateBranchFormRef = ref()
-const grades = ref<GradeEntity[]>([])
+const grades = ref<Grade[]>([])
 const isLoading = ref(false)
 
-function openUpdateGradeForm(grade:GradeEntity){
+function openUpdateGradeForm(grade: Grade){
   updateGradeFormRef.value.open(grade)
 }
 
-function openNewBranchForm(grade:GradeEntity){
+function openNewBranchForm(grade: Grade){
   newBranchFormRef.value.open(grade)
 }
 
-function openUpdateBranchForm(branch:BranchEntity , grade:GradeEntity){
-  updateBranchFormRef.value.open(grade , branch)
+function openUpdateBranchForm(branch: Branch, grade: Grade){
+  updateBranchFormRef.value.open(grade, branch)
 }
 
 async function newGrade(formRef:FormInstance|undefined , form:GradeCommand){
@@ -61,7 +60,7 @@ async function newGrade(formRef:FormInstance|undefined , form:GradeCommand){
   }
 }
 
-async function newBranch(formRef:FormInstance|undefined , form:BranchEntity){
+async function newBranch(formRef:FormInstance|undefined, form:BranchCommand){
   if(!formRef) return
   
   try {
@@ -70,7 +69,11 @@ async function newBranch(formRef:FormInstance|undefined , form:BranchEntity){
       if(isValid){
         isLoading.value = true
         Loader.showLoader("Ajout de la branche en cours")
-        const newBranchResult = await window.ipcRenderer.invoke("branch:new" , cloneDeep(form))
+        if (!form.gradeId) {
+          throw new Error("L'ID de la classe est requis")
+        }
+        
+        const newBranchResult = await window.ipcRenderer.invoke("branch:new", cloneDeep(form))
         if(newBranchResult.success){
           grades.value = newBranchResult.data
           newBranchFormRef.value?.close()
@@ -88,7 +91,7 @@ async function newBranch(formRef:FormInstance|undefined , form:BranchEntity){
     isLoading.value = false
     setTimeout(()=>{
       Loader.hideLoader()
-    } , 500)
+    }, 500)
   }
 }
 
@@ -123,7 +126,7 @@ async function updateGrade(formRef:FormInstance|undefined , form:GradeCommand){
   }
 }
 
-async function updateBranch(formRef:FormInstance|undefined , form:BranchEntity){
+async function updateBranch(formRef:FormInstance|undefined, form:BranchCommand){
   if(!formRef) return
   
   try {
@@ -132,7 +135,11 @@ async function updateBranch(formRef:FormInstance|undefined , form:BranchEntity){
       if(isValid){
         isLoading.value = true
         Loader.showLoader("Mise à jour de la branche en cours")
-        const updateBranchResult = await window.ipcRenderer.invoke("branch:update" , cloneDeep(form))
+        if (!form.id || !form.name || !form.code || !form.gradeId) {
+          throw new Error("L'ID, le nom, le code et l'ID de la classe sont requis")
+        }
+        
+        const updateBranchResult = await window.ipcRenderer.invoke("branch:update", cloneDeep(form))
         if(updateBranchResult.success){
           grades.value = updateBranchResult.data
           updateBranchFormRef.value.close()
@@ -150,7 +157,7 @@ async function updateBranch(formRef:FormInstance|undefined , form:BranchEntity){
     isLoading.value = false
     setTimeout(()=>{
       Loader.hideLoader()
-    } , 500)
+    }, 500)
   }
 }
 

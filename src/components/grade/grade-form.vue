@@ -1,9 +1,8 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {GradeCommand} from "#electron/command/settingsCommand.ts";
+import {GradeCommand, Grade} from "@/types/grade";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {GradeEntity} from "#electron/backend/entities/grade.ts";
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)
@@ -24,7 +23,7 @@ const formRule = reactive<FormRules<GradeCommand>>({
   ]
 })
 
-function open(grade?:GradeEntity){
+function open(grade?: Grade){
   dialogVisible.value = true
   if (grade) {
     form.id = grade.id

@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {ClassRoomCommand, CourseCommand, SubCourseCommand} from "#electron/command/settingsCommand.ts";
+import {CourseCommand} from "@/types/course";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
-import {Mapper} from "#electron/command";
+import {Course} from "@/types/course";
+import {cloneDeep} from "lodash";
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)
@@ -32,20 +32,36 @@ const formRule = reactive<FormRules<CourseCommand>>({
     }, trigger:"blur"}
   ],
 })
-function open(groupement:CourseEntity,  course?:CourseCommand){
+function open(groupement:Course,  course?:CourseCommand){
   dialogVisible.value = true
-  form.groupement = Mapper.mapTo<CourseEntity, SubCourseCommand>(groupement, SubCourseCommand);
+  
+  // Réinitialiser le formulaire
+  form.name = "";
+  form.code = "";
+  form.coefficient = 1;
+  form.isInGroupement = true;
+  
+  // Définir le groupement (matière parente)
+  form.groupement = cloneDeep({
+    id: groupement.id,
+    name: groupement.name,
+    code: groupement.code,
+    coefficient: groupement.coefficient,
+    isInGroupement: groupement.isInGroupement
+  });
+  
+  // Si un cours est fourni, utiliser ses données (pour modifier une sous-matière existante)
   if(course){
-    form.name=course?.name
-    form.code=course?.code
-    form.coefficient=course?.coefficient
+    form.name = course.name || "";
+    form.code = course.code || "";
+    form.coefficient = course.coefficient || 1;
   }
 }
 function close(){
   dialogVisible.value = false
 }
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance|undefined , form:ClassRoomCommand):void
+  (e:"submit-action" , formRef:FormInstance|undefined , form:CourseCommand):void
 }>()
 defineExpose({
   open,

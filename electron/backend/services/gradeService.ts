@@ -180,9 +180,18 @@ export class GradeService {
             classRoom.grade = grade;
 
             const savedClassRoom = await this.classRoomRepository.save(classRoom);
+            
+            // Récupérer toutes les salles après création
+            const classRooms = await this.classRoomRepository.find({
+                relations: {
+                    branch: true,
+                    grade: true
+                }
+            });
+            
             return {
                 success: true,
-                data: savedClassRoom,
+                data: classRooms,
                 message: "Salle de classe créée avec succès"
             };
         } catch (error) {

@@ -1,13 +1,13 @@
 <script lang="ts" setup>
 import {ref} from 'vue'
 import {Icon} from "@iconify/vue";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {Course} from "@/types/course";
 import CourseGroupTable from "@/components/course/course-group-table.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
 
 const dialogVisible = ref(false)
-const course = ref<CourseEntity>()
-function open(_course:CourseEntity){
+const course = ref<Course>()
+function open(_course:Course){
   dialogVisible.value = true
   course.value = _course
 }

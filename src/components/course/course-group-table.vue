@@ -1,11 +1,12 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import {ElTable} from 'element-plus'
+import {reactive, ref} from 'vue'
 import {Icon} from "@iconify/vue";
-import {computed, reactive, ref} from "vue";
-import {ClassRoomCommand} from "#electron/command/settingsCommand.ts";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {Course} from "@/types/course";
 
-const props = defineProps<{courses:CourseEntity[]}>()
+const props = defineProps<{
+  courses: Course[]
+}>();
 const searchForm = ref("")
 const paginator = reactive<{
   totalPage:number
@@ -13,7 +14,7 @@ const paginator = reactive<{
   currentPage:number
 }>({
   totalPage:0,
-  pageSize:2 ,
+  pageSize:5 ,
   currentPage:1
 })
 // const courseDetailsRef = ref()
