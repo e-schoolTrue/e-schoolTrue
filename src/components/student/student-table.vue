@@ -203,28 +203,12 @@ import { Icon } from '@iconify/vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import * as XLSX from "xlsx";
 import { Refresh } from '@element-plus/icons-vue';
-import type { IStudentFile } from '@/types/student';
-import type { IGrade, IGradeOption } from '@/types/shared';
+import type { IStudentFile, IStudentData } from '@/types/student';
+import type { IGrade } from '@/types/shared';
 
-interface Student {
-  id?: number;
-  firstname: string;
-  lastname: string;
-  matricule: string;
-  schoolYear: string;
-  gradeId: number;
-  famillyPhone?: string;
-  sex: "male" | "female";
-  birthDay?: string;
-  birthPlace?: string;
-  address?: string;
-  fatherFirstname?: string;
-  fatherLastname?: string;
-  motherFirstname?: string;
-  motherLastname?: string;
-  personalPhone?: string;
-  photo?: IStudentFile;
+interface Student extends Omit<IStudentData, 'documents' | 'photo'> {
   documents?: IStudentFile[];
+  photo?: IStudentFile;
 }
 
 const props = defineProps({
@@ -283,11 +267,16 @@ const filteredStudents = computed(() => {
   if (!searchQuery.value) {
     return props.students;
   }
-  return props.students.filter(student => 
-    student.firstname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    student.lastname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    student.matricule.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
+  return props.students.filter(student => {
+    const firstname = student.firstname?.toLowerCase() || '';
+    const lastname = student.lastname?.toLowerCase() || '';
+    const matricule = student.matricule?.toLowerCase() || '';
+    const query = searchQuery.value.toLowerCase();
+    
+    return firstname.includes(query) || 
+           lastname.includes(query) || 
+           matricule.includes(query);
+  });
 });
 
 // Methods
@@ -354,15 +343,21 @@ const handleExport = () => {
 };
 
 const getGradeName = (gradeId: number | undefined): string => {
-  if (!gradeId) return "Non assigné";
-  
-  if (!Array.isArray(grades.value)) {
-    console.error('Grades is not an array');
+  // Si gradeId est 0, c'est une valeur valide mais considérée comme falsy en JavaScript
+  if (gradeId === undefined || gradeId === null) {
     return "Non assigné";
   }
   
+  // Si gradeId est 0, on pourrait avoir un cas particulier
+  if (gradeId === 0) {
+    // Vérifier s'il existe une définition spéciale pour le grade 0
+    const grade = grades.value.find((g) => g.id === 0);
+    return (grade && grade.name) ? grade.name : "Non assigné";
+  }
+  
+  // Pour les valeurs positives de gradeId
   const grade = grades.value.find((g) => g.id === gradeId);
-  return grade ? grade.name : "Non assigné";
+  return (grade && grade.name) ? grade.name : "Non assigné";
 };
 
 const getGradeTagType = (gradeId: number | undefined): string => {
@@ -525,3 +520,4 @@ const refreshData = () => {
   background: #7c7c7c;
 }
 </style>
+

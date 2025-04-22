@@ -29,6 +29,11 @@ export interface IStudentData {
     documentId?: number;
     documents: FileEntity[];
     photo: FileEntity | null;
+    grade?: {
+        id: number;
+        name: string;
+        code: string;
+    };
 }
 
 // Types pour les fichiers de l'étudiant

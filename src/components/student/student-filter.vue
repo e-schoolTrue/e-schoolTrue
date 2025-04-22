@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import type { IStudentDetails } from '@/types/student';
 import type { IFilterForm, IGradeOption, ISchoolYearOption } from '@/types/shared';
 
 const emit = defineEmits(['filter', 'reset']);

@@ -5,30 +5,13 @@ import { CIVILITY, FAMILY_SITUATION } from "#electron/command";
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import * as XLSX from "xlsx";
+import type { IProfessorDetails } from '@/types/professor';
 
-interface Professor {
-  id?: number;
-  firstname: string;
-  lastname: string;
-  civility: CIVILITY;
-  nbr_child: number;
-  family_situation: FAMILY_SITUATION;
-  birth_date: Date | null;
-  birth_town: string;
-  address: string;
-  town: string;
-  cni_number: string;
-  diploma?: {
-    name: string;
-  };
-  qualification?: {
-    name: string;
-  };
-}
+
 
 const props = defineProps({
   professors: {
-    type: Array as () => Professor[],
+    type: Array as () => IProfessorDetails[],
     required: true,
   },
 });
@@ -38,7 +21,7 @@ const emit = defineEmits(['detail', 'edit', 'delete', 'pageChange']);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const searchQuery = ref('');
-const filteredProfessors = ref<Professor[]>([]);
+const filteredProfessors = ref<IProfessorDetails[]>([]);
 
 // Initialiser filteredProfessors avec les données de props.professors
 onMounted(() => {
@@ -60,15 +43,15 @@ const paginatedData = computed(() => {
   return filteredProfessors.value.slice(start, end);
 });
 
-const handleDetail = (professor: Professor) => {
+const handleDetail = (professor: IProfessorDetails) => {
   router.push(`/professor/${professor.id}`);
 };
 
-const handleEdit = (professor: Professor) => {
+const handleEdit = (professor: IProfessorDetails) => {
   emit('edit', professor.id);
 };
 
-const handleDelete = async (professor: Professor) => {
+const handleDelete = async (professor: IProfessorDetails) => {
   try {
     await ElMessageBox.confirm(
       `Êtes-vous sûr de vouloir supprimer le professeur ${professor.firstname} ${professor.lastname} ?`,
@@ -132,10 +115,10 @@ const handleExport = () => {
   try {
     // Préparer les données pour l'export
     const exportData = filteredProfessors.value.map(prof => ({
-      'Civilité': getCivilityLabel(prof.civility),
-      'Nom': prof.lastname,
+      'Civilité': getCivilityLabel(prof.civility as CIVILITY),
+      'Nom': prof.lastname, 
       'Prénom': prof.firstname,
-      'Situation Familiale': getFamilySituationLabel(prof.family_situation),
+      'Situation Familiale': getFamilySituationLabel(prof.family_situation as FAMILY_SITUATION),
       'Nombre d\'enfants': prof.nbr_child,
       'Date de naissance': prof.birth_date ? new Date(prof.birth_date).toLocaleDateString() : '',
       'Ville de naissance': prof.birth_town,

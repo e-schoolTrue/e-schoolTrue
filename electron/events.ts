@@ -992,47 +992,21 @@ ipcMain.handle('gradeConfig:get', async (_event, { gradeId }) => {
     }
 });
 
-export function registerReportEvents() {
-  const reportService = new ReportCardService();
-
-  // Génération du bulletin
-  ipcMain.handle('report:generate', async (_, data: { studentId: number; period: string }) => {
-    console.log('Demande de génération de bulletin:', data);
-    try {
-      const result = await reportService.generateReportCard(data);
-      console.log('Résultat de la génération:', result);
-      return result;
-    } catch (error) {
-      console.error('Erreur génération bulletin:', error);
-      return {
-        success: false,
-        data: null,
-        message: "Erreur lors de la génération du bulletin",
-        error: error instanceof Error ? error.message : "Erreur inconnue",
-        generalAverage: 0
-      };
-    }
-  });
-
-  // Récupération des notes
-  ipcMain.handle('report:getGrades', async (_, data: { studentId: number; period: string }) => {
-    console.log('Demande de récupération des notes:', data);
-    try {
-      const result = await reportService.getStudentGrades(data.studentId, data.period);
-      console.log('Notes récupérées:', result);
-      return result;
-    } catch (error) {
-      console.error('Erreur récupération notes:', error);
-      return {
-        success: false,
-        data: [],
-        message: "Erreur lors de la récupération des notes",
-        error: error instanceof Error ? error.message : "Erreur inconnue",
-        generalAverage: 0
-      };
-    }
-  });
-}
+// Handler pour mettre à jour un professeur
+ipcMain.handle("professor:update", async (_event: Electron.IpcMainInvokeEvent, { id, data }: { id: number, data: any }): Promise<ResultType> => {
+  try {
+    console.log(`Début de professor:update pour le professeur ID: ${id}`);
+    const response = await global.professorService.updateProfessor(id, data);
+    return {
+      success: response.success,
+      data: response.data,
+      message: response.message || 'Mise à jour du professeur réussie',
+      error: response.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la mise à jour du professeur');
+  }
+});
 
 // Gestionnaire pour récupérer les informations de l'école
 ipcMain.handle('school:get', async () => {
@@ -1079,6 +1053,114 @@ ipcMain.handle('school:save', async (_event, schoolData) => {
         return handleError(error, 'Erreur lors de la sauvegarde des informations de l\'école');
     }
 });
+
+// Handler pour créer un nouveau professeur
+ipcMain.handle("professor:create", async (_event: Electron.IpcMainInvokeEvent, professorData: any): Promise<ResultType> => {
+  try {
+    console.log("Début de professor:create avec les données:", JSON.stringify(professorData));
+    const response = await global.professorService.createProfessor(professorData);
+    return {
+      success: response.success,
+      data: response.data,
+      message: response.message || 'Professeur créé avec succès',
+      error: response.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la création du professeur');
+  }
+});
+
+// Handler pour récupérer tous les professeurs
+ipcMain.handle("professor:all", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+  try {
+    console.log("Début de professor:all");
+    const response = await global.professorService.getAllProfessors();
+    return {
+      success: response.success,
+      data: response.data,
+      message: response.message || 'Récupération des professeurs réussie',
+      error: response.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération des professeurs');
+  }
+});
+
+// Handler pour récupérer un professeur par son ID
+ipcMain.handle("professor:getById", async (_event: Electron.IpcMainInvokeEvent, professorId: number): Promise<ResultType> => {
+  try {
+    console.log(`Début de professor:getById pour le professeur ID: ${professorId}`);
+    const response = await global.professorService.getProfessorById(professorId);
+    return {
+      success: response.success,
+      data: response.data,
+      message: response.message || 'Récupération du professeur réussie',
+      error: response.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération du professeur');
+  }
+});
+
+// Handler pour supprimer un professeur
+ipcMain.handle("professor:delete", async (_event: Electron.IpcMainInvokeEvent, professorId: number): Promise<ResultType> => {
+  try {
+    console.log(`Début de professor:delete pour le professeur ID: ${professorId}`);
+    const response = await global.professorService.deleteProfessor(professorId);
+    return {
+      success: response.success,
+      data: response.data,
+      message: response.message || 'Suppression du professeur réussie',
+      error: response.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la suppression du professeur');
+  }
+});
+
+// Exporter la fonction registerReportEvents pour qu'elle puisse être utilisée dans main.ts
+export function registerReportEvents() {
+  const reportService = new ReportCardService();
+
+  // Génération du bulletin
+  ipcMain.handle('report:generate', async (_, data: { studentId: number; period: string }) => {
+    console.log('Demande de génération de bulletin:', data);
+    try {
+      const result = await reportService.generateReportCard(data);
+      console.log('Résultat de la génération:', result);
+      return result;
+    } catch (error) {
+      console.error('Erreur génération bulletin:', error);
+      return {
+        success: false,
+        data: null,
+        message: "Erreur lors de la génération du bulletin",
+        error: error instanceof Error ? error.message : "Erreur inconnue",
+        generalAverage: 0
+      };
+    }
+  });
+
+  // Récupération des notes
+  ipcMain.handle('report:getGrades', async (_, data: { studentId: number; period: string }) => {
+    console.log('Demande de récupération des notes:', data);
+    try {
+      const result = await reportService.getStudentGrades(data.studentId, data.period);
+      console.log('Notes récupérées:', result);
+      return result;
+    } catch (error) {
+      console.error('Erreur récupération notes:', error);
+      return {
+        success: false,
+        data: [],
+        message: "Erreur lors de la récupération des notes",
+        error: error instanceof Error ? error.message : "Erreur inconnue",
+        generalAverage: 0
+      };
+    }
+  });
+}
+
 
 
 

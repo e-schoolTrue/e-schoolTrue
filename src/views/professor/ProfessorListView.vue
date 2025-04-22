@@ -4,9 +4,11 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorTable from '@/components/professor/professor-table.vue';
 import { SCHOOL_TYPE } from '#electron/command';
+import type { IProfessorDetails } from '@/types/professor';
+import { Icon } from '@iconify/vue';
 
 const router = useRouter();
-const professors = ref([]);
+const professors = ref<IProfessorDetails[]>([]);
 const loading = ref(false);
 
 const loadProfessors = async () => {
@@ -26,7 +28,7 @@ const loadProfessors = async () => {
   }
 };
 
-const handleDetail = (professor: any) => {
+const handleDetail = (professor: IProfessorDetails) => {
   router.push(`/professor/${professor.id}`);
 };
 
@@ -49,12 +51,12 @@ const handleDelete = async (id: number) => {
   }
 };
 
-const formatTeachingInfo = (professor: any) => {
+const formatTeachingInfo = (professor: IProfessorDetails) => {
   if (!professor.teaching || professor.teaching.length === 0) {
     return 'Non assigné';
   }
 
-  return professor.teaching.map((teaching: any) => {
+  return professor.teaching.map((teaching) => {
     if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
       return `Instituteur - ${teaching.class?.name || 'N/A'}`;
     } else {
@@ -78,6 +80,17 @@ onMounted(loadProfessors);
       @delete="handleDelete"
       :format-teaching="formatTeachingInfo"
     />
+    
+    <el-button 
+      type="primary" 
+      class="floating-add-btn" 
+      circle
+      size="large"
+      @click="router.push({ name: 'AddProfessor' })"
+      title="Ajouter un professeur"
+    >
+      <Icon icon="mdi:account-plus" width="24" height="24" />
+    </el-button>
   </div>
 </template>
 
@@ -86,5 +99,14 @@ onMounted(loadProfessors);
   height: 100vh;
   background-color: #f0f2f5;
   overflow-y: auto;
+  padding-bottom: 80px;
+}
+
+.floating-add-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 </style> 

@@ -191,6 +191,15 @@ const displayFileSize = computed(() => {
     : "Taille inconnue";
 });
 
+// Fonction pour normaliser les chaînes (suppression d'accents, minuscules, etc.)
+const normalizeString = (str: string): string => {
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Supprime les accents
+    .replace(/[^a-z0-9]/g, ""); // Garde uniquement les lettres et chiffres
+};
+
 //
 // Dans votre composant d'import
 const fetchGradeMappings = async () => {
@@ -201,7 +210,14 @@ const fetchGradeMappings = async () => {
     // Créer un objet de mapping
     const gradeMapping: Record<string, number> = {};
     grades.data.forEach((grade: { id: number; name: string }) => {
+      // Mapping standard avec le nom exact
       gradeMapping[grade.name] = grade.id;
+      
+      // Mapping supplémentaire avec le nom normalisé pour plus de robustesse
+      const normalizedName = normalizeString(grade.name);
+      if (normalizedName !== grade.name.toLowerCase()) {
+        gradeMapping[normalizedName] = grade.id;
+      }
     });
 
     return gradeMapping;
@@ -221,20 +237,28 @@ const validateImport = async () => {
     const notFoundGrades: string[] = [];
 
     const mappedData = excelData.value.map((row) => {
-      const mappedRow: Partial<IStudentData> = {};
+      const mappedRow = {} as Record<keyof IStudentData, any>;
       for (const [header, field] of Object.entries(columnMappings.value)) {
         if (field && row[header] !== undefined) {
           if (field === "birthDay" && row[header]) {
-            mappedRow[field] = new Date(row[header]);
+            mappedRow[field as keyof IStudentData] = new Date(row[header]);
           } else if (field === "gradeId" && row[header]) {
-            const gradeId = gradeMapping[row[header]];
+            // Essayer d'abord avec le nom exact
+            let gradeId = gradeMapping[row[header]];
+            
+            // Si non trouvé, essayer avec le nom normalisé
+            if (!gradeId && typeof row[header] === 'string') {
+              const normalizedGradeName = normalizeString(row[header]);
+              gradeId = gradeMapping[normalizedGradeName];
+            }
+            
             if (gradeId) {
-              mappedRow[field] = gradeId;
+              mappedRow[field as keyof IStudentData] = gradeId;
             } else {
               notFoundGrades.push(row[header]);
             }
           } else {
-            mappedRow[field] = row[header];
+            mappedRow[field as keyof IStudentData] = row[header];
           }
         }
       }
