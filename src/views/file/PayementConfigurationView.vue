@@ -139,6 +139,13 @@ const modalTitle = computed(() =>
 );
 
 const openCreateModal = () => {
+  if (configurations.value.length === 0) {
+    ElMessage.warning("Aucune classe n'est disponible pour configuration");
+    return;
+  }
+  
+  const nonConfigured = configurations.value.find(c => c.annualAmount === 0);
+  currentConfig.value = nonConfigured ? { ...nonConfigured } : { ...configurations.value[0] };
   showModal.value = true;
 };
 
@@ -151,8 +158,23 @@ const saveConfiguration = async () => {
   try {
     isSaving.value = true;
     
-    if (!currentConfig.value.classId || !currentConfig.value.annualAmount) {
-      throw new Error('Veuillez remplir tous les champs obligatoires');
+    if (!currentConfig.value.classId) {
+      ElMessage.error('Veuillez sélectionner une classe');
+      return;
+    }
+    
+    if (currentConfig.value.annualAmount <= 0) {
+      ElMessage.error('Le montant des frais de scolarité doit être supérieur à 0');
+      return;
+    }
+
+    // Validation des bourses si l'option est activée
+    if (currentConfig.value.allowScholarship && 
+        (!currentConfig.value.scholarshipPercentages || 
+         !Array.isArray(currentConfig.value.scholarshipPercentages) || 
+         currentConfig.value.scholarshipPercentages.length === 0)) {
+      ElMessage.error('Veuillez sélectionner au moins un pourcentage de bourse');
+      return;
     }
 
     const configData: PaymentConfigCreateInput = {

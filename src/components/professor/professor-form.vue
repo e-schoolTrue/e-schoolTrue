@@ -111,7 +111,7 @@ const validateCurrentStep = async () => {
     });
     return true;
   } catch (error) {
-    console.error('Erreur lors de la validation de l’étape :', error);
+    console.error("Erreur lors de la validation de l\'étape :", error);
     return false;
   }
 };
@@ -120,7 +120,7 @@ const validateCurrentStep = async () => {
 
 // Navigation entre les étapes avec validation
 const nextStep = async () => {
-  console.log('Tentative de passer à l’étape suivante depuis l’étape', activeStep.value);
+  console.log("Tentative de passer à l\'étape suivante depuis l\'étape", activeStep.value);
   const isValid = await validateCurrentStep();
   if (isValid && activeStep.value < steps.length - 1) {
     activeStep.value++;
@@ -144,16 +144,77 @@ const handlePhotoPreview = (file: File) => {
     return false;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    const result = reader.result as string;
-    form.photo = {
-      name: file.name,
-      type: file.type,
-      content: result.split(',')[1]
-    };
+  // Créer un canvas pour compresser l'image
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          // Définir les dimensions maximales pour réduire la taille
+          const MAX_WIDTH = 300;
+          const MAX_HEIGHT = 300;
+          
+          let width = img.width;
+          let height = img.height;
+          
+          // Calculer les nouvelles dimensions
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Dessiner l'image redimensionnée
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Obtenir l'URL de données avec une qualité réduite (0.6 = 60%)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          resolve(dataUrl);
+        };
+        img.onerror = () => {
+          reject(new Error("Échec du chargement de l'image"));
+        };
+      };
+      reader.onerror = () => {
+        reject(new Error("Échec de la lecture du fichier"));
+      };
+      reader.readAsDataURL(file);
+    });
   };
-  reader.readAsDataURL(file);
+
+  // Utiliser la compression
+  compressImage(file)
+    .then(dataUrl => {
+      // Décomposer l'URL de données
+      const base64Content = dataUrl.split(',')[1];
+      
+      // Créer un objet avec la structure attendue
+      form.photo = {
+        name: file.name,
+        type: 'image/jpeg',
+        content: base64Content,
+        url: dataUrl // Ajouter cette propriété pour l'affichage
+      } as any; // Utiliser 'as any' pour éviter les erreurs de typage
+    })
+    .catch(error => {
+      console.error("Erreur lors de la compression de l'image:", error);
+      ElMessage.error("Erreur lors du traitement de l'image");
+    });
+    
   return false;
 };
 
@@ -335,8 +396,8 @@ const emit = defineEmits<{
               accept="image/*"
             >
               <img 
-                v-if="form.photo?.content" 
-                :src="form.photo.content" 
+                v-if="form.photo?.url" 
+                :src="form.photo.url" 
                 class="avatar"
               />
               <el-icon v-else class="avatar-uploader-icon">
