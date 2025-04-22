@@ -8,6 +8,7 @@ import StudentTable from "@/components/student/student-table.vue";
 import { ElMessage } from 'element-plus';
 import type { IStudentDetails, IStudentFile } from '@/types/student';
 import type { IFilterCriteria } from '@/types/shared';
+import { Icon } from '@iconify/vue';
 
 interface Student {
   id?: number;
@@ -18,7 +19,7 @@ interface Student {
   gradeId: number;
   famillyPhone?: string;
   sex: "male" | "female";
-  birthDay?: string;
+  birthDay?: Date | null | undefined;
   birthPlace?: string;
   address?: string;
   fatherFirstname?: string;
@@ -58,10 +59,10 @@ const loadStudents = async () => {
           lastname: student.lastname,
           firstname: student.firstname,
           schoolYear: student.schoolYear || '',
-          gradeId: student.gradeId || 0,
+          gradeId: student.grade?.id || 0,
           famillyPhone: student.famillyPhone || '',
           sex: student.sex || 'male',
-          birthDay: student.birthDay ? new Date(student.birthDay).toISOString() : undefined,
+          birthDay: student.birthDay ? new Date(student.birthDay) : undefined,
           birthPlace: student.birthPlace,
           address: student.address,
           fatherFirstname: student.fatherFirstname,
@@ -229,24 +230,39 @@ const handleFilter = (filterCriteria: {
 }) => {
   console.log('Critères de filtrage reçus:', filterCriteria);
   
-  filteredStudents.value = students.value.filter(student => {
-    const nameMatch = filterCriteria.studentFullName
-      ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
-         student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
-      : true;
-    
-    const gradeMatch = filterCriteria.classId 
-      ? student.gradeId === Number(filterCriteria.classId)
-      : true;
-    
-    const yearMatch = filterCriteria.schoolYear
-      ? student.schoolYear === filterCriteria.schoolYear
-      : true;
+  // Si le filtre est basé sur l'ID de la classe, utiliser directement ce filtre
+  if (filterCriteria.classId) {
+    filteredStudents.value = students.value.filter(student => {
+      const nameMatch = filterCriteria.studentFullName
+        ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
+           student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+        : true;
+      
+      const gradeMatch = student.gradeId === Number(filterCriteria.classId);
+      
+      const yearMatch = filterCriteria.schoolYear
+        ? student.schoolYear === filterCriteria.schoolYear
+        : true;
 
-    const match = nameMatch && gradeMatch && yearMatch;
-    console.log('Étudiant:', student, 'Match:', match);
-    return match;
-  });
+      const match = nameMatch && gradeMatch && yearMatch;
+      console.log('Étudiant:', student, 'Match:', match);
+      return match;
+    });
+  } else {
+    // Filtrage standard sans filtre par classe
+    filteredStudents.value = students.value.filter(student => {
+      const nameMatch = filterCriteria.studentFullName
+        ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
+           student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+        : true;
+      
+      const yearMatch = filterCriteria.schoolYear
+        ? student.schoolYear === filterCriteria.schoolYear
+        : true;
+
+      return nameMatch && yearMatch;
+    });
+  }
 
   console.log('Étudiants filtrés:', filteredStudents.value);
 };
@@ -318,8 +334,8 @@ const proceedWithPrint = () => {
 <template>
   <div class="student-list-container">
     <student-filter 
-    @filter="handleFilter"
-    @reset="resetFilter"
+      @filter="handleFilter"
+      @reset="resetFilter"
     />
     <student-table 
       :students="filteredStudents"
@@ -330,6 +346,17 @@ const proceedWithPrint = () => {
       @print="handlePrint"
       @preview="handlePreview"
     />
+    
+    <el-button 
+      type="primary" 
+      class="floating-add-btn" 
+      circle
+      size="large"
+      @click="router.push({ name: 'AddStudent' })"
+      title="Ajouter un étudiant"
+    >
+      <Icon icon="mdi:account-plus" width="24" height="24" />
+    </el-button>
     
     <!-- Dialog pour l'aperçu -->
     <el-dialog
@@ -396,5 +423,13 @@ const proceedWithPrint = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.floating-add-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 </style>

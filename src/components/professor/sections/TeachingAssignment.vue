@@ -2,12 +2,28 @@
 import { ref, onMounted, computed } from 'vue';
 import { SCHOOL_TYPE } from "#electron/command";
 
+interface Teaching {
+  schoolType: SCHOOL_TYPE | null;
+  selectedClasses: number[];
+  selectedCourse: number | null;
+}
+
+interface Grade {
+  id: number;
+  name: string;
+  level?: number;
+  description?: string;
+}
+
+interface Course {
+  id: number;
+  name: string;
+  code?: string;
+  coefficient?: number;
+}
+
 const props = withDefaults(defineProps<{
-  modelValue: {
-    schoolType: SCHOOL_TYPE | null;
-    selectedClasses: number[];
-    selectedCourse: number | null;
-  }
+  modelValue: Teaching
 }>(), {
   modelValue: () => ({
     schoolType: null,
@@ -17,11 +33,11 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
-  'update:modelValue': [value: typeof props.modelValue];
+  'update:modelValue': [value: Teaching];
 }>();
 
-const grades = ref<any[]>([]);
-const courses = ref<any[]>([]);
+const grades = ref<Grade[]>([]);
+const courses = ref<Course[]>([]);
 
 const schoolType = computed({
   get: () => props.modelValue.schoolType,
@@ -50,16 +66,28 @@ const selectedCourse = computed({
 });
 
 const loadGrades = async () => {
-  const result = await window.ipcRenderer.invoke('grade:all');
-  if (result.success) {
-    grades.value = result.data;
+  try {
+    const result = await window.ipcRenderer.invoke('grade:all');
+    if (result.success) {
+      grades.value = result.data;
+    } else {
+      console.error("Erreur lors du chargement des classes:", result.error);
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des classes:", error);
   }
 };
 
 const loadCourses = async () => {
-  const result = await window.ipcRenderer.invoke('course:all');
-  if (result.success) {
-    courses.value = result.data;
+  try {
+    const result = await window.ipcRenderer.invoke('course:all');
+    if (result.success) {
+      courses.value = result.data;
+    } else {
+      console.error("Erreur lors du chargement des cours:", result.error);
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des cours:", error);
   }
 };
 

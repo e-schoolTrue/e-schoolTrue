@@ -1,9 +1,9 @@
 <script setup lang="ts">
 //studentDetail
 import { ref, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElDialog } from 'element-plus';
-import { View, Download } from '@element-plus/icons-vue';
+import { View, Download, Back } from '@element-plus/icons-vue';
 import type { IStudentDetails, IStudentFile } from '@/types/student';
 import type { IGrade } from '@/types/shared';
 
@@ -17,6 +17,7 @@ interface CurrentDocument {
 }
 
 const route = useRoute();
+const router = useRouter();
 const studentDetails = ref<IStudentDetails | null>(null);
 const photoUrl = ref<string | null>(null);
 const activeNames = ref(['1', '2', '3', '4', '6']);
@@ -150,6 +151,18 @@ const viewDocument = async (document: IStudentFile) => {
 
 <template>
   <div class="details-container">
+    <div class="navigation-bar">
+      <el-button 
+        type="primary" 
+        plain
+        @click="router.push({ name: 'StudentList' })"
+        class="back-button"
+      >
+        <el-icon><Back /></el-icon>
+        Retour à la liste
+      </el-button>
+    </div>
+    
     <el-card v-if="studentDetails" class="details-card">
       <!-- En-tête avec photo et infos principales -->
       <div class="header-section">
@@ -307,8 +320,18 @@ const viewDocument = async (document: IStudentFile) => {
   box-sizing: border-box;
 }
 
+.navigation-bar {
+  margin-bottom: 20px;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .details-card {
-  height: 100%;
+  height: calc(100% - 40px);
   display: flex;
   flex-direction: column;
   overflow: hidden;

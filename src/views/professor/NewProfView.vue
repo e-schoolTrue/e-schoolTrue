@@ -4,8 +4,9 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorForm from '@/components/professor/professor-form.vue';
 import { SCHOOL_TYPE } from "#electron/command";
+import type { IProfessorServiceParams, IProfessorFile } from '@/types/professor';
 
-// Définition de l'interface des données du formulaire
+// Définition de l'interface des données du formulaire alignée avec les types
 interface TeachingData {
   schoolType: SCHOOL_TYPE;
   selectedClasses: number[];
@@ -25,16 +26,8 @@ interface ProfessorFormData {
   cni_number: string;
   diploma?: { name: string };
   qualification?: { name: string };
-  documents: Array<{
-    name: string;
-    content: string;
-    type: string;
-  }>;
-  photo?: {
-    name: string;
-    content: string;
-    type: string;
-  };
+  documents: IProfessorFile[];
+  photo?: IProfessorFile;
   teaching: TeachingData;
 }
 
@@ -46,13 +39,14 @@ const handleSave = async (professorData: ProfessorFormData) => {
   try {
     console.log("Données avant construction :", professorData);
 
-    const serializedData = JSON.parse(JSON.stringify({
+    // Conversion des données du formulaire au format attendu par le service
+    const serviceData: IProfessorServiceParams['createProfessor'] = {
       firstname: professorData.firstname,
       lastname: professorData.lastname,
       civility: professorData.civility,
       nbr_child: professorData.nbr_child,
       family_situation: professorData.family_situation,
-      birth_date: professorData.birth_date ? new Date(professorData.birth_date).toISOString() : null,
+      birth_date: professorData.birth_date ? new Date(professorData.birth_date) : undefined,
       birth_town: professorData.birth_town,
       address: professorData.address,
       town: professorData.town,
@@ -63,7 +57,7 @@ const handleSave = async (professorData: ProfessorFormData) => {
         name: professorData.photo.name,
         content: professorData.photo.content,
         type: professorData.photo.type,
-      } : null,
+      } : undefined,
       documents: Array.isArray(professorData.documents)
         ? professorData.documents.map(doc => ({
             name: doc.name,
@@ -75,19 +69,19 @@ const handleSave = async (professorData: ProfessorFormData) => {
         schoolType: professorData.teaching.schoolType,
         classId: professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY 
           ? professorData.teaching.selectedClasses[0] 
-          : null,
+          : undefined,
         courseId: professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY 
           ? professorData.teaching.selectedCourse 
-          : null,
+          : undefined,
         gradeIds: professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY 
           ? professorData.teaching.selectedClasses 
-          : [],
+          : undefined,
       }
-    }));
+    };
 
-    console.log("Données après sérialisation :", serializedData);
+    console.log("Données préparées pour le service :", serviceData);
 
-    const result = await window.ipcRenderer.invoke('professor:create', serializedData);
+    const result = await window.ipcRenderer.invoke('professor:create', serviceData);
 
     if (result.success) {
       ElMessage.success('Professeur créé avec succès');

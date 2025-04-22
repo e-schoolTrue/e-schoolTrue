@@ -5,10 +5,10 @@ export enum CIVILITY{
 }
 
 export enum FAMILY_SITUATION{
-    SINGLE="SINGLE",
-    MARRIED="MARRIED",
-    DIVORCED="DIVORCED",
-    WIDOWED="WIDOWED"
+    SINGLE="CÉLIBATAIRE",
+    MARRIED="MARIÉ",
+    DIVORCED="DIVORCÉ",
+    WIDOWED="VEUVE"
 }
 
 export enum ROLE{

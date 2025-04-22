@@ -18,7 +18,7 @@ export interface IProfessorData {
 
 // Types pour les fichiers du professeur
 export interface IProfessorFile {
-    id: number;
+    id?: number;
     name: string;
     type: string;
     content?: string;

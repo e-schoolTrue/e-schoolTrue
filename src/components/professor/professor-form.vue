@@ -3,15 +3,10 @@ import { ref, reactive } from 'vue';
 import { CIVILITY, FAMILY_SITUATION } from "#electron/command";
 import TeachingAssignment from './sections/TeachingAssignment.vue';
 import type { FormRules } from 'element-plus';
+import type { IProfessorFile } from '@/types/professor';
 
 const activeStep = ref(0);
-type FileData = {
-  name: string;
-  type: string;
-  size: number;
-  content: string;
-  url: string; 
-};
+
 
 const form = reactive({
   firstname: '',
@@ -26,8 +21,8 @@ const form = reactive({
   cni_number: '',
   diploma: { name: '' },
   qualification: { name: '' },
-  documents: [] as FileData[],
-  photo: null as FileData | null,
+  documents: [] as IProfessorFile[],
+  photo: null as IProfessorFile | null,
   teaching: {
     schoolType: null,
     selectedClasses: [],
@@ -154,9 +149,7 @@ const handlePhotoPreview = (file: File) => {
     const result = reader.result as string;
     form.photo = {
       name: file.name,
-      url: result,
       type: file.type,
-      size: file.size,
       content: result.split(',')[1]
     };
   };
@@ -175,9 +168,7 @@ const handleDocumentPreview = (file: File) => {
     const result = reader.result as string;
     form.documents.push({
       name: file.name,
-      url: result,
       type: file.type,
-      size: file.size,
       content: result.split(',')[1]
     });
   };
@@ -344,8 +335,8 @@ const emit = defineEmits<{
               accept="image/*"
             >
               <img 
-                v-if="form.photo?.url" 
-                :src="form.photo.url" 
+                v-if="form.photo?.content" 
+                :src="form.photo.content" 
                 class="avatar"
               />
               <el-icon v-else class="avatar-uploader-icon">
