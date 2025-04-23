@@ -202,6 +202,7 @@ import * as XLSX from 'xlsx';
 import printJS from 'print-js';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
+import type { IProfessorPaymentData } from '@/types/payment';
 
 interface Teaching {
   class?: {
@@ -218,29 +219,13 @@ interface Professor {
   lastname: string;
   subject?: string;
   teaching?: Teaching[];
+  qualification?: { name: string };
 }
 
-interface Payment {
+interface Payment extends Omit<IProfessorPaymentData, 'professorId'> {
   id: number;
-  professor: {
-    id: number;
-    firstname: string;
-    lastname: string;
-    subject?: string;
-    teaching?: Array<{
-      class?: { name: string };
-      course?: { name: string };
-    }>;
-    qualification?: { name: string };
-  };
-  amount: number;
-  type: string;
-  paymentMethod: string;
-  month: string;
   createdAt: string;
-  isPaid: boolean;
-  reference?: string;
-  comment?: string;
+  professor: Professor;
   grossAmount: number;
   netAmount: number;
   deductions?: Array<{
@@ -346,9 +331,10 @@ const loadData = async () => {
 
     if (paymentsResult?.success && paymentsResult.data) {
       payments.value = Array.isArray(paymentsResult.data) 
-        ? paymentsResult.data.map((p: { paymentType: any; type: any; }) => ({
+        ? paymentsResult.data.map((p: any) => ({
             ...p,
-            type: p.paymentType || p.type // Gère les deux cas possibles
+            type: p.paymentType || p.type, // Gère les deux cas possibles
+            id: p.id || 0
           }))
         : [];
       filteredPayments.value = [...payments.value];
@@ -424,7 +410,7 @@ const exportToExcel = async () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(exportData);
 
-    // Ajuster la largeur des colonnes
+    
     const colWidths = [
       { wch: 25 }, // Professeur
       { wch: 15 }, // Matière
@@ -450,7 +436,7 @@ const exportToExcel = async () => {
 };
 
 // Impression fiche de paie
-const printPayslip = async (paymentDetails: any) => {
+const printPayslip = async (paymentDetails: Payment) => {
   try {
     const schoolInfo = await window.ipcRenderer.invoke('school:get');
     if (!schoolInfo?.success) {
@@ -459,6 +445,8 @@ const printPayslip = async (paymentDetails: any) => {
 
     const schoolData = schoolInfo.data;
     const { currency } = useCurrency();
+    const grossAmount = paymentDetails.grossAmount ?? 0;
+    const netAmount = paymentDetails.netAmount ?? 0;
 
     const content = `
       <div class="payslip-container" style="padding: 20px;">
@@ -493,9 +481,9 @@ const printPayslip = async (paymentDetails: any) => {
           </tr>
           <tr style="border: 1px solid black;">
             <td style="border: 1px solid black; padding: 5px;">Salaire de base</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.grossAmount)} ${currency.value}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(grossAmount)} ${currency.value}</td>
             <td style="border: 1px solid black; padding: 5px; text-align: right;">100%</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.grossAmount)} ${currency.value}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(grossAmount)} ${currency.value}</td>
           </tr>
           ${paymentDetails.deductions?.map((d: { name: string; amount: number; }) => `
             <tr style="border: 1px solid black;">
@@ -511,7 +499,7 @@ const printPayslip = async (paymentDetails: any) => {
           </tr>
           <tr style="border: 1px solid black;">
             <td colspan="3" style="border: 1px solid black; padding: 5px;">NET A PAYER</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.netAmount)} ${currency.value}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(netAmount)} ${currency.value}</td>
           </tr>
         </table>
 

@@ -1161,11 +1161,114 @@ export function registerReportEvents() {
   });
 }
 
+ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
+  try {
+      const document = await global.fileService.getFileById({ fileId: documentId });
+      if (document && document.path) {
+          // Lire le contenu du fichier et le convertir en base64
+          const fileContent = await fs.readFile(document.path);
+          const base64Content = fileContent.toString('base64');
+
+          return { 
+              success: true, 
+              data: {
+                  content: base64Content, // Envoyer directement le contenu base64
+                  type: document.type,
+                  name: document.name
+              },
+              error: null,
+              message: "Document récupéré avec succès"
+          };
+      } else {
+          return {
+              success: false,
+              data: null,
+              error: "Document non trouvé",
+              message: "Le document n'a pas pu être récupéré"
+          };
+      }
+  } catch (error) {
+      return handleError(error, 'Erreur lors de la récupération du document');
+  }
+});
+
+ipcMain.handle('professor:count', async () => {
+  try {
+    const result = await global.professorService.getTotalProfessors();
+    console.log('Résultat du comptage des professeurs:', result);
+    return result;
+  } catch (error) {
+    console.error('Erreur dans le handler professor:count:', error);
+    return handleError(error, 'Erreur lors du comptage des professeurs');
+  }
+});
+
+ipcMain.handle('professor:payments:list', async (_, filters) => {
+  try {
+    console.log('Filtres reçus:', filters);
+    const result = await global.paymentService.getProfessorPayments(filters);
+    console.log('Résultat des paiements:', result);
+    return result;
+  } catch (error) {
+    console.error('Erreur dans le handler professor:payments:list:', error);
+    return handleError(error, 'Erreur lors de la récupération des paiements');
+  }
+});
+
+ipcMain.handle('professor:payments:stats', async () => {
+  try {
+    const result = await global.paymentService.getProfessorPaymentStats();
+    console.log('Résultat des statistiques:', result);
+    return result;
+  } catch (error) {
+    console.error('Erreur dans le handler professor:payments:stats:', error);
+    return handleError(error, 'Erreur lors de la récupération des statistiques des paiements');
+  } 
+});
+
+ipcMain.handle('professor:search', async (_, query) => {
+  try {
+    return await global.professorService.searchProfessors(query);
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la recherche des professeurs');
+  }
+});
+
+ipcMain.handle('professor:payment:create', async (_, paymentData) => {
+  try {
+    console.log('Données de paiement reçues:', paymentData);
+    const result = await global.paymentService.addProfessorPayment(paymentData);
+    console.log('Résultat de la création:', result);
+    return result;
+  } catch (error) {
+    console.error('Erreur dans le handler professor:payment:create:', error);
+    return handleError(error, 'Erreur lors de la création du paiement');
+  }
+});
+
+ipcMain.handle('professor:payment:update', async (_, paymentData) => {
+  try {
+    console.log('Données de paiement reçues:', paymentData);
+    const result = await global.paymentService.updateProfessorPayment(paymentData);
+    console.log('Résultat de la mise à jour:', result);
+    return result;
+  } catch (error) {
+    console.error('Erreur dans le handler professor:payment:update:', error);
+    return handleError(error, 'Erreur lors de la mise à jour du paiement'); 
+  }
+});
 
 
 
-
-
-
-
+ipcMain.handle('professor:payment:getById', async (_, paymentId) => {
+  try {
+    console.log('ID du paiement reçu:', paymentId);
+    const result = await global.paymentService.getProfessorPaymentById(paymentId);
+    console.log('Résultat de la récupération:', result);
+    return result;
+  } catch (error) {
+    console.error('Erreur dans le handler professor:payment:getById:', error);
+    return handleError(error, 'Erreur lors de la récupération du paiement');    
+  }
+});
 

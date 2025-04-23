@@ -22,6 +22,7 @@ export interface IProfessorFile {
     name: string;
     type: string;
     content?: string;
+    url?: string;
 }
 
 // Types pour les détails complets du professeur
@@ -70,6 +71,13 @@ export interface IProfessorServiceParams {
             documents?: IProfessorFile[];
             diploma?: { name: string };
             qualification?: { name: string };
+            teaching?: {
+                teachingType?: string;
+                schoolType?: 'PRIMARY' | 'SECONDARY' | null;
+                classId?: number;
+                courseId?: number | null;
+                gradeIds?: string | number[];
+            };
         };
     };
     getProfessorDetails: {
