@@ -10,7 +10,7 @@ export interface StudentFormInstance {
 </script>
 
 <script setup lang="ts">
-import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted} from 'vue';
+import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted, watch} from 'vue';
 import { ElMessage } from 'element-plus';
 import type { IStudentData, IStudentFile } from '@/types/student';
 
@@ -55,8 +55,25 @@ const formData = reactive<IStudentData>({
   documents: [],
   sex: 'male',
   schoolYear: '',
-  ...props.studentData, // Fusionner avec les données existantes, si fournies
 });
+
+// Observer les changements de props.studentData et mettre à jour formData en conséquence
+watch(
+  () => props.studentData,
+  (newData) => {
+    if (newData && Object.keys(newData).length > 0) {
+      console.log('Mise à jour formData avec:', newData);
+      // Mettre à jour formData avec les nouvelles données
+      Object.keys(newData).forEach(key => {
+        if (key in formData) {
+          // @ts-ignore - Ignorer les erreurs de type ici car nous vérifions que la clé existe
+          formData[key] = newData[key];
+        }
+      });
+    }
+  },
+  { immediate: true, deep: true } // Exécuter immédiatement et observer en profondeur
+);
 
 const emit = defineEmits<{
   (e: 'save', data: IStudentData): void

@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
-import { CIVILITY, FAMILY_SITUATION } from "#electron/command";
+import { ref, reactive, watch, defineProps, defineEmits } from 'vue';
+import { CIVILITY, FAMILY_SITUATION, SCHOOL_TYPE } from "#electron/command";
 import TeachingAssignment from './sections/TeachingAssignment.vue';
 import type { FormRules } from 'element-plus';
-import type { IProfessorFile } from '@/types/professor';
+import type { IProfessorFile, IProfessorDetails } from '@/types/professor';
+
+// Définir les props pour recevoir des données initiales
+const props = defineProps<{
+  initialData?: IProfessorDetails;
+  disabled?: boolean;
+}>();
 
 const activeStep = ref(0);
-
 
 const form = reactive({
   firstname: '',
@@ -14,7 +19,7 @@ const form = reactive({
   civility: '',
   nbr_child: 0,
   family_situation: '',
-  birth_date: null,
+  birth_date: null as Date | null,
   birth_town: '',
   address: '',
   town: '',
@@ -24,11 +29,93 @@ const form = reactive({
   documents: [] as IProfessorFile[],
   photo: null as IProfessorFile | null,
   teaching: {
-    schoolType: null,
-    selectedClasses: [],
-    selectedCourse: null
+    schoolType: null as SCHOOL_TYPE | null,
+    selectedClasses: [] as number[],
+    selectedCourse: null as number | null
   }
 });
+
+// Observer les changements de props.initialData et mettre à jour le formulaire
+watch(
+  () => props.initialData,
+  (newData) => {
+    if (newData) {
+      console.log('Mise à jour du formulaire professeur avec les données:', newData);
+      
+      // Mettre à jour les champs principaux
+      if (newData.firstname) form.firstname = newData.firstname;
+      if (newData.lastname) form.lastname = newData.lastname;
+      if (newData.civility) form.civility = newData.civility;
+      if (newData.nbr_child !== undefined) form.nbr_child = newData.nbr_child;
+      if (newData.family_situation) form.family_situation = newData.family_situation;
+      if (newData.birth_date) form.birth_date = newData.birth_date as Date;
+      if (newData.birth_town) form.birth_town = newData.birth_town;
+      if (newData.address) form.address = newData.address;
+      if (newData.town) form.town = newData.town;
+      if (newData.cni_number) form.cni_number = newData.cni_number;
+      
+      // Mettre à jour les objets imbriqués
+      if (newData.diploma) {
+        form.diploma.name = newData.diploma.name || '';
+      }
+      
+      if (newData.qualification) {
+        form.qualification.name = newData.qualification.name || '';
+      }
+      
+      // Mettre à jour la photo et les documents
+      if (newData.photo) {
+        // S'assurer que la propriété url est présente pour l'affichage de l'image
+        const photoWithUrl = {
+          ...newData.photo
+        };
+        
+        // Générer l'URL à partir du contenu base64 si elle n'existe pas
+        if (!photoWithUrl.url && photoWithUrl.content) {
+          photoWithUrl.url = `data:${photoWithUrl.type || 'image/jpeg'};base64,${photoWithUrl.content}`;
+        }
+        
+        form.photo = photoWithUrl;
+        console.log("Photo mise à jour:", form.photo);
+      }
+      
+      if (newData.documents && newData.documents.length > 0) {
+        form.documents = [...newData.documents];
+      }
+      
+      // Mettre à jour les données d'enseignement si disponibles
+      if (newData.teaching && newData.teaching.length > 0) {
+        // Parcourir les affectations d'enseignement
+        const teachingAssignment = newData.teaching[0]; // Prendre la première affectation
+        
+        // Type SCHOOL_TYPE attendu pour schoolType
+        if (teachingAssignment.schoolType) {
+          // Convertir string en SCHOOL_TYPE
+          if (teachingAssignment.schoolType === 'PRIMARY') {
+            form.teaching.schoolType = SCHOOL_TYPE.PRIMARY;
+          } else if (teachingAssignment.schoolType === 'SECONDARY') {
+            form.teaching.schoolType = SCHOOL_TYPE.SECONDARY;
+          }
+        }
+        
+        // S'il y a des classes assignées
+        if (teachingAssignment.class && typeof teachingAssignment.class.id === 'number') {
+          form.teaching.selectedClasses = [teachingAssignment.class.id];
+        } else {
+          form.teaching.selectedClasses = [];
+        }
+        
+        // S'il y a un cours assigné
+        if (teachingAssignment.course && typeof teachingAssignment.course.id === 'number') {
+          form.teaching.selectedCourse = teachingAssignment.course.id;
+        } else {
+          form.teaching.selectedCourse = null;
+        }
+      }
+    }
+  },
+  { immediate: true, deep: true }
+);
 
 // Mise à jour des règles pour inclure toutes les validations nécessaires
 const rules = reactive<FormRules>({
@@ -246,9 +333,38 @@ const handleSubmit = async () => {
       ElMessage.error('Veuillez remplir tous les champs obligatoires');
       return;
     }
-    emit('save', form);
+
+    // Préparer une copie propre des données
+    const formDataToSubmit = {
+      firstname: form.firstname,
+      lastname: form.lastname,
+      civility: form.civility,
+      nbr_child: form.nbr_child,
+      family_situation: form.family_situation,
+      birth_date: form.birth_date,
+      birth_town: form.birth_town,
+      address: form.address,
+      town: form.town,
+      cni_number: form.cni_number,
+      diploma: form.diploma ? { ...form.diploma } : { name: '' },
+      qualification: form.qualification ? { ...form.qualification } : { name: '' },
+      documents: form.documents.map(doc => ({ ...doc })),
+      photo: form.photo ? { ...form.photo } : null,
+      teaching: {
+        teachingType: form.teaching.selectedCourse ? 'SUBJECT' : 'CLASS',
+        schoolType: form.teaching.schoolType,
+        classId: form.teaching.selectedClasses.length > 0 ? form.teaching.selectedClasses[0] : undefined,
+        courseId: form.teaching.selectedCourse,
+        gradeIds: form.teaching.selectedClasses.join(',')
+      }
+    };
+
+    console.log("Données à émettre:", formDataToSubmit);
+    emit('save', formDataToSubmit);
+    
     ElMessage.success('Formulaire enregistré avec succès');
   } catch (error) {
+    console.error("Une erreur s'est produite lors de l'enregistrement:", error);
     ElMessage.error("Une erreur s'est produite lors de l'enregistrement");
   } finally {
     loading.value = false;
@@ -455,6 +571,7 @@ const emit = defineEmits<{
         <el-button 
           v-if="activeStep > 0" 
           @click="prevStep"
+          :disabled="props.disabled"
         >
           <el-icon class="mr-2"><ArrowLeft /></el-icon>
           Précédent
@@ -465,6 +582,7 @@ const emit = defineEmits<{
             v-if="activeStep < steps.length - 1" 
             type="primary" 
             @click="nextStep"
+            :disabled="props.disabled"
           >
             Suivant
             <el-icon class="ml-2"><ArrowRight /></el-icon>
@@ -474,7 +592,8 @@ const emit = defineEmits<{
             v-if="activeStep === steps.length - 1" 
             type="success" 
             @click="handleSubmit" 
-            :loading="loading"
+            :loading="loading || props.disabled"
+            :disabled="props.disabled"
           >
             <el-icon class="mr-2"><Check /></el-icon>
             Enregistrer
