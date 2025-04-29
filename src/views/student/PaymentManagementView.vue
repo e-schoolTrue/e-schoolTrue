@@ -1,45 +1,39 @@
 <template>
   <el-container class="payment-management">
     <el-header class="payment-header">
-      <el-row :gutter="20">
-        <el-col :span="8">
+      <el-row :gutter="15">
+        <el-col :xs="24" :sm="8">
           <el-card class="stat-card success" shadow="hover">
-            <template #header>
-              <div class="stat-header">
-                <el-icon><Money /></el-icon>
-                <span>Montant Collecté</span>
+            <div class="compact-stat-content">
+              <div class="stat-info">
+                <el-icon size="18"><Money /></el-icon>
+                <span class="stat-label">Montant Collecté</span>
               </div>
-            </template>
-            <div class="stat-content">
-              <currency-display :amount="getTotalCollectedAmount()" />
+              <currency-display class="stat-amount" :amount="getTotalCollectedAmount()" />
             </div>
           </el-card>
         </el-col>
         
-        <el-col :span="8">
+        <el-col :xs="24" :sm="8">
           <el-card class="stat-card warning" shadow="hover">
-            <template #header>
-              <div class="stat-header">
-                <el-icon><Wallet /></el-icon>
-                <span>Reste à Collecter</span>
+            <div class="compact-stat-content">
+              <div class="stat-info">
+                <el-icon size="18"><Wallet /></el-icon>
+                <span class="stat-label">Reste à Collecter</span>
               </div>
-            </template>
-            <div class="stat-content">
-              <currency-display :amount="getTotalRemainingAmount()" />
+              <currency-display class="stat-amount" :amount="getTotalRemainingAmount()" />
             </div>
           </el-card>
         </el-col>
         
-        <el-col :span="6">
+        <el-col :xs="24" :sm="8">
           <el-card class="stat-card info" shadow="hover">
-            <template #header>
-              <div class="stat-header">
-                <el-icon><Discount /></el-icon>
-                <span>Réductions Bourses</span>
+            <div class="compact-stat-content">
+              <div class="stat-info">
+                <el-icon size="18"><Discount /></el-icon>
+                <span class="stat-label">Réductions Bourses</span>
               </div>
-            </template>
-            <div class="stat-content">
-              <currency-display :amount="getTotalScholarshipAmount()" />
+              <currency-display class="stat-amount" :amount="getTotalScholarshipAmount()" />
             </div>
           </el-card>
         </el-col>
@@ -54,61 +48,90 @@
               <el-input
                 v-model="filters.studentFullName"
                 placeholder="Rechercher un étudiant..."
-                prefix-icon="Search"
                 clearable
                 @input="handleFilter"
-              />
+                class="search-input"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
               
-              <el-select 
-                v-model="filters.grade" 
-                placeholder="Classe"
-                clearable
-                @change="handleFilter"
-              >
-                <el-option
-                  v-for="grade in grades"
-                  :key="grade.id"
-                  :label="grade.name"
-                  :value="grade.id"
-                />
-              </el-select>
+              <div class="filters-group">
+                <el-select 
+                  v-model="filters.grade" 
+                  placeholder="Classe"
+                  clearable
+                  @change="handleFilter"
+                  class="filter-select"
+                >
+                  <template #prefix>
+                    <el-icon><School /></el-icon>
+                  </template>
+                  <el-option
+                    v-for="grade in grades"
+                    :key="grade.id"
+                    :label="grade.name"
+                    :value="grade.id"
+                  />
+                </el-select>
 
-              <el-select 
-                v-model="filters.paymentStatus" 
-                placeholder="Statut de paiement"
-                clearable
-                @change="handleFilter"
-              >
-                <el-option label="Payé" value="paid" />
-                <el-option label="En retard" value="late" />
-                <el-option label="Non payé" value="unpaid" />
-              </el-select>
+                <el-select 
+                  v-model="filters.paymentStatus" 
+                  placeholder="Statut"
+                  clearable
+                  @change="handleFilter"
+                  class="filter-select"
+                >
+                  <template #prefix>
+                    <el-icon><Filter /></el-icon>
+                  </template>
+                  <el-option label="Payé" value="paid">
+                    <div class="status-option">
+                      <el-tag type="success" size="small">Payé</el-tag>
+                    </div>
+                  </el-option>
+                  <el-option label="Partiel" value="partial">
+                    <div class="status-option">
+                      <el-tag type="warning" size="small">Partiel</el-tag>
+                    </div>
+                  </el-option>
+                  <el-option label="Non payé" value="unpaid">
+                    <div class="status-option">
+                      <el-tag type="danger" size="small">Non payé</el-tag>
+                    </div>
+                  </el-option>
+                </el-select>
+              </div>
             </div>
 
             <div class="table-actions">
               <el-button-group>
-                <el-button
-                  type="success"
-                  :icon="Download"
-                  @click="exportToExcel"
-                  :loading="loading"
-                >
-                  Exporter Excel
-                </el-button>
-                <el-button
-                  type="primary"
-                  :icon="Refresh"
-                  @click="refreshData"
-                  :loading="loading"
-                >
-                  Actualiser
-                </el-button>
+                <el-tooltip content="Exporter les données vers Excel" placement="top">
+                  <el-button
+                    type="success"
+                    :icon="Download"
+                    @click="exportToExcel"
+                    :loading="loading"
+                  >
+                    Exporter Excel
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="Actualiser les données" placement="top">
+                  <el-button
+                    type="primary"
+                    :icon="Refresh"
+                    @click="refreshData"
+                    :loading="loading"
+                  >
+                    Actualiser
+                  </el-button>
+                </el-tooltip>
               </el-button-group>
             </div>
           </div>
         </template>
 
-        <!-- Table des paiements améliorée -->
         <el-table
           v-loading="loading"
           :data="filteredStudents"
@@ -116,6 +139,10 @@
           stripe
           :height="tableHeight"
           highlight-current-row
+          empty-text="Aucun étudiant trouvé"
+          class="payment-table"
+          style="width: 100%"
+          :max-height="550"
         >
           <el-table-column type="expand">
             <template #default="props">
@@ -125,17 +152,21 @@
 
           <el-table-column 
             label="Élève" 
-            min-width="200"
+            min-width="220"
             sortable
+            prop="lastname"
           >
             <template #default="{ row }">
               <div class="student-info">
-                <el-avatar :size="32" :src="row.photo?.path">
+                <el-avatar :size="40" :src="row.photo?.path" class="student-avatar">
                   {{ getInitials(row) }}
                 </el-avatar>
                 <div class="student-details">
                   <span class="student-name">{{ row.firstname }} {{ row.lastname }}</span>
-                  <small class="student-matricule">{{ row.matricule }}</small>
+                  <div class="student-info-row">
+                    <span class="student-matricule">{{ row.matricule }}</span>
+                    <el-tag size="small" effect="plain">{{ row.grade?.name || 'Sans classe' }}</el-tag>
+                  </div>
                 </div>
               </div>
             </template>
@@ -153,29 +184,41 @@
                   placement="top"
                 >
                   <template #content>
-                    <div>
-                      <currency-display :amount="getAnnualAmount(row.grade?.id)" />
-                          <p>Montant initial: <currency-display :amount="getAnnualAmount(row.grade?.id)" /></p>
-                          <p>Réduction: {{ getActiveScholarship(row)?.percentage }}%</p>
-                      <p>Économie: <currency-display :amount="getScholarshipAmount(row)" /></p>
+                    <div class="scholarship-tooltip">
+                      <div class="tooltip-title">Détails de la bourse</div>
+                      <div class="tooltip-row">
+                        <span>Montant initial:</span>
+                        <currency-display :amount="getAnnualAmount(row.grade?.id)" />
+                      </div>
+                      <div class="tooltip-row">
+                        <span>Réduction:</span>
+                        <span>{{ getActiveScholarship(row)?.percentage }}%</span>
+                      </div>
+                      <div class="tooltip-row tooltip-highlight">
+                        <span>Économie:</span>
+                        <currency-display :amount="getScholarshipAmount(row)" />
+                      </div>
                     </div>
                   </template>
-                <el-tag type="success" effect="dark" size="small">
-                  {{ getActiveScholarship(row)?.percentage }}%
-                </el-tag>
-                </el-tooltip>
-                <div class="scholarship-amount">
-                  -<currency-display :amount="getScholarshipAmount(row)" />
+                <div class="scholarship-info-card">
+                  <el-tag type="success" effect="dark" size="small">
+                    {{ getActiveScholarship(row)?.percentage }}%
+                  </el-tag>
+                  <div class="scholarship-amount">
+                    -<currency-display :amount="getScholarshipAmount(row)" />
+                  </div>
                 </div>
+                </el-tooltip>
               </template>
-              <span v-else>-</span>
+              <el-tag v-else type="info" effect="plain" size="small">Aucune bourse</el-tag>
             </template>
           </el-table-column>
 
           <el-table-column 
             label="Progression" 
-            width="200"
+            width="220"
             sortable
+            :sort-method="(a: Student, b: Student) => getPaymentProgress(a.id) - getPaymentProgress(b.id)"
           >
             <template #default="{ row }">
               <div class="payment-progress">
@@ -183,12 +226,14 @@
                   :percentage="getPaymentProgress(row.id)"
                   :status="getProgressStatus(row.id)"
                   :format="(val: number) => `${val}%`"
-                  :stroke-width="10"
+                  :stroke-width="12"
+                  class="payment-progress-bar"
                 />
-                <small class="progress-details">
-                  <currency-display :amount="getPaidAmount(row.id)" /> / 
-                  <currency-display :amount="getStudentAdjustedAmount(row)" />
-                </small>
+                <div class="progress-details">
+                  <currency-display :amount="getPaidAmount(row.id)" class="paid-amount" /> 
+                  <span class="separator">/</span> 
+                  <currency-display :amount="getStudentAdjustedAmount(row)" class="total-amount" />
+                </div>
               </div>
             </template>
           </el-table-column>
@@ -197,12 +242,18 @@
             label="Statut" 
             width="120"
             align="center"
+            sortable
+            :sort-method="(a: Student, b: Student) => {
+              const statusOrder = { paid: 0, partial: 1, unpaid: 2 };
+              return statusOrder[getPaymentStatus(a.id)] - statusOrder[getPaymentStatus(b.id)];
+            }"
           >
             <template #default="{ row }">
               <el-tag
                 :type="getPaymentStatusType(row.id)"
                 effect="dark"
-                size="small"
+                size="default"
+                class="status-tag"
               >
                 {{ getPaymentStatusLabel(row.id) }}
               </el-tag>
@@ -211,39 +262,44 @@
 
           <el-table-column 
             label="Actions" 
-            width="200" 
+            width="220" 
             fixed="right"
             align="center"
           >
             <template #default="{ row }">
-              <el-button-group>
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="showPaymentHistory(row)"
-                >
-                  <el-icon><Document /></el-icon>
-                </el-button>
-                <el-button
-                  type="success"
-                  size="small"
-                  @click="printReceipt(row)"
-                >
-                  <el-icon><Printer /></el-icon>
-                </el-button>
-                <el-button
-                  type="warning"
-                  size="small"
-                  @click="showNewPaymentDialog(row)"
-                >
-                  <el-icon><Plus /></el-icon>
-                </el-button>
+              <el-button-group class="action-buttons">
+                <el-tooltip content="Voir l'historique des paiements" placement="top">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="showPaymentHistory(row)"
+                  >
+                    <el-icon><Document /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="Imprimer un reçu" placement="top">
+                  <el-button
+                    type="success"
+                    size="small"
+                    @click="printReceipt(row)"
+                  >
+                    <el-icon><Printer /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="Ajouter un paiement" placement="top">
+                  <el-button
+                    type="warning"
+                    size="small"
+                    @click="showNewPaymentDialog(row)"
+                  >
+                    <el-icon><Plus /></el-icon>
+                  </el-button>
+                </el-tooltip>
               </el-button-group>
             </template>
           </el-table-column>
         </el-table>
 
-        <!-- Pagination -->
         <div class="pagination-container">
           <el-pagination
             v-model:current-page="currentPage"
@@ -254,12 +310,12 @@
             @size-change="handleSizeChange"
             @current-change="handleCurrentChange"
             background
+            class="custom-pagination"
           />
         </div>
       </el-card>
     </el-main>
 
-    <!-- Dialogs -->
     <payment-dialog
       v-model:visible="paymentDialogVisible"
       :student="selectedStudent"
@@ -277,12 +333,13 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { ElMessage } from "element-plus";
-import { Plus, Document, Download, Refresh, Printer, Discount } from "@element-plus/icons-vue";
+import { Plus, Document, Download, Refresh, Printer, Discount, Money, Wallet, Search, Filter, School } from "@element-plus/icons-vue";
 import PaymentDialog from '@/components/payment/PaymentDialog.vue';
 import PaymentHistoryDialog from '@/components/payment/PaymentHistory.vue';
+import PaymentHistoryMini from '@/components/payment/PaymentHistoryMini.vue';
 import printJS from 'print-js';
 import * as XLSX from 'xlsx';
-import { PaymentConfig } from '@/types/payment';
+import { PaymentConfig, PaymentAmounts } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
 
@@ -319,16 +376,6 @@ interface Student {
 interface Grade {
   id: number;
   name: string;
-}
-
-interface PaymentAmounts {
-  paid: number;
-  remaining: number;
-  studentId: number;
-  baseAmount: number;
-  scholarshipPercentage: number;
-  scholarshipAmount: number;
-  adjustedAmount: number;
 }
 
 interface Filters {
@@ -434,56 +481,45 @@ const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
 };
 
 const loadStudents = async () => {
+  loading.value = true;
   try {
-    loading.value = true;
+    console.log('Chargement de tous les étudiants...');
     const result = await window.ipcRenderer.invoke('student:all');
-    
-    if (result.success) {
-      const studentsWithData = await Promise.all(
-        result.data.map(async (student: Student) => {
-          // Charger les bourses
-          const scholarshipResult = await window.ipcRenderer.invoke(
-            'scholarship:getByStudent', 
-            student.id
-          );
-
-          console.log(`=== Données pour l'étudiant ${student.firstname} ===`);
-          console.log('Bourses:', scholarshipResult);
-
-          // Charger les paiements
-          const paymentsResult = await window.ipcRenderer.invoke(
-            'payment:getByStudent',
-            student.id
-          );
-
-          if (paymentsResult.success) {
-            const { baseAmount, scholarshipPercentage, scholarshipAmount, adjustedAmount, payments } = paymentsResult.data;
-            const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-
-            paymentAmounts.value.set(student.id, {
-              paid: totalPaid,
-              remaining: adjustedAmount - totalPaid,
-              studentId: student.id,
-              baseAmount,
-              scholarshipPercentage,
-              scholarshipAmount,
-              adjustedAmount
-            });
+    if (result.success && Array.isArray(result.data)) {
+      console.log(`${result.data.length} étudiants récupérés.`);
+      students.value = result.data.map((student: any) => {
+        // Assurer que les images ont des URLs relatives
+        if (student.photo && student.photo.url && student.photo.url.startsWith('file:///')) {
+          // Convertir les chemins absolus en chemins relatifs
+          student.photo.url = student.photo.url.replace(/^file:\/\/\/C:\/Users\/Briand\/e-schoolTrue\//, '/');
+        }
+        return student;
+      });
+      
+      // Pour chaque étudiant, charger les paiements
+      for (const student of students.value) {
+        try {
+          if (!student || typeof student.id !== 'number') {
+            console.warn('Étudiant invalide, id manquant:', student);
+            continue;
           }
-
-          return {
-            ...student,
-            scholarship: scholarshipResult.success ? scholarshipResult.data : []
-          };
-        })
-      );
-
-      students.value = studentsWithData;
-      handleFilter();
+          
+          console.log(`Traitement des données pour l'étudiant ${student.firstname} ${student.lastname} (ID: ${student.id})`);
+          await loadStudentPayments(student.id);
+        } catch (studentError) {
+          console.error(`Erreur lors du traitement de l'étudiant ${student?.id}:`, studentError);
+          // Continuer avec l'étudiant suivant malgré l'erreur
+        }
+      }
+      
+      console.log('Chargement des paiements terminé pour tous les étudiants.');
+    } else {
+      console.error('Erreur lors de la récupération des étudiants:', result.message);
+      ElMessage.error('Erreur lors du chargement des étudiants');
     }
   } catch (error) {
     console.error('Erreur lors du chargement des étudiants:', error);
-    ElMessage.error('Erreur lors du chargement des étudiants');
+    ElMessage.error('Erreur lors du chargement des données des étudiants');
   } finally {
     loading.value = false;
   }
@@ -553,23 +589,25 @@ const showPaymentHistory = (student: Student) => {
   historyDialogVisible.value = true;
 };
 
-const handlePaymentAdded = async () => {
-  loading.value = true;
+const handlePaymentAdded = async (paymentData: any) => {
   try {
-    await loadStudents();
-    // Recharger les paiements pour l'étudiant concerné
-    if (selectedStudent.value?.id) {
-      await loadStudentPayments(selectedStudent.value.id);
+    paymentDialogVisible.value = false;
+    console.log('Nouveau paiement ajouté:', paymentData);
+    
+    // Rafraîchir les données de l'étudiant concerné uniquement
+    if (paymentData && paymentData.studentId) {
+      console.log(`Actualisation des données pour l'étudiant ID ${paymentData.studentId} après paiement`);
+      await loadStudentPayments(paymentData.studentId);
+    } else {
+      // Si aucun ID d'étudiant n'est fourni, recharger tous les étudiants
+      console.log('Aucun ID étudiant fourni, actualisation complète des données');
+      await loadStudents();
     }
-    // Mettre à jour les montants pour tous les étudiants
-    for (const student of students.value) {
-      await loadStudentPayments(student.id);
-    }
+    
     ElMessage.success('Paiement enregistré avec succès');
   } catch (error) {
-    console.error('Erreur lors du rechargement:', error);
-  } finally {
-    loading.value = false;
+    console.error('Erreur lors de la mise à jour après paiement:', error);
+    ElMessage.error('Erreur lors de la mise à jour des données');
   }
 };
 
@@ -682,8 +720,11 @@ const getPaymentProgress = (studentId: number) => {
   const student = students.value.find(s => s.id === studentId);
   if (!student) return 0;
   
-  const total = getStudentAdjustedAmount(student);
-  const paid = paymentAmounts.value.get(studentId)?.paid || 0;
+  const amounts = paymentAmounts.value.get(studentId);
+  if (!amounts) return 0;
+  
+  const total = amounts.adjustedAmount || getStudentAdjustedAmount(student);
+  const paid = amounts.paid || 0;
   
   if (total === 0) return 0;
   return Math.round((paid / total) * 100);
@@ -697,10 +738,23 @@ const getProgressStatus = (studentId: number) => {
 };
 
 const getTotalCollectedAmount = () => {
-  return Array.from(paymentAmounts.value.values()).reduce(
-    (sum, amounts) => sum + amounts.paid,
-    0
-  );
+  console.log("Calcul du montant total collecté...");
+  console.log("Données de paiement disponibles:", Array.from(paymentAmounts.value.entries()));
+  
+  // Vérifier que paymentAmounts contient des données
+  if (paymentAmounts.value.size === 0) {
+    console.warn("Aucune donnée de paiement disponible");
+    return 0;
+  }
+  
+  let total = 0;
+  paymentAmounts.value.forEach((amounts, studentId) => {
+    console.log(`Étudiant ID ${studentId}: montant payé = ${amounts.paid}`);
+    total += amounts.paid || 0;
+  });
+  
+  console.log("Montant total collecté calculé:", total);
+  return total;
 };
 
 const getTotalRemainingAmount = () => {
@@ -921,6 +975,13 @@ const formatPaymentMethod = (method: string): string => {
 };
 
 const getAdjustedAnnualAmount = (studentId: number): number => {
+  // Vérifier d'abord si nous avons déjà les données dans paymentAmounts
+  const amounts = paymentAmounts.value.get(studentId);
+  if (amounts && amounts.adjustedAmount > 0) {
+    return amounts.adjustedAmount;
+  }
+  
+  // Sinon, calculer à la volée
   const student = students.value.find(s => s.id === studentId);
   if (!student?.grade?.id) return 0;
 
@@ -940,48 +1001,67 @@ const getAdjustedAnnualAmount = (studentId: number): number => {
 
 const loadStudentPayments = async (studentId: number) => {
   try {
+    console.log(`Chargement des paiements pour l'étudiant ID ${studentId}...`);
     const result = await window.ipcRenderer.invoke('payment:getByStudent', studentId);
-    console.log(`=== Paiements pour l'étudiant ${studentId} ===`);
-    console.log('Résultat brut:', result);
+    console.log(`Résultat pour l'étudiant ${studentId}:`, result);
 
-    if (result.success) {
+    if (result.success && result.data) {
+      // Extraire les données avec des valeurs par défaut pour éviter les erreurs
       const { 
-        payments, 
-        baseAmount, 
-        scholarshipPercentage, 
-        scholarshipAmount, 
-        adjustedAmount 
+        payments = [], 
+        baseAmount = 0, 
+        scholarshipPercentage = 0, 
+        scholarshipAmount = 0, 
+        adjustedAmount = 0
       } = result.data;
-
-      console.log('Données extraites:', {
-        payments,
-        baseAmount,
-        scholarshipPercentage,
-        scholarshipAmount,
-        adjustedAmount
+      
+      // Vérifier si payments est bien un tableau et le transformer si nécessaire
+      const paymentsArray = Array.isArray(payments) ? payments : [];
+      
+      // Calculer le total payé
+      let totalPaid = 0;
+      paymentsArray.forEach((payment: any) => {
+        if (payment && typeof payment.amount !== 'undefined') {
+          totalPaid += Number(payment.amount || 0);
+        }
       });
       
-      const existingAmounts = paymentAmounts.value.get(studentId);
-      console.log('Montants existants:', existingAmounts);
-      
-      const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-      
+      // Définir les nouvelles données
       const newAmounts = {
         paid: totalPaid,
-        remaining: adjustedAmount - totalPaid, // Utiliser le montant ajusté
+        remaining: Math.max(0, adjustedAmount - totalPaid),
         studentId,
-        baseAmount,
-        scholarshipPercentage,
-        scholarshipAmount,
-        adjustedAmount
+        baseAmount: Number(baseAmount),
+        scholarshipPercentage: Number(scholarshipPercentage),
+        scholarshipAmount: Number(scholarshipAmount),
+        adjustedAmount: Number(adjustedAmount)
       };
-
-      console.log('Nouveaux montants calculés:', newAmounts);
+      
+      console.log(`Montants calculés pour l'étudiant ${studentId}:`, newAmounts);
       paymentAmounts.value.set(studentId, newAmounts);
+    } else {
+      console.warn(`Échec du chargement des paiements pour l'étudiant ${studentId}:`, result.message || 'Raison inconnue');
+      // Initialiser avec des valeurs par défaut
+      initializeDefaultPaymentAmounts(studentId);
     }
   } catch (error) {
-    console.error('Erreur lors du chargement des paiements:', error);
+    console.error(`Erreur lors du chargement des paiements pour l'étudiant ${studentId}:`, error);
+    // Initialiser avec des valeurs par défaut en cas d'erreur
+    initializeDefaultPaymentAmounts(studentId);
   }
+};
+
+// Fonction utilitaire pour initialiser des valeurs par défaut
+const initializeDefaultPaymentAmounts = (studentId: number) => {
+  paymentAmounts.value.set(studentId, {
+    paid: 0,
+    remaining: 0,
+    studentId,
+    baseAmount: 0,
+    scholarshipPercentage: 0,
+    scholarshipAmount: 0,
+    adjustedAmount: 0
+  });
 };
 
 const getStudentAdjustedAmount = (student: Student) => {
@@ -1042,105 +1122,254 @@ const getTotalScholarshipAmount = () => {
 }
 
 .payment-header {
-  padding: 20px;
+  padding: 10px 20px;
   height: auto;
+  max-height: 120px;
 }
 
 .stat-card {
   transition: transform 0.3s ease;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 5px;
 }
 
-.stat-card:hover {
-  transform: translateY(-5px);
+.compact-stat-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
 }
 
-.stat-header {
+.stat-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--el-text-color-regular);
-}
-
-.stat-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  gap: 8px;
 }
 
 .stat-label {
   font-size: 14px;
-  color: var(--el-text-color-secondary);
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.stat-amount {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .payment-content {
   padding: 0 20px 20px;
 }
 
+.payment-table-card {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
 .table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .search-filters {
   display: flex;
-  gap: 15px;
+  gap: 10px;
   flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filters-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.filter-select {
+  width: 150px;
+}
+
+.status-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .student-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.student-avatar {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 2px solid white;
 }
 
 .student-details {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .student-name {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.student-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .student-matricule {
   color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 .payment-progress {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
+}
+
+.payment-progress-bar {
+  margin-bottom: 4px;
 }
 
 .progress-details {
   color: var(--el-text-color-secondary);
   text-align: center;
-  font-size: 0.9em;
+  font-size: 13px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+}
+
+.paid-amount {
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.separator {
+  opacity: 0.6;
+}
+
+.total-amount {
+  opacity: 0.8;
+}
+
+.status-tag {
+  padding: 0 12px;
+  height: 26px;
+  line-height: 26px;
+  font-weight: 500;
+}
+
+.action-buttons {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
 }
 
 .pagination-container {
-  margin-top: 20px;
+  margin-top: 25px;
   display: flex;
   justify-content: flex-end;
+}
+
+.custom-pagination {
+  padding: 5px;
+  border-radius: 4px;
+  background-color: var(--el-bg-color-page);
+}
+
+.scholarship-info-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.scholarship-amount {
+  font-size: 12px;
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.scholarship-tooltip {
+  padding: 4px;
+  min-width: 200px;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.tooltip-highlight {
+  font-weight: 600;
+  color: var(--el-color-success);
+}
+
+.payment-table {
+  --el-table-header-bg-color: var(--el-color-primary-light-9);
+  --el-table-row-hover-bg-color: var(--el-color-primary-light-9);
+  width: 100%;
+  overflow-x: auto;
+}
+
+.el-table {
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 /* Responsive design */
 @media (max-width: 1200px) {
   .search-filters {
     flex-direction: column;
+    gap: 10px;
+  }
+  
+  .search-input, .filter-select {
+    width: 100%;
+    min-width: unset;
   }
   
   .table-header {
     flex-direction: column;
-    gap: 15px;
+    align-items: stretch;
+  }
+  
+  .table-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  .payment-progress-bar {
+    width: 100%;
   }
 }
 
@@ -1152,45 +1381,28 @@ const getTotalScholarshipAmount = () => {
   .el-col {
     margin-bottom: 10px;
   }
-}
-
-.scholarship-info {
-  color: var(--el-color-success);
-  font-size: 0.85em;
-  margin-top: 4px;
-}
-
-.scholarship-amount {
-  font-size: 0.8em;
-  color: var(--el-color-success);
-  margin-top: 4px;
-}
-
-.stat-card.info {
-  background-color: var(--el-color-info-light-9);
-}
-
-.payment-amount {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.el-tooltip__content {
-  text-align: left;
-}
-
-.el-tooltip__content p {
-  margin: 4px 0;
-  white-space: nowrap;
-}
-
-.scholarship-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  color: var(--el-color-success);
-  font-size: 0.85em;
+  
+  .stat-amount {
+    font-size: 22px;
+  }
+  
+  .table-actions {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .action-buttons {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .el-button-group .el-button {
+    flex: 1;
+  }
+  
+  .pagination-container {
+    justify-content: center;
+  }
 }
 </style>

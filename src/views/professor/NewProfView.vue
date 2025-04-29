@@ -9,8 +9,15 @@ import type { IProfessorServiceParams, IProfessorFile } from '@/types/professor'
 // Définition de l'interface des données du formulaire alignée avec les types
 interface TeachingData {
   schoolType: SCHOOL_TYPE;
-  selectedClasses: number[];
-  selectedCourse: number;
+  classId?: number;
+  courseId?: number | null;
+  gradeIds?: string | number[];
+  teachingType?: string;
+  class?: {
+    id: number;
+    name: string;
+  };
+  selectedClasses?: number[];
 }
 
 interface ProfessorFormData {
@@ -24,11 +31,16 @@ interface ProfessorFormData {
   address: string;
   town: string;
   cni_number: string;
-  diploma?: { name: string };
-  qualification?: { name: string };
+  diploma: { name: string };
+  qualification: { name: string };
   documents: IProfessorFile[];
-  photo?: IProfessorFile;
-  teaching: TeachingData;
+  photo?: {
+    content?: string;
+    id?: number;
+    name?: string;
+    type?: string;
+  };
+  teaching?: TeachingData;
 }
 
 const router = useRouter();
@@ -37,46 +49,105 @@ const loading = ref(false);
 const handleSave = async (professorData: ProfessorFormData) => {
   loading.value = true;
   try {
+    // Validation des champs obligatoires
+    if (!professorData.firstname?.trim()) {
+      throw new Error("Le prénom est obligatoire");
+    }
+    if (!professorData.lastname?.trim()) {
+      throw new Error("Le nom est obligatoire");
+    }
+    if (!professorData.civility) {
+      throw new Error("La civilité est obligatoire");
+    }
+    if (!professorData.family_situation) {
+      throw new Error("La situation familiale est obligatoire");
+    }
+    if (!professorData.birth_date) {
+      throw new Error("La date de naissance est obligatoire");
+    }
+    if (!professorData.birth_town?.trim()) {
+      throw new Error("Le lieu de naissance est obligatoire");
+    }
+    if (!professorData.address?.trim()) {
+      throw new Error("L'adresse est obligatoire");
+    }
+    if (!professorData.town?.trim()) {
+      throw new Error("La ville est obligatoire");
+    }
+    if (!professorData.cni_number?.trim()) {
+      throw new Error("Le numéro CNI est obligatoire");
+    }
+    if (!professorData.diploma?.name?.trim()) {
+      throw new Error("Le diplôme est obligatoire");
+    }
+    if (!professorData.qualification?.name?.trim()) {
+      throw new Error("La qualification est obligatoire");
+    }
+
+    // Validation des données d'enseignement
+    if (professorData.teaching) {
+      console.log("Données de teaching pour validation:", professorData.teaching);
+
+      const teachingData = professorData.teaching as TeachingData;
+      
+      if (teachingData.schoolType === 'PRIMARY') {
+        if (!teachingData.classId && (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses?.length === 0)) {
+          throw new Error("La classe est requise pour l'enseignement primaire");
+        }
+        // Si selectedClasses existe, utiliser le premier élément pour classId
+        if (Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0 && !teachingData.classId) {
+          teachingData.classId = teachingData.selectedClasses[0];
+        }
+      }
+      
+      if (teachingData.schoolType === 'SECONDARY') {
+        if (!teachingData.courseId) {
+          throw new Error("La matière est requise pour l'enseignement secondaire");
+        }
+        if (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses.length === 0) {
+          throw new Error("Au moins une classe est requise pour l'enseignement secondaire");
+        }
+      }
+    }
+
     console.log("Données avant construction :", professorData);
 
     // Conversion des données du formulaire au format attendu par le service
     const serviceData: IProfessorServiceParams['createProfessor'] = {
-      firstname: professorData.firstname,
-      lastname: professorData.lastname,
+      firstname: professorData.firstname.trim(),
+      lastname: professorData.lastname.trim(),
       civility: professorData.civility,
       nbr_child: professorData.nbr_child,
       family_situation: professorData.family_situation,
-      birth_date: professorData.birth_date ? new Date(professorData.birth_date) : undefined,
-      birth_town: professorData.birth_town,
-      address: professorData.address,
-      town: professorData.town,
-      cni_number: professorData.cni_number,
-      diploma: professorData.diploma?.name,
-      qualification: professorData.qualification?.name,
+      birth_date: professorData.birth_date,
+      birth_town: professorData.birth_town.trim(),
+      address: professorData.address.trim(),
+      town: professorData.town.trim(),
+      cni_number: professorData.cni_number.trim(),
+      diploma: professorData.diploma.name.trim(),
+      qualification: professorData.qualification.name.trim(),
       photo: professorData.photo ? {
-        name: professorData.photo.name,
-        content: professorData.photo.content,
-        type: professorData.photo.type,
+        name: professorData.photo.name || '',
+        content: professorData.photo.content || '',
+        type: professorData.photo.type || 'image/jpeg'
       } : undefined,
-      documents: Array.isArray(professorData.documents)
-        ? professorData.documents.map(doc => ({
-            name: doc.name,
-            content: doc.content,
-            type: doc.type,
-          }))
-        : [],
-      teaching: {
+      documents: professorData.documents.map(doc => ({
+        name: doc.name,
+        content: doc.content,
+        type: doc.type
+      })),
+      teaching: professorData.teaching ? {
         schoolType: professorData.teaching.schoolType,
-        classId: professorData.teaching.schoolType === SCHOOL_TYPE.PRIMARY 
-          ? professorData.teaching.selectedClasses[0] 
-          : undefined,
-        courseId: professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY 
-          ? professorData.teaching.selectedCourse 
-          : undefined,
-        gradeIds: professorData.teaching.schoolType === SCHOOL_TYPE.SECONDARY 
-          ? professorData.teaching.selectedClasses 
-          : undefined,
-      }
+        classId: professorData.teaching.classId,
+        courseId: professorData.teaching.courseId || undefined,
+        gradeIds: Array.isArray(professorData.teaching.selectedClasses) 
+          ? professorData.teaching.selectedClasses
+          : professorData.teaching.gradeIds 
+            ? (Array.isArray(professorData.teaching.gradeIds) 
+                ? professorData.teaching.gradeIds
+                : professorData.teaching.gradeIds.split(',').map(Number)) 
+            : undefined
+      } : undefined
     };
 
     console.log("Données préparées pour le service :", serviceData);
@@ -90,9 +161,9 @@ const handleSave = async (professorData: ProfessorFormData) => {
     } else {
       throw new Error(result.message || 'Erreur lors de la création');
     }
-  } catch (error) {
-    console.error('Erreur:', error);
-    ElMessage.error("Erreur lors de la création du professeur");
+  } catch (error: any) {
+    console.error('Erreur détaillée:', error);
+    ElMessage.error(`Erreur: ${error?.message || 'Une erreur inconnue est survenue'}`);
     return false;
   } finally {
     loading.value = false;

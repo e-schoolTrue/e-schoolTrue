@@ -27,6 +27,8 @@ type ProfessorFormData = {
     classId?: number;
     courseId?: number | null;
     gradeIds?: string;
+    selectedClasses?: number[];
+    selectedCourse?: number | null;
   };
 };
 
@@ -46,14 +48,45 @@ interface ProfessorUpdateData {
     diploma: { name: string };
     qualification: { name: string };
     documents?: IProfessorFile[];
-    photo?: any;
+    photo?: {
+        content?: string;
+        id?: number;
+        name?: string;
+        type?: string;
+    };
     teaching?: {
         teachingType: string;
         schoolType: SCHOOL_TYPE | null;
         classId?: number;
         courseId?: number | null;
-        gradeIds?: string;
+        gradeIds?: string | number[];
+        class?: {
+            id: number;
+            name: string;
+        };
+        course?: {
+            id: number;
+            name: string;
+        };
     };
+}
+
+interface TeachingData {
+  schoolType: SCHOOL_TYPE | null;
+  classId?: number;
+  courseId?: number | null;
+  gradeIds?: string | number[];
+  teachingType?: string;
+  selectedClasses?: number[];
+  selectedCourse?: number | null;
+  class?: {
+    id: number;
+    name: string;
+  };
+  course?: {
+    id: number;
+    name: string;
+  };
 }
 
 const route = useRoute();
@@ -65,6 +98,7 @@ const loadProfessor = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('professor:getById', Number(route.params.id));
+    
     if (result.success) {
       // Vérifier si une photo existe et ajouter une URL pour l'affichage si nécessaire
       if (result.data && result.data.photo) {
@@ -91,8 +125,34 @@ const loadProfessor = async () => {
         }
       }
       
+      // Prétraitement des données d'enseignement avant de les attribuer au professeur
+      if (result.data.teaching && result.data.teaching.length > 0) {
+        const teachingAssignment = result.data.teaching[0];
+        console.log("Données d'enseignement brutes:", teachingAssignment);
+        
+        // S'assurer que selectedClasses est bien initialisé pour l'enseignement primaire
+        if (teachingAssignment.schoolType === 'PRIMARY' && teachingAssignment.class && teachingAssignment.class.id) {
+          console.log("Prétraitement des données primaire...");
+          teachingAssignment.selectedClasses = [teachingAssignment.class.id];
+        }
+        // Pour le secondaire, s'assurer que selectedCourse et selectedClasses sont initialisés
+        else if (teachingAssignment.schoolType === 'SECONDARY') {
+          console.log("Prétraitement des données secondaire...");
+          if (teachingAssignment.course && teachingAssignment.course.id) {
+            teachingAssignment.selectedCourse = teachingAssignment.course.id;
+          }
+          if (teachingAssignment.gradeIds) {
+            const gradeIds = Array.isArray(teachingAssignment.gradeIds) 
+              ? teachingAssignment.gradeIds 
+              : teachingAssignment.gradeIds.split(',').map(Number);
+            
+            teachingAssignment.selectedClasses = gradeIds;
+          }
+        }
+      }
+      
       professorData.value = result.data;
-      console.log("Données du professeur chargées avec succès:", professorData.value);
+      console.log("Données du professeur prétraitées chargées avec succès:", professorData.value);
     } else {
       throw new Error(result.message || 'Erreur lors du chargement du professeur');
     }
@@ -130,6 +190,9 @@ const handleUpdate = async (formData: ProfessorFormData) => {
         if (isNaN(professorId) || professorId <= 0) {
             throw new Error("ID du professeur invalide ou manquant");
         }
+        
+        // Caster formData.teaching comme TeachingData pour résoudre les erreurs de typage
+        const teachingData = formData.teaching as unknown as TeachingData;
         
         // Structure de données exactement comme attendue par le backend
         const professorData: ProfessorUpdateData = {
@@ -188,27 +251,123 @@ const handleUpdate = async (formData: ProfessorFormData) => {
         
         // Gestion des données d'enseignement
         if (formData.teaching) {
+            console.log("Données de teaching reçues:", {
+                schoolType: teachingData.schoolType,
+                selectedClasses: teachingData.selectedClasses, 
+                classId: teachingData.classId,
+                selectedCourse: teachingData.selectedCourse,
+                courseId: teachingData.courseId,
+                teaching: teachingData // Log l'objet complet
+            });
+            
+            // Validation des champs requis selon le type d'école
+            if (teachingData.schoolType === 'PRIMARY') {
+                if (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses.length === 0) {
+                    if (teachingData.classId) {
+                        console.log("classId existe mais selectedClasses est vide, on utilise classId");
+                        teachingData.selectedClasses = [teachingData.classId];
+                    } else if (teachingData.class && teachingData.class.id) {
+                        console.log("class.id existe mais selectedClasses est vide, on utilise class.id");
+                        teachingData.selectedClasses = [teachingData.class.id];
+                        teachingData.classId = teachingData.class.id;
+                    } else {
+                        throw new Error("La classe est requise pour l'enseignement primaire");
+                    }
+                }
+            } else if (teachingData.schoolType === 'SECONDARY') {
+                // Vérifier si les classes sont sélectionnées
+                if (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses.length === 0) {
+                    if (teachingData.classId) {
+                        console.log("classId existe mais selectedClasses est vide, on utilise classId");
+                        teachingData.selectedClasses = [teachingData.classId];
+                    } else {
+                        throw new Error("Au moins une classe est requise pour l'enseignement secondaire");
+                    }
+                }
+                
+                // Vérifier si une matière est sélectionnée
+                if (!teachingData.selectedCourse) {
+                    // Si courseId existe, l'utiliser
+                    if (teachingData.courseId) {
+                        console.log("courseId existe mais selectedCourse est vide, on utilise courseId");
+                        teachingData.selectedCourse = teachingData.courseId;
+                    } else {
+                        throw new Error("Une matière est requise pour l'enseignement secondaire");
+                    }
+                }
+            }
+
             professorData.teaching = {
-                teachingType: formData.teaching.teachingType || 'CLASS',
-                schoolType: formData.teaching.schoolType
-            };
-            
-            // Ajout des propriétés optionnelles seulement si elles existent
-            if (formData.teaching.classId !== undefined) {
-                professorData.teaching.classId = formData.teaching.classId;
+                teachingType: teachingData.teachingType || 'CLASS',
+                schoolType: teachingData.schoolType,
+                classId: Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0 ? teachingData.selectedClasses[0] : undefined,
+                courseId: teachingData.selectedCourse,
+                gradeIds: Array.isArray(teachingData.selectedClasses) ? teachingData.selectedClasses.join(',') : undefined,
+                class: Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0 ? {
+                    id: teachingData.selectedClasses[0],
+                    name: '' // Le nom sera rempli par le backend
+            } : undefined
+        };
+
+            // Vérification supplémentaire pour s'assurer que les données de classe sont correctement formatées
+            if (teachingData.schoolType === 'PRIMARY') {
+                // Pour l'enseignement primaire, mettre l'accent sur la classe et définir le teachingType à CLASS_TEACHER
+                professorData.teaching.teachingType = 'CLASS_TEACHER';
+                
+                // S'assurer que class est correctement défini
+                if (Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0) {
+                    const classId = teachingData.selectedClasses[0];
+                    professorData.teaching.classId = classId;
+                    professorData.teaching.class = { id: classId, name: '' };
+                    
+                    // Ajouter également gradeIds pour l'enseignement primaire
+                    professorData.teaching.gradeIds = String(classId);
+                    
+                    // Supprimer courseId s'il existe pour éviter toute confusion
+                    professorData.teaching.courseId = undefined;
+                    // Utiliser un cast pour éviter l'erreur de typage
+                    professorData.teaching.course = undefined;
+                }
+                
+                // Log explicite pour l'enseignement primaire
+                console.log("Données finales pour enseignement primaire:", {
+                    teachingType: professorData.teaching.teachingType,
+                    classId: professorData.teaching.classId,
+                    class: professorData.teaching.class,
+                    gradeIds: professorData.teaching.gradeIds
+                });
+            } else if (teachingData.schoolType === 'SECONDARY') {
+                // Pour l'enseignement secondaire, définir le teachingType à SUBJECT_TEACHER si une matière est sélectionnée
+                if (teachingData.selectedCourse) {
+                    professorData.teaching.teachingType = 'SUBJECT_TEACHER';
+                    professorData.teaching.courseId = teachingData.selectedCourse;
+                }
+                
+                // S'assurer que classId et gradeIds sont correctement définis
+                if (Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0) {
+                    professorData.teaching.classId = teachingData.selectedClasses[0];
+                    professorData.teaching.gradeIds = teachingData.selectedClasses.join(',');
+                    
+                    // Définir explicitement l'objet class pour le premier élément sélectionné
+                    professorData.teaching.class = { id: teachingData.selectedClasses[0], name: '' };
+                }
+                
+                // Log explicite pour l'enseignement secondaire
+                console.log("Données finales pour enseignement secondaire:", {
+                    teachingType: professorData.teaching.teachingType,
+                    courseId: professorData.teaching.courseId,
+                    classId: professorData.teaching.classId,
+                    class: professorData.teaching.class,
+                    gradeIds: professorData.teaching.gradeIds
+                });
             }
             
-            if (formData.teaching.courseId !== undefined && formData.teaching.courseId !== null) {
-                professorData.teaching.courseId = formData.teaching.courseId;
-            }
-            
-            if (formData.teaching.gradeIds) {
-                professorData.teaching.gradeIds = formData.teaching.gradeIds;
-            }
+            console.log("Données d'enseignement après traitement:", professorData.teaching);
         }
         
         // Affichage des données finales pour debugging
         console.log("Données à envoyer:", JSON.stringify(professorData, null, 2));
+        console.log("Données reçues du formulaire:", JSON.stringify(formData, null, 2));  
         console.log("ID du professeur:", professorId);
         
         // Appel API
@@ -222,9 +381,9 @@ const handleUpdate = async (formData: ProfessorFormData) => {
             console.log("Résultat de l'API:", result);
             
             if (result && result.success) {
-                ElMessage.success('Professeur mis à jour avec succès');
-                router.push('/professor');
-            } else {
+            ElMessage.success('Professeur mis à jour avec succès');
+            router.push('/professor');
+        } else {
                 const errorMessage = result?.message || 'Erreur inconnue lors de la mise à jour';
                 throw new Error(errorMessage);
             }

@@ -4,8 +4,16 @@ import { SCHOOL_TYPE } from "#electron/command";
 
 interface Teaching {
   schoolType: SCHOOL_TYPE | null;
-  selectedClasses: number[];
-  selectedCourse: number | null;
+  classId?: number;
+  courseId?: number;
+  gradeIds?: number[];
+  teachingType?: string;
+  selectedClasses?: number[];
+  selectedCourse?: number;
+  class?: {
+    id: number;
+    name: string;
+  };
 }
 
 interface Grade {
@@ -27,8 +35,11 @@ const props = withDefaults(defineProps<{
 }>(), {
   modelValue: () => ({
     schoolType: null,
+    classId: undefined,
+    courseId: undefined,
+    gradeIds: undefined,
     selectedClasses: [],
-    selectedCourse: null
+    teachingType: 'CLASS_TEACHER'
   })
 });
 
@@ -41,28 +52,81 @@ const courses = ref<Course[]>([]);
 
 const schoolType = computed({
   get: () => props.modelValue.schoolType,
-  set: (value) => emit('update:modelValue', { 
-    ...props.modelValue, 
-    schoolType: value,
-    selectedClasses: [],
-    selectedCourse: null
-  })
+  set: (value) => {
+    const newValue = { 
+      ...props.modelValue, 
+      schoolType: value,
+      classId: undefined,
+      courseId: undefined,
+      gradeIds: undefined,
+      selectedClasses: [],
+      selectedCourse: undefined,
+      class: undefined
+    };
+    emit('update:modelValue', newValue);
+    console.log("✅ Type d'école sélectionné :", newValue.schoolType);
+  }
 });
 
+// Pour Primaire (sélection simple)
+const selectedClass = computed({
+  get: () => {
+    console.log("🔍 [GET] selectedClass:", props.modelValue.classId);
+    return props.modelValue.classId;
+  },
+  set: (value) => {
+    console.log("📝 [SET] selectedClass:", value);
+    const newValue = {
+      ...props.modelValue,
+      classId: value,
+      gradeIds: value ? [value] : [],
+      selectedClasses: value ? [value] : [],
+      class: value ? { id: value, name: '' } : undefined,
+      teachingType: 'CLASS_TEACHER' // Définir explicitement pour l'enseignement primaire
+    };
+    emit('update:modelValue', newValue);
+    console.log("✅ Mise à jour après sélection (primaire):", newValue);
+  }
+});
+
+// Pour Secondaire (multi-classes)
 const selectedClasses = computed({
-  get: () => props.modelValue.selectedClasses,
-  set: (value) => emit('update:modelValue', { 
-    ...props.modelValue, 
-    selectedClasses: value 
-  })
+  get: () => {
+    if (!Array.isArray(props.modelValue.selectedClasses) && props.modelValue.classId) {
+      return [props.modelValue.classId];
+    }
+    return props.modelValue.selectedClasses || [];
+  },
+  set: (value) => {
+    const classes = Array.isArray(value) ? value : [];
+    const newValue = { 
+      ...props.modelValue, 
+      selectedClasses: classes,
+      classId: classes.length > 0 ? classes[0] : undefined,
+      gradeIds: classes,
+      class: classes.length > 0 ? { id: classes[0], name: '' } : undefined
+    };
+    emit('update:modelValue', newValue);
+    console.log("✅ Mise à jour des classes (secondaire):", newValue);
+  }
 });
 
 const selectedCourse = computed({
-  get: () => props.modelValue.selectedCourse,
-  set: (value) => emit('update:modelValue', { 
-    ...props.modelValue, 
-    selectedCourse: value 
-  })
+  get: () => {
+    return props.modelValue.selectedCourse ?? props.modelValue.courseId;
+  },
+  set: (value) => {
+    const newValue = { 
+      ...props.modelValue, 
+      selectedCourse: value,
+      courseId: value,
+      teachingType: value 
+        ? (props.modelValue.schoolType === 'SECONDARY' ? 'SUBJECT_TEACHER' : 'CLASS_TEACHER')
+        : 'CLASS_TEACHER'
+    };
+    emit('update:modelValue', newValue);
+    console.log("✅ Cours sélectionné :", newValue);
+  }
 });
 
 const loadGrades = async () => {
@@ -70,11 +134,12 @@ const loadGrades = async () => {
     const result = await window.ipcRenderer.invoke('grade:all');
     if (result.success) {
       grades.value = result.data;
+      console.log("📚 Classes chargées :", grades.value);
     } else {
-      console.error("Erreur lors du chargement des classes:", result.error);
+      console.error("❌ Erreur lors du chargement des classes:", result.error);
     }
   } catch (error) {
-    console.error("Erreur lors du chargement des classes:", error);
+    console.error("❌ Exception lors du chargement des classes:", error);
   }
 };
 
@@ -83,11 +148,12 @@ const loadCourses = async () => {
     const result = await window.ipcRenderer.invoke('course:all');
     if (result.success) {
       courses.value = result.data;
+      console.log("📘 Cours chargés :", courses.value);
     } else {
-      console.error("Erreur lors du chargement des cours:", result.error);
+      console.error("❌ Erreur lors du chargement des cours:", result.error);
     }
   } catch (error) {
-    console.error("Erreur lors du chargement des cours:", error);
+    console.error("❌ Exception lors du chargement des cours:", error);
   }
 };
 
@@ -107,9 +173,9 @@ onMounted(() => {
     </el-form-item>
 
     <template v-if="schoolType === SCHOOL_TYPE.PRIMARY">
-      <el-form-item label="Classe">
+      <el-form-item label="Classe" required>
         <el-select
-          v-model="selectedClasses[0]"
+          v-model="selectedClass"
           placeholder="Sélectionnez une classe"
           clearable
         >
@@ -120,11 +186,14 @@ onMounted(() => {
             :value="grade.id"
           />
         </el-select>
+        <div v-if="!selectedClass" class="error-message">
+          Veuillez sélectionner une classe pour l'enseignement primaire
+        </div>
       </el-form-item>
     </template>
 
     <template v-if="schoolType === SCHOOL_TYPE.SECONDARY">
-      <el-form-item label="Matière">
+      <el-form-item label="Matière" required>
         <el-select
           v-model="selectedCourse"
           placeholder="Sélectionnez une matière"
@@ -137,9 +206,12 @@ onMounted(() => {
             :value="course.id"
           />
         </el-select>
+        <div v-if="!selectedCourse" class="error-message">
+          Veuillez sélectionner une matière pour l'enseignement secondaire
+        </div>
       </el-form-item>
 
-      <el-form-item label="Classes">
+      <el-form-item label="Classes" required>
         <el-select
           v-model="selectedClasses"
           multiple
@@ -153,6 +225,9 @@ onMounted(() => {
             :value="grade.id"
           />
         </el-select>
+        <div v-if="selectedClasses.length === 0" class="error-message">
+          Veuillez sélectionner au moins une classe pour l'enseignement secondaire
+        </div>
       </el-form-item>
     </template>
   </div>
@@ -172,4 +247,10 @@ onMounted(() => {
 .el-radio-group {
   margin-bottom: 20px;
 }
-</style> 
+
+.error-message {
+  color: #f56c6c;
+  font-size: 12px;
+  margin-top: 5px;
+}
+</style>

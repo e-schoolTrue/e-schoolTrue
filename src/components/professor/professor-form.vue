@@ -30,8 +30,12 @@ const form = reactive({
   photo: null as IProfessorFile | null,
   teaching: {
     schoolType: null as SCHOOL_TYPE | null,
+    classId: undefined as number | undefined,
+    courseId: undefined as number | undefined,
+    gradeIds: undefined as number[] | undefined,
+    teachingType: 'CLASS',
     selectedClasses: [] as number[],
-    selectedCourse: null as number | null
+    selectedCourse: undefined as number | undefined
   }
 });
 
@@ -85,31 +89,26 @@ watch(
       
       // Mettre à jour les données d'enseignement si disponibles
       if (newData.teaching && newData.teaching.length > 0) {
-        // Parcourir les affectations d'enseignement
-        const teachingAssignment = newData.teaching[0]; // Prendre la première affectation
+        const teachingAssignment = newData.teaching[0];
         
-        // Type SCHOOL_TYPE attendu pour schoolType
         if (teachingAssignment.schoolType) {
-          // Convertir string en SCHOOL_TYPE
-          if (teachingAssignment.schoolType === 'PRIMARY') {
-            form.teaching.schoolType = SCHOOL_TYPE.PRIMARY;
-          } else if (teachingAssignment.schoolType === 'SECONDARY') {
-            form.teaching.schoolType = SCHOOL_TYPE.SECONDARY;
-          }
+          form.teaching.schoolType = teachingAssignment.schoolType === 'PRIMARY' 
+            ? SCHOOL_TYPE.PRIMARY 
+            : SCHOOL_TYPE.SECONDARY;
         }
         
-        // S'il y a des classes assignées
-        if (teachingAssignment.class && typeof teachingAssignment.class.id === 'number') {
-          form.teaching.selectedClasses = [teachingAssignment.class.id];
-        } else {
-          form.teaching.selectedClasses = [];
+        if (teachingAssignment.class?.id) {
+          form.teaching.classId = teachingAssignment.class.id;
         }
         
-        // S'il y a un cours assigné
-        if (teachingAssignment.course && typeof teachingAssignment.course.id === 'number') {
-          form.teaching.selectedCourse = teachingAssignment.course.id;
-        } else {
-          form.teaching.selectedCourse = null;
+        if (teachingAssignment.course?.id) {
+          form.teaching.courseId = teachingAssignment.course.id;
+        }
+        
+        if (teachingAssignment.gradeIds) {
+          form.teaching.gradeIds = Array.isArray(teachingAssignment.gradeIds) 
+            ? teachingAssignment.gradeIds 
+            : teachingAssignment.gradeIds.split(',').map(Number);
         }
       }
     }
@@ -334,6 +333,52 @@ const handleSubmit = async () => {
       return;
     }
 
+    // Vérifications pour l'enseignement primaire
+    if (form.teaching.schoolType === 'PRIMARY' && (!Array.isArray(form.teaching.selectedClasses) || form.teaching.selectedClasses.length === 0)) {
+      // Si classId est défini mais selectedClasses est vide, initialiser selectedClasses avec classId
+      if (form.teaching.classId) {
+        console.log("classId existe mais selectedClasses est vide, on utilise classId");
+        form.teaching.selectedClasses = [form.teaching.classId];
+      } else {
+        ElMessage.error("Veuillez sélectionner une classe pour l'enseignement primaire");
+        return;
+      }
+    }
+    
+    // Vérifications pour l'enseignement secondaire
+    if (form.teaching.schoolType === 'SECONDARY') {
+      // Vérifier les classes
+      if (!Array.isArray(form.teaching.selectedClasses) || form.teaching.selectedClasses.length === 0) {
+        if (form.teaching.classId) {
+          console.log("classId existe mais selectedClasses est vide, on utilise classId");
+          form.teaching.selectedClasses = [form.teaching.classId];
+        } else {
+          ElMessage.error("Veuillez sélectionner au moins une classe pour l'enseignement secondaire");
+          return;
+        }
+      }
+      
+      // Vérifier la matière
+      if (!form.teaching.selectedCourse) {
+        if (form.teaching.courseId) {
+          console.log("courseId existe mais selectedCourse est vide, on utilise courseId");
+          form.teaching.selectedCourse = form.teaching.courseId;
+        } else {
+          ElMessage.error("Veuillez sélectionner une matière pour l'enseignement secondaire");
+          return;
+        }
+      }
+    }
+
+    // Log pour déboguer
+    console.log("Données de teaching avant soumission:", {
+      schoolType: form.teaching.schoolType,
+      selectedClasses: form.teaching.selectedClasses,
+      selectedCourse: form.teaching.selectedCourse,
+      classId: form.teaching.classId,
+      courseId: form.teaching.courseId
+    });
+
     // Préparer une copie propre des données
     const formDataToSubmit = {
       firstname: form.firstname,
@@ -351,11 +396,18 @@ const handleSubmit = async () => {
       documents: form.documents.map(doc => ({ ...doc })),
       photo: form.photo ? { ...form.photo } : null,
       teaching: {
-        teachingType: form.teaching.selectedCourse ? 'SUBJECT' : 'CLASS',
+        teachingType: form.teaching.schoolType === 'PRIMARY' 
+          ? 'CLASS_TEACHER' 
+          : (form.teaching.selectedCourse ? 'SUBJECT_TEACHER' : 'CLASS_TEACHER'),
         schoolType: form.teaching.schoolType,
-        classId: form.teaching.selectedClasses.length > 0 ? form.teaching.selectedClasses[0] : undefined,
-        courseId: form.teaching.selectedCourse,
-        gradeIds: form.teaching.selectedClasses.join(',')
+        classId: Array.isArray(form.teaching.selectedClasses) && form.teaching.selectedClasses.length > 0 ? form.teaching.selectedClasses[0] : undefined,
+        courseId: form.teaching.schoolType === 'PRIMARY' ? undefined : form.teaching.selectedCourse,
+        gradeIds: Array.isArray(form.teaching.selectedClasses) ? form.teaching.selectedClasses.join(',') : undefined,
+        selectedClasses: Array.isArray(form.teaching.selectedClasses) ? [...form.teaching.selectedClasses] : [],
+        selectedCourse: form.teaching.selectedCourse,
+        class: Array.isArray(form.teaching.selectedClasses) && form.teaching.selectedClasses.length > 0 
+          ? { id: form.teaching.selectedClasses[0], name: '' } 
+          : undefined
       }
     };
 

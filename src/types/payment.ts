@@ -139,3 +139,23 @@ export interface PaymentConfigResponse {
   message: string;
   error: string | null;
 }
+
+// Nouvelle interface pour représenter les données de paiement d'un étudiant
+export interface StudentPaymentData {
+  payments: IPaymentData[];
+  baseAmount: number;
+  scholarshipPercentage: number;
+  scholarshipAmount: number;
+  adjustedAmount: number;
+}
+
+// Interface pour le stockage local des montants de paiement
+export interface PaymentAmounts {
+  paid: number;
+  remaining: number;
+  studentId: number;
+  baseAmount: number;
+  scholarshipPercentage: number;
+  scholarshipAmount: number;
+  adjustedAmount: number;
+}
