@@ -386,10 +386,24 @@ const loadPaymentData = async () => {
     if (!props.student?.id) return;
     
     const result = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
-    if (result.success && result.data?.payments) {
-      totalPaid.value = result.data.payments.reduce((sum: number, payment: { amount: number }) => {
-        return sum + (payment.amount || 0);
+    console.log('Résultat des paiements:', result);
+    
+    if (result.success && result.data) {
+      // Récupérer les paiements
+      const payments = Array.isArray(result.data.payments) ? result.data.payments : [];
+      
+      // Calculer le total payé
+      totalPaid.value = payments.reduce((sum, payment) => {
+        return sum + (Number(payment.amount) || 0);
       }, 0);
+      
+      console.log('Total payé:', totalPaid.value);
+      
+      // Appliquer les informations de bourse si disponibles
+      if (result.data.scholarshipPercentage > 0) {
+        form.value.hasScholarship = true;
+        form.value.scholarshipPercentage = result.data.scholarshipPercentage;
+      }
     }
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);

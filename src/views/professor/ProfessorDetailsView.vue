@@ -193,13 +193,19 @@ const formatDate = (date: Date | null) => {
 const getTeachingInfo = (teachings: Teaching[]) => {
   if (!teachings || teachings.length === 0) return 'Non assigné';
   
-  return teachings.map(teaching => {
-    if (teaching.teachingType === 'CLASS_TEACHER') {
-      return `Instituteur - ${teaching.class?.name || 'N/A'}`;
+  const teaching = teachings[0]; // Prendre la première affectation
+  if (teaching.teachingType === 'CLASS_TEACHER') {
+    if (teaching.schoolType === 'PRIMARY') {
+      return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
     } else {
-      return `Professeur de ${teaching.course?.name || 'N/A'}${teaching.gradeNames ? ` - Classes: ${teaching.gradeNames}` : ''}`;
+      return teaching.class ? `Professeur principal - ${teaching.class.name}` : 'Professeur principal (classe non assignée)';
     }
-  }).join(', ');
+  } else if (teaching.teachingType === 'SUBJECT_TEACHER') {
+    const courseInfo = teaching.course?.name || 'N/A';
+    const gradeInfo = teaching.gradeNames ? ` - Classes: ${teaching.gradeNames}` : '';
+    return `Professeur de ${courseInfo}${gradeInfo}`;
+  }
+  return 'N/A';
 };
 onMounted(loadProfessor);
 </script>

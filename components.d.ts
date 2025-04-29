@@ -87,6 +87,7 @@ declare module 'vue' {
     PaymentDialog: typeof import('./src/components/payment/PaymentDialog.vue')['default']
     PaymentForm: typeof import('./src/components/payment/PaymentForm.vue')['default']
     PaymentHistory: typeof import('./src/components/payment/PaymentHistory.vue')['default']
+    PaymentHistoryMini: typeof import('./src/components/payment/PaymentHistoryMini.vue')['default']
     PersonalInfo: typeof import('./src/components/student/sections/PersonalInfo.vue')['default']
     PhoneVerificationChip: typeof import('./src/components/message/phone-verification-chip.vue')['default']
     PhoneVerificationList: typeof import('./src/components/message/phone-verification-list.vue')['default']

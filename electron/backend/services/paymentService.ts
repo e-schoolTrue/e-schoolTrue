@@ -15,6 +15,15 @@ export interface ResultType<T = any> {
     error: string | null;
 }
 
+// Interface pour les données de paiement d'un étudiant
+export interface StudentPaymentResponse {
+    payments: PaymentEntity[];
+    baseAmount: number;
+    scholarshipPercentage: number;
+    scholarshipAmount: number;
+    adjustedAmount: number;
+}
+
 // Créer un type pour les données de paiement
 type PaymentCreateData = Omit<PaymentEntity, 'id'> & {
     scholarshipPercentage?: number;
@@ -292,19 +301,86 @@ export class PaymentService {
     async getPaymentsByStudent(studentId: number): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
+            console.log(`=== Récupération des paiements pour l'étudiant ID: ${studentId} ===`);
+            
             const payments = await this.paymentRepository.find({
                 where: { studentId },
                 relations: ['student', 'scholarship'],
                 order: { createdAt: 'DESC' }
             });
+            
+            console.log(`Paiements trouvés: ${payments.length}`);
+
+            // Récupérer les informations de bourse active et configuration de paiement
+            const student = await this.studentRepository.findOne({
+                where: { id: studentId },
+                relations: ['grade', 'scholarship']
+            });
+            
+            let baseAmount = 0;
+            let scholarshipPercentage = 0;
+            let scholarshipAmount = 0;
+            let adjustedAmount = 0;
+            
+            if (student?.grade?.id) {
+                console.log(`Étudiant trouvé avec grade ID: ${student.grade.id}`);
+                
+                // Récupérer la configuration de paiement
+                const config = await this.configRepository.findOne({
+                    where: { classId: student.grade.id.toString() }
+                });
+                
+                if (config) {
+                    console.log(`Configuration trouvée avec montant annuel: ${config.annualAmount}`);
+                    baseAmount = Number(config.annualAmount) || 0;
+                    
+                    // Récupérer la bourse active
+                    const activeScholarship = await this.scholarshipRepository.findOne({
+                        where: { 
+                            studentId,
+                            isActive: true,
+                            schoolYear: new Date().getFullYear().toString()
+                        }
+                    });
+                    
+                    if (activeScholarship) {
+                        console.log(`Bourse active trouvée avec pourcentage: ${activeScholarship.percentage}%`);
+                        scholarshipPercentage = Number(activeScholarship.percentage) || 0;
+                        scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
+                        adjustedAmount = baseAmount - scholarshipAmount;
+                    } else {
+                        console.log('Aucune bourse active trouvée');
+                        adjustedAmount = baseAmount;
+                    }
+                } else {
+                    console.log('Aucune configuration trouvée pour cette classe');
+                }
+            } else {
+                console.log('Étudiant sans grade ou non trouvé');
+            }
+            
+            console.log('Données de réponse préparées:', {
+                baseAmount,
+                scholarshipPercentage,
+                scholarshipAmount,
+                adjustedAmount,
+                paymentsCount: payments.length
+            });
 
             return {
                 success: true,
-                data: payments,
+                data: {
+                    payments,
+                    baseAmount,
+                    scholarshipPercentage,
+                    scholarshipAmount,
+                    adjustedAmount
+                },
                 message: "Paiements récupérés avec succès",
                 error: null
             };
         } catch (error) {
+            console.error(`Erreur lors de la récupération des paiements pour l'étudiant ${studentId}:`, error);
             return {
                 success: false,
                 data: null,
