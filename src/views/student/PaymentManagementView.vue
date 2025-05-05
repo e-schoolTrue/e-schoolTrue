@@ -58,29 +58,29 @@
               </el-input>
               
               <div class="filters-group">
-                <el-select 
-                  v-model="filters.grade" 
-                  placeholder="Classe"
-                  clearable
-                  @change="handleFilter"
+              <el-select 
+                v-model="filters.grade" 
+                placeholder="Classe"
+                clearable
+                @change="handleFilter"
                   class="filter-select"
-                >
+              >
                   <template #prefix>
                     <el-icon><School /></el-icon>
                   </template>
-                  <el-option
-                    v-for="grade in grades"
-                    :key="grade.id"
-                    :label="grade.name"
-                    :value="grade.id"
-                  />
-                </el-select>
+                <el-option
+                  v-for="grade in grades"
+                  :key="grade.id"
+                  :label="grade.name"
+                  :value="grade.id"
+                />
+              </el-select>
 
-                <el-select 
-                  v-model="filters.paymentStatus" 
+              <el-select 
+                v-model="filters.paymentStatus" 
                   placeholder="Statut"
-                  clearable
-                  @change="handleFilter"
+                clearable
+                @change="handleFilter"
                   class="filter-select"
                 >
                   <template #prefix>
@@ -101,31 +101,31 @@
                       <el-tag type="danger" size="small">Non payé</el-tag>
                     </div>
                   </el-option>
-                </el-select>
+              </el-select>
               </div>
             </div>
 
             <div class="table-actions">
               <el-button-group>
                 <el-tooltip content="Exporter les données vers Excel" placement="top">
-                  <el-button
-                    type="success"
-                    :icon="Download"
-                    @click="exportToExcel"
-                    :loading="loading"
-                  >
-                    Exporter Excel
-                  </el-button>
+                <el-button
+                  type="success"
+                  :icon="Download"
+                  @click="exportToExcel"
+                  :loading="loading"
+                >
+                  Exporter Excel
+                </el-button>
                 </el-tooltip>
                 <el-tooltip content="Actualiser les données" placement="top">
-                  <el-button
-                    type="primary"
-                    :icon="Refresh"
-                    @click="refreshData"
-                    :loading="loading"
-                  >
-                    Actualiser
-                  </el-button>
+                <el-button
+                  type="primary"
+                  :icon="Refresh"
+                  @click="refreshData"
+                  :loading="loading"
+                >
+                  Actualiser
+                </el-button>
                 </el-tooltip>
               </el-button-group>
             </div>
@@ -188,7 +188,7 @@
                       <div class="tooltip-title">Détails de la bourse</div>
                       <div class="tooltip-row">
                         <span>Montant initial:</span>
-                        <currency-display :amount="getAnnualAmount(row.grade?.id)" />
+                      <currency-display :amount="getAnnualAmount(row.grade?.id)" />
                       </div>
                       <div class="tooltip-row">
                         <span>Réduction:</span>
@@ -201,12 +201,12 @@
                     </div>
                   </template>
                 <div class="scholarship-info-card">
-                  <el-tag type="success" effect="dark" size="small">
-                    {{ getActiveScholarship(row)?.percentage }}%
-                  </el-tag>
-                  <div class="scholarship-amount">
-                    -<currency-display :amount="getScholarshipAmount(row)" />
-                  </div>
+                <el-tag type="success" effect="dark" size="small">
+                  {{ getActiveScholarship(row)?.percentage }}%
+                </el-tag>
+                <div class="scholarship-amount">
+                  -<currency-display :amount="getScholarshipAmount(row)" />
+                </div>
                 </div>
                 </el-tooltip>
               </template>
@@ -232,7 +232,7 @@
                 <div class="progress-details">
                   <currency-display :amount="getPaidAmount(row.id)" class="paid-amount" /> 
                   <span class="separator">/</span> 
-                  <currency-display :amount="getStudentAdjustedAmount(row)" class="total-amount" />
+                  <currency-display :amount="getAdjustedAnnualAmount(row.id)" class="total-amount" />
                 </div>
               </div>
             </template>
@@ -269,31 +269,31 @@
             <template #default="{ row }">
               <el-button-group class="action-buttons">
                 <el-tooltip content="Voir l'historique des paiements" placement="top">
-                  <el-button
-                    type="primary"
-                    size="small"
-                    @click="showPaymentHistory(row)"
-                  >
-                    <el-icon><Document /></el-icon>
-                  </el-button>
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="showPaymentHistory(row)"
+                >
+                  <el-icon><Document /></el-icon>
+                </el-button>
                 </el-tooltip>
                 <el-tooltip content="Imprimer un reçu" placement="top">
-                  <el-button
-                    type="success"
-                    size="small"
-                    @click="printReceipt(row)"
-                  >
-                    <el-icon><Printer /></el-icon>
-                  </el-button>
+                <el-button
+                  type="success"
+                  size="small"
+                  @click="printReceipt(row)"
+                >
+                  <el-icon><Printer /></el-icon>
+                </el-button>
                 </el-tooltip>
                 <el-tooltip content="Ajouter un paiement" placement="top">
-                  <el-button
-                    type="warning"
-                    size="small"
-                    @click="showNewPaymentDialog(row)"
-                  >
-                    <el-icon><Plus /></el-icon>
-                  </el-button>
+                <el-button
+                  type="warning"
+                  size="small"
+                  @click="showNewPaymentDialog(row)"
+                >
+                  <el-icon><Plus /></el-icon>
+                </el-button>
                 </el-tooltip>
               </el-button-group>
             </template>
@@ -371,6 +371,10 @@ interface Student {
     isActive: boolean;
     schoolYear: string;
   }>;
+  photo?: {
+    path?: string;
+    url?: string;
+  };
 }
 
 interface Grade {
@@ -481,7 +485,7 @@ const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
 };
 
 const loadStudents = async () => {
-  loading.value = true;
+    loading.value = true;
   try {
     console.log('Chargement de tous les étudiants...');
     const result = await window.ipcRenderer.invoke('student:all');
@@ -601,7 +605,7 @@ const handlePaymentAdded = async (paymentData: any) => {
     } else {
       // Si aucun ID d'étudiant n'est fourni, recharger tous les étudiants
       console.log('Aucun ID étudiant fourni, actualisation complète des données');
-      await loadStudents();
+    await loadStudents();
     }
     
     ElMessage.success('Paiement enregistré avec succès');
@@ -682,34 +686,57 @@ const refreshData = async () => {
 const loadStudentAmounts = async () => {
   try {
     for (const student of students.value) {
+      console.log(`Chargement des données pour l'étudiant ${student.firstname} ${student.lastname} (ID: ${student.id})`);
+      
       const [paidResult, configResult] = await Promise.all([
         window.ipcRenderer.invoke("payment:getByStudent", student.id),
         window.ipcRenderer.invoke("payment:getConfig", student.grade?.id)
       ]);
 
       if (paidResult?.success && configResult?.success) {
-        const paidAmount = Array.isArray(paidResult.data)
-          ? paidResult.data.reduce(
+        console.log('Résultats obtenus:', { paidResult, configResult });
+        
+        const baseAmount = configResult.data?.annualAmount || 0;
+        const scholarshipPercentage = paidResult.data?.scholarshipPercentage || 0;
+        const scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
+        const adjustedAmount = baseAmount - scholarshipAmount;
+        
+        const paidAmount = Array.isArray(paidResult.data?.payments)
+          ? paidResult.data.payments.reduce(
               (sum: number, payment: any) => sum + Number(payment.amount || 0),
               0
             )
           : 0;
 
-        const annualAmount = configResult.data?.annualAmount || 0;
+        // Mettre à jour les données de l'étudiant avec les informations de bourse
+        const studentIndex = students.value.findIndex(s => s.id === student.id);
+        if (studentIndex !== -1) {
+          students.value[studentIndex] = {
+            ...student,
+            scholarshipPercentage
+          };
+        }
 
         paymentAmounts.value.set(student.id, {
           paid: paidAmount,
-          remaining: Math.max(0, annualAmount - paidAmount),
+          remaining: Math.max(0, adjustedAmount - paidAmount),
           studentId: student.id,
-          baseAmount: annualAmount,
-          scholarshipPercentage: student.scholarshipPercentage || 0,
-          scholarshipAmount: 0,
-          adjustedAmount: 0
+          baseAmount,
+          scholarshipPercentage,
+          scholarshipAmount,
+          adjustedAmount
+        });
+        
+        console.log(`Montants mis à jour pour l'étudiant ${student.id}:`, {
+          baseAmount,
+          scholarshipPercentage,
+          scholarshipAmount,
+          adjustedAmount,
+          paidAmount,
+          remaining: Math.max(0, adjustedAmount - paidAmount)
         });
       }
     }
-    
-    console.log('Montants mis à jour:', Array.from(paymentAmounts.value.entries()));
   } catch (error) {
     console.error("Erreur lors du chargement des montants:", error);
     ElMessage.error("Erreur lors du chargement des montants de paiement");
@@ -1014,7 +1041,7 @@ const loadStudentPayments = async (studentId: number) => {
         scholarshipAmount = 0, 
         adjustedAmount = 0
       } = result.data;
-      
+
       // Vérifier si payments est bien un tableau et le transformer si nécessaire
       const paymentsArray = Array.isArray(payments) ? payments : [];
       
@@ -1086,19 +1113,44 @@ const getStudentAdjustedAmount = (student: Student) => {
 };
 
 const getActiveScholarship = (student: Student) => {
-  if (!student?.scholarship) return null;
+  if (!student) return null;
   
   const currentYear = new Date().getFullYear().toString();
   console.log(`=== Recherche bourse active pour ${student.firstname} ${student.lastname} ===`);
   console.log('Année courante:', currentYear);
-  console.log('Bourses disponibles:', student.scholarship);
+  console.log('Données étudiant:', student);
   
-  const activeScholarship = Array.isArray(student.scholarship) 
-    ? student.scholarship.find(s => s.isActive && s.schoolYear === currentYear)
-    : null;
-    
-  console.log('Bourse active trouvée:', activeScholarship);
-  return activeScholarship;
+  // Vérifier d'abord dans les montants calculés
+  const amounts = paymentAmounts.value.get(student.id);
+  if (amounts?.scholarshipPercentage) {
+    console.log('Bourse trouvée dans les montants calculés:', amounts.scholarshipPercentage);
+    return {
+      percentage: amounts.scholarshipPercentage,
+      isActive: true,
+      schoolYear: currentYear
+    };
+  }
+  
+  // Vérifier si la bourse est directement dans l'objet étudiant
+  if (student.scholarshipPercentage) {
+    console.log('Bourse trouvée dans les données directes:', student.scholarshipPercentage);
+    return {
+      percentage: student.scholarshipPercentage,
+      isActive: true,
+      schoolYear: currentYear
+    };
+  }
+  
+  // Vérifier dans le tableau des bourses
+  if (Array.isArray(student.scholarship)) {
+    console.log('Bourses disponibles dans le tableau:', student.scholarship);
+    const activeScholarship = student.scholarship.find(s => s.isActive && s.schoolYear === currentYear);
+    console.log('Bourse active trouvée dans le tableau:', activeScholarship);
+    return activeScholarship;
+  }
+  
+  console.log('Aucune bourse trouvée');
+  return null;
 };
 
 const getScholarshipAmount = (student: Student) => {
@@ -1393,7 +1445,7 @@ const getTotalScholarshipAmount = () => {
   
   .action-buttons {
     width: 100%;
-    display: flex;
+  display: flex;
     justify-content: space-between;
   }
   

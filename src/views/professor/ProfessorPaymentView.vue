@@ -320,7 +320,8 @@ const loadData = async () => {
     // Charger le nombre total de professeurs
     const professorCountResult = await window.ipcRenderer.invoke('professor:count');
     if (professorCountResult?.success) {
-      totalProfessors.value = Number(professorCountResult.data) || 0;
+      console.log('Résultat du comptage des professeurs:', professorCountResult);
+      totalProfessors.value = Number(professorCountResult.data?.nbr_child) || 0;
     }
 
     // Charger les paiements et les statistiques
@@ -332,24 +333,17 @@ const loadData = async () => {
       })
     ]);
 
-    if (statsResult?.success && statsResult.data) {
-      totalPaid.value = Number(statsResult.data.totalPaid) || 0;
-      totalPending.value = Number(statsResult.data.totalPending) || 0;
+    console.log('Résultat des statistiques de paiement:', statsResult);
+    if (statsResult?.success) {
+      totalPaid.value = Number(statsResult.data?.totalPaid) || 0;
+      totalPending.value = Number(statsResult.data?.totalPending) || 0;
     }
 
-    if (paymentsResult?.success && paymentsResult.data) {
-      payments.value = Array.isArray(paymentsResult.data) 
-        ? paymentsResult.data.map((p: any) => ({
-            ...p,
-            type: p.paymentType || p.type, // Gère les deux cas possibles
-            id: p.id || 0
-          }))
-        : [];
-      filteredPayments.value = [...payments.value];
-      handleFilter();
+    if (paymentsResult?.success) {
+      payments.value = paymentsResult.data || [];
     }
   } catch (error) {
-    console.error('Erreur détaillée lors du chargement des données:', error);
+    console.error('Erreur lors du chargement des données:', error);
     ElMessage.error('Erreur lors du chargement des données');
   } finally {
     loading.value = false;

@@ -6,7 +6,8 @@ import { CIVILITY, FAMILY_SITUATION, SCHOOL_TYPE } from "#electron/command";
 import { View, Download } from '@element-plus/icons-vue';
 
 interface Teaching {
-  teachingType: 'CLASS_TEACHER' | 'SUBJECT_TEACHER';
+  id: number;
+  schoolType: SCHOOL_TYPE;
   class?: {
     id: number;
     name: string;
@@ -15,9 +16,10 @@ interface Teaching {
     id: number;
     name: string;
   };
-  gradeIds?: string;
-  gradeNames?: string;
-  schoolType: SCHOOL_TYPE;
+  grades?: Array<{
+    id: number;
+    name: string;
+  }>;
 }
 
 interface Professor {
@@ -152,9 +154,10 @@ const loadProfessor = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('professor:getById', Number(route.params.id));
-    console.log("données :", result)
+    console.log("Données complètes du professeur:", result);
     if (result.success) {
-      professor.value = result.data; // Cette ligne manque
+      professor.value = result.data;
+      console.log("Détails de l'affectation:", professor.value?.teaching);
       await loadPhoto(professor.value?.photo);}
       else {
         ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
@@ -193,19 +196,21 @@ const formatDate = (date: Date | null) => {
 const getTeachingInfo = (teachings: Teaching[]) => {
   if (!teachings || teachings.length === 0) return 'Non assigné';
   
-  const teaching = teachings[0]; // Prendre la première affectation
-  if (teaching.teachingType === 'CLASS_TEACHER') {
-    if (teaching.schoolType === 'PRIMARY') {
-      return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
-    } else {
-      return teaching.class ? `Professeur principal - ${teaching.class.name}` : 'Professeur principal (classe non assignée)';
-    }
-  } else if (teaching.teachingType === 'SUBJECT_TEACHER') {
-    const courseInfo = teaching.course?.name || 'N/A';
-    const gradeInfo = teaching.gradeNames ? ` - Classes: ${teaching.gradeNames}` : '';
-    return `Professeur de ${courseInfo}${gradeInfo}`;
+  const teaching = teachings[0];
+  console.log("Teaching data being processed:", teaching);
+
+  if (teaching.schoolType === 'PRIMARY') {
+    return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
   }
-  return 'N/A';
+  
+  // Pour les enseignants du secondaire
+  if (teaching.schoolType === 'SECONDARY') {
+    const courseName = teaching.course?.name || 'Matière non assignée';
+    const gradeNames = teaching.grades?.map(grade => grade.name).join(', ') || 'Classes non assignées';
+    return `Enseignant - ${courseName} (${gradeNames})`;
+  }
+  
+  return 'Type d\'enseignement non reconnu';
 };
 onMounted(loadProfessor);
 </script>

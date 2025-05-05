@@ -1,4 +1,3 @@
-
 export interface IPaymentData {
     id?: number;
     amount: number;

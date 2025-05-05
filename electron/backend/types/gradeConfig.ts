@@ -1,5 +1,3 @@
-import { GradeConfigEntity } from "../entities/gradeConfig";
-
 export interface IGradeConfigData {
     numberOfAssignments: number;
     assignmentWeight: number;

@@ -34,7 +34,7 @@ export class AppDataSource {
             AppDataSource.instance = new DataSource({
                 type: "better-sqlite3",
                 synchronize: true,
-                dropSchema:true,
+                dropSchema:false,
                 database: dbPath,
                 logging: true,
                 entities: [UserEntity, FileEntity, StudentEntity, GradeEntity , ClassRoomEntity , BranchEntity , CourseEntity , ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity, SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity, TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity, ReportCardEntity, ScholarshipEntity, PreferenceEntity, GradeConfigEntity],

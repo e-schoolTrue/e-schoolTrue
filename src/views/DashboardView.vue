@@ -32,8 +32,10 @@ const { currency } = useCurrency();
 const loadDashboardStats = async () => {
   try {
     const statsResult = await window.ipcRenderer.invoke('dashboard:stats');
+    console.log('Résultat stats:', statsResult);
     
     if (statsResult?.success && statsResult.data) {
+      console.log('Stats data structure:', JSON.stringify(statsResult.data));
       stats.value = {
         school: statsResult.data.school || {},
         stats: {
@@ -44,14 +46,19 @@ const loadDashboardStats = async () => {
           recentAbsences: statsResult.data.stats.recentAbsences || []
         }
       };
+      console.log('Stats après traitement:', stats.value);
     }
 
     const [paymentStats, absenceStats] = await Promise.all([
       window.ipcRenderer.invoke('dashboard:paymentStats'),
       window.ipcRenderer.invoke('dashboard:absenceStats')
     ]);
+    
+    console.log('Résultat paymentStats:', paymentStats);
+    console.log('Résultat absenceStats:', absenceStats);
 
     if (paymentStats.success && paymentChartRef.value) {
+      console.log('Construction du graphique de paiement avec:', paymentStats.data);
       new Chart(paymentChartRef.value, {
         type: 'line',
         data: {

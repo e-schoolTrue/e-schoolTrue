@@ -10,7 +10,7 @@ export class TeachingAssignmentEntity {
     id!: number;
 
     @ManyToOne(() => ProfessorEntity, { onDelete: 'CASCADE' })
-    @JoinColumn()
+    @JoinColumn({ name: "professorId" })
     professor!: ProfessorEntity;
 
     @Column({ type: 'varchar' })

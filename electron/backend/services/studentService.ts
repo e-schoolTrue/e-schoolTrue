@@ -5,16 +5,19 @@ import { AppDataSource } from "../../data-source";
 import { ResultType } from "#electron/command";
 import { FileService } from "./fileService";
 import { DashboardService } from "./dashboardService";
+import { SchoolService } from "./schoolService";
 import {
     IStudentDetails,
     IStudentServiceParams,
-    IStudentServiceResponse} from "../types/student";
+    IStudentServiceResponse,
+    IStudentCountResponse} from "../types/student";
 
 export class StudentService {
     private studentRepository: Repository<StudentEntity>;
     private gradeRepository: Repository<GradeEntity>;
     private fileService: FileService;
     private dashboardService: DashboardService;
+    private schoolService: SchoolService;
 
     // Mapper pour les détails d'un étudiant
     private mapToIStudentDetails(student: StudentEntity): IStudentDetails {
@@ -45,6 +48,7 @@ export class StudentService {
         this.gradeRepository = dataSource.getRepository(GradeEntity);
         this.fileService = new FileService();
         this.dashboardService = new DashboardService();
+        this.schoolService = new SchoolService();
     }
 
     // Créer un étudiant
@@ -76,6 +80,30 @@ export class StudentService {
                 };
             }
 
+            // Vérifier si l'étudiant existe déjà
+            const existingStudent = await this.studentRepository.findOne({
+                where: [
+                    {
+                        firstname: studentData.firstname,
+                        lastname: studentData.lastname,
+                        birthDay: studentData.birthDay
+                    }
+                ]
+            });
+
+            if (existingStudent) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Un étudiant avec ces informations existe déjà.",
+                    error: "DUPLICATE_STUDENT",
+                };
+            }
+
+            // Récupérer les informations de l'école pour le matricule
+            const schoolInfo = await this.schoolService.getSchool();
+            const schoolName = schoolInfo.data?.name || undefined;
+
             // Utilisation de la transaction pour garantir l'intégrité des données
             const dataSource = AppDataSource.getInstance();
             const result = await dataSource.manager.transaction(async transactionalEntityManager => {
@@ -84,6 +112,9 @@ export class StudentService {
                     ...studentData,
                     grade: grade || undefined,
                 });
+
+                // Générer le matricule personnalisé
+                student.matricule = StudentEntity.generateMatricule(schoolName);
 
                 // Sauvegarde de la photo de l'étudiant
                 if (studentData.photo) {
@@ -343,7 +374,7 @@ export class StudentService {
     }
 
     // Obtenir le total des étudiants
-    async getTotalStudents(): Promise<IStudentServiceResponse> {
+    async getTotalStudents(): Promise<IStudentCountResponse> {
         try {
             const total = await this.studentRepository.count();
             return {

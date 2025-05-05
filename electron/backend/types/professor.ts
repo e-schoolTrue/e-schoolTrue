@@ -1,5 +1,5 @@
-import { TeachingAssignmentEntity } from "../entities/teaching";
 import { ResponseType } from "./index";
+
 
 // Types pour les données du professeur
 export interface IProfessorData {
@@ -15,6 +15,23 @@ export interface IProfessorData {
     town: string;
     cni_number: string;
 }
+export interface ITeachingAssignment {
+    id: number;
+    schoolType: 'PRIMARY' | 'SECONDARY';
+    class?: {
+        id: number;
+        name: string;
+    };
+    course?: {
+        id: number;
+        name: string;
+    };
+    grades?: {
+        id: number;
+        name: string;
+    }[];
+}
+
 
 // Types pour les fichiers du professeur
 export interface IProfessorFile {
@@ -36,7 +53,8 @@ export interface IProfessorDetails extends IProfessorData {
         id: number;
         name: string;
     };
-    teaching?: TeachingAssignmentEntity[];
+    teaching?: ITeachingAssignment[];
+
 }
 
 // Types pour les paramètres des méthodes du service
@@ -60,7 +78,7 @@ export interface IProfessorServiceParams {
             schoolType: 'PRIMARY' | 'SECONDARY';
             classId?: number;
             courseId?: number;
-            gradeIds?: number[];
+            gradeIds?: number[] | string;
         };
     };
     updateProfessor: {
@@ -70,6 +88,12 @@ export interface IProfessorServiceParams {
             documents?: IProfessorFile[];
             diploma?: { name: string };
             qualification?: { name: string };
+            teaching?: {
+                schoolType: 'PRIMARY' | 'SECONDARY';
+                classId?: number;
+                courseId?: number;
+                gradeIds?: number[] | string;
+            };
         };
     };
     getProfessorDetails: {

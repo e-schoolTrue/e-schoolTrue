@@ -206,6 +206,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import type { IStudentFile, IStudentData } from '@/types/student';
 import type { IGrade } from '@/types/shared';
 
+
 interface Student extends Omit<IStudentData, 'documents' | 'photo'> {
   documents?: IStudentFile[];
   photo?: IStudentFile;

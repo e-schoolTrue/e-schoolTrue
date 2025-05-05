@@ -141,10 +141,9 @@
 import { ref, computed, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Printer, Download } from '@element-plus/icons-vue';
-import printJS from 'print-js';
 import * as XLSX from 'xlsx';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
-import { useCurrency } from '@/composables/useCurrency';
+import { useCurrency } from '@/composables/useCurrency.ts';
 
 interface Props {
   visible: boolean;
@@ -305,6 +304,8 @@ const printReceipt = async (payment: any) => {
     }
 
     const schoolInfo = await window.ipcRenderer.invoke('school:get');
+    console.log('Informations école pour impression:', schoolInfo);
+    
     if (!schoolInfo?.success) {
       throw new Error('Impossible de récupérer les informations de l\'école');
     }
@@ -312,17 +313,19 @@ const printReceipt = async (payment: any) => {
     const { currency } = useCurrency();
     const studentName = `${props.student.firstname} ${props.student.lastname}`;
 
-    const content = `
-      <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif;">
+    // Créer un élément temporaire pour contenir le reçu
+    const receiptElement = document.createElement('div');
+    receiptElement.innerHTML = `
+      <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
         <div style="text-align: center; margin-bottom: 20px;">
-          ${schoolInfo?.data?.logo ? `<img src="data:${schoolInfo.data.logo.type};base64,${schoolInfo.data.logo.content}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
+          ${schoolInfo?.data?.logo ? `<img src="${schoolInfo.data.logo.path || ''}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
           <h2>${schoolInfo?.data?.name || 'École'}</h2>
           <h3>Reçu de Paiement N°${payment.id}</h3>
           <p style="margin: 5px 0;">Date: ${formatDate(payment.createdAt)}</p>
         </div>
         
-        <div style="margin-bottom: 20px;">
-          <table style="width: 100%; border-collapse: collapse;">
+        <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+          <table style="width: b100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 5px;"><strong>Élève:</strong></td>
               <td style="padding: 5px;">${studentName}</td>
@@ -338,7 +341,7 @@ const printReceipt = async (payment: any) => {
           </table>
         </div>
         
-        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px;">
+        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; background-color: #f9f9f9;">
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 5px;"><strong>Type de paiement:</strong></td>
@@ -346,7 +349,7 @@ const printReceipt = async (payment: any) => {
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Montant:</strong></td>
-              <td style="padding: 5px;">${new Intl.NumberFormat('fr-FR').format(payment.amount)} ${currency.value}</td>
+              <td style="padding: 5px; font-weight: bold;">${new Intl.NumberFormat('fr-FR').format(payment.amount)} ${currency.value}</td>
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Mode de paiement:</strong></td>
@@ -362,29 +365,63 @@ const printReceipt = async (payment: any) => {
         </div>
         
         <div style="margin-top: 40px; display: flex; justify-content: space-between;">
-          <div>
+          <div style="width: 45%;">
             <p style="margin-bottom: 40px;">Signature du payeur:</p>
-            <p>_____________________</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
           </div>
-          <div>
+          <div style="width: 45%;">
             <p style="margin-bottom: 40px;">Signature du caissier:</p>
-            <p>_____________________</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
           </div>
         </div>
         
-        <div style="margin-top: 20px; font-size: 10pt; text-align: center;">
+        <div style="margin-top: 40px; font-size: 10pt; text-align: center; color: #666; border-top: 1px dotted #ccc; padding-top: 10px;">
           <p>${schoolInfo?.data?.address || ''}</p>
           <p>Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
         </div>
       </div>
     `;
 
-    printJS({
-      printable: content,
-      type: 'raw-html',
-      documentTitle: `Reçu de paiement - ${studentName}`,
-      targetStyles: ['*']
-    });
+    // Styles d'impression
+    const style = document.createElement('style');
+    style.textContent = `
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #receipt-for-print, #receipt-for-print * {
+          visibility: visible;
+        }
+        #receipt-for-print {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+        @page {
+          size: A4;
+          margin: 1cm;
+        }
+      }
+    `;
+    
+    // Ajouter les éléments au corps du document
+    const printContainer = document.createElement('div');
+    printContainer.id = 'receipt-for-print';
+    printContainer.appendChild(receiptElement);
+    document.body.appendChild(style);
+    document.body.appendChild(printContainer);
+    
+    console.log('Impression en cours...');
+    
+    // Utiliser l'API d'impression native du navigateur
+    window.print();
+    
+    // Nettoyer après l'impression
+    setTimeout(() => {
+      document.body.removeChild(printContainer);
+      document.body.removeChild(style);
+    }, 1000);
 
     ElMessage.success('Reçu généré avec succès');
   } catch (error) {
