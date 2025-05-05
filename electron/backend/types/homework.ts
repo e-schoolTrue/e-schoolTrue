@@ -1,4 +1,3 @@
-
 export interface Homework {
     id: number;
     description: string;

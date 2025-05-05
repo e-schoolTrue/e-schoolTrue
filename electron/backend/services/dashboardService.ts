@@ -6,26 +6,25 @@ import { GradeEntity } from "../entities/grade";
 import { PaymentEntity } from "../entities/payment";
 import { AbsenceEntity } from "../entities/absence";
 import { IDashboardServiceResponse, IRecentPayment } from "../types/dashboard";
+import { StudentService } from "./studentService";
 
 export class DashboardService {
     async getTotalStudents(): Promise<ResultType> {
         try {
-            const dataSource = AppDataSource.getInstance();
-            const studentRepo = dataSource.getRepository(StudentEntity);
-            const count = await studentRepo.count();
-
+            const studentService = new StudentService();
+            const result = await studentService.getTotalStudents();
             return {
-                success: true,
-                data: count,
-                message: "Nombre total d'étudiants récupéré avec succès",
-                error: null
+                success: result.success,
+                data: result.data,
+                message: result.message,
+                error: result.error
             };
         } catch (error) {
             return {
                 success: false,
                 data: null,
-                message: "Erreur lors de la récupération du nombre d'étudiants",
-                error: error instanceof Error ? error.message : "Unknown error"
+                message: "Erreur lors de la récupération du nombre total d'étudiants",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }

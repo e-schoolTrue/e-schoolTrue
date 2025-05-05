@@ -122,6 +122,11 @@ export interface IStudentServiceResponse extends ResponseType {
     data: IStudentDetails | IStudentDetails[] | null;
 }
 
+// Type spécifique pour la réponse du total des étudiants
+export interface IStudentCountResponse extends ResponseType {
+    data: number | null;
+}
+
 // Types pour les statistiques des étudiants
 export interface IStudentStatistics {
     total: number;

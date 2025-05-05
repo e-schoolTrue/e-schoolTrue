@@ -529,11 +529,27 @@ export class PaymentService {
     async getProfessorPaymentStats(): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            const stats = await this.professorPaymentRepository
+            
+            // Calculer le total des paiements
+            const totalPaidResult = await this.professorPaymentRepository
                 .createQueryBuilder('payment')
-                .select('COUNT(*)', 'total')
-                .addSelect('SUM(amount)', 'totalAmount')
+                .select('SUM(payment.amount)', 'totalPaid')
+                .where('payment.isPaid = :isPaid', { isPaid: true })
                 .getRawOne();
+
+            // Calculer le total en attente
+            const totalPendingResult = await this.professorPaymentRepository
+                .createQueryBuilder('payment')
+                .select('SUM(payment.amount)', 'totalPending')
+                .where('payment.isPaid = :isPaid', { isPaid: false })
+                .getRawOne();
+
+            const stats = {
+                totalPaid: Number(totalPaidResult?.totalPaid || 0),
+                totalPending: Number(totalPendingResult?.totalPending || 0)
+            };
+
+            console.log('Statistiques des paiements calculées:', stats);
 
             return {
                 success: true,
@@ -542,6 +558,7 @@ export class PaymentService {
                 error: null
             };
         } catch (error) {
+            console.error('Erreur lors du calcul des statistiques:', error);
             return {
                 success: false,
                 data: null,

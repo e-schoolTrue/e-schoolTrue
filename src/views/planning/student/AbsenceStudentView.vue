@@ -2,19 +2,19 @@
   <div class="absence-management">
     <el-container>
       <!-- Sidebar avec les filtres -->
-      <el-aside width="300px" class="filters-sidebar">
+      <el-aside width="320px" class="filters-sidebar">
         <el-card class="filter-card">
           <template #header>
             <div class="filter-header">
-              <h3>Filtres</h3>
+              <h3><Icon icon="mdi:filter" class="mr-2" /> Filtres</h3>
               <el-button type="primary" text @click="resetFilters">
                 Réinitialiser
               </el-button>
             </div>
           </template>
 
-          <el-form :model="filters" label-position="top">
-            <el-form-item label="Période">
+          <el-form :model="filters" label-position="top" class="filter-form">
+            <el-form-item label="Période" class="compact-form-item">
               <el-date-picker
                 v-model="filters.dateRange"
                 type="daterange"
@@ -22,14 +22,16 @@
                 start-placeholder="Début"
                 end-placeholder="Fin"
                 :shortcuts="dateShortcuts"
+                class="w-full"
               />
             </el-form-item>
 
-            <el-form-item label="Niveau">
+            <el-form-item label="Niveau" class="compact-form-item">
               <el-select
                 v-model="filters.gradeId"
                 placeholder="Sélectionner un niveau"
                 clearable
+                class="w-full"
               >
                 <el-option
                   v-for="grade in grades"
@@ -40,11 +42,12 @@
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Type d'absence">
+            <el-form-item label="Type d'absence" class="compact-form-item">
               <el-select
                 v-model="filters.absenceType"
                 placeholder="Type d'absence"
                 clearable
+                class="w-full"
               >
                 <el-option
                   v-for="type in absenceTypes"
@@ -55,11 +58,12 @@
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Recherche élève">
+            <el-form-item label="Recherche élève" class="compact-form-item">
               <el-input
                 v-model="filters.studentSearch"
                 placeholder="Nom, prénom ou matricule"
                 clearable
+                class="w-full"
               />
             </el-form-item>
           </el-form>
@@ -104,15 +108,17 @@
                   <el-button
                     type="primary"
                     @click="showAddDialog = true"
-                    :icon="Plus"
+                    class="action-button"
                   >
+                    <Icon icon="mdi:plus" class="mr-2" />
                     Nouvelle absence
                   </el-button>
                   <el-button
                     type="success"
                     @click="exportToExcel"
-                    :icon="Download"
+                    class="action-button"
                   >
+                    <Icon icon="mdi:download" class="mr-2" />
                     Exporter
                   </el-button>
                 </el-button-group>
@@ -125,6 +131,9 @@
             style="width: 100%"
             :height="tableHeight"
             v-loading="loading"
+            border
+            stripe
+            highlight-current-row
           >
             <el-table-column
               label="Élève"
@@ -134,8 +143,8 @@
               <template #default="{ row }">
                 <div class="student-info">
                   <div class="student-details">
-                    <span>{{ row.student?.firstname }} {{ row.student?.lastname }}</span>
-                    <small>{{ row.student?.matricule }}</small>
+                    <span class="student-name">{{ row.student?.firstname }} {{ row.student?.lastname }}</span>
+                    <small class="student-matricule">{{ row.student?.matricule }}</small>
                   </div>
                 </div>
               </template>
@@ -153,10 +162,12 @@
 
             <el-table-column label="Date" width="180" sortable>
               <template #default="{ row }">
-                <div>{{ formatDate(row.date) }}</div>
-                <small v-if="row.startTime">
-                  {{ row.startTime }} - {{ row.endTime }}
-                </small>
+                <div class="date-info">
+                  <div class="date-primary">{{ formatDate(row.date) }}</div>
+                  <small class="date-time" v-if="row.startTime">
+                    {{ row.startTime }} - {{ row.endTime }}
+                  </small>
+                </div>
               </template>
             </el-table-column>
 
@@ -182,7 +193,35 @@
               </template>
             </el-table-column>
 
-            <!-- Autres colonnes du tableau -->
+            <el-table-column label="Justification" width="180">
+              <template #default="{ row }">
+                <div class="justification-status">
+                  <el-tag :type="row.justified ? 'success' : 'danger'">
+                    {{ row.justified ? 'Justifiée' : 'Non justifiée' }}
+                  </el-tag>
+                  <div v-if="row.document" class="document-actions">
+                    <el-button
+                      type="primary"
+                      link
+                      size="small"
+                      @click="viewDocument(row.document)"
+                    >
+                      <Icon icon="mdi:eye" class="mr-1" />
+                      Voir
+                    </el-button>
+                    <el-button
+                      type="success"
+                      link
+                      size="small"
+                      @click="downloadDocument(row.document)"
+                    >
+                      <Icon icon="mdi:download" class="mr-1" />
+                      Télécharger
+                    </el-button>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
           </el-table>
 
           <div class="table-footer">
@@ -204,21 +243,93 @@
       v-model:visible="showAddDialog"
       @absence-added="handleAbsenceAdded"
     />
+
+    <el-dialog
+      v-model="dialogVisible"
+      :title="currentDocument?.name"
+      width="80%"
+      :fullscreen="true"
+      destroy-on-close
+      class="document-dialog"
+    >
+      <div class="document-viewer">
+        <template v-if="currentDocument?.isPdf">
+          <object
+            :data="currentDocument.content"
+            type="application/pdf"
+            width="100%"
+            height="100%"
+          >
+            <p>Ce navigateur ne supporte pas l'affichage des PDF.</p>
+          </object>
+        </template>
+        <template v-else-if="currentDocument?.isImage">
+          <div class="image-container">
+            <img
+              :src="currentDocument.content"
+              alt="Document justificatif"
+            />
+          </div>
+        </template>
+        <template v-else>
+          <div class="unsupported-format">
+            <Icon icon="mdi:file-document-outline" :width="48" />
+            <p>Ce type de document ne peut pas être prévisualisé</p>
+            <div class="document-info">
+              <p v-if="currentDocument?.type">Type de document: {{ currentDocument.type }}</p>
+              <p v-if="currentDocument?.name">Nom du fichier: {{ currentDocument.name }}</p>
+            </div>
+            <el-button 
+              type="primary" 
+              @click="currentDocument?.id ? downloadDocument({
+                id: currentDocument.id,
+                name: currentDocument.name || '',
+                type: currentDocument.type || ''
+              }) : undefined"
+              :disabled="!currentDocument?.id"
+            >
+              Télécharger le document
+            </el-button>
+            <el-button 
+              type="warning" 
+              @click="forceViewAsPdf"
+              class="mt-2"
+            >
+              Essayer d'afficher comme PDF
+            </el-button>
+          </div>
+        </template>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">Fermer</el-button>
+          <el-button 
+            type="primary" 
+            @click="currentDocument?.id ? downloadDocument({
+              id: currentDocument.id,
+              name: currentDocument.name || '',
+              type: currentDocument.type || ''
+            }) : undefined"
+            :disabled="!currentDocument?.id"
+          >
+            Télécharger
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Plus, Download } from '@element-plus/icons-vue';
+import { Icon } from '@iconify/vue';
 import * as XLSX from 'xlsx';
 
 interface Grade {
   id: number;
   name: string;
 }
-
-
 
 interface Absence {
   id: number;
@@ -227,7 +338,11 @@ interface Absence {
   reasonType: string;
   absenceType: string;
   justified: boolean;
+  document?: number | null;
   comments?: string;
+  startTime?: string;
+  endTime?: string;
+  parentNotified: boolean;
   student?: {
     id: number;
     firstname: string;
@@ -389,7 +504,6 @@ const loadGrades = async () => {
   }
 };
 
-
 const loadAbsences = async () => {
   console.log('=== Vue - Début loadAbsences ===');
   loading.value = true;
@@ -398,13 +512,21 @@ const loadAbsences = async () => {
     console.log('Résultat brut du chargement des absences:', result);
     
     if (result?.success) {
-      absences.value = result.data.map((absence: any) => ({
-        ...absence,
-        date: new Date(absence.date),
-        student: absence.student || null,
-        grade: absence.grade || null,
-        course: absence.course || null
-      }));
+      absences.value = result.data.map((absence: any) => {
+        console.log('Traitement absence:', absence);
+        return {
+          ...absence,
+          date: new Date(absence.date),
+          student: absence.student || null,
+          grade: absence.grade || null,
+          course: absence.course || null,
+          justified: Boolean(absence.justified),
+          document: absence.document || null,
+          startTime: absence.startTime || null,
+          endTime: absence.endTime || null,
+          parentNotified: Boolean(absence.parentNotified)
+        };
+      });
       console.log('Absences traitées:', absences.value);
     }
   } catch (error) {
@@ -538,6 +660,120 @@ const getReasonTypeTag = (type: string) => {
   return types[type] || 'default';
 };
 
+// Ajouter la fonction de téléchargement
+const downloadDocument = async (documentData: any) => {
+  try {
+    const result = await window.ipcRenderer.invoke('student:downloadDocument', documentData.id);
+    console.log('Résultat du téléchargement:', result);
+    
+    if (!result?.success || !result.data?.content) {
+      throw new Error('Données du document manquantes ou invalides');
+    }
+
+    // Convertir le base64 en blob
+    const byteString = atob(result.data.content);
+    const byteArray = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) {
+      byteArray[i] = byteString.charCodeAt(i);
+    }
+    
+    // Créer et télécharger le blob
+    const blob = new Blob([byteArray], { type: result.data.type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = result.data.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Erreur lors du téléchargement:', error);
+    ElMessage.error('Erreur lors du téléchargement du document: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+  }
+};
+
+const dialogVisible = ref(false);
+const currentDocument = ref<{
+  id?: number;
+  content?: string;
+  type?: string;
+  name?: string;
+  isPdf?: boolean;
+  isImage?: boolean;
+} | null>(null);
+
+const viewDocument = async (documentData: any) => {
+  try {
+    const result = await window.ipcRenderer.invoke('student:downloadDocument', documentData.id);
+    if (result?.success && result.data?.content) {
+      // Afficher le type de document pour le débogage
+      console.log('Type de document:', result.data.type);
+      console.log('Extension du fichier:', result.data.name?.split('.').pop()?.toLowerCase());
+      
+      // Déterminer si c'est un PDF basé sur le type MIME, l'extension ou le contenu du fichier
+      const fileExt = result.data.name?.split('.').pop()?.toLowerCase();
+      
+      // Vérifier si le contenu commence par %PDF (signature des fichiers PDF)
+      const contentSample = result.data.content.substring(0, 10);
+      const contentIsPdf = contentSample.includes('%PDF');
+      
+      const isPdf = 
+        result.data.type?.includes('pdf') || 
+        result.data.type?.includes('application/pdf') || 
+        fileExt === 'pdf' ||
+        // Cas spécifique détecté - JUSTIFICATION avec extension pdf
+        (result.data.type === 'JUSTIFICATION' && fileExt === 'pdf') ||
+        contentIsPdf;
+      
+      // Déterminer si c'est une image
+      const isImage = 
+        result.data.type?.includes('image') || 
+        ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(fileExt || '');
+      
+      // Déterminer le type MIME correct
+      let mimeType = result.data.type;
+      if (isPdf) {
+        mimeType = 'application/pdf';
+      } else if (isImage) {
+        mimeType = `image/${fileExt || 'jpeg'}`;
+      }
+      
+      const content = `data:${mimeType};base64,${result.data.content}`;
+
+      currentDocument.value = {
+        id: documentData.id,
+        content: content,
+        type: mimeType,
+        name: result.data.name,
+        isPdf,
+        isImage
+      };
+
+      dialogVisible.value = true;
+    } else {
+      ElMessage.error("Erreur lors du chargement du document");
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement du document:", error);
+    ElMessage.error("Une erreur s'est produite lors du chargement du document");
+  }
+};
+
+const forceViewAsPdf = () => {
+  if (!currentDocument.value) return;
+  
+  console.log('Forçage de l\'affichage en PDF');
+  
+  // Modifier le type pour forcer l'affichage en PDF
+  currentDocument.value = {
+    ...currentDocument.value,
+    type: 'application/pdf',
+    isPdf: true,
+    isImage: false
+  };
+};
+
 </script>
 
 <style scoped>
@@ -556,7 +792,7 @@ const getReasonTypeTag = (type: string) => {
 }
 
 .filter-card, .statistics-card {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
 }
@@ -565,33 +801,109 @@ const getReasonTypeTag = (type: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 8px 15px;
+  height: 40px;
+}
+
+:deep(.filter-card .el-card__header),
+:deep(.statistics-card .el-card__header) {
+  padding: 0;
+}
+
+:deep(.filter-card .el-card__body) {
+  padding: 12px 5px;
+}
+
+:deep(.statistics-card .el-card__body) {
+  padding: 5px 0;
 }
 
 .filter-header h3 {
   margin: 0;
   font-size: 16px;
+  font-weight: 500;
   color: var(--el-text-color-primary);
 }
 
+.filter-form {
+  padding: 0 10px;
+}
+
+.filter-form .el-form-item {
+  margin-bottom: 15px;
+}
+
+.filter-form .el-form-item:last-child {
+  margin-bottom: 5px;
+}
+
+.compact-form-item {
+  margin-bottom: 10px !important;
+}
+
+:deep(.compact-form-item .el-form-item__label) {
+  padding-bottom: 2px;
+  line-height: 16px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+:deep(.compact-form-item .el-form-item__content) {
+  line-height: 1;
+}
+
+:deep(.el-date-editor.el-input__wrapper),
+:deep(.el-select .el-input__wrapper),
+:deep(.el-input .el-input__wrapper) {
+  padding: 0 10px;
+  height: 32px;
+}
+
+:deep(.el-input__inner) {
+  font-size: 13px;
+}
+
+:deep(.el-date-editor--daterange) {
+  width: 100%;
+}
+
+:deep(.el-input__wrapper) {
+  padding: 0 10px;
+}
+
+:deep(.el-form-item__label) {
+  padding-bottom: 3px;
+  line-height: 18px;
+  font-size: 13px;
+}
+
 .statistics {
-  padding: 10px;
+  padding: 5px 15px;
 }
 
 .stat-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.stat-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .stat-label {
   color: var(--el-text-color-secondary);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .stat-value {
   font-weight: 600;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .stat-value.success {
@@ -616,6 +928,7 @@ const getReasonTypeTag = (type: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 10px;
 }
 
 .header-title {
@@ -626,11 +939,16 @@ const getReasonTypeTag = (type: string) => {
 
 .header-title h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.action-button {
+  font-weight: 500;
 }
 
 .table-footer {
-  padding: 16px;
+  padding: 20px;
   display: flex;
   justify-content: flex-end;
 }
@@ -638,6 +956,18 @@ const getReasonTypeTag = (type: string) => {
 :deep(.el-table) {
   --el-table-border-color: var(--el-border-color-lighter);
   --el-table-header-bg-color: var(--el-fill-color-light);
+  --el-table-row-hover-bg-color: var(--el-fill-color-light);
+}
+
+:deep(.el-table .el-table__header th) {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  background-color: #f5f7fa;
+  height: 50px;
+}
+
+:deep(.el-table .el-table__row) {
+  height: 56px;
 }
 
 :deep(.el-table .warning-row) {
@@ -648,10 +978,35 @@ const getReasonTypeTag = (type: string) => {
   --el-table-tr-bg-color: var(--el-color-success-light);
 }
 
-.action-column {
-  .el-button {
-    padding: 6px;
-  }
+.student-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.student-name {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.student-matricule {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.date-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.date-primary {
+  font-weight: 500;
+}
+
+.date-time {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-top: 4px;
 }
 
 .document-link {
@@ -669,5 +1024,131 @@ const getReasonTypeTag = (type: string) => {
   .el-badge__content {
     transform: scale(0.8);
   }
+}
+
+.justification-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.document-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.el-button.el-button--primary.is-link, 
+.el-button.el-button--success.is-link {
+  height: auto;
+  padding: 4px 0;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.document-viewer {
+  width: 100%;
+  height: 80vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  overflow: auto;
+  padding: 20px;
+}
+
+.unsupported-format {
+  text-align: center;
+  padding: 2rem;
+}
+
+.unsupported-format .el-icon {
+  margin-bottom: 1rem;
+  color: #909399;
+}
+
+.document-info {
+  margin: 15px auto;
+  padding: 10px;
+  background-color: #f0f2f5;
+  border-radius: 4px;
+  max-width: 400px;
+  text-align: left;
+  font-size: 12px;
+  color: #606266;
+}
+
+:deep(.el-dialog__body) {
+  padding: 0;
+  margin: 10px;
+}
+
+:deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.w-full {
+  width: 100%;
+}
+
+/* Styles pour les icônes */
+.mr-1 {
+  margin-right: 4px;
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+
+.icon-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.image-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px;
+}
+
+:deep(.el-date-picker__shortcuts) {
+  padding: 0 8px;
+  margin: 0 auto;
+}
+
+:deep(.el-date-picker__shortcut) {
+  width: auto;
+  font-size: 12px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+}
+
+.mt-2 {
+  margin-top: 12px;
 }
 </style>

@@ -12,6 +12,12 @@ import {
     IAbsenceServiceResponse 
 } from '../types/absence';
 
+interface FileUpload {
+    content: string;
+    name: string;
+    type: string;
+}
+
 export class AbsenceService {
     private absenceRepository: Repository<AbsenceEntity>;
     private fileService: FileService;
@@ -68,13 +74,25 @@ export class AbsenceService {
                 };
             }
 
-            // Créer l'absence avec les relations
+            // Gérer d'abord le document justificatif si présent
+            let documentEntity = null;
+            if (absenceData.document) {
+                const documentData = absenceData.document as unknown as FileUpload;
+                const savedDocument = await this.fileService.saveFile({
+                    content: documentData.content,
+                    name: documentData.name,
+                    type: documentData.type
+                });
+                documentEntity = savedDocument;
+            }
+
+            // Créer l'absence avec le document
             const newAbsence = absenceRepo.create({
                 date: new Date(absenceData.date),
                 reason: absenceData.reason,
                 reasonType: absenceData.reasonType,
                 absenceType: absenceData.absenceType,
-                justified: absenceData.justified,
+                justified: absenceData.justified || (documentEntity !== null),
                 startTime: absenceData.startTime || null,
                 endTime: absenceData.endTime || null,
                 comments: absenceData.comments || '',
@@ -82,15 +100,22 @@ export class AbsenceService {
                 student: student,
                 grade: grade,
                 course: absenceData.courseId ? { id: absenceData.courseId } as CourseEntity : undefined,
-                parentNotified: false
+                parentNotified: false,
+                document: documentEntity
             } as DeepPartial<AbsenceEntity>);
 
             console.log('Nouvelle absence à sauvegarder:', newAbsence);
             const savedAbsence = await absenceRepo.save(newAbsence);
 
             // Recharger l'absence avec toutes les relations
-            const completeAbsence = await absenceRepo.findOneBy({
-                id: savedAbsence.id
+            const completeAbsence = await absenceRepo.findOne({
+                where: { id: savedAbsence.id },
+                relations: [
+                    'student',
+                    'grade',
+                    'course',
+                    'document'
+                ]
             });
 
             console.log('Absence sauvegardée avec relations:', completeAbsence);
@@ -202,10 +227,32 @@ export class AbsenceService {
                 .leftJoinAndSelect('absence.grade', 'grade')
                 .leftJoinAndSelect('absence.course', 'course')
                 .leftJoinAndSelect('absence.professor', 'professor')
+                .leftJoinAndSelect('absence.document', 'document')
+                .leftJoinAndSelect('professor.teaching', 'teaching')
+                .leftJoinAndSelect('teaching.course', 'teachingCourse')
+                .leftJoinAndSelect('teaching.class', 'teachingClass')
+                .leftJoinAndSelect('teaching.grades', 'teachingGrades')
                 .where('absence.type = :type', { type })
                 .orderBy('absence.date', 'DESC')
                 .addOrderBy('absence.createdAt', 'DESC')
                 .getMany();
+
+            console.log(`Absences de type ${type} récupérées: ${absences.length}`);
+            if (type === 'PROFESSOR' && absences.length > 0) {
+                const sample = absences[0];
+                console.log('Exemple d\'absence professeur:', {
+                    id: sample.id,
+                    professorId: sample.professor?.id,
+                    hasTeaching: !!sample.professor?.teaching && sample.professor.teaching.length > 0,
+                    teachingCount: sample.professor?.teaching?.length ?? 0,
+                    firstTeaching: sample.professor?.teaching?.[0] ? {
+                        id: sample.professor.teaching[0].id,
+                        hasCourse: !!sample.professor.teaching[0].course,
+                        hasClass: !!sample.professor.teaching[0].class,
+                        hasGrades: !!sample.professor.teaching[0].grades?.length
+                    } : null
+                });
+            }
 
             return {
                 success: true,
@@ -214,6 +261,7 @@ export class AbsenceService {
                 error: null
             };
         } catch (error) {
+            console.error(`Erreur lors de la récupération des absences de type ${type}:`, error);
             return {
                 success: false,
                 data: null,

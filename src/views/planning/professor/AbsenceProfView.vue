@@ -252,12 +252,15 @@
     >
       <div class="document-viewer">
         <template v-if="currentDocument.type === 'application/pdf'">
-          <iframe
-            :src="currentDocument.content"
+          <object
+            :data="currentDocument.content"
+            type="application/pdf"
             width="100%"
             height="600"
             frameborder="0"
-          />
+          >
+            <p>Ce navigateur ne supporte pas l'affichage des PDF.</p>
+          </object>
         </template>
         
         <template v-else-if="currentDocument.type.startsWith('image/')">
@@ -302,6 +305,10 @@ interface Professor {
   teaching?: Array<{
     course?: { name: string };
     class?: { name: string };
+    grades?: Array<{ id: number; name: string }>;
+    gradeNames?: string;
+    gradeIds?: string;
+    id?: number;
   }>;
 }
 
@@ -434,18 +441,50 @@ const getInitials = (professor: Professor): string => {
 };
 
 const getTeachingInfo = (professor: Professor): string => {
-  if (!professor.teaching?.length) return 'Aucune affectation';
+  if (!professor?.teaching || !Array.isArray(professor.teaching) || professor.teaching.length === 0) {
+    return 'Aucune affectation';
+  }
   
   return professor.teaching.map(t => {
-    if (t.course) return `${t.course.name}`;
-    if (t.class) return `${t.class.name}`;
-    return '';
-  }).filter(Boolean).join(', ');
+    const courseInfo = t.course?.name ? `${t.course.name}` : '';
+    const classInfo = t.class?.name ? `${t.class.name}` : '';
+    
+    // Pour les données qui viennent des grades
+    let gradesInfo = '';
+    if (t.grades && Array.isArray(t.grades) && t.grades.length > 0) {
+      // Utiliser un Set pour éviter les doublons
+      const uniqueGradeNames = [...new Set(t.grades.map(g => g.name))];
+      gradesInfo = uniqueGradeNames.join(', ');
+    }
+    
+    // Utiliser aussi les champs gradeNames si disponible
+    let gradeNamesInfo = '';
+    if (t.gradeNames) {
+      // Éviter les doublons dans gradeNames aussi
+      const names = t.gradeNames.split(', ');
+      const uniqueNames = [...new Set(names)];
+      gradeNamesInfo = uniqueNames.join(', ');
+    }
+    
+    // Éviter la duplication entre classInfo et gradesInfo/gradeNamesInfo
+    let finalClassInfo = classInfo;
+    const gradesOrNames = gradesInfo || gradeNamesInfo;
+    
+    if (finalClassInfo && gradesOrNames) {
+      if (gradesOrNames.includes(finalClassInfo)) {
+        finalClassInfo = ''; // Ne pas inclure si déjà dans grades
+      }
+    }
+    
+    const parts = [courseInfo, finalClassInfo, gradesOrNames].filter(Boolean);
+    return parts.length > 0 ? parts.join(' - ') : 'Affectation sans détails';
+  }).filter(Boolean).join(', ') || 'Affectation sans détails';
 };
 
 const loadProfessors = async () => {
   try {
     const result = await window.ipcRenderer.invoke('professor:all');
+    console.log('=== Client - Résultat reçu ===', result);
     if (result.success) {
       professors.value = result.data;
     }
@@ -608,19 +647,25 @@ const deleteAbsence = async (absence: Absence) => {
 
 const viewDocument = async (document: any) => {
   try {
-    const result = await window.ipcRenderer.invoke('file:getUrl', document.path);
+    console.log("Document à visualiser:", document);
+    // Utiliser l'ID du document plutôt que le chemin
+    const result = await window.ipcRenderer.invoke('file:getUrl', document.id);
     if (result.success) {
+      console.log("Résultat du chargement:", result.data);
+      const isPdf = result.data.type === 'application/pdf' || result.data.type.includes('pdf');
+      
       currentDocument.value = {
         id: document.id,
-        content: result.data.type === 'application/pdf' 
-          ? result.data.content  // Ne pas ajouter le préfixe pour les PDFs
+        content: isPdf 
+          ? `data:${result.data.type};base64,${result.data.content}`  // Ajouter le préfixe pour les PDFs
           : `data:${result.data.type};base64,${result.data.content}`,
         type: result.data.type,
-        name: document.name,
-        path: document.path
+        name: document.name || result.data.name,
+        path: document.path || result.data.path
       };
       documentDialogVisible.value = true;
     } else {
+      console.error("Erreur de chargement:", result.error);
       ElMessage.error("Erreur lors du chargement du document");
     }
   } catch (error) {

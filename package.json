@@ -7,9 +7,8 @@
     "build": "vue-tsc --noEmit && vite build && electron-builder",
     "preview": "vite preview",
     "test:unit": "vitest --environment jsdom",
-    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3", 
-     "sync-types": "robocopy electron/backend/types src/types /E /PURGE"
-
+    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3",
+    "sync-types": "robocopy electron/backend/types src/types /E /PURGE"
   },
   "dependencies": {
     "better-sqlite3": "^9.6.0",
@@ -20,7 +19,7 @@
     "@iconify-json/bi": "^1.1.23",
     "@iconify-json/carbon": "^1.1.31",
     "@iconify-json/ep": "^1.1.15",
-    "@iconify-json/mdi": "^1.1.64",
+    "@iconify-json/mdi": "^1.2.3",
     "@iconify-json/ri": "^1.1.20",
     "@iconify-json/vaadin": "^1.1.9",
     "@iconify/vue": "^4.1.1",
