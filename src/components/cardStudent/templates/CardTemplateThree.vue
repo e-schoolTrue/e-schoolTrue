@@ -1,5 +1,5 @@
 <template>
-  <div class="card-template-three" :style="cardStyle">
+  <div class="card-template-three" :style="cardStyle" :class="{ 'is-flipped': isFlipped }">
     <!-- Face avant -->
     <div class="card-front">
       <div class="design-element"></div>
@@ -89,9 +89,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import QrcodeVue from 'qrcode.vue';
 import { Icon } from '@iconify/vue';
+
+// Injection de l'état de retournement
+const { isFlipped } = inject('cardFlipState', {
+  isFlipped: computed(() => false)
+});
 
 const props = defineProps<{
   student: any;
@@ -145,14 +150,45 @@ const formatDate = (date: string | Date | undefined) => {
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+  transform-style: preserve-3d;
 }
 
 .card-front, .card-back {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
+  -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-front {
+  background-color: var(--background-color);
+  transform: rotateY(0);
+  z-index: 2;
+}
+
+.card-back {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  transform: rotateY(180deg);
+}
+
+/* Suppression de l'animation au survol */
+.card-template-three:hover .card-front,
+.card-template-three:hover .card-back {
+  transform: none;
+}
+
+/* Style pour le retournement contrôlé */
+.is-flipped .card-front {
+  transform: rotateY(180deg);
+}
+
+.is-flipped .card-back {
+  transform: rotateY(0);
 }
 
 .design-element {
@@ -271,12 +307,22 @@ const formatDate = (date: string | Date | undefined) => {
   color: var(--text-color);
 }
 
-/* Styles pour le dos de la carte */
-.card-back {
-  transform: rotateY(180deg);
-  background-color: var(--background-color);
+/* Supprimer l'animation au survol qui interfère avec le contrôle manuel */
+.card-template-three:hover .card-front,
+.card-template-three:hover .card-back {
+  transform: none;
 }
 
+/* Style pour quand la carte est retournée via le contrôle */
+.is-flipped .card-front {
+  transform: rotateY(180deg);
+}
+
+.is-flipped .card-back {
+  transform: rotateY(0);
+}
+
+/* Styles pour le dos de la carte */
 .back-pattern {
   position: absolute;
   top: 0;
@@ -354,13 +400,49 @@ const formatDate = (date: string | Date | undefined) => {
   font-size: 10px;
 }
 
-/* Animation au survol */
-.card-template-three:hover .card-front {
-  transform: rotateY(180deg);
-}
+/* Ajustements pour l'impression */
+@media print {
+  .card-template-three {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 
-.card-template-three:hover .card-back {
-  transform: rotateY(0);
+  .card-front, .card-back {
+    position: relative;
+    backface-visibility: visible;
+  }
+
+  .card-back {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 20mm;
+  }
+
+  /* S'assurer que les éléments sont visibles à l'impression */
+  .student-photo img,
+  .school-logo,
+  .qr-container {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Améliorer la lisibilité des textes en impression */
+  .student-name h3,
+  .detail-item .value,
+  .info-value {
+    color: black !important;
+  }
+
+  /* Optimiser les contrastes pour l'impression */
+  .back-pattern {
+    opacity: 0.1;
+  }
+
+  .validity-badge {
+    border: 1px solid var(--primary-color);
+    background-color: white !important;
+    color: var(--primary-color) !important;
+  }
 }
 
 .photo-placeholder {
@@ -372,4 +454,4 @@ const formatDate = (date: string | Date | undefined) => {
   color: #999;
   font-size: 48px;
 }
-</style> 
+</style>

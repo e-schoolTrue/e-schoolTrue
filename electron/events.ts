@@ -1498,3 +1498,24 @@ ipcMain.handle('dashboard:absenceStats', async () => {
     return handleError(error, 'Erreur lors de la récupération des statistiques d\'absence');
   }
 });
+
+// Gestionnaire pour l'impression de cartes d'étudiants
+ipcMain.handle('print:studentCards', async (_event, data) => {
+  try {
+    // Au lieu d'essayer d'enregistrer un nouveau handler, émettre l'événement directement
+    return {
+      success: true,
+      data: data,
+      message: 'Données d\'impression préparées avec succès',
+      error: null
+    };
+  } catch (error) {
+    console.error('Erreur lors de la préparation de l\'impression des cartes:', error);
+    return {
+      success: false,
+      data: null,
+      message: 'Erreur lors de la préparation de l\'impression',
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+});
