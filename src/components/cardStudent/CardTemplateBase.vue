@@ -3,6 +3,9 @@
     <div class="card-content">
       <slot></slot>
     </div>
+    <div class="card-back">
+      <slot name="back"></slot>
+    </div>
     <div class="card-footer">
       <p class="school-year">{{ student?.schoolYear || currentSchoolYear }}</p>
       <p class="validity">Valide jusqu'au {{ formatDate(validUntil) }}</p>
@@ -104,11 +107,30 @@ defineExpose({
   display: flex;
   flex-direction: column;
   position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card-content {
   flex: 1;
   padding: 12px;
+  backface-visibility: hidden;
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+/* Style spécifique pour le verso */
+.card-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  transform: rotateY(180deg);
+  background-color: var(--background-color);
+  display: flex;
+  flex-direction: column;
 }
 
 .card-footer {
@@ -119,6 +141,8 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
 .school-year, .validity {
@@ -126,10 +150,29 @@ defineExpose({
   font-weight: 500;
 }
 
+/* État retourné */
+.is-flipped .card-content {
+  transform: rotateY(-180deg);
+}
+
+.is-flipped .card-back {
+  transform: rotateY(0);
+}
+
 @media print {
   .card-template-base {
     box-shadow: none;
     border: 1px solid #ddd;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    transform-style: flat;
+  }
+  
+  .card-back {
+    position: relative;
+    transform: none;
+    break-before: page;
+    page-break-before: always;
   }
 }
 </style>

@@ -130,6 +130,7 @@ const isValidDataUrl = (url: string) => {
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform-style: preserve-3d;
 }
 
 /* Header styles */
@@ -189,18 +190,17 @@ const isValidDataUrl = (url: string) => {
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
-  transition: transform 0.6s;
+  background-color: var(--background-color);
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card-front {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: 10px;
+  transform: rotateY(0);
+  z-index: 2;
 }
 
 .card-back {
   transform: rotateY(180deg);
-  padding: 15px;
 }
 
 .card-header {
@@ -362,14 +362,20 @@ const isValidDataUrl = (url: string) => {
   color: var(--text-color);
 }
 
-/* Animation au survol */
-.card-template-one:hover .card-front {
+/* Supprimer les styles d'animation au survol */
+.card-template-one:hover .card-front,
+.card-template-one:hover .card-back {
+  transform: none;
+}
+
+/* Style pour quand la carte est retournée via le contrôle */
+.is-flipped .card-front {
   transform: rotateY(180deg);
 }
 
-.card-template-one:hover .card-back {
-  transform: rotateY(0deg);
+.is-flipped .card-back {
+  transform: rotateY(0);
 }
-</style> 
+</style>
 
 

@@ -1,12 +1,12 @@
 <template>
   <div class="card-preview">
-    <div class="preview-container" :class="{ 'is-flipped': isFlipped }">
+    <div class="preview-container" ref="previewContainer">
       <div class="preview-controls">
         <el-button-group>
           <el-tooltip content="Voir le recto">
             <el-button 
               :type="!isFlipped ? 'primary' : 'default'"
-              @click="isFlipped = false"
+              @click="handleFlip"
             >
               <Icon icon="mdi:card-account-details" />
             </el-button>
@@ -14,7 +14,7 @@
           <el-tooltip content="Voir le verso">
             <el-button 
               :type="isFlipped ? 'primary' : 'default'"
-              @click="isFlipped = true"
+              @click="handleFlip"
             >
               <Icon icon="mdi:card-account-details-outline" />
             </el-button>
@@ -27,20 +27,21 @@
             :min="50"
             :max="150"
             :step="10"
-            :format-tooltip="(value: number) => `${value}%`"
+            :format-tooltip="(value) => `${value}%`"
           />
         </el-tooltip>
       </div>
 
       <div 
-        class="preview-card"
+        class="card-container"
+        :class="{ 'is-flipped': isFlipped }"
         :style="{ transform: `scale(${zoom / 100})` }"
       >
         <component
-          :is="props.templateComponent"
-          :student="props.student"
-          :school-info="props.schoolInfo"
-          :color-scheme="props.colorScheme"
+          :is="templateComponent"
+          :student="student"
+          :school-info="schoolInfo"
+          :color-scheme="colorScheme"
         />
       </div>
     </div>
@@ -48,9 +49,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, provide } from 'vue';
 import { Icon } from '@iconify/vue';
-import type { Student, SchoolInfo, ColorScheme } from '@/types/card';
+import type { Student, SchoolInfo, ColorScheme } from '@/types';
 
 const props = defineProps<{
   student: Student;
@@ -59,42 +60,95 @@ const props = defineProps<{
   templateComponent: any;
 }>();
 
-const isFlipped = ref(false);
 const zoom = ref(100);
+const isFlipped = ref(false);
+const previewContainer = ref<HTMLElement | null>(null);
+
+const handleFlip = () => {
+  isFlipped.value = !isFlipped.value;
+};
+
+// Fournir l'état de retournement aux composants enfants
+provide('cardFlipState', {
+  isFlipped,
+  toggleFlip: handleFlip
+});
 </script>
 
 <style scoped>
 .card-preview {
-  padding: 20px;
-  background-color: #f5f7fa;
-  border-radius: 8px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .preview-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  padding: 20px;
+  background: linear-gradient(45deg, #f8f9fa, #fff);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
 }
 
 .preview-controls {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: 20px;
   align-items: center;
-  width: 100%;
-  max-width: 400px;
+  z-index: 10;
 }
 
-.preview-controls :deep(.el-slider) {
-  flex: 1;
+.card-container {
+  margin-top: 60px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.preview-card {
-  transition: transform 0.3s ease;
-  transform-origin: center center;
+:deep(.el-slider) {
+  width: 100px;
 }
 
-.is-flipped .preview-card {
-  transform: rotateY(180deg);
+/* Patron de fond */
+.preview-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(0, 0, 0, 0.01) 10px,
+    rgba(0, 0, 0, 0.01) 20px
+  );
+  pointer-events: none;
 }
-</style> 
+
+@media print {
+  .preview-controls {
+    display: none;
+  }
+
+  .preview-container::before {
+    display: none;
+  }
+
+  .card-container {
+    transform: none !important;
+    margin: 0;
+  }
+
+  .card-preview {
+    background: none;
+  }
+}
+</style>

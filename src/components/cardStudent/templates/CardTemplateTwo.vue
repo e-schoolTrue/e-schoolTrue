@@ -153,18 +153,46 @@ const isValidDataUrl = (url: string) => {
   height: 54mm;
   position: relative;
   perspective: 1000px;
-  background-color: var(--background-color);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  transform-style: preserve-3d;
 }
 
 .card-front, .card-back {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-front {
+  background-color: var(--background-color);
+  z-index: 2;
+  transform: rotateY(0);
+}
+
+.card-back {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: white;
+  transform: rotateY(180deg);
+}
+
+/* Supprimer l'animation au survol */
+.card-template-two:hover .card-front,
+.card-template-two:hover .card-back {
+  transform: none;
+}
+
+/* Contrôle manuel du retournement */
+.is-flipped .card-front {
+  transform: rotateY(180deg);
+}
+
+.is-flipped .card-back {
+  transform: rotateY(0);
 }
 
 .banner {
@@ -282,27 +310,24 @@ const isValidDataUrl = (url: string) => {
 }
 
 /* Styles pour le dos de la carte */
-.card-back {
-  transform: rotateY(180deg);
-  background-color: var(--background-color);
-}
-
 .back-content {
   padding: 15px;
-  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .rules-section {
-  background-color: rgba(0,0,0,0.03);
+  background-color: rgba(255, 255, 255, 0.1);
   padding: 10px;
   border-radius: 8px;
+  margin-bottom: 10px;
 }
 
 .rules-section h4 {
-  color: var(--primary-color);
+  color: white;
   margin: 0 0 5px 0;
   font-size: 12px;
 }
@@ -311,7 +336,7 @@ const isValidDataUrl = (url: string) => {
   margin: 0;
   padding-left: 15px;
   font-size: 9px;
-  color: var(--text-color);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .personal-info {
@@ -321,23 +346,25 @@ const isValidDataUrl = (url: string) => {
 .info-row {
   display: flex;
   font-size: 10px;
-  margin: 3px 0;
+  margin: 4px 0;
+  color: white;
 }
 
 .label {
-  width: 60px;
-  color: var(--primary-color);
+  width: 70px;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .value {
-  color: var(--text-color);
+  flex: 1;
 }
 
 .contact-info {
   font-size: 9px;
   text-align: center;
-  color: var(--text-color);
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: auto;
 }
 
 .contact-info p {
@@ -347,16 +374,8 @@ const isValidDataUrl = (url: string) => {
 .validity-info {
   text-align: right;
   font-size: 8px;
-  color: var(--text-color);
+  color: rgba(255, 255, 255, 0.8);
   font-style: italic;
+  margin-top: 10px;
 }
-
-/* Animation au survol */
-.card-template-two:hover .card-front {
-  transform: rotateY(180deg);
-}
-
-.card-template-two:hover .card-back {
-  transform: rotateY(0);
-}
-</style> 
+</style>

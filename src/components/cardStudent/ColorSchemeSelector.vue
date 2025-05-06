@@ -67,13 +67,55 @@
             @change="emitCustomColors"
           />
         </div>
+        
+        <!-- Prévisualisation et sauvegarde -->
+        <div class="preview-custom-scheme">
+          <div class="preview-card" :style="previewStyle">
+            <div class="preview-header" :style="{ backgroundColor: customColors.primary, color: '#fff' }">
+              <div class="preview-title">Aperçu</div>
+            </div>
+            <div class="preview-body">
+              <div class="preview-name" :style="{ color: customColors.secondary }">
+                Nom Prénom
+              </div>
+              <div class="preview-details" :style="{ color: customColors.text }">
+                Texte exemple
+              </div>
+            </div>
+          </div>
+          
+          <el-button type="primary" size="small" @click="showSaveDialog = true">
+            Enregistrer ce thème
+          </el-button>
+        </div>
       </div>
     </div>
+    
+    <!-- Dialog pour sauvegarder le thème -->
+    <el-dialog
+      v-model="showSaveDialog"
+      title="Enregistrer le thème personnalisé"
+      width="400px"
+    >
+      <el-form>
+        <el-form-item label="Nom du thème">
+          <el-input v-model="newSchemeName" placeholder="Ex: Mon thème personnalisé" />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="showSaveDialog = false">Annuler</el-button>
+        <el-button type="primary" @click="saveCustomScheme" :disabled="!newSchemeName">
+          Enregistrer
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { ElMessage } from 'element-plus';
 import type { ColorScheme } from '@/types/card';
 import { COLOR_SCHEMES, DEFAULT_COLOR_SCHEME } from '@/constants/colorSchemes';
 
@@ -85,9 +127,17 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: ColorScheme): void;
 }>();
 
-const schemes = COLOR_SCHEMES;
+const schemes = ref([...COLOR_SCHEMES]);
 const useCustomColors = ref(false);
 const customColors = ref({ ...DEFAULT_COLOR_SCHEME });
+const showSaveDialog = ref(false);
+const newSchemeName = ref('');
+
+// Computed pour le style de prévisualisation
+const previewStyle = computed(() => ({
+  backgroundColor: customColors.value.background,
+  border: `1px solid ${customColors.value.primary}`
+}));
 
 const isSelected = (scheme: ColorScheme): boolean => {
   return !useCustomColors.value && 
@@ -104,6 +154,29 @@ const emitCustomColors = () => {
   if (useCustomColors.value) {
     emit('update:modelValue', { ...customColors.value });
   }
+};
+
+const saveCustomScheme = () => {
+  const newScheme: ColorScheme = {
+    name: newSchemeName.value,
+    primary: customColors.value.primary,
+    secondary: customColors.value.secondary,
+    text: customColors.value.text,
+    background: customColors.value.background
+  };
+  
+  // Ajouter le nouveau schéma à la liste
+  schemes.value.push(newScheme);
+  
+  // Sélectionner automatiquement le nouveau schéma
+  selectScheme(newScheme);
+  
+  // Fermer le dialogue et réinitialiser
+  showSaveDialog.value = false;
+  newSchemeName.value = '';
+  useCustomColors.value = false;
+  
+  ElMessage.success(`Thème "${newScheme.name}" enregistré avec succès`);
 };
 </script>
 
@@ -177,5 +250,50 @@ const emitCustomColors = () => {
 .color-picker-item span {
   font-size: 0.875rem;
   color: var(--el-text-color-regular);
+}
+
+/* Styles pour la prévisualisation */
+.preview-custom-scheme {
+  grid-column: 1 / -1;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.preview-card {
+  width: 240px;
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.preview-header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.preview-title {
+  font-weight: bold;
+}
+
+.preview-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-name {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.preview-details {
+  font-size: 14px;
 }
 </style> 
