@@ -36,26 +36,45 @@ async function createWindow() {
       show: false,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
-        sandbox: false
+        sandbox: false,
+        partition: 'persist:main',
+        contextIsolation: true,
+        webSecurity: true
       },
     });
 
+    console.log('Fenêtre créée, configuration de la session...');
+
+    // Configure session to handle storage properly
+    const session = win.webContents.session;
+    await session.clearStorageData({
+      storages: ['appcache', 'filesystem', 'indexdb', 'localstorage', 'shadercache', 'websql', 'serviceworkers', 'cachestorage'],
+    });
+
+    console.log('Session configurée, attente du chargement...');
+
     // Test active push message to Renderer-process.
     win.webContents.on('did-finish-load', () => {
+      console.log('Contenu chargé avec succès');
       win?.webContents.send('main-process-message', (new Date).toLocaleString())
-    })
+    });
 
     win.on('ready-to-show', () => {
-      win?.show()
-    })
+      console.log('Fenêtre prête à être affichée');
+      if (win) {
+        win.show();
+        win.focus();
+      }
+    });
 
     // Vérifiez si VITE_DEV_SERVER_URL est défini
     if (process.env.VITE_DEV_SERVER_URL) {
-      await win.loadURL(process.env.VITE_DEV_SERVER_URL)
-      win.webContents.openDevTools()
+      console.log('Chargement de l\'URL de développement:', process.env.VITE_DEV_SERVER_URL);
+      await win.loadURL(process.env.VITE_DEV_SERVER_URL);
+      win.webContents.openDevTools();
     } else {
-      // En production, chargez le fichier index.html
-      win.loadFile(path.join(process.env.DIST, 'index.html'))
+      console.log('Chargement du fichier de production:', path.join(process.env.DIST, 'index.html'));
+      win.loadFile(path.join(process.env.DIST, 'index.html'));
     }
   } catch (error) {
     console.error("Erreur critique lors de la création de la fenêtre:", error);
@@ -148,95 +167,120 @@ ipcMain.handle('print:studentCardsMain', async (event, data) => {
     
     console.log('Impression des cartes d\'étudiants demandée...');
     
-    // Créer une URL temporaire en data pour l'impression
-    const printContent = `
-      <html>
-      <head>
-        <style>
-          @page {
-            size: ${data.options?.format === 'cr80' ? '85.6mm 54mm' : 'A4'};
-            margin: 0;
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            background-color: white;
-          }
-          .card-container {
-            width: 85.6mm;
-            height: 54mm;
-            position: relative;
-            page-break-after: always;
-            overflow: hidden;
-            background-color: white;
-          }
-          ${data.options?.format === 'a4' ? `
-          .card-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            grid-template-rows: repeat(2, 1fr);
-            gap: ${data.options?.marginV || 5}mm ${data.options?.marginH || 5}mm;
-            padding: ${data.options?.marginV || 5}mm ${data.options?.marginH || 5}mm;
-          }` : ''}
-        </style>
-      </head>
-      <body>
-        <div class="${data.options?.format === 'a4' ? 'card-grid' : ''}">
-          ${generateStudentCardsHTML(data.students, data.template, data.colorScheme, data.schoolInfo)}
-        </div>
-      </body>
-      </html>
-    `;
-    
-    // Charger le contenu HTML
+    // Créer une fenêtre temporaire pour l'impression
     const tmpWin = new BrowserWindow({
-      show: false,
+      width: 856,
+      height: 540,
+      show: false, // La fenêtre est cachée par défaut
       webPreferences: {
-        offscreen: true,
+        javascript: true,
+        nodeIntegration: false,
+        contextIsolation: true
       }
     });
-    
-    await tmpWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(printContent)}`);
-    
-    // Configurer les options d'impression
-    const printOptions = {
-      silent: false,
-      printBackground: true,
-      color: true,
-      margins: {
-        marginType: 'custom',
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0
-      },
-      landscape: data.options?.format === 'cr80',
-      scaleFactor: 100,
-      pagesPerSheet: 1,
-      collate: true,
-      copies: 1
-    };
-    
-    // Imprimer directement
-    console.log('[Debug Print] Options d\'impression:', JSON.stringify(printOptions, null, 2));
-    console.log('[Debug Print] Contenu HTML complet avant impression:', printContent);
-    await tmpWin.webContents.print(printOptions, (success, reason) => {
-      console.log('Résultat impression:', success ? 'Succès' : `Échec: ${reason}`);
-      if (!success) {
-        console.error('Erreur d\'impression détaillée:', reason);
-      }
-      tmpWin.close();
+
+    const script = `
+      document.write(\`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Impression des cartes</title>
+            <meta charset="UTF-8">
+            <style>
+              @page {
+                size: ${data.options?.format === 'cr80' ? '85.6mm 54mm' : 'A4'};
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: ${data.options?.format === 'a4' ? `${data.options?.marginV || 5}mm ${data.options?.marginH || 5}mm` : '0'};
+              }
+              .card-grid {
+                display: grid;
+                grid-gap: ${data.options?.marginV || 5}mm ${data.options?.marginH || 5}mm;
+                grid-template-columns: repeat(auto-fill, 85.6mm);
+                justify-content: center;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="${data.options?.format === 'a4' ? 'card-grid' : ''}">
+              ${generateStudentCardsHTML(data.students, data.template, data.colorScheme, data.schoolInfo)}
+            </div>
+          </body>
+        </html>
+      \`);
+    `;
+
+    return new Promise((resolve) => {
+      tmpWin.loadURL('about:blank')
+        .then(() => tmpWin.webContents.executeJavaScript(script))
+        .then(() => {
+          // Attendre que le contenu soit chargé
+          tmpWin.webContents.on('did-finish-load', async () => {
+            try {
+              // Montrer la fenêtre temporairement
+              tmpWin.show();
+
+              const printOptions = {
+                silent: false,
+                printBackground: true,
+                color: true,
+                margins: {
+                  marginType: 'custom',
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: 0
+                },
+                landscape: true,
+                scaleFactor: 100,
+                shouldPrintBackgrounds: true,
+                pageSize: {
+                  width: 85600,
+                  height: 54000
+                }
+              };
+
+              // Attendre un court instant pour s'assurer que la fenêtre est bien rendue
+              await new Promise(r => setTimeout(r, 500));
+
+              tmpWin.webContents.print(printOptions, (success, errorType) => {
+                console.log('Résultat impression:', success ? 'Succès' : `Erreur: ${errorType}`);
+                
+                // Attendre un peu avant de fermer la fenêtre
+                setTimeout(() => {
+                  tmpWin.close();
+                  resolve({
+                    success: success,
+                    message: success ? 'Impression terminée avec succès' : `Erreur: ${errorType}`
+                  });
+                }, 500);
+              });
+            } catch (error) {
+              console.error('Erreur lors de l\'impression:', error);
+              tmpWin.close();
+              resolve({
+                success: false,
+                error: error instanceof Error ? error.message : 'Erreur inconnue'
+              });
+            }
+          });
+        })
+        .catch(error => {
+          console.error('Erreur lors du chargement de la page:', error);
+          tmpWin.close();
+          resolve({
+            success: false,
+            error: error instanceof Error ? error.message : 'Erreur inconnue'
+          });
+        });
     });
-    
-    return {
-      success: true,
-      message: 'Cartes envoyées à l\'imprimante'
-    };
   } catch (error) {
-    console.error('Erreur lors de l\'impression des cartes:', error);
+    console.error('Erreur lors de la préparation de l\'impression:', error);
     return {
       success: false,
-      error: error.message || 'Erreur d\'impression'
+      error: error instanceof Error ? error.message : 'Erreur inconnue'
     };
   }
 });

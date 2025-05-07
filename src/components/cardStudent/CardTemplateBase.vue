@@ -166,13 +166,24 @@ defineExpose({
     break-inside: avoid;
     page-break-inside: avoid;
     transform-style: flat;
+    page-break-after: always;
   }
   
-  .card-back {
+  .card-front, .card-back {
     position: relative;
-    transform: none;
+    transform: none !important;
+    backface-visibility: visible !important;
+  }
+
+  .card-back {
     break-before: page;
     page-break-before: always;
+    margin-top: 20px;
+  }
+
+  .is-flipped .card-front,
+  .is-flipped .card-back {
+    transform: none !important;
   }
 }
 </style>

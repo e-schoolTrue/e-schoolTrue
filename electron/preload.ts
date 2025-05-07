@@ -20,8 +20,6 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return await ipcRenderer.invoke(channel, ...omit)
   },
   
-   
-
   // You can expose other APTs you need here.
   // ...
 })
@@ -44,12 +42,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // API spécifique pour l'impression des cartes d'étudiants
   printStudentCards: async (data) => {
     try {
-      console.log('Demande d\'impression de cartes d\'étudiants via preload')
-      const result = await ipcRenderer.invoke('print:studentCards', data)
-      return result.success
+      console.log('Demande d\'impression de cartes d\'étudiants via preload');
+      const result = await ipcRenderer.invoke('print:studentCardsMain', data);
+      if (!result.success) {
+        throw new Error(result.error || 'Échec de l\'impression');
+      }
+      return result;
     } catch (error) {
-      console.error('Erreur lors de l\'impression des cartes:', error)
-      return false
+      console.error('Erreur lors de l\'impression des cartes:', error);
+      throw error;
     }
   }
 })

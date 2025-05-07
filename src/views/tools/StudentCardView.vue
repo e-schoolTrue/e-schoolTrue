@@ -435,16 +435,17 @@ const optimizeImageForPrint = async (dataUrl: string, quality: number): Promise<
 };
 
 const handlePrintWithElectron = async () => {
-  if (!window.electronAPI) throw new Error("API Electron non disponible");
+  if (!window.electronAPI) {
+    throw new Error("API Electron non disponible");
+  }
   
   try {
-    ElMessage.info("Utilisation de l'API Electron pour l'impression...");
+    ElMessage.info("Préparation de l'impression...");
     
     // Optimisation des images si nécessaire
     if (printOptions.value.optimize) {
       ElMessage.info("Optimisation des images...");
       
-      // Logo de l'école
       if (schoolInfo.value?.logo?.url) {
         schoolInfo.value.logo.optimizedUrl = await optimizeImageForPrint(
           schoolInfo.value.logo.url, 
@@ -469,30 +470,51 @@ const handlePrintWithElectron = async () => {
             );
           }
         }));
-        
-        // Pause entre les lots
         await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
     
     // Préparer les données pour l'impression
     const printData = {
-      students: selectedStudents.value,
-      schoolInfo: schoolInfo.value,
+      students: selectedStudents.value.map(student => ({
+        firstname: student.firstname || '',
+        lastname: student.lastname || '',
+        matricule: student.matricule || '',
+        grade: {
+          name: student.grade?.name || ''
+        },
+        photo: {
+          url: student.photo?.optimizedUrl || student.photo?.url || ''
+        },
+        schoolYear: student.schoolYear || ''
+      })),
+      schoolInfo: {
+        name: schoolInfo.value?.name || '',
+        logo: {
+          url: schoolInfo.value?.logo?.optimizedUrl || schoolInfo.value?.logo?.url || ''
+        },
+        phone: schoolInfo.value?.phone || '',
+        email: schoolInfo.value?.email || '',
+        address: schoolInfo.value?.address || ''
+      },
       template: selectedTemplate.value,
-      colorScheme: selectedColorScheme.value,
-      options: printOptions.value
+      colorScheme: {
+        primary: selectedColorScheme.value.primary,
+        secondary: selectedColorScheme.value.secondary,
+        text: selectedColorScheme.value.text,
+        background: selectedColorScheme.value.background
+      },
+      options: { ...printOptions.value }
     };
+
+    ElMessage.info("Envoi à l'imprimante...");
+    const result = await window.electronAPI.printStudentCards(printData);
     
-    // Envoyer la commande d'impression via Electron API
-    console.log('Envoi de la commande d\'impression via Electron');
-    const success = await window.electronAPI.printStudentCards(printData);
-    
-    if (success) {
-      ElMessage.success("Impression envoyée avec succès");
-    } else {
-      throw new Error("Échec de l'envoi à l'imprimante");
+    if (!result.success) {
+      throw new Error(result.error || "Échec de l'impression");
     }
+    
+    ElMessage.success(result.message || "Impression terminée avec succès");
   } catch (error) {
     console.error('Erreur lors de l\'impression via Electron:', error);
     throw error;
@@ -525,161 +547,179 @@ const confirmPrint = async () => {
   } catch (error) {
     console.error('Erreur lors de l\'impression:', error);
     ElMessage.error("Erreur lors de l'impression: " + (error instanceof Error ? error.message : "Erreur inconnue"));
-    
-    // Proposer l'export PDF en cas d'échec
-    ElMessage({
-      message: 'Essayez la méthode alternative d\'impression ou l\'export PDF',
-      type: 'warning',
-      duration: 8000
-    });
   }
 };
 
-const handlePrintAlternative = async () => {
-  if (!selectedStudents.value.length) return;
-  
-  try {
-    // Utiliser directement l'événement print:studentCards au lieu de print:studentCardsMain
-    const result = await window.ipcRenderer.invoke('print:studentCards', {
-      students: selectedStudents.value.map(student => ({
-        firstname: student.firstname,
-        lastname: student.lastname,
-        matricule: student.matricule,
-        grade: student.grade ? {
-          name: student.grade.name,
-          id: student.grade.id
-        } : null,
-        photo: student.photo ? {
-          url: student.photo.url,
-          optimizedUrl: student.photo.optimizedUrl,
-          id: student.photo.id
-        } : null
-      })),
-      schoolInfo: schoolInfo.value ? {
-        name: schoolInfo.value.name,
-        logo: schoolInfo.value.logo ? {
-          url: schoolInfo.value.logo.url,
-          optimizedUrl: schoolInfo.value.logo.optimizedUrl,
-          id: schoolInfo.value.logo.id
-        } : null
-      } : null,
-      template: selectedTemplate.value,
-      colorScheme: {
-        name: selectedColorScheme.value.name,
-        primary: selectedColorScheme.value.primary,
-        secondary: selectedColorScheme.value.secondary,
-        text: selectedColorScheme.value.text,
-        background: selectedColorScheme.value.background
-      },
-      options: { ...printOptions.value }
-    });
-
-    if (result.success) {
-      ElMessage.success("Impression préparée avec succès");
-      // Continuer avec la logique d'impression...
-    } else {
-      throw new Error(result.error || "Erreur lors de la préparation de l'impression");
+const cleanupPrintResources = (printFrame: HTMLIFrameElement, pdfUrl: string) => {
+  requestAnimationFrame(() => {
+    if (document.body.contains(printFrame)) {
+      document.body.removeChild(printFrame);
     }
+    URL.revokeObjectURL(pdfUrl);
+  });
+};
+
+const handlePrintAlternative = async () => {
+  try {
+    loading.value = true;
     
+    // Optimiser les images si nécessaire
+    if (printOptions.value.optimize) {
+      const batchSize = 5;
+      const batches = [];
+      for (let i = 0; i < selectedStudents.value.length; i += batchSize) {
+        batches.push(selectedStudents.value.slice(i, i + batchSize));
+      }
+      
+      for (const batch of batches) {
+        await Promise.all(batch.map(async (student) => {
+          if (student.photo?.url) {
+            student.photo.optimizedUrl = await optimizeImageForPrint(
+              student.photo.url,
+              printOptions.value.quality
+            );
+          }
+        }));
+      }
+    }
+
+    // Créer une div temporaire pour l'impression
+    const printContainer = document.createElement('div');
+    printContainer.style.display = 'none';
+    document.body.appendChild(printContainer);
+
+    // Préparer chaque carte pour l'impression
+    for (const student of selectedStudents.value) {
+      previewStudent.value = student;
+      await nextTick();
+
+      const card = previewContainer.value?.querySelector(
+        '.card-template-one, .card-template-two, .card-template-three'
+      );
+      if (card) {
+        const cardClone = card.cloneNode(true) as HTMLElement;
+        cardClone.style.transform = 'none';
+        cardClone.style.margin = '0';
+        cardClone.style.pageBreakAfter = 'always';
+        printContainer.appendChild(cardClone);
+      }
+    }
+
+    // Ouvrir la fenêtre d'impression
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Impression des cartes</title>
+            <style>
+              @page {
+                size: ${printOptions.value.format === 'cr80' ? '85.6mm 54mm' : 'A4'} landscape;
+                margin: ${printOptions.value.marginV}mm ${printOptions.value.marginH}mm;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              .card-template {
+                width: 85.6mm;
+                height: 54mm;
+                page-break-after: always;
+                transform: none !important;
+              }
+            </style>
+          </head>
+          <body>${printContainer.innerHTML}</body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      printWindow.print();
+      printWindow.close();
+    }
+
+    // Nettoyer
+    document.body.removeChild(printContainer);
+    ElMessage.success("Impression lancée avec succès");
   } catch (error) {
-    console.error('Erreur lors de l\'impression alternative:', error);
-    ElMessage.error("Erreur lors de l'impression: " + (error instanceof Error ? error.message : "Erreur inconnue"));
+    console.error('Erreur lors de l\'impression:', error);
+    ElMessage.error("Une erreur est survenue lors de l'impression");
+  } finally {
+    loading.value = false;
   }
 };
 
 const handleExportPDF = async () => {
-  if (!selectedStudents.value.length || !previewContainer.value) return;
+  if (!selectedStudents.value.length || !previewContainer.value) {
+    ElMessage.error("Aucun étudiant sélectionné ou conteneur non trouvé");
+    return;
+  }
   
   try {
-    // S'assurer que la carte est au recto avant de commencer
-    isFlipped.value = false;
-    await nextTick();
+    loading.value = true;
+    const cardElement = previewContainer.value.querySelector('.card-template-one, .card-template-two, .card-template-three');
+    
+    if (!cardElement) {
+      throw new Error("Template de carte non trouvé");
+    }
 
-    const card = previewContainer.value.querySelector('.card-template-one, .card-template-two, .card-template-three');
-    if (!card) return;
-
-    // Configuration de base pour html2canvas
-    const baseOptions = {
-      scale: 3, // Augmenter la résolution
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      imageTimeout: 0,
-      logging: false,
-      onclone: (clonedDoc) => {
-        const clonedCard = clonedDoc.querySelector('.card-template-one, .card-template-two, .card-template-three');
-        if (clonedCard) {
-          clonedCard.style.transform = 'none';
-          clonedCard.style.transition = 'none';
-          clonedCard.style.boxShadow = 'none';
-          // Forcer les dimensions exactes
-          clonedCard.style.width = '85.6mm';
-          clonedCard.style.height = '54mm';
-        }
-        return clonedDoc;
-      }
-    };
-
-    // Créer le PDF
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
-      format: [54, 85.6],
-      compress: true
+      format: [54, 85.6]
     });
 
-    // Capturer le recto
-    const frontCanvas = await html2canvas(card as HTMLElement, {
-      ...baseOptions,
-      onclone: (clonedDoc) => {
-        const clonedCard = clonedDoc.querySelector('.card-template-one, .card-template-two, .card-template-three');
-        if (clonedCard) {
-          clonedCard.classList.remove('is-flipped');
-          baseOptions.onclone(clonedDoc);
-        }
-        return clonedDoc;
-      }
-    });
-    
-    const frontImage = frontCanvas.toDataURL('image/jpeg', 0.95);
-    pdf.addImage(frontImage, 'JPEG', 0, 0, 85.6, 54);
-
-    // Si l'option recto-verso est activée, capturer le verso
-    if (printOptions.value.doubleSided) {
-      // Retourner la carte
-      isFlipped.value = true;
+    for (const student of selectedStudents.value) {
+      previewStudent.value = student;
       await nextTick();
-      await new Promise(resolve => setTimeout(resolve, 100)); // Attendre la fin de l'animation
-
-      const backCanvas = await html2canvas(card as HTMLElement, {
-        ...baseOptions,
-        onclone: (clonedDoc) => {
-          const clonedCard = clonedDoc.querySelector('.card-template-one, .card-template-two, .card-template-three');
-          if (clonedCard) {
-            clonedCard.classList.add('is-flipped');
-            baseOptions.onclone(clonedDoc);
-          }
-          return clonedDoc;
-        }
+      
+      // Capture le recto
+      cardElement.classList.remove('show-back');
+      await nextTick();
+      const frontCanvas = await html2canvas(cardElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true
       });
-
-      // Ajouter une nouvelle page pour le verso
-      pdf.addPage([54, 85.6], 'landscape');
-      const backImage = backCanvas.toDataURL('image/jpeg', 0.95);
-      pdf.addImage(backImage, 'JPEG', 0, 0, 85.6, 54);
-
-      // Remettre la carte au recto
-      isFlipped.value = false;
+      
+      const frontImgData = frontCanvas.toDataURL('image/jpeg', 0.95);
+      
+      // Capture le verso
+      cardElement.classList.add('show-back');
+      await nextTick();
+      const backCanvas = await html2canvas(cardElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true
+      });
+      
+      const backImgData = backCanvas.toDataURL('image/jpeg', 0.95);
+      
+      // Ajoute le recto
+      pdf.addImage(frontImgData, 'JPEG', 0, 0, 85.6, 54);
+      
+      // Ajoute le verso sur une nouvelle page
+      pdf.addPage();
+      pdf.addImage(backImgData, 'JPEG', 0, 0, 85.6, 54);
+      
+      if (student !== selectedStudents.value[selectedStudents.value.length - 1]) {
+        pdf.addPage();
+      }
     }
 
-    // Sauvegarder le PDF
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    pdf.save(`carte_etudiant_${timestamp}.pdf`);
-    
-    ElMessage.success('Export PDF réussi !');
+    pdf.save('cartes-etudiants.pdf');
+    ElMessage.success("Export PDF réussi");
   } catch (error) {
     console.error('Erreur lors de l\'export PDF:', error);
-    ElMessage.error("Une erreur est survenue lors de l'export PDF");
+    ElMessage.error("Erreur lors de l'export PDF");
+  } finally {
+    loading.value = false;
+    // Réinitialise l'affichage au recto
+    const cardElement = previewContainer.value?.querySelector('.card-template-one, .card-template-two, .card-template-three');
+    if (cardElement) {
+      cardElement.classList.remove('show-back');
+    }
   }
 };
 
@@ -1032,55 +1072,49 @@ const renderCard = (cardData: CardData): HTMLElement => {
 
 // Initialisation
 const loadData = async () => {
-  loading.value = true;
   try {
-    // Charger les classes et les étudiants en parallèle
-    const [gradesResult, studentsResult, schoolResult] = await Promise.all([
+    loading.value = true;
+    const [schoolResult, gradesResult, studentsResult] = await Promise.all([
+      window.ipcRenderer.invoke('school:get'),
       window.ipcRenderer.invoke('grade:all'),
-      window.ipcRenderer.invoke('student:all'),
-      window.ipcRenderer.invoke('school:get')
+      window.ipcRenderer.invoke('student:all')
     ]);
+
+    if (schoolResult.success && schoolResult.data) {
+      const school = schoolResult.data;
+      if (school.logo?.id) {
+        // Utiliser school:getLogo pour le logo de l'école
+        const logoResult = await window.ipcRenderer.invoke('school:getLogo', school.logo.id);
+        if (logoResult.success && logoResult.data) {
+          school.logo.url = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+        }
+      }
+      schoolInfo.value = school;
+    }
 
     if (gradesResult.success) {
       grades.value = gradesResult.data;
-    } else {
-      throw new Error("Erreur lors du chargement des classes");
     }
 
     if (studentsResult.success) {
-      // Charger les URLs des photos pour chaque étudiant
-      const studentsWithPhotos = await Promise.all(
-        studentsResult.data.map(async (student: any) => ({
-          ...student,
-          photo: student.photo ? {
-            ...student.photo,
-            url: await getImageUrl(student.photo)
-          } : null
-        }))
-      );
-      students.value = studentsWithPhotos;
-    } else {
-      throw new Error("Erreur lors du chargement des étudiants");
-    }
-
-    if (schoolResult.success) {
-      // Charger l'URL du logo de l'école
-      const school = schoolResult.data;
-      if (school?.logo) {
-        school.logo.url = await getImageUrl(school.logo);
-      }
-      schoolInfo.value = school;
-    } else {
-      throw new Error("Erreur lors du chargement des informations de l'école");
-    }
-
-    // Si des étudiants sont chargés, en sélectionner un pour l'aperçu
-    if (students.value.length > 0) {
-      previewStudent.value = students.value[0];
+      // Traiter les photos des étudiants
+      students.value = await Promise.all(studentsResult.data.map(async (student) => {
+        const processedStudent = { ...student };
+        if (student.photo?.id) {
+          const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', student.photo.id);
+          if (photoResult.success && photoResult.data) {
+            processedStudent.photo = {
+              ...student.photo,
+              url: `data:${photoResult.data.type};base64,${photoResult.data.content}`
+            };
+          }
+        }
+        return processedStudent;
+      }));
     }
   } catch (error) {
-    console.error('Erreur lors du chargement des données:', error);
-    ElMessage.error("Erreur lors du chargement des données");
+    console.error('Erreur chargement:', error);
+    ElMessage.error('Erreur lors du chargement des données');
   } finally {
     loading.value = false;
   }
