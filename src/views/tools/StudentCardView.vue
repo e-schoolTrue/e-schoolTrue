@@ -559,19 +559,553 @@ const cleanupPrintResources = (printFrame: HTMLIFrameElement, pdfUrl: string) =>
   });
 };
 
-const handlePrintAlternative = async () => {
+// Fonction utilitaire pour capturer une carte (utilisée par handleExportPDF et handlePrintAlternative)
+const captureStudentCard = async (student: Student, options = { returnCanvases: false }) => {
+  if (!previewContainer.value) {
+    throw new Error("Conteneur de prévisualisation non trouvé");
+  }
+  
+  // Mettre à jour la prévisualisation avec l'étudiant sélectionné
+  previewStudent.value = student;
+  
+  // Attendre que le DOM soit mis à jour
+  await nextTick();
+  
+  // Attendre un délai supplémentaire pour s'assurer que tous les éléments sont chargés
+  // (images, polices, etc.)
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  // Récupérer les éléments de la carte après que tout soit chargé
+  // Rechercher la carte dans le conteneur de prévisualisation
+  const cardElement = previewContainer.value.querySelector('.card-template-one, .card-template-two, .card-template-three') as HTMLElement;
+  if (!cardElement) {
+    throw new Error(`Carte pour l'étudiant ${student.id} non trouvée dans la prévisualisation`);
+  }
+  
+  // Récupérer le parent (pour les transformations et styles)
+  const cardParent = cardElement.closest('.card-template-base') || cardElement.parentElement as HTMLElement;
+  if (!cardParent) {
+    throw new Error(`Parent de la carte pour l'étudiant ${student.id} non trouvé`);
+  }
+  
   try {
+    // Fonction utilitaire pour attendre que les images soient chargées
+    const waitForImagesLoaded = async (element: HTMLElement): Promise<void> => {
+      const images = Array.from(element.querySelectorAll('img'));
+      if (images.length === 0) return Promise.resolve();
+      
+      return Promise.all(images.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve(); // Continuer même si l'image ne charge pas
+        });
+      }));
+    };
+    
+    // Récupérer les styles calculés pour préserver les couleurs
+    const computedStyles = window.getComputedStyle(cardElement);
+    
+    // Récupérer les variables CSS importantes
+    const cssVars = {
+      '--primary-color': computedStyles.getPropertyValue('--primary-color') || '#1976d2',
+      '--secondary-color': computedStyles.getPropertyValue('--secondary-color') || '#424242',
+      '--text-color': computedStyles.getPropertyValue('--text-color') || '#333333',
+      '--background-color': computedStyles.getPropertyValue('--background-color') || '#ffffff'
+    };
+    
+    // Créer un conteneur temporaire pour le recto avec dimensions précises
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.width = '85.6mm'; // Largeur exacte de la carte
+    tempContainer.style.height = '54mm';  // Hauteur exacte de la carte
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.margin = '0';
+    tempContainer.style.padding = '0';
+    tempContainer.style.border = 'none';
+    tempContainer.style.boxSizing = 'border-box';
+    document.body.appendChild(tempContainer);
+    
+    // Cloner le template complet (parent + enfant) pour préserver la structure et les styles
+    const cardParentClone = cardParent.cloneNode(false) as HTMLElement;
+    cardParentClone.style.transform = 'none';
+    cardParentClone.style.transition = 'none';
+    cardParentClone.style.width = '100%';
+    cardParentClone.style.height = '100%';
+    cardParentClone.style.position = 'relative';
+    cardParentClone.style.overflow = 'hidden';
+    cardParentClone.style.margin = '0';
+    cardParentClone.style.padding = '0';
+    cardParentClone.style.border = 'none';
+    cardParentClone.style.boxSizing = 'border-box';
+    
+    // Appliquer les variables CSS au clone
+    Object.entries(cssVars).forEach(([key, value]) => {
+      if (value) cardParentClone.style.setProperty(key, value);
+    });
+    
+    // Cloner le contenu du recto
+    const frontClone = cardElement.cloneNode(true) as HTMLElement;
+    frontClone.style.position = 'relative';
+    frontClone.style.width = '100%';
+    frontClone.style.height = '100%';
+    frontClone.style.transform = 'none';
+    frontClone.style.transition = 'none';
+    frontClone.style.boxShadow = 'none';
+    frontClone.style.margin = '0';
+    frontClone.style.padding = '0';
+    frontClone.style.border = 'none';
+    frontClone.style.boxSizing = 'border-box';
+    
+    // Appliquer les variables CSS au clone du contenu
+    Object.entries(cssVars).forEach(([key, value]) => {
+      if (value) frontClone.style.setProperty(key, value);
+    });
+    
+    // Masquer le verso dans le clone
+    const backElements = frontClone.querySelectorAll('.card-back');
+    backElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+    
+    // Ajouter le clone du contenu au clone du parent
+    cardParentClone.appendChild(frontClone);
+    tempContainer.appendChild(cardParentClone);
+    
+    // Attendre que toutes les images soient chargées
+    await waitForImagesLoaded(frontClone);
+    
+    // Attendre un court instant pour que le DOM se stabilise
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Capturer le recto avec des options améliorées pour éliminer les marges
+    const frontCanvas = await html2canvas(cardParentClone, {
+      scale: 3, // Augmenter la résolution
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: cssVars['--background-color'],
+      imageTimeout: 5000, // Augmenter le timeout pour les images
+      x: 0,
+      y: 0,
+      width: cardParentClone.offsetWidth,
+      height: cardParentClone.offsetHeight,
+      windowWidth: cardParentClone.offsetWidth,
+      windowHeight: cardParentClone.offsetHeight,
+      scrollX: 0,
+      scrollY: 0,
+      removeContainer: false,
+      onclone: (clonedDoc) => {
+        // Force le rendu des polices et des styles
+        const clonedElement = clonedDoc.querySelector('.card-template-one, .card-template-two, .card-template-three');
+        if (clonedElement) {
+          clonedElement.setAttribute('data-html2canvas-render', 'true');
+          // Forcer les dimensions et supprimer les marges
+          (clonedElement as HTMLElement).style.margin = '0';
+          (clonedElement as HTMLElement).style.padding = '0';
+          (clonedElement as HTMLElement).style.border = 'none';
+          (clonedElement as HTMLElement).style.boxSizing = 'border-box';
+          (clonedElement as HTMLElement).style.width = '100%';
+          (clonedElement as HTMLElement).style.height = '100%';
+        }
+      }
+    });
+    
+    // Convertir le canvas en image avec une qualité élevée
+    const frontImgData = frontCanvas.toDataURL('image/jpeg', 1.0);
+    
+    // Vérifier si le template a un verso
+    const backElement = cardElement.querySelector('.card-back');
+    let backCanvas = null;
+    let backImgData = null;
+    
+    if (backElement) {
+      // Créer un nouveau conteneur pour le verso avec dimensions précises
+      const backContainer = document.createElement('div');
+      backContainer.style.position = 'absolute';
+      backContainer.style.left = '-9999px';
+      backContainer.style.top = '-9999px';
+      backContainer.style.width = '85.6mm'; // Largeur exacte de la carte
+      backContainer.style.height = '54mm';  // Hauteur exacte de la carte
+      backContainer.style.fontFamily = computedStyles.fontFamily;
+      backContainer.style.overflow = 'hidden';
+      backContainer.style.margin = '0';
+      backContainer.style.padding = '0';
+      backContainer.style.border = 'none';
+      backContainer.style.boxSizing = 'border-box';
+      document.body.appendChild(backContainer);
+      
+      // Créer un nouveau parent pour le verso
+      const backParentClone = cardParent.cloneNode(false) as HTMLElement;
+      backParentClone.style.transform = 'none';
+      backParentClone.style.transition = 'none';
+      backParentClone.style.width = '100%';
+      backParentClone.style.height = '100%';
+      backParentClone.style.position = 'relative';
+      backParentClone.style.overflow = 'hidden';
+      backParentClone.style.margin = '0';
+      backParentClone.style.padding = '0';
+      backParentClone.style.border = 'none';
+      backParentClone.style.boxSizing = 'border-box';
+      
+      // Appliquer les variables CSS au clone du parent
+      Object.entries(cssVars).forEach(([key, value]) => {
+        if (value) backParentClone.style.setProperty(key, value);
+      });
+      
+      // Cloner le verso
+      const backClone = backElement.cloneNode(true) as HTMLElement;
+      
+      // Appliquer les styles au verso pour éliminer les marges
+      backClone.style.transform = 'none';
+      backClone.style.position = 'static';
+      backClone.style.display = 'block';
+      backClone.style.width = '100%';
+      backClone.style.height = '100%';
+      backClone.style.boxShadow = 'none';
+      backClone.style.margin = '0';
+      backClone.style.padding = '0';
+      backClone.style.border = 'none';
+      backClone.style.boxSizing = 'border-box';
+      
+      // Appliquer les variables CSS au clone du verso
+      Object.entries(cssVars).forEach(([key, value]) => {
+        if (value) backClone.style.setProperty(key, value);
+      });
+      
+      // Ajouter le verso au parent
+      backParentClone.appendChild(backClone);
+      backContainer.appendChild(backParentClone);
+      
+      // Attendre que toutes les images soient chargées
+      await waitForImagesLoaded(backClone);
+      
+      // Attendre un court instant pour que le DOM se stabilise
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Capturer le verso avec des options améliorées pour éliminer les marges
+      backCanvas = await html2canvas(backParentClone, {
+        scale: 3, // Augmenter la résolution
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: cssVars['--background-color'],
+        imageTimeout: 5000, // Augmenter le timeout pour les images
+        x: 0,
+        y: 0,
+        width: backParentClone.offsetWidth,
+        height: backParentClone.offsetHeight,
+        windowWidth: backParentClone.offsetWidth,
+        windowHeight: backParentClone.offsetHeight,
+        scrollX: 0,
+        scrollY: 0,
+        removeContainer: false,
+        onclone: (clonedDoc) => {
+          // Force le rendu des polices et des styles
+          const clonedBackElement = clonedDoc.querySelector('.card-back');
+          if (clonedBackElement) {
+            clonedBackElement.setAttribute('data-html2canvas-render', 'true');
+            // Forcer les dimensions et supprimer les marges
+            (clonedBackElement as HTMLElement).style.margin = '0';
+            (clonedBackElement as HTMLElement).style.padding = '0';
+            (clonedBackElement as HTMLElement).style.border = 'none';
+            (clonedBackElement as HTMLElement).style.boxSizing = 'border-box';
+            (clonedBackElement as HTMLElement).style.width = '100%';
+            (clonedBackElement as HTMLElement).style.height = '100%';
+          }
+        }
+      });
+      
+      // Convertir le canvas en image avec une qualité élevée
+      backImgData = backCanvas.toDataURL('image/jpeg', 1.0);
+      
+      // Nettoyer
+      document.body.removeChild(backContainer);
+    }
+    
+    // Nettoyer
+    document.body.removeChild(tempContainer);
+    
+    // Vérifier que les images ont bien été générées
+    if (!frontImgData || frontImgData === 'data:,') {
+      throw new Error(`Échec de la capture du recto de la carte pour l'étudiant ${student.id}`);
+    }
+    
+    if (options.returnCanvases) {
+      return { frontCanvas, backCanvas };
+    }
+    
+    return { frontImgData, backImgData };
+  } catch (error) {
+    console.error(`Erreur lors de la capture de la carte pour l'étudiant ${student.id}:`, error);
+    throw error;
+  }
+};
+
+// Fonction complètement réécrite pour l'exportation PDF sans blocage de l'interface
+const handleExportPDF = () => {
+  if (!selectedStudents.value.length || !previewContainer.value) {
+    ElMessage.error("Aucun étudiant sélectionné ou conteneur non trouvé");
+    return;
+  }
+  
+  // Créer un élément de progression visuelle
+  const progressContainer = document.createElement('div');
+  progressContainer.className = 'pdf-export-progress';
+  progressContainer.style.position = 'fixed';
+  progressContainer.style.top = '50%';
+  progressContainer.style.left = '50%';
+  progressContainer.style.transform = 'translate(-50%, -50%)';
+  progressContainer.style.backgroundColor = 'white';
+  progressContainer.style.padding = '20px';
+  progressContainer.style.borderRadius = '8px';
+  progressContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+  progressContainer.style.zIndex = '9999';
+  progressContainer.style.minWidth = '300px';
+  progressContainer.style.textAlign = 'center';
+  
+  const progressTitle = document.createElement('h3');
+  progressTitle.textContent = "Exportation PDF en cours";
+  progressTitle.style.margin = '0 0 15px 0';
+  progressContainer.appendChild(progressTitle);
+  
+  const progressText = document.createElement('div');
+  progressText.style.marginBottom = '10px';
+  progressContainer.appendChild(progressText);
+  
+  const progressBar = document.createElement('div');
+  progressBar.style.width = '100%';
+  progressBar.style.height = '8px';
+  progressBar.style.backgroundColor = '#f0f0f0';
+  progressBar.style.borderRadius = '4px';
+  progressBar.style.overflow = 'hidden';
+  progressContainer.appendChild(progressBar);
+  
+  const progressFill = document.createElement('div');
+  progressFill.style.width = '0%';
+  progressFill.style.height = '100%';
+  progressFill.style.backgroundColor = 'var(--el-color-primary)';
+  progressFill.style.transition = 'width 0.3s ease';
+  progressBar.appendChild(progressFill);
+  
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = "Annuler";
+  cancelButton.style.marginTop = '15px';
+  cancelButton.style.padding = '5px 15px';
+  cancelButton.style.border = 'none';
+  cancelButton.style.borderRadius = '4px';
+  cancelButton.style.backgroundColor = '#f56c6c';
+  cancelButton.style.color = 'white';
+  cancelButton.style.cursor = 'pointer';
+  progressContainer.appendChild(cancelButton);
+  
+  document.body.appendChild(progressContainer);
+  
+  // Variables pour gérer l'exportation
+  let isCancelled = false;
+  let currentIndex = 0;
+  const totalStudents = selectedStudents.value.length;
+  const cardImages = [];
+  
+  // Créer le PDF
+  const pdf = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: [54, 85.6]
+  });
+
+  // Ajouter un titre au PDF
+  pdf.setFontSize(12);
+  pdf.text("Cartes d'étudiants", 10, 5);
+  
+  // Gestionnaire d'annulation
+  cancelButton.addEventListener('click', () => {
+    isCancelled = true;
+    document.body.removeChild(progressContainer);
+    ElMessage.info("Exportation PDF annulée");
+    loading.value = false;
+  });
+  
+  loading.value = true;
+  
+  // Fonction pour traiter un étudiant à la fois
+  const processNextStudent = () => {
+    if (isCancelled) {
+      loading.value = false;
+      return;
+    }
+    
+    if (currentIndex >= totalStudents) {
+      // Finalisation
+      progressText.textContent = "Finalisation de l'export PDF...";
+      progressFill.style.width = '100%';
+      
+      // Sauvegarder le PDF après un court délai
+      setTimeout(() => {
+        if (!isCancelled) {
+          const filename = `cartes-etudiants-${new Date().toISOString().slice(0, 10)}.pdf`;
+          pdf.save(filename);
+          
+          // Nettoyer
+          document.body.removeChild(progressContainer);
+          
+          ElMessage.success({
+            message: `Export PDF réussi! Fichier: ${filename}`,
+            duration: 3000
+          });
+          
+          loading.value = false;
+        }
+      }, 500);
+      
+      return;
+    }
+    
+    // Mettre à jour la progression
+    const progress = Math.round(((currentIndex + 1) / totalStudents) * 100);
+    progressFill.style.width = `${progress}%`;
+    progressText.textContent = `Traitement de la carte ${currentIndex + 1}/${totalStudents}`;
+    
+    const student = selectedStudents.value[currentIndex];
+    
+    // Préparer l'étudiant pour la capture
+    previewStudent.value = student;
+    
+    // Utiliser setTimeout pour permettre au DOM de se mettre à jour
+    setTimeout(async () => {
+      try {
+        // Récupérer l'élément de la carte
+        const cardElement = previewContainer.value.querySelector('.card-template-one, .card-template-two, .card-template-three');
+        if (!cardElement) {
+          throw new Error(`Carte pour l'étudiant ${student.id} non trouvée`);
+        }
+        
+        // Capturer le recto
+        const frontCanvas = await html2canvas(cardElement, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          onclone: (clonedDoc) => {
+            const clonedCard = clonedDoc.querySelector('.card-template-one, .card-template-two, .card-template-three');
+            if (clonedCard) {
+              // Masquer le verso
+              const backElements = clonedCard.querySelectorAll('.card-back');
+              backElements.forEach(el => {
+                el.style.display = 'none';
+              });
+            }
+          }
+        });
+        
+        const frontImgData = frontCanvas.toDataURL('image/jpeg', 0.95);
+        
+        // Ajouter une nouvelle page (sauf pour la première carte)
+        if (currentIndex > 0) pdf.addPage();
+        
+        // Ajouter le recto au PDF
+        pdf.addImage(frontImgData, 'JPEG', 0, 0, 85.6, 54);
+        
+        // Vérifier s'il y a un verso
+        const backElement = cardElement.querySelector('.card-back');
+        if (backElement) {
+          // Capturer le verso dans un autre setTimeout pour éviter le blocage
+          setTimeout(async () => {
+            try {
+              const backCanvas = await html2canvas(cardElement, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                onclone: (clonedDoc) => {
+                  const clonedCard = clonedDoc.querySelector('.card-template-one, .card-template-two, .card-template-three');
+                  if (clonedCard) {
+                    // Masquer le recto et afficher le verso
+                    const frontElements = clonedCard.querySelectorAll('.card-front');
+                    frontElements.forEach(el => {
+                      el.style.display = 'none';
+                    });
+                    
+                    const backElements = clonedCard.querySelectorAll('.card-back');
+                    backElements.forEach(el => {
+                      el.style.display = 'block';
+                      el.style.transform = 'none';
+                      el.style.position = 'static';
+                    });
+                  }
+                }
+              });
+              
+              const backImgData = backCanvas.toDataURL('image/jpeg', 0.95);
+              
+              // Ajouter le verso au PDF
+              pdf.addPage();
+              pdf.addImage(backImgData, 'JPEG', 0, 0, 85.6, 54);
+              
+              // Passer à l'étudiant suivant
+              currentIndex++;
+              setTimeout(processNextStudent, 50);
+            } catch (error) {
+              console.error(`Erreur lors de la capture du verso pour ${student.firstname} ${student.lastname}:`, error);
+              currentIndex++;
+              setTimeout(processNextStudent, 50);
+            }
+          }, 50);
+        } else {
+          // Pas de verso, passer à l'étudiant suivant
+          currentIndex++;
+          setTimeout(processNextStudent, 50);
+        }
+      } catch (error) {
+        console.error(`Erreur lors du traitement de la carte pour ${student.firstname} ${student.lastname}:`, error);
+        progressText.textContent = `Erreur: ${error.message} - Passage à la carte suivante...`;
+        currentIndex++;
+        setTimeout(processNextStudent, 50);
+      }
+    }, 50);
+  };
+  
+  // Démarrer le traitement
+  setTimeout(processNextStudent, 100);
+};
+
+// Mise à jour de handlePrintAlternative pour une expérience plus intuitive
+const handlePrintAlternative = async () => {
+  if (!selectedStudents.value.length || !previewContainer.value) {
+    ElMessage.error("Aucun étudiant sélectionné ou conteneur non trouvé");
+    return;
+  }
+  
+  try {
+    // Créer un message de progression persistant
+    const loadingMessage = ElMessage({
+      message: "Préparation de l'impression...",
+      type: "info",
+      duration: 0,
+      showClose: true
+    });
+    
     loading.value = true;
     
-    // Optimiser les images si nécessaire
+    // Étape 1: Optimisation des images
     if (printOptions.value.optimize) {
+      loadingMessage.message = "Optimisation des images...";
+      
       const batchSize = 5;
       const batches = [];
       for (let i = 0; i < selectedStudents.value.length; i += batchSize) {
         batches.push(selectedStudents.value.slice(i, i + batchSize));
       }
       
+      let batchCount = 0;
       for (const batch of batches) {
+        batchCount++;
+        loadingMessage.message = `Optimisation des images (lot ${batchCount}/${batches.length})...`;
+        
         await Promise.all(batch.map(async (student) => {
           if (student.photo?.url) {
             student.photo.optimizedUrl = await optimizeImageForPrint(
@@ -580,148 +1114,137 @@ const handlePrintAlternative = async () => {
             );
           }
         }));
+        
+        // Permettre à l'interface de se mettre à jour
+        await new Promise(resolve => setTimeout(resolve, 10));
       }
     }
 
-    // Créer une div temporaire pour l'impression
-    const printContainer = document.createElement('div');
-    printContainer.style.display = 'none';
-    document.body.appendChild(printContainer);
-
-    // Préparer chaque carte pour l'impression
-    for (const student of selectedStudents.value) {
-      previewStudent.value = student;
-      await nextTick();
-
-      const card = previewContainer.value?.querySelector(
-        '.card-template-one, .card-template-two, .card-template-three'
-      );
-      if (card) {
-        const cardClone = card.cloneNode(true) as HTMLElement;
-        cardClone.style.transform = 'none';
-        cardClone.style.margin = '0';
-        cardClone.style.pageBreakAfter = 'always';
-        printContainer.appendChild(cardClone);
-      }
-    }
-
-    // Ouvrir la fenêtre d'impression
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Impression des cartes</title>
-            <style>
-              @page {
-                size: ${printOptions.value.format === 'cr80' ? '85.6mm 54mm' : 'A4'} landscape;
-                margin: ${printOptions.value.marginV}mm ${printOptions.value.marginH}mm;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
-              .card-template {
-                width: 85.6mm;
-                height: 54mm;
-                page-break-after: always;
-                transform: none !important;
-              }
-            </style>
-          </head>
-          <body>${printContainer.innerHTML}</body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      await new Promise(resolve => setTimeout(resolve, 500));
-      printWindow.print();
-      printWindow.close();
-    }
-
-    // Nettoyer
-    document.body.removeChild(printContainer);
-    ElMessage.success("Impression lancée avec succès");
-  } catch (error) {
-    console.error('Erreur lors de l\'impression:', error);
-    ElMessage.error("Une erreur est survenue lors de l'impression");
-  } finally {
-    loading.value = false;
-  }
-};
-
-const handleExportPDF = async () => {
-  if (!selectedStudents.value.length || !previewContainer.value) {
-    ElMessage.error("Aucun étudiant sélectionné ou conteneur non trouvé");
-    return;
-  }
-  
-  try {
-    loading.value = true;
-    const cardElement = previewContainer.value.querySelector('.card-template-one, .card-template-two, .card-template-three');
+    // Étape 2: Génération du PDF
+    loadingMessage.message = "Création du document PDF...";
+    await new Promise(resolve => setTimeout(resolve, 100)); // Permettre l'affichage du message
     
-    if (!cardElement) {
-      throw new Error("Template de carte non trouvé");
-    }
-
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: [54, 85.6]
     });
 
-    for (const student of selectedStudents.value) {
-      previewStudent.value = student;
-      await nextTick();
+    // Ajouter un titre et des métadonnées au PDF
+    pdf.setFontSize(12);
+    pdf.text("Cartes d'étudiants", 10, 5);
+    pdf.setProperties({
+      title: "Cartes d'étudiants",
+      subject: "Cartes d'identification des étudiants",
+      creator: "e-schoolTrue",
+      author: "e-schoolTrue"
+    });
+
+    // Étape 3: Capture et ajout des cartes au PDF
+    for (let i = 0; i < selectedStudents.value.length; i++) {
+      // Mettre à jour le message de progression
+      loadingMessage.message = `Génération de la carte ${i + 1}/${selectedStudents.value.length}...`;
       
-      // Capture le recto
-      cardElement.classList.remove('show-back');
-      await nextTick();
-      const frontCanvas = await html2canvas(cardElement, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true
-      });
+      const student = selectedStudents.value[i];
+      const { frontImgData, backImgData } = await captureStudentCard(student);
       
-      const frontImgData = frontCanvas.toDataURL('image/jpeg', 0.95);
-      
-      // Capture le verso
-      cardElement.classList.add('show-back');
-      await nextTick();
-      const backCanvas = await html2canvas(cardElement, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true
-      });
-      
-      const backImgData = backCanvas.toDataURL('image/jpeg', 0.95);
-      
-      // Ajoute le recto
+      // Ajouter le recto au PDF
       pdf.addImage(frontImgData, 'JPEG', 0, 0, 85.6, 54);
       
-      // Ajoute le verso sur une nouvelle page
-      pdf.addPage();
-      pdf.addImage(backImgData, 'JPEG', 0, 0, 85.6, 54);
+      // Ajouter le verso si disponible et si l'impression recto-verso est activée
+      if (backImgData && printOptions.value.doubleSided) {
+        pdf.addPage();
+        pdf.addImage(backImgData, 'JPEG', 0, 0, 85.6, 54);
+      }
       
-      if (student !== selectedStudents.value[selectedStudents.value.length - 1]) {
+      // Ajouter une nouvelle page pour le prochain étudiant (sauf pour le dernier)
+      if (i < selectedStudents.value.length - 1) {
         pdf.addPage();
       }
+      
+      // Permettre au navigateur de respirer entre chaque carte
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
 
-    pdf.save('cartes-etudiants.pdf');
-    ElMessage.success("Export PDF réussi");
+    // Étape 4: Finalisation et sauvegarde
+    loadingMessage.message = "Finalisation du document pour impression...";
+    await new Promise(resolve => setTimeout(resolve, 300)); // Permettre l'affichage du message
+    
+    // Générer un nom de fichier avec la date
+    const filename = `cartes-etudiants-${new Date().toISOString().slice(0, 10)}.pdf`;
+    
+    // Fermer le message de progression
+    loadingMessage.close();
+    
+    // Vérifier si nous sommes dans un environnement Electron
+    if (window.electronAPI) {
+      try {
+        // Afficher un message de progression pour l'impression
+        ElMessage({
+          message: "Préparation de l'impression via l'application...",
+          type: "info",
+          duration: 2000
+        });
+        
+        // Utiliser l'API Electron pour sauvegarder et imprimer le PDF
+        const pdfBuffer = pdf.output('arraybuffer');
+        const result = await window.electronAPI.saveTempFileAndPrint({
+          filename,
+          data: pdfBuffer,
+          print: true
+        });
+        
+        if (result.success) {
+          ElMessage.success({
+            message: "Impression lancée avec succès",
+            duration: 3000
+          });
+        } else {
+          throw new Error(result.error || "Erreur lors de l'impression via l'application");
+        }
+        return;
+      } catch (err) {
+        console.error("Erreur lors de l'impression via Electron:", err);
+        // Continuer avec la méthode alternative
+      }
+    }
+    
+    // Méthode alternative pour les navigateurs
+    try {
+      // Afficher un message de progression pour la sauvegarde
+      ElMessage({
+        message: "Préparation du PDF pour téléchargement...",
+        type: "info",
+        duration: 1500
+      });
+      
+      // Attendre un court instant pour que l'interface se mette à jour
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Sauvegarder le PDF
+      pdf.save(filename);
+      
+      // Afficher un message explicatif à l'utilisateur
+      ElMessage({
+        message: `Le PDF "${filename}" a été téléchargé. Veuillez l'ouvrir avec votre visionneuse PDF pour l'imprimer.`,
+        type: "success",
+        duration: 6000,
+        showClose: true
+      });
+    } catch (err) {
+      console.error('Erreur lors de la sauvegarde du PDF:', err);
+      throw err;
+    }
+    
   } catch (error) {
-    console.error('Erreur lors de l\'export PDF:', error);
-    ElMessage.error("Erreur lors de l'export PDF");
+    console.error('Erreur lors de l\'impression:', error);
+    ElMessage.error("Une erreur est survenue lors de l'impression: " + (error instanceof Error ? error.message : "Erreur inconnue"));
   } finally {
     loading.value = false;
-    // Réinitialise l'affichage au recto
-    const cardElement = previewContainer.value?.querySelector('.card-template-one, .card-template-two, .card-template-three');
-    if (cardElement) {
-      cardElement.classList.remove('show-back');
-    }
   }
 };
+
+
 
 
 // Fonction utilitaire pour générer la carte d'étudiant
@@ -1127,10 +1650,12 @@ onMounted(() => {
 
 <style scoped>
 .student-card-view {
-  padding: 20px;
+  padding: 24px;
   height: calc(100vh - 40px);
   background-color: #f5f7fa;
   overflow: hidden;
+  position: relative;
+  font-family: 'Poppins', sans-serif;
 }
 
 .el-row {
@@ -1143,6 +1668,22 @@ onMounted(() => {
   flex-direction: column;
 }
 
+.el-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  border: none;
+  overflow: hidden;
+}
+
+.el-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
 .templates-list {
   max-height: 150px;
   overflow-y: auto;
@@ -1153,10 +1694,12 @@ onMounted(() => {
 
 .template-item {
   border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 8px;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
   transition: all 0.3s ease;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .template-item:hover {
@@ -1198,14 +1741,15 @@ onMounted(() => {
 
 .preview-container {
   flex: 1;
-  padding: 30px;
+  padding: 40px;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(45deg, #f8f9fa, #fff);
-  border-radius: 8px;
+  background: linear-gradient(135deg, #f8f9fa, #fff);
+  border-radius: 12px;
   position: relative;
   overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.03);
 }
 
 .preview-container::before {
@@ -1241,12 +1785,42 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 15px;
+  gap: 20px;
+  padding: 0 5px;
+}
+
+.el-card :deep(.el-card__header) {
+  padding: 15px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background-color: #fafbfc;
+}
+
+.el-card :deep(.el-card__header h2) {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
 }
 
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  align-items: center;
+}
+
+.action-buttons :deep(.el-button) {
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.action-buttons :deep(.el-button:hover) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .filters {
@@ -1255,12 +1829,70 @@ onMounted(() => {
   flex: 1;
 }
 
+.filters :deep(.el-input),
+.filters :deep(.el-select) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.filters :deep(.el-input__wrapper),
+.filters :deep(.el-select .el-input__wrapper) {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 2px 15px;
+  transition: all 0.3s ease;
+}
+
+.filters :deep(.el-input__wrapper:hover),
+.filters :deep(.el-select .el-input__wrapper:hover) {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
+.filters :deep(.el-input__wrapper:focus-within),
+.filters :deep(.el-select .el-input__wrapper:focus-within) {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+
 .ml-2 {
   margin-left: 8px;
 }
 
 .el-table {
   height: calc(100vh - 160px) !important;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.el-table :deep(th.el-table__cell) {
+  background-color: #f9fafc;
+  font-weight: 600;
+  color: #333;
+  padding: 12px 0;
+}
+
+.el-table :deep(td.el-table__cell) {
+  padding: 10px 0;
+  transition: background-color 0.2s ease;
+}
+
+.el-table :deep(.el-table__row:hover td.el-table__cell) {
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+}
+
+.el-table :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
+
+.el-table :deep(.el-avatar) {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 2px solid white;
+  transition: transform 0.2s ease;
+}
+
+.el-table :deep(.el-table__row:hover .el-avatar) {
+  transform: scale(1.05);
 }
 
 @media print {

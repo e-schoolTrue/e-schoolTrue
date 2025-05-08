@@ -146,11 +146,11 @@ const formatDate = (date: string | Date | undefined) => {
   height: 54mm;
   position: relative;
   perspective: 1000px;
-  background-color: var(--background-color);
-  border-radius: 15px;
-  overflow: hidden;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
   transform-style: preserve-3d;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .card-front, .card-back {
@@ -400,22 +400,35 @@ const formatDate = (date: string | Date | undefined) => {
   font-size: 10px;
 }
 
-/* Ajustements pour l'impression */
+/* Ajustements optimisés pour l'impression et l'export PDF */
 @media print {
   .card-template-three {
     break-inside: avoid;
     page-break-inside: avoid;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: none;
+    overflow: hidden;
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 
   .card-front, .card-back {
     position: relative;
     backface-visibility: visible;
+    -webkit-backface-visibility: visible;
+    transform: none !important;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border-radius: 0 !important;
   }
 
   .card-back {
     break-before: page;
     page-break-before: always;
-    margin-top: 20mm;
+    margin-top: 5mm;
   }
 
   /* S'assurer que les éléments sont visibles à l'impression */
@@ -429,19 +442,47 @@ const formatDate = (date: string | Date | undefined) => {
   /* Améliorer la lisibilité des textes en impression */
   .student-name h3,
   .detail-item .value,
-  .info-value {
+  .info-value,
+  .school-brand h2,
+  .academic-year,
+  .label,
+  .school-contact {
     color: black !important;
   }
 
   /* Optimiser les contrastes pour l'impression */
   .back-pattern {
-    opacity: 0.1;
+    opacity: 0.05;
+    background-image: none !important;
+  }
+
+  .design-element {
+    display: none !important;
+  }
+
+  .card-back {
+    background: #f0f0f0 !important;
   }
 
   .validity-badge {
     border: 1px solid var(--primary-color);
     background-color: white !important;
     color: var(--primary-color) !important;
+    position: static !important;
+    margin-top: 10px;
+    align-self: flex-end;
+  }
+
+  /* Garantir que les dimensions sont exactes */
+  .main-content,
+  .back-content {
+    padding: 10px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Optimiser les images pour l'impression */
+  .student-photo {
+    border: 1px solid #000 !important;
   }
 }
 
