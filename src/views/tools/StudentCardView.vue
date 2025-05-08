@@ -65,20 +65,20 @@
 
               <div class="action-buttons">
                 <el-button 
-                  type="primary" 
-                  @click="handlePrintAlternative" 
-                  :disabled="!selectedStudents.length"
-                >
-                  <Icon icon="mdi:printer" class="mr-2" />
-                  Imprimer ({{ selectedStudents.length }})
-                </el-button>
-                <el-button 
                   type="success" 
-                  @click="handleExportPDF" 
+                  @click="handleExportPDF(false)" 
                   :disabled="!selectedStudents.length"
                 >
                   <Icon icon="mdi:file-pdf-box" class="mr-2" />
                   Exporter PDF
+                </el-button>
+                <el-button 
+                  type="primary" 
+                  @click="handleExportPDF(true)" 
+                  :disabled="!selectedStudents.length"
+                >
+                  <Icon icon="mdi:printer" class="mr-2" />
+                  Imprimer
                 </el-button>
                 <el-button 
                   type="info" 
@@ -189,38 +189,11 @@
       width="600px"
     >
       <h3>Problèmes d'impression?</h3>
-      <p>L'impression des cartes peut être bloquée par certains navigateurs ou dans certaines configurations. Voici quelques conseils:</p>
-      
-      <el-collapse>
-        <el-collapse-item title="Autoriser les popups" name="1">
-          <p>Certains navigateurs bloquent automatiquement les fenêtres popups utilisées pour l'impression.</p>
-          <p>Si vous voyez un message "popup bloqué" en haut de votre navigateur, cliquez sur "Autoriser" ou "Toujours autoriser".</p>
-        </el-collapse-item>
-        
-        <el-collapse-item title="Essayer l'export PDF" name="2">
-          <p>Si l'impression directe ne fonctionne pas, utilisez le bouton "Exporter PDF". Vous pourrez ensuite imprimer le PDF avec votre visionneuse PDF habituelle.</p>
-          <p>Cette méthode fonctionne dans tous les navigateurs et vous permet également de conserver une copie numérique des cartes.</p>
-        </el-collapse-item>
-        
-        <el-collapse-item title="Utiliser le client lourd" name="3">
-          <p>Si vous utilisez cette application via un navigateur web, essayez plutôt d'utiliser l'application bureau (client lourd).</p>
-          <p>L'application bureau a un accès direct à l'imprimante et ne rencontre pas les limitations des navigateurs.</p>
-        </el-collapse-item>
-        
-        <el-collapse-item title="Configurer votre imprimante" name="4">
-          <p>Pour les cartes au format CR80 (format carte de crédit):</p>
-          <ul>
-            <li>Assurez-vous que votre imprimante accepte ce format ou qu'elle a un bac spécial pour cartes.</li>
-            <li>Pour une imprimante standard, utilisez du papier épais et découpez les cartes après impression.</li>
-            <li>L'orientation doit être en paysage (Landscape).</li>
-          </ul>
-          <p>Pour le format A4:</p>
-          <ul>
-            <li>Vérifiez que les options de mise à l'échelle sont désactivées (échelle 100%).</li>
-            <li>N'activez pas les options "Ajuster à la page".</li>
-          </ul>
-        </el-collapse-item>
-      </el-collapse>
+      <p>Si l'impression des cartes est bloquée, essayez de :</p>
+      <ul>
+        <li>Utiliser un ordinateur portable au lieu d'un ordinateur de bureau</li>
+        <li>Imprimer en mode recto-verso si possible</li>
+      </ul>
       
       <template #footer>
         <el-button type="primary" @click="showHelpDialog = false">Compris</el-button>
@@ -845,11 +818,15 @@ const captureStudentCard = async (student: Student, options = { returnCanvases: 
 };
 
 // Fonction complètement réécrite pour l'exportation PDF sans blocage de l'interface
-const handleExportPDF = () => {
+// avec option d'impression directe
+const handleExportPDF = (printDirectly = false) => {
   if (!selectedStudents.value.length || !previewContainer.value) {
     ElMessage.error("Aucun étudiant sélectionné ou conteneur non trouvé");
     return;
   }
+  
+  // Désactiver le chargement global pour éviter la confusion avec deux indicateurs
+  loading.value = false;
   
   // Créer un élément de progression visuelle
   const progressContainer = document.createElement('div');
@@ -867,7 +844,7 @@ const handleExportPDF = () => {
   progressContainer.style.textAlign = 'center';
   
   const progressTitle = document.createElement('h3');
-  progressTitle.textContent = "Exportation PDF en cours";
+  progressTitle.textContent = printDirectly ? "Préparation de l'impression..." : "Exportation PDF en cours";
   progressTitle.style.margin = '0 0 15px 0';
   progressContainer.appendChild(progressTitle);
   
@@ -923,40 +900,78 @@ const handleExportPDF = () => {
   // Gestionnaire d'annulation
   cancelButton.addEventListener('click', () => {
     isCancelled = true;
-    document.body.removeChild(progressContainer);
-    ElMessage.info("Exportation PDF annulée");
-    loading.value = false;
+    if (document.body.contains(progressContainer)) {
+      document.body.removeChild(progressContainer);
+    }
+    ElMessage.info(printDirectly ? "Impression annulée" : "Exportation PDF annulée");
   });
   
-  loading.value = true;
+  // Fonction pour nettoyer les ressources à la fin du processus
+  const cleanup = () => {
+    if (document.body.contains(progressContainer)) {
+      document.body.removeChild(progressContainer);
+    }
+  };
   
   // Fonction pour traiter un étudiant à la fois
   const processNextStudent = () => {
     if (isCancelled) {
-      loading.value = false;
+      cleanup();
       return;
     }
     
     if (currentIndex >= totalStudents) {
       // Finalisation
-      progressText.textContent = "Finalisation de l'export PDF...";
+      progressText.textContent = printDirectly ? "Préparation de l'impression..." : "Finalisation de l'export PDF...";
       progressFill.style.width = '100%';
       
-      // Sauvegarder le PDF après un court délai
+      // Sauvegarder ou imprimer le PDF après un court délai
       setTimeout(() => {
         if (!isCancelled) {
           const filename = `cartes-etudiants-${new Date().toISOString().slice(0, 10)}.pdf`;
-          pdf.save(filename);
           
-          // Nettoyer
-          document.body.removeChild(progressContainer);
-          
-          ElMessage.success({
-            message: `Export PDF réussi! Fichier: ${filename}`,
-            duration: 3000
-          });
-          
-          loading.value = false;
+          if (printDirectly) {
+            // Imprimer directement le PDF
+            pdf.autoPrint(); // Active l'impression automatique
+            
+            // Créer un iframe invisible pour l'impression
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.left = '-9999px';
+            document.body.appendChild(iframe);
+            
+            // Ouvrir le PDF dans l'iframe et déclencher l'impression
+            iframe.onload = () => {
+              setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                
+                // Nettoyer après l'impression
+                setTimeout(() => {
+                  document.body.removeChild(iframe);
+                  cleanup();
+                  ElMessage.success({
+                    message: "Impression envoyée à l'imprimante",
+                    duration: 3000
+                  });
+                }, 1000);
+              }, 500);
+            };
+            
+            // Générer le PDF comme URL de données et l'ouvrir dans l'iframe
+            iframe.src = pdf.output('datauristring');
+          } else {
+            // Sauvegarder le PDF normalement
+            pdf.save(filename);
+            
+            // Nettoyer
+            cleanup();
+            
+            ElMessage.success({
+              message: `Export PDF réussi! Fichier: ${filename}`,
+              duration: 3000
+            });
+          }
         }
       }, 500);
       
@@ -1072,179 +1087,6 @@ const handleExportPDF = () => {
   // Démarrer le traitement
   setTimeout(processNextStudent, 100);
 };
-
-// Mise à jour de handlePrintAlternative pour une expérience plus intuitive
-const handlePrintAlternative = async () => {
-  if (!selectedStudents.value.length || !previewContainer.value) {
-    ElMessage.error("Aucun étudiant sélectionné ou conteneur non trouvé");
-    return;
-  }
-  
-  try {
-    // Créer un message de progression persistant
-    const loadingMessage = ElMessage({
-      message: "Préparation de l'impression...",
-      type: "info",
-      duration: 0,
-      showClose: true
-    });
-    
-    loading.value = true;
-    
-    // Étape 1: Optimisation des images
-    if (printOptions.value.optimize) {
-      loadingMessage.message = "Optimisation des images...";
-      
-      const batchSize = 5;
-      const batches = [];
-      for (let i = 0; i < selectedStudents.value.length; i += batchSize) {
-        batches.push(selectedStudents.value.slice(i, i + batchSize));
-      }
-      
-      let batchCount = 0;
-      for (const batch of batches) {
-        batchCount++;
-        loadingMessage.message = `Optimisation des images (lot ${batchCount}/${batches.length})...`;
-        
-        await Promise.all(batch.map(async (student) => {
-          if (student.photo?.url) {
-            student.photo.optimizedUrl = await optimizeImageForPrint(
-              student.photo.url,
-              printOptions.value.quality
-            );
-          }
-        }));
-        
-        // Permettre à l'interface de se mettre à jour
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-    }
-
-    // Étape 2: Génération du PDF
-    loadingMessage.message = "Création du document PDF...";
-    await new Promise(resolve => setTimeout(resolve, 100)); // Permettre l'affichage du message
-    
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: [54, 85.6]
-    });
-
-    // Ajouter un titre et des métadonnées au PDF
-    pdf.setFontSize(12);
-    pdf.text("Cartes d'étudiants", 10, 5);
-    pdf.setProperties({
-      title: "Cartes d'étudiants",
-      subject: "Cartes d'identification des étudiants",
-      creator: "e-schoolTrue",
-      author: "e-schoolTrue"
-    });
-
-    // Étape 3: Capture et ajout des cartes au PDF
-    for (let i = 0; i < selectedStudents.value.length; i++) {
-      // Mettre à jour le message de progression
-      loadingMessage.message = `Génération de la carte ${i + 1}/${selectedStudents.value.length}...`;
-      
-      const student = selectedStudents.value[i];
-      const { frontImgData, backImgData } = await captureStudentCard(student);
-      
-      // Ajouter le recto au PDF
-      pdf.addImage(frontImgData, 'JPEG', 0, 0, 85.6, 54);
-      
-      // Ajouter le verso si disponible et si l'impression recto-verso est activée
-      if (backImgData && printOptions.value.doubleSided) {
-        pdf.addPage();
-        pdf.addImage(backImgData, 'JPEG', 0, 0, 85.6, 54);
-      }
-      
-      // Ajouter une nouvelle page pour le prochain étudiant (sauf pour le dernier)
-      if (i < selectedStudents.value.length - 1) {
-        pdf.addPage();
-      }
-      
-      // Permettre au navigateur de respirer entre chaque carte
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-
-    // Étape 4: Finalisation et sauvegarde
-    loadingMessage.message = "Finalisation du document pour impression...";
-    await new Promise(resolve => setTimeout(resolve, 300)); // Permettre l'affichage du message
-    
-    // Générer un nom de fichier avec la date
-    const filename = `cartes-etudiants-${new Date().toISOString().slice(0, 10)}.pdf`;
-    
-    // Fermer le message de progression
-    loadingMessage.close();
-    
-    // Vérifier si nous sommes dans un environnement Electron
-    if (window.electronAPI) {
-      try {
-        // Afficher un message de progression pour l'impression
-        ElMessage({
-          message: "Préparation de l'impression via l'application...",
-          type: "info",
-          duration: 2000
-        });
-        
-        // Utiliser l'API Electron pour sauvegarder et imprimer le PDF
-        const pdfBuffer = pdf.output('arraybuffer');
-        const result = await window.electronAPI.saveTempFileAndPrint({
-          filename,
-          data: pdfBuffer,
-          print: true
-        });
-        
-        if (result.success) {
-          ElMessage.success({
-            message: "Impression lancée avec succès",
-            duration: 3000
-          });
-        } else {
-          throw new Error(result.error || "Erreur lors de l'impression via l'application");
-        }
-        return;
-      } catch (err) {
-        console.error("Erreur lors de l'impression via Electron:", err);
-        // Continuer avec la méthode alternative
-      }
-    }
-    
-    // Méthode alternative pour les navigateurs
-    try {
-      // Afficher un message de progression pour la sauvegarde
-      ElMessage({
-        message: "Préparation du PDF pour téléchargement...",
-        type: "info",
-        duration: 1500
-      });
-      
-      // Attendre un court instant pour que l'interface se mette à jour
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Sauvegarder le PDF
-      pdf.save(filename);
-      
-      // Afficher un message explicatif à l'utilisateur
-      ElMessage({
-        message: `Le PDF "${filename}" a été téléchargé. Veuillez l'ouvrir avec votre visionneuse PDF pour l'imprimer.`,
-        type: "success",
-        duration: 6000,
-        showClose: true
-      });
-    } catch (err) {
-      console.error('Erreur lors de la sauvegarde du PDF:', err);
-      throw err;
-    }
-    
-  } catch (error) {
-    console.error('Erreur lors de l\'impression:', error);
-    ElMessage.error("Une erreur est survenue lors de l'impression: " + (error instanceof Error ? error.message : "Erreur inconnue"));
-  } finally {
-    loading.value = false;
-  }
-};
-
-
 
 
 // Fonction utilitaire pour générer la carte d'étudiant
