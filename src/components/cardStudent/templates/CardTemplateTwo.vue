@@ -154,6 +154,10 @@ const isValidDataUrl = (url: string) => {
   position: relative;
   perspective: 1000px;
   transform-style: preserve-3d;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .card-front, .card-back {
@@ -295,12 +299,15 @@ const isValidDataUrl = (url: string) => {
 .card-footer {
   position: absolute;
   bottom: 0;
+  left: 0;
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   padding: 10px;
   background: linear-gradient(to top, rgba(0,0,0,0.05), transparent);
+  box-sizing: border-box;
+  z-index: 10;
 }
 
 .signature {
@@ -377,5 +384,116 @@ const isValidDataUrl = (url: string) => {
   color: rgba(255, 255, 255, 0.8);
   font-style: italic;
   margin-top: 10px;
+}
+
+/* Optimisations pour l'impression et l'export PDF */
+@media print {
+  .card-template-two {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: none;
+    overflow: hidden;
+    width: 85.6mm !important;
+    height: 54mm !important;
+    transform: none !important;
+  }
+
+  .card-front, .card-back {
+    position: relative !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    left: 0 !important;
+    top: 0 !important;
+  }
+
+  .card-back {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 5mm;
+  }
+
+  /* S'assurer que les couleurs et images sont correctement imprimées */
+  .student-photo img,
+  .school-logo,
+  .qr-code,
+  .qr-code canvas,
+  .qr-code img {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  /* Améliorer la lisibilité des textes en impression */
+  .student-name h3,
+  .student-info p,
+  .info-row .value,
+  .signature p {
+    color: black !important;
+  }
+  
+  /* Garantir que le QR code s'affiche correctement */
+  .qr-code {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    background-color: white !important;
+    padding: 2px !important;
+    border-radius: 4px !important;
+    border: 1px solid #000 !important;
+  }
+  
+  /* Garantir que le pied de page s'affiche correctement */
+  .card-footer {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: none !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
+  }
+
+  /* Optimiser les contrastes */
+  .banner {
+    background: #f0f0f0 !important;
+    color: black !important;
+  }
+
+  .card-back {
+    background: #f0f0f0 !important;
+    color: black !important;
+  }
+
+  .rules-section {
+    background-color: #f9f9f9 !important;
+    border: 1px solid #ddd;
+  }
+
+  .rules-section h4,
+  .rules-section ul,
+  .info-row,
+  .label,
+  .contact-info,
+  .validity-info {
+    color: black !important;
+  }
 }
 </style>
