@@ -20,10 +20,11 @@ export interface BackupConfig {
 export interface BackupHistory {
   id: string;
   name: string;
-  createdAt: string;
+  created_at: string; // Changé de createdAt à created_at pour PostgreSQL
   size: number;
   type: 'local' | 'cloud';
   status: 'success' | 'error' | 'pending';
+  user_id: string; // Standardisé en snake_case pour PostgreSQL
   metadata?: {
     tables?: string[];
     fileCount?: number;
@@ -56,7 +57,17 @@ export class BackupService {
   constructor() {
     // Initialiser le client Supabase avec gestion d'erreur
     try {
-      this.supabase = createClient(supabaseConfig.url, supabaseConfig.key);
+      // Créer le client avec des options pour désactiver le cache du schéma
+      this.supabase = createClient(supabaseConfig.url, supabaseConfig.key, {
+        auth: {
+          persistSession: false // Désactive la persistance de session
+        },
+        db: {
+          schema: 'public'
+        }
+      });
+      
+      console.log('Client Supabase réinitialisé avec cache désactivé');
       
       // Vérifier si Supabase est disponible au démarrage (sans bloquer le constructeur)
       this.checkSupabaseAvailability();
@@ -161,10 +172,11 @@ export class BackupService {
       const backupRecord: BackupHistory = {
         id: backupName,
         name: backupName,
-        createdAt: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         size: fileSize,
         type: 'local',
         status: 'success',
+        user_id: '00000000-0000-0000-0000-000000000000', // Utiliser un UUID fixe pour l'instant
         metadata: {
           version: '1.0'
         }
@@ -205,39 +217,45 @@ export class BackupService {
           // Mettre à jour le type de sauvegarde
           backupRecord.type = 'cloud';
           
-          // Stocker l'enregistrement dans Supabase
-          console.log('Enregistrement des métadonnées de sauvegarde dans Supabase...');
+          // NOUVELLE APPROCHE : Stocker les métadonnées dans un fichier JSON dans le bucket Supabase
+          console.log('Enregistrement des métadonnées de sauvegarde dans Supabase (fichier JSON)...');
           try {
-            const insertResult = await this.supabase
-              .from('backups')
-              .insert(backupRecord);
+            // Créer un fichier JSON avec les métadonnées
+            const metadataJson = JSON.stringify(backupRecord, null, 2);
+            const metadataBuffer = Buffer.from(metadataJson);
+            
+            // Télécharger le fichier JSON des métadonnées vers Supabase Storage
+            const metadataResult = await this.supabase.storage
+              .from(supabaseConfig.bucket)
+              .upload(`metadata/${backupRecord.id}.json`, metadataBuffer, {
+                cacheControl: '3600',
+                upsert: true // Remplacer si existe déjà
+              });
               
-            if (insertResult.error) {
-              console.warn(`Erreur lors de l'enregistrement dans Supabase: ${insertResult.error.message}`);
-              console.warn('Détails de l\'erreur:', insertResult.error);
+            if (metadataResult.error) {
+              console.warn(`Erreur lors du téléchargement des métadonnées vers Supabase: ${metadataResult.error.message}`);
+              console.warn('Détails de l\'erreur:', metadataResult.error);
+              // Continuer avec la sauvegarde locale uniquement
+              return { success: true, data: backupRecord };
+            }
+            
+            console.log('Métadonnées de sauvegarde enregistrées avec succès dans Supabase (fichier JSON)');
+            
+            // Mettre à jour le fichier d'index des sauvegardes
+            await this.updateBackupIndex(backupRecord);
               
-              if (insertResult.error.code === '42P01') {
-                console.warn('La table "backups" n\'existe pas dans Supabase. Veuillez la créer manuellement.');
-              }
-              
-              // Revenir au type local si l'insertion a échoué
-              backupRecord.type = 'local';
-            } else {
-              console.log('Métadonnées de sauvegarde enregistrées avec succès dans Supabase');
-              
-              // Générer l'URL publique de la sauvegarde
-              const { data: publicURL } = this.supabase.storage
-                .from(supabaseConfig.bucket)
-                .getPublicUrl(`${backupName}.sqlite`);
+            // Générer l'URL publique de la sauvegarde
+            const { data: publicURL } = this.supabase.storage
+              .from(supabaseConfig.bucket)
+              .getPublicUrl(`${backupName}.sqlite`);
                 
-              if (publicURL) {
-                console.log('URL publique de la sauvegarde:', publicURL);
-                // Ajouter l'URL publique aux métadonnées
-                backupRecord.metadata = {
-                  ...backupRecord.metadata,
-                  publicURL: publicURL
-                };
-              }
+            if (publicURL) {
+              console.log('URL publique de la sauvegarde:', publicURL);
+              // Ajouter l'URL publique aux métadonnées
+              backupRecord.metadata = {
+                ...backupRecord.metadata,
+                publicURL: publicURL
+              };
             }
           } catch (error) {
             console.warn('Erreur lors de l\'enregistrement dans Supabase:', error);
@@ -381,31 +399,6 @@ export class BackupService {
       }
       
       // Supprimer le fichier local s'il existe
-      const localPath = path.join(this.backupDir, `${id}.sqlite`);
-      if (fs.existsSync(localPath)) {
-        fs.unlinkSync(localPath);
-      }
-      
-      // Si la sauvegarde est dans le cloud, la supprimer de Supabase
-      if (backup.type === 'cloud') {
-        try {
-          // Supprimer de Supabase Storage
-          const { error } = await this.supabase.storage
-            .from(supabaseConfig.bucket)
-            .remove([`${id}.sqlite`]);
-            
-          if (error) throw new Error(`Erreur lors de la suppression depuis Supabase: ${error.message}`);
-          
-          // Supprimer l'enregistrement de la table backups
-          await this.supabase
-            .from('backups')
-            .delete()
-            .eq('id', id);
-        } catch (error) {
-          console.error('Erreur lors de la suppression depuis Supabase:', error);
-          // Continuer même si la suppression depuis Supabase a échoué
-        }
-      }
       
       // Mettre à jour l'historique local
       const updatedHistory = history.data?.filter(b => b.id !== id) || [];
@@ -497,24 +490,57 @@ export class BackupService {
             return { success: true, data: backups };
           }
           
-          // Si la connexion est OK, récupérer les données
-          const { data, error } = await this.supabase
-            .from('backups')
-            .select('*')
-            .order('createdAt', { ascending: false });
+          // NOUVELLE APPROCHE : Récupérer l'index des sauvegardes depuis le fichier JSON
+          console.log('Récupération de l\'index des sauvegardes depuis Supabase...');
+          
+          try {
+            // Télécharger l'index des sauvegardes
+            const { data, error } = await this.supabase.storage
+              .from(supabaseConfig.bucket)
+              .download('metadata/index.json');
+              
+            if (error) {
+              console.warn(`Erreur lors de la récupération de l'index des sauvegardes: ${error.message}`);
+              // Continuer avec l'historique local uniquement
+              return { success: true, data: backups };
+            }
             
-          if (error) {
-            console.warn(`Erreur lors de la récupération depuis Supabase: ${error.message}`);
+            if (data) {
+              // Convertir les données en texte puis en JSON
+              const indexText = await data.text();
+              const cloudBackups = JSON.parse(indexText) as BackupHistory[];
+              console.log(`Index des sauvegardes récupéré (${cloudBackups.length} entrées)`);
+              
+              // Fusionner les sauvegardes cloud avec les sauvegardes locales
+              if (cloudBackups && cloudBackups.length > 0) {
+                console.log('Sauvegardes récupérées depuis Supabase:', cloudBackups.length);
+                // Filtrer pour éviter les doublons
+                const cloudBackupIds = cloudBackups.map(b => b.id);
+                backups = backups.filter(b => !cloudBackupIds.includes(b.id));
+                backups = [...backups, ...cloudBackups];
+              } else {
+                console.log('Aucune sauvegarde trouvée dans Supabase');
+              }
+              
+              // Retourner directement les sauvegardes fusionnées
+              backups.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+              return { success: true, data: backups };
+            }
+          } catch (error) {
+            console.warn('Erreur lors de la récupération de l\'index des sauvegardes:', error);
             // Continuer avec l'historique local uniquement
             return { success: true, data: backups };
           }
           
           // Fusionner les sauvegardes cloud avec les sauvegardes locales
           if (data && data.length > 0) {
+            console.log('Sauvegardes récupérées depuis Supabase:', data.length);
             // Filtrer pour éviter les doublons
             const cloudBackupIds = data.map(b => b.id);
             backups = backups.filter(b => !cloudBackupIds.includes(b.id));
             backups = [...backups, ...data];
+          } else {
+            console.log('Aucune sauvegarde trouvée dans Supabase');
           }
         } catch (error) {
           console.warn('Erreur lors de la récupération depuis Supabase:', error);
@@ -523,7 +549,7 @@ export class BackupService {
       }
       
       // Trier par date de création (plus récent en premier)
-      backups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      backups.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       return { success: true, data: backups };
     } catch (error) {
@@ -656,25 +682,27 @@ export class BackupService {
         console.log(`Bucket '${supabaseConfig.bucket}' déjà existant dans Supabase`);
       }
       
-      // Créer la table 'backups' si elle n'existe pas
-      console.log('Vérification de la table backups...');
+      // Vérifier si le dossier metadata existe dans le bucket
       try {
-        // Vérifier si la table existe en essayant de récupérer un enregistrement
-        const { error } = await this.supabase.from('backups').select('id').limit(1);
-        
-        if (error && error.code === '42P01') { // Table doesn't exist
-          console.log('La table backups n\'existe pas, tentative de création...');
+        const { data, error } = await this.supabase.storage
+          .from(supabaseConfig.bucket)
+          .list('metadata');
           
-          // Créer la table via SQL (nécessite des droits d'administration)
-          // Dans la pratique, il est préférable de créer la table manuellement via l'interface Supabase
-          console.log('Veuillez créer manuellement la table "backups" dans Supabase');
-        } else if (error) {
-          console.warn('Erreur lors de la vérification de la table backups:', error.message);
+        if (error) {
+          console.warn('Erreur lors de la vérification du dossier metadata:', error.message);
+        } else if (!data || data.length === 0) {
+          console.log('Le dossier metadata n\'existe pas encore, il sera créé automatiquement lors de la première sauvegarde');
         } else {
-          console.log('Table backups existante dans Supabase');
+          console.log('Dossier metadata existant dans Supabase Storage');
+          const indexExists = data.some(file => file.name === 'index.json');
+          if (indexExists) {
+            console.log('Fichier index.json trouvé dans le dossier metadata');
+          } else {
+            console.log('Fichier index.json non trouvé, il sera créé lors de la première sauvegarde');
+          }
         }
       } catch (error) {
-        console.warn('Erreur lors de la vérification de la table backups:', error);
+        console.warn('Erreur lors de la vérification du dossier metadata:', error);
       }
     } catch (error) {
       console.warn('Erreur lors de l\'initialisation du bucket Supabase:', error);
@@ -685,7 +713,7 @@ export class BackupService {
   /**
    * Récupère la configuration des sauvegardes
    */
-  async getConfig() : Promise<{ success: boolean; data?: BackupConfig; error?: string }> {
+  async getConfig(): Promise<{ success: boolean; data?: BackupConfig; error?: string }> {
     try {
       let config = DEFAULT_CONFIG;
       
@@ -733,6 +761,117 @@ export class BackupService {
   /**
    * Méthodes privées
    */
+  
+  /**
+   * Met à jour l'index des sauvegardes après suppression d'une sauvegarde
+   */
+  private async updateBackupIndexAfterDelete(id: string): Promise<void> {
+    try {
+      // Récupérer l'index actuel
+      let backupIndex: BackupHistory[] = [];
+      
+      try {
+        // Télécharger l'index existant s'il existe
+        const { data, error } = await this.supabase.storage
+          .from(supabaseConfig.bucket)
+          .download('metadata/index.json');
+          
+        if (!error && data) {
+          // Convertir les données en texte puis en JSON
+          const indexText = await data.text();
+          backupIndex = JSON.parse(indexText);
+          console.log(`Index des sauvegardes récupéré (${backupIndex.length} entrées)`);
+        }
+      } catch (error) {
+        console.log('Erreur lors de la récupération de l\'index des sauvegardes:', error);
+        return; // Impossible de continuer sans l'index
+      }
+      
+      // Supprimer la sauvegarde de l'index
+      const updatedIndex = backupIndex.filter(b => b.id !== id);
+      
+      if (updatedIndex.length === backupIndex.length) {
+        console.log(`Sauvegarde ${id} non trouvée dans l'index, aucune mise à jour nécessaire`);
+        return;
+      }
+      
+      // Télécharger l'index mis à jour
+      const indexJson = JSON.stringify(updatedIndex, null, 2);
+      const indexBuffer = Buffer.from(indexJson);
+      
+      const { error } = await this.supabase.storage
+        .from(supabaseConfig.bucket)
+        .upload('metadata/index.json', indexBuffer, {
+          cacheControl: '3600',
+          upsert: true // Remplacer si existe déjà
+        });
+        
+      if (error) {
+        console.warn(`Erreur lors de la mise à jour de l'index des sauvegardes: ${error.message}`);
+      } else {
+        console.log(`Index des sauvegardes mis à jour après suppression (${updatedIndex.length} entrées)`);
+      }
+    } catch (error) {
+      console.warn('Erreur lors de la mise à jour de l\'index des sauvegardes après suppression:', error);
+    }
+  }
+  
+  /**
+   * Met à jour l'index des sauvegardes dans Supabase
+   * Cette méthode maintient un fichier JSON contenant la liste de toutes les sauvegardes
+   */
+  private async updateBackupIndex(backup: BackupHistory): Promise<void> {
+    try {
+      // Récupérer l'index actuel ou en créer un nouveau
+      let backupIndex: BackupHistory[] = [];
+      
+      try {
+        // Télécharger l'index existant s'il existe
+        const { data, error } = await this.supabase.storage
+          .from(supabaseConfig.bucket)
+          .download('metadata/index.json');
+          
+        if (!error && data) {
+          // Convertir les données en texte puis en JSON
+          const indexText = await data.text();
+          backupIndex = JSON.parse(indexText);
+          console.log(`Index des sauvegardes récupéré (${backupIndex.length} entrées)`);
+        }
+      } catch (error) {
+        console.log('Aucun index existant, création d\'un nouvel index');
+      }
+      
+      // Ajouter ou mettre à jour la sauvegarde dans l'index
+      const existingIndex = backupIndex.findIndex(b => b.id === backup.id);
+      if (existingIndex >= 0) {
+        backupIndex[existingIndex] = backup;
+      } else {
+        backupIndex.push(backup);
+      }
+      
+      // Trier par date de création (plus récent en premier)
+      backupIndex.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      // Télécharger l'index mis à jour
+      const indexJson = JSON.stringify(backupIndex, null, 2);
+      const indexBuffer = Buffer.from(indexJson);
+      
+      const { error } = await this.supabase.storage
+        .from(supabaseConfig.bucket)
+        .upload('metadata/index.json', indexBuffer, {
+          cacheControl: '3600',
+          upsert: true // Remplacer si existe déjà
+        });
+        
+      if (error) {
+        console.warn(`Erreur lors de la mise à jour de l'index des sauvegardes: ${error.message}`);
+      } else {
+        console.log(`Index des sauvegardes mis à jour (${backupIndex.length} entrées)`);
+      }
+    } catch (error) {
+      console.warn('Erreur lors de la mise à jour de l\'index des sauvegardes:', error);
+    }
+  }
   
   /**
    * Sauvegarde l'historique des sauvegardes
@@ -784,7 +923,7 @@ export class BackupService {
       }
       
       // Trier les sauvegardes par date (plus ancien en premier)
-      backups.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      backups.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
       // Supprimer les sauvegardes les plus anciennes
       const backupsToDelete = backups.slice(0, backups.length - maxBackups);
@@ -844,26 +983,67 @@ private async initSupabaseBucket() {
         console.log(`Bucket '${supabaseConfig.bucket}' déjà existant dans Supabase`);
       }
       
-      // Vérifier la table 'backups'
-      console.log('Vérification de la table backups...');
+      // Vérifier le dossier metadata dans le bucket
+      console.log('Vérification du dossier metadata dans le bucket...');
       try {
-        // Vérifier si la table existe en essayant de récupérer un enregistrement
-        const { error } = await this.supabase.from('backups').select('id').limit(1);
-        
-        if (error && error.code === '42P01') { // Table doesn't exist
-          console.log('La table backups n\'existe pas, tentative de création...');
-          console.log('Veuillez créer manuellement la table "backups" dans Supabase');
-        } else if (error) {
-          console.warn('Erreur lors de la vérification de la table backups:', error.message);
+        // Vérifier si le dossier metadata existe
+        const { data, error } = await this.supabase.storage
+          .from(supabaseConfig.bucket)
+          .list('metadata');
+          
+        if (error) {
+          console.warn('Erreur lors de la vérification du dossier metadata:', error.message);
+        } else if (!data || data.length === 0) {
+          console.log('Le dossier metadata n\'existe pas encore, il sera créé automatiquement lors de la première sauvegarde');
         } else {
-          console.log('Table backups existante dans Supabase');
+          console.log('Dossier metadata existant dans Supabase Storage avec', data.length, 'fichiers');
         }
       } catch (error) {
-        console.warn('Erreur lors de la vérification de la table backups:', error);
+        console.warn('Erreur lors de la vérification du dossier metadata:', error);
       }
     } catch (error) {
       console.warn('Erreur lors de l\'initialisation du bucket Supabase:', error);
       this.supabaseAvailable = false;
+    }
+  }
+  
+  /**
+   * Test d'insertion directe dans la table backups
+   * Cette méthode est utilisée uniquement pour tester l'insertion dans Supabase
+   */
+  async testDirectInsert(): Promise<{ success: boolean; error?: any }> {
+    try {
+      console.log('Test d\'insertion directe dans la table backups...');
+      
+      // Définir un enregistrement de test
+      const testRecord = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'test-backup',
+        created_at: new Date().toISOString(),
+        size: 1024,
+        type: 'local',
+        status: 'success',
+        user_id: '00000000-0000-0000-0000-000000000000',
+        metadata: { version: '1.0' }
+      };
+      
+      console.log('Données à insérer:', JSON.stringify(testRecord, null, 2));
+      
+      // Tenter l'insertion directe
+      const { data, error } = await this.supabase
+        .from('backups')
+        .insert(testRecord);
+        
+      if (error) {
+        console.error('Erreur lors de l\'insertion directe:', error);
+        return { success: false, error };
+      }
+      
+      console.log('Insertion directe réussie:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('Exception lors du test d\'insertion directe:', error);
+      return { success: false, error };
     }
   }
   
@@ -913,14 +1093,36 @@ private async initSupabaseBucket() {
           this.diagnosticResults.bucketError = error;
         }
         
-        // Tester la table backups
+        // Tester le dossier metadata et l'index des sauvegardes
         try {
-          const { data, error } = await this.supabase.from('backups').select('count').limit(1);
-          this.diagnosticResults.tableExists = !error || error.code !== '42P01';
-          this.diagnosticResults.tableError = error;
+          // Vérifier si le fichier index.json existe
+          const { data, error } = await this.supabase.storage
+            .from(supabaseConfig.bucket)
+            .list('metadata');
+            
+          this.diagnosticResults.metadataFolderExists = !error && data && data.length > 0;
+          this.diagnosticResults.metadataFiles = data ? data.map(f => f.name) : [];
+          this.diagnosticResults.indexExists = data ? data.some(f => f.name === 'index.json') : false;
+          
+          if (this.diagnosticResults.indexExists) {
+            // Tenter de récupérer l'index pour vérifier son contenu
+            const { data: indexData, error: indexError } = await this.supabase.storage
+              .from(supabaseConfig.bucket)
+              .download('metadata/index.json');
+              
+            if (!indexError && indexData) {
+              const indexText = await indexData.text();
+              const backupIndex = JSON.parse(indexText);
+              this.diagnosticResults.indexValid = true;
+              this.diagnosticResults.backupCount = backupIndex.length;
+            } else {
+              this.diagnosticResults.indexValid = false;
+              this.diagnosticResults.indexError = indexError;
+            }
+          }
         } catch (error) {
-          this.diagnosticResults.tableExists = false;
-          this.diagnosticResults.tableQueryError = error;
+          this.diagnosticResults.metadataFolderExists = false;
+          this.diagnosticResults.metadataError = error;
         }
       }
       

@@ -25,6 +25,19 @@
               <Icon icon="mdi:database-export" class="mr-2" />
               Créer une sauvegarde
             </el-button>
+            
+            <!-- Bouton de test pour l'insertion directe -->
+            <el-button 
+              type="warning" 
+              size="large" 
+              @click="testDirectInsert"
+              :loading="isTestingInsert"
+              :disabled="isTestingInsert"
+              class="action-button mt-4"
+            >
+              <Icon icon="mdi:database-check" class="mr-2" />
+              Tester l'insertion directe
+            </el-button>
 
             <div class="divider">
               <span>Configuration</span>
@@ -179,6 +192,19 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- Bouton de test pour l'insertion directe -->
+    <div class="actions">
+      <el-button type="primary" @click="createBackup" :loading="isCreating">
+        <Icon icon="mdi:database-plus" class="mr-2" />
+        Créer une sauvegarde
+      </el-button>
+      
+      <el-button type="warning" @click="testDirectInsert" :loading="isTestingInsert">
+        <Icon icon="mdi:database-check" class="mr-2" />
+        Tester l'insertion directe
+      </el-button>
+    </div>
   </div>
 </template>
 
@@ -190,7 +216,6 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import BackupSettings from '@/components/backup/BackupSettings.vue';
 import BackupHistory from '@/components/backup/BackupHistory.vue';
-import backupService from '@/services/backupService';
 import type { BackupConfig, BackupHistory as BackupHistoryType } from '@/types/backup';
 
 // États
@@ -209,6 +234,7 @@ const backupHistory = ref<BackupHistoryType[]>([]);
 const isLoadingHistory = ref(true);
 const isCreatingBackup = ref(false);
 const isRestoring = ref(false);
+const isTestingInsert = ref(false);
 const showRestoreDialog = ref(false);
 const showBackupDialog = ref(false);
 const backupToRestoreId = ref<string | null>(null);
@@ -228,14 +254,44 @@ const cloudBackupCount = computed(() => {
 const lastBackupDate = computed(() => {
   if (backupHistory.value.length === 0) return 'Aucune';
   
-  const latestBackup = [...backupHistory.value].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )[0];
-  
-  return formatDistanceToNow(new Date(latestBackup.createdAt), { 
-    addSuffix: true, 
-    locale: fr 
-  });
+  try {
+    // Trier les sauvegardes par date (plus récente en premier)
+    const sortedBackups = [...backupHistory.value].filter(b => b.created_at);
+    
+    // Si aucune sauvegarde n'a de date valide
+    if (sortedBackups.length === 0) return 'Date inconnue';
+    
+    // Trier les sauvegardes avec des dates valides
+    sortedBackups.sort((a, b) => {
+      try {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+          return 0; // Ignorer les dates invalides
+        }
+        return dateB.getTime() - dateA.getTime();
+      } catch (error) {
+        console.error('Erreur lors du tri des dates:', error);
+        return 0;
+      }
+    });
+    
+    const latestBackup = sortedBackups[0];
+    
+    // Vérifier si la date est valide
+    if (!latestBackup.created_at) return 'Date inconnue';
+    
+    const dateObj = new Date(latestBackup.created_at);
+    if (isNaN(dateObj.getTime())) return 'Date invalide';
+    
+    return formatDistanceToNow(dateObj, { 
+      addSuffix: true, 
+      locale: fr 
+    });
+  } catch (error) {
+    console.error('Erreur lors du calcul de la dernière date de sauvegarde:', error);
+    return 'Erreur de date';
+  }
 });
 
 const totalStorageUsed = computed(() => {
@@ -246,33 +302,35 @@ const totalStorageUsed = computed(() => {
 // Méthodes
 const loadBackupConfig = async () => {
   try {
-    const { success, data, error } = await backupService.getConfig();
-    
+    const { success, data, error } = await window.ipcRenderer.invoke("backup:config:get");
+
     if (success && data) {
       backupConfig.value = data;
-    } else if (error) {
-      console.error('Erreur lors du chargement de la configuration:', error);
+    } else {
+      console.error("Erreur lors du chargement de la configuration:", error);
+      ElMessage.error(`Erreur: ${error}`);
     }
   } catch (error) {
-    console.error('Erreur lors du chargement de la configuration:', error);
+    console.error("Erreur lors du chargement de la configuration:", error);
+    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
   }
 };
 
 const loadBackupHistory = async () => {
   isLoadingHistory.value = true;
-  
+
   try {
-    const { success, data, error } = await backupService.getBackupHistory();
-    
+    const { success, data, error } = await window.ipcRenderer.invoke("backup:history");
+
     if (success && data) {
       backupHistory.value = data;
-    } else if (error) {
-      console.error('Erreur lors du chargement de l\'historique:', error);
+    } else {
+      console.error("Erreur lors du chargement de l'historique:", error);
       ElMessage.error(`Erreur: ${error}`);
     }
   } catch (error) {
-    console.error('Erreur lors du chargement de l\'historique:', error);
-    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    console.error("Erreur lors du chargement de l'historique:", error);
+    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
   } finally {
     isLoadingHistory.value = false;
   }
@@ -280,17 +338,17 @@ const loadBackupHistory = async () => {
 
 const handleConfigUpdate = async (config: BackupConfig) => {
   try {
-    const { success, error } = await backupService.updateConfig(config);
-    
+    const { success, error } = await window.ipcRenderer.invoke("backup:config:update", config);
+
     if (success) {
-      ElMessage.success('Configuration mise à jour avec succès');
+      ElMessage.success("Configuration mise à jour avec succès");
       backupConfig.value = config;
-    } else if (error) {
+    } else {
       ElMessage.error(`Erreur: ${error}`);
     }
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la configuration:', error);
-    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    console.error("Erreur lors de la mise à jour de la configuration:", error);
+    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
   }
 };
 
@@ -300,24 +358,25 @@ const handleCreateBackup = () => {
 
 const createBackup = async () => {
   isCreatingBackup.value = true;
-  
+
   try {
-    const { success, data, error } = await backupService.createBackup(newBackupForm.value.name);
-    
+    const { success, data, error } = await window.ipcRenderer.invoke("backup:create", newBackupForm.value.name);
+
     if (success && data) {
-      ElMessage.success('Sauvegarde créée avec succès');
+      ElMessage.success("Sauvegarde créée avec succès");
       showBackupDialog.value = false;
-      await loadBackupHistory();
-    } else if (error) {
+      await loadBackupHistory(); // recharger la liste
+    } else {
       ElMessage.error(`Erreur: ${error}`);
     }
   } catch (error) {
-    console.error('Erreur lors de la création de la sauvegarde:', error);
-    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    console.error("Erreur lors de la création de la sauvegarde:", error);
+    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
   } finally {
     isCreatingBackup.value = false;
   }
 };
+
 
 const handleRestore = (id: string) => {
   backupToRestoreId.value = id;
@@ -401,6 +460,32 @@ const handleDownload = async (backup: BackupHistoryType) => {
     ElMessage.error(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
   }
 };
+
+// Fonction pour tester l'insertion directe dans la table backups
+const testDirectInsert = async () => {
+  isTestingInsert.value = true;
+
+  try {
+    // Cloner proprement l'objet en supprimant la réactivité Vue
+    const formToSend = JSON.parse(JSON.stringify(newBackupForm.value));
+
+    const { success, error } = await window.ipcRenderer.invoke("backup:test:directInsert", formToSend);
+
+    if (success) {
+      ElMessage.success('Test d\'insertion directe réussi!');
+      await loadBackupHistory();
+    } else if (error) {
+      ElMessage.error(`Erreur lors du test d'insertion: ${error.message || JSON.stringify(error)}`);
+      console.error('Détails de l\'erreur:', error);
+    }
+  } catch (error) {
+    console.error('Exception lors du test d\'insertion:', error);
+    ElMessage.error(`Exception: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+  } finally {
+    isTestingInsert.value = false;
+  }
+};
+
 
 const formatSize = (bytes: number) => {
   if (bytes === 0) return '0 B';

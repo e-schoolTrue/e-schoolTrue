@@ -1592,18 +1592,34 @@ ipcMain.handle("backup:history", async (_event: Electron.IpcMainInvokeEvent): Pr
   }
 });
 
-ipcMain.handle("backup:config:get", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+// Gestionnaire pour tester l'insertion directe dans la table backups
+ipcMain.handle("backup:test:directInsert", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
   try {
-    const result = await global.backupService.getConfig();
+    console.log('Début du test d\'insertion directe dans la table backups');
+    const result = await global.backupService.testDirectInsert();
     return {
       success: result.success,
-      data: result.data,
-      message: result.success ? 'Récupération de la configuration réussie' : 'Échec de la récupération de la configuration',
+      data: result.error ? null : result.data,
+      message: result.success ? 'Test d\'insertion directe réussi' : 'Échec du test d\'insertion directe',
       error: result.error
     };
   } catch (error) {
-    return handleError(error, 'Erreur lors de la récupération de la configuration des sauvegardes');
+    return handleError(error, 'Erreur lors du test d\'insertion directe');
   }
+});
+
+ipcMain.handle("backup:config:get", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+try {
+  const result = await global.backupService.getConfig();
+  return {
+    success: result.success,
+    data: result.data,
+    message: result.success ? 'Récupération de la configuration réussie' : 'Échec de la récupération de la configuration',
+    error: result.error
+  };
+} catch (error) {
+  return handleError(error, 'Erreur lors de la récupération de la configuration des sauvegardes');
+}
 });
 
 ipcMain.handle("backup:config:update", async (_event: Electron.IpcMainInvokeEvent, config: any): Promise<ResultType> => {
