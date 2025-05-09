@@ -18,7 +18,7 @@ const emit = defineEmits<{
 
 const sortedHistory = computed(() => {
   return [...props.history].sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 });
 
@@ -57,7 +57,20 @@ const formatSize = (bytes: number) => {
 };
 
 const getTimeAgo = (date: string) => {
-  return formatDistanceToNow(new Date(date), { addSuffix: true, locale: fr });
+  // Vérifier si la date est valide avant de la formater
+  if (!date) return 'Date inconnue';
+  
+  try {
+    const dateObj = new Date(date);
+    // Vérifier si la date est valide (pas NaN)
+    if (isNaN(dateObj.getTime())) {
+      return 'Date invalide';
+    }
+    return formatDistanceToNow(dateObj, { addSuffix: true, locale: fr });
+  } catch (error) {
+    console.error('Erreur lors du formatage de la date:', error, date);
+    return 'Erreur de date';
+  }
 };
 </script>
 
@@ -115,8 +128,8 @@ const getTimeAgo = (date: string) => {
       <el-table-column label="Date" width="200">
         <template #default="{ row }">
           <div class="date-info">
-            <span>{{ new Date(row.createdAt).toLocaleString() }}</span>
-            <small class="text-muted">{{ getTimeAgo(row.createdAt) }}</small>
+            <span>{{ row.created_at ? new Date(row.created_at).toLocaleString() : 'Date inconnue' }}</span>
+            <small class="text-muted">{{ getTimeAgo(row.created_at) }}</small>
           </div>
         </template>
       </el-table-column>

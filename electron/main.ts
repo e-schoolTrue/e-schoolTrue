@@ -3,7 +3,6 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
 import './events';  // Importer tous les gestionnaires d'événements
-import { registerReportEvents } from './events';
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
@@ -24,6 +23,22 @@ async function initializeDataSource() {
     }
   }
 }
+
+ipcMain.handle("backup:test:directInsert", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+  try {
+    console.log('Début du test d\'insertion directe dans la table backups');
+    const result = await global.backupService.testDirectInsert();
+    return {
+      success: result.success,
+      data: result.error ? null : result.data,
+      message: result.success ? 'Test d\'insertion directe réussi' : 'Échec du test d\'insertion directe',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors du test d\'insertion directe');
+  }
+});
+
 
 async function createWindow() {
   try {

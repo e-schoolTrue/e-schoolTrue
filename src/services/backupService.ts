@@ -134,6 +134,28 @@ class BackupService {
   }
 
   /**
+   * Test d'insertion directe dans la table backups
+   * Cette méthode est utilisée uniquement pour tester l'insertion dans Supabase
+   */
+  async testDirectInsert(): Promise<{ success: boolean; data?: any; error?: any }> {
+    try {
+      console.log('Appel du test d\'insertion directe dans la table backups');
+      const result = await window.ipcRenderer.invoke('backup:test:directInsert');
+      return {
+        success: result.success,
+        data: result.data,
+        error: result.error
+      };
+    } catch (error) {
+      console.error('Erreur lors du test d\'insertion directe:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur inconnue lors du test d\'insertion directe'
+      };
+    }
+  }
+
+  /**
    * Récupère la configuration des sauvegardes
    */
   async getConfig(): Promise<{ success: boolean; data?: BackupConfig; error?: string }> {
