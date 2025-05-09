@@ -24,22 +24,6 @@ async function initializeDataSource() {
   }
 }
 
-ipcMain.handle("backup:test:directInsert", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
-  try {
-    console.log('Début du test d\'insertion directe dans la table backups');
-    const result = await global.backupService.testDirectInsert();
-    return {
-      success: result.success,
-      data: result.error ? null : result.data,
-      message: result.success ? 'Test d\'insertion directe réussi' : 'Échec du test d\'insertion directe',
-      error: result.error
-    };
-  } catch (error) {
-    return handleError(error, 'Erreur lors du test d\'insertion directe');
-  }
-});
-
-
 async function createWindow() {
   try {
     await initializeDataSource();
