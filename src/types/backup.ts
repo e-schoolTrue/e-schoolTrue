@@ -12,7 +12,7 @@ export interface BackupConfig {
 export interface BackupHistory {
   id: string;
   name: string;
-  createdAt: string;
+  created_at: string;
   size: number;
   type: 'local' | 'cloud';
   status: 'success' | 'error' | 'pending';

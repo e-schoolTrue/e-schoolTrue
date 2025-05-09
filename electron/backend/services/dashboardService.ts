@@ -1,6 +1,5 @@
 import { AppDataSource } from "#electron/data-source";
 import { ResultType } from "#electron/command";
-import { StudentEntity } from "../entities/students";
 import { ProfessorEntity } from "../entities/professor";
 import { GradeEntity } from "../entities/grade";
 import { PaymentEntity } from "../entities/payment";
@@ -16,7 +15,7 @@ export class DashboardService {
             return {
                 success: result.success,
                 data: result.data,
-                message: result.message,
+                message: result.message ?? "",
                 error: result.error
             };
         } catch (error) {

@@ -195,7 +195,7 @@
 
     <!-- Bouton de test pour l'insertion directe -->
     <div class="actions">
-      <el-button type="primary" @click="createBackup" :loading="isCreating">
+      <el-button type="primary" @click="createBackup" :loading="isCreatingBackup">
         <Icon icon="mdi:database-plus" class="mr-2" />
         Créer une sauvegarde
       </el-button>
@@ -389,10 +389,10 @@ const confirmRestore = async () => {
   isRestoring.value = true;
   
   try {
-    const { success, error } = await backupService.restoreBackup(backupToRestoreId.value);
+    const { success, message, error } = await window.ipcRenderer.invoke("backup:restore", backupToRestoreId.value);
     
     if (success) {
-      ElMessage.success('Restauration effectuée avec succès');
+      ElMessage.success(message || 'Restauration effectuée avec succès');
       showRestoreDialog.value = false;
     } else if (error) {
       ElMessage.error(`Erreur: ${error}`);
@@ -419,10 +419,10 @@ const handleDelete = async (id: string) => {
     );
     
     if (confirmed === 'confirm') {
-      const { success, error } = await backupService.deleteBackup(id);
+      const { success, message, error } = await window.ipcRenderer.invoke("backup:delete", id);
       
       if (success) {
-        ElMessage.success('Sauvegarde supprimée avec succès');
+        ElMessage.success(message || 'Sauvegarde supprimée avec succès');
         await loadBackupHistory();
       } else if (error) {
         ElMessage.error(`Erreur: ${error}`);
@@ -439,18 +439,16 @@ const handleDelete = async (id: string) => {
 
 const handleDownload = async (backup: BackupHistoryType) => {
   try {
-    const { success, url, error } = await backupService.downloadBackup(backup.id);
+    const { success, data: filePath, message, error } = await window.ipcRenderer.invoke("backup:download", backup.id);
     
-    if (success && url) {
-      // Pour un fichier local, nous devons utiliser l'API Electron pour ouvrir le fichier
-      // ou le sauvegarder à un autre emplacement
-      if (window.electronAPI && typeof window.electronAPI.showItemInFolder === 'function') {
-        // Si l'API Electron est disponible, montrer le fichier dans l'explorateur
-        window.electronAPI.showItemInFolder(url);
-        ElMessage.success('Fichier de sauvegarde localisé');
+    if (success && filePath) {
+      // Utiliser l'API pour afficher le fichier dans l'explorateur
+      const showResult = await window.ipcRenderer.invoke("file:showInFolder", filePath);
+      
+      if (showResult.success) {
+        ElMessage.success(message || 'Fichier de sauvegarde localisé');
       } else {
-        // Fallback si l'API n'est pas disponible
-        ElMessage.info('Le fichier de sauvegarde est disponible à: ' + url);
+        ElMessage.info('Le fichier de sauvegarde est disponible à: ' + filePath);
       }
     } else if (error) {
       ElMessage.error(`Erreur: ${error}`);
