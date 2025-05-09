@@ -1633,3 +1633,51 @@ ipcMain.handle("file:showInFolder", async (_event: Electron.IpcMainInvokeEvent, 
     return handleError(error, 'Erreur lors de l\'affichage du fichier dans l\'explorateur');
   }
 });
+
+// Gestionnaire pour récupérer la configuration de sauvegarde
+ipcMain.handle("backup:config:get", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.getConfig();
+    return {
+      success: result.success,
+      data: result.data,
+      message: result.success ? 'Configuration récupérée avec succès' : 'Échec de la récupération de la configuration',
+      error: result.error ?? null
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération de la configuration de sauvegarde');
+  }
+});
+
+// Gestionnaire pour le test d'insertion directe
+ipcMain.handle("backup:test:directInsert", async (_event: Electron.IpcMainInvokeEvent, formData: any): Promise<ResultType> => {
+  try {
+    console.log('Test direct insert - données reçues:', formData);
+
+    const result = await global.backupService.testDirectInsert();
+    
+    if (!result.success && result.error === 'Supabase not available or mock client in use.') {
+      console.warn('Test direct insert - Supabase non disponible, vérification de la configuration...');
+      // Force une nouvelle vérification de la disponibilité de Supabase
+      await global.backupService.checkSupabaseAvailability();
+      // Réessayer l'insertion après la vérification
+      const retryResult = await global.backupService.testDirectInsert();
+      return {
+        success: retryResult.success,
+        data: retryResult.data,
+        message: retryResult.success ? 'Test d\'insertion réussi après reconnexion' : 'Échec du test d\'insertion',
+        error: retryResult.error ?? null
+      };
+    }
+
+    return {
+      success: result.success,
+      data: result.data,
+      message: result.success ? 'Test d\'insertion réussi' : 'Échec du test d\'insertion',
+      error: result.error ?? null
+    };
+  } catch (error) {
+    console.error('Erreur lors du test d\'insertion directe:', error);
+    return handleError(error, 'Erreur lors du test d\'insertion directe');
+  }
+});
