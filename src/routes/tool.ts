@@ -9,5 +9,9 @@ export const toolRoutes = [
       name: "ReportCard",
       component: () => import("@/views/tools/ReportCardView.vue"),
     },
-    
+    {
+      path: "/tools/backup",
+      name: "BackupRestore",
+      component: () => import("@/views/tools/BackupView.vue"),
+    },
   ]; 
