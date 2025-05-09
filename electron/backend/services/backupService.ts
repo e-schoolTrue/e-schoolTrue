@@ -73,7 +73,7 @@ type MockSupabaseClient = {
 
 
 export class BackupService {
-  private supabase: SupabaseClient | MockSupabaseClient;
+  private supabase!: SupabaseClient | MockSupabaseClient; // Using definite assignment assertion
   private configKey = 'backup_config';
   private backupDir: string;
   private dbPath: string;
@@ -84,19 +84,28 @@ export class BackupService {
       if (!supabaseConfig.url || !supabaseConfig.key) {
         throw new Error('Supabase URL or Key is not defined');
       }
-      this.supabase = createClient(supabaseConfig.url, supabaseConfig.key, {
-        auth: {
-          persistSession: false
-        },
-        db: {
-          schema: 'public'
-        }
-      });
-      console.log('Real Supabase client initialized.');
+      
+      // Initialiser avec le client mock par défaut
+      this.initializeMockClient();
+      
+      // Tenter d'établir une vraie connexion
       this.checkSupabaseAvailability().then(() => {
         if (this.supabaseAvailable) {
+          console.log('Switching to real Supabase client...');
+          this.supabase = createClient(supabaseConfig.url, supabaseConfig.key, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: true,
+              detectSessionInUrl: false
+            },
+            db: {
+              schema: 'public'
+            }
+          });
           this.initSupabaseBucket();
         }
+      }).catch(error => {
+        console.error('Error during Supabase availability check:', error);
       });
     } catch (error) {
       console.warn('Failed to initialize real Supabase client, using mock:', error instanceof Error ? error.message : String(error));
@@ -174,6 +183,44 @@ export class BackupService {
     } catch (error) {
       console.warn(`Error during DB connection management (${operation}):`, error);
     }
+  }
+
+  private initializeMockClient() {
+    const mockError = (op: string) => new Error(`Supabase mock: ${op} not available`);
+    const mockStorageFromMethods: MockSupabaseStorageFrom = {
+      upload: async () => ({ data: null, error: mockError('upload') }),
+      download: async () => ({ data: null, error: mockError('download') }),
+      remove: async () => ({ data: null, error: mockError('remove') }),
+      getPublicUrl: () => ({ data: { publicUrl: 'mocked-url' }, error: null }),
+      setPublic: async () => ({ data: null, error: mockError('setPublic') }),
+      list: async () => ({ data: [], error: mockError('list') }),
+    };
+
+    this.supabase = {
+      storage: {
+        from: (_bucketId: string) => mockStorageFromMethods,
+        listBuckets: async () => ({ data: [], error: mockError('listBuckets') }),
+        createBucket: async (_bucketId: string, _options?: any) => ({ data: null, error: mockError('createBucket') }),
+      },
+      from: (_table: string) => ({
+        select: (_columns?: string) => ({
+          order: () => ({
+            then: () => Promise.resolve({ data: [], error: null }),
+            eq: () => ({
+              single: () => Promise.resolve({ data: null, error: mockError('select.single') })
+            })
+          })
+        }),
+        insert: async (_rows: any, _options?: any) => ({ data: null, error: mockError('insert') }),
+        delete: (_options?: any) => ({
+          then: () => Promise.resolve({ data: null, error: mockError('delete') })
+        }),
+        upsert: async (_rows: any, _options?: any) => ({ data: null, error: mockError('upsert') }),
+      })
+    } as MockSupabaseClient;
+
+    this.supabaseAvailable = false;
+    console.log('Mock Supabase client initialized');
   }
 
   async createBackup(name?: string): Promise<{ success: boolean; data?: BackupHistory; error?: string }> {
@@ -500,18 +547,50 @@ export class BackupService {
     }
   }
 
-  private async checkSupabaseAvailability() {
-    if (!supabaseConfig.url) {
+  async checkSupabaseAvailability() {
+    if (!supabaseConfig.url || !supabaseConfig.key) {
       this.supabaseAvailable = false;
-      console.warn('Supabase URL not configured.');
-      return;
+      console.warn('Supabase URL or key not configured.');
+      return false;
     }
-    this.supabaseAvailable = await this.isSupabaseReachable(supabaseConfig.url);
-    if (this.supabaseAvailable) {
-      console.log('Supabase connection established.');
-    } else {
+
+    try {
+      console.log('Checking Supabase availability...');
+      const isReachable = await this.isSupabaseReachable(supabaseConfig.url);
+      
+      if (isReachable) {
+        // Tester une opération simple pour vérifier l'authentification
+        const testClient = createClient(supabaseConfig.url, supabaseConfig.key, {
+          auth: { 
+            persistSession: false,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+          }
+        });
+
+        const { error: testError } = await testClient.storage.listBuckets();
+        
+        if (!testError) {
+          console.log('Supabase connection test successful');
+          this.supabaseAvailable = true;
+          return true;
+        } else {
+          console.warn('Supabase authentication failed:', testError.message);
+          this.supabaseAvailable = false;
+        }
+      } else {
+        console.warn('Supabase endpoint not reachable');
+        this.supabaseAvailable = false;
+      }
+    } catch (error) {
+      console.error('Error during Supabase availability check:', error);
+      this.supabaseAvailable = false;
+    }
+
+    if (!this.supabaseAvailable) {
       console.warn('Supabase is inaccessible, offline mode activated for Supabase features.');
     }
+    return this.supabaseAvailable;
   }
 
   private async initSupabaseBucket() {
