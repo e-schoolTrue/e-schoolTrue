@@ -20,8 +20,8 @@ import { ScholarshipService } from './backend/services/scholarshipService';
 import { ReportCardService } from './backend/services/reportCardService';
 import { GradeConfigService } from './backend/services/gradeConfigService';
 import { PreferenceService } from './backend/services/preferenceService';
+import { BackupService } from './backend/services/backupService';
 import { IAbsenceServiceParams } from './backend/types/absence';
-
 
 const global = {
     gradeService: new GradeService(),
@@ -39,7 +39,8 @@ const global = {
     scholarshipService: new ScholarshipService(),
     reportCardService: new ReportCardService(),
     gradeConfigService: new GradeConfigService(),
-    preferenceService: new PreferenceService()
+    preferenceService: new PreferenceService(),
+    backupService: new BackupService()
 };
 
 // Fonction utilitaire pour gérer les erreurs
@@ -1517,5 +1518,135 @@ ipcMain.handle('print:studentCards', async (_event, data) => {
       message: 'Erreur lors de la préparation de l\'impression',
       error: error instanceof Error ? error.message : String(error)
     };
+  }
+});
+
+// Gestionnaires d'événements pour le service de sauvegarde
+ipcMain.handle("backup:create", async (_event: Electron.IpcMainInvokeEvent, name?: string): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.createBackup(name);
+    return {
+      success: result.success,
+      data: result.data,
+      message: result.success ? 'Sauvegarde créée avec succès' : 'Échec de la création de la sauvegarde',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la création de la sauvegarde');
+  }
+});
+
+ipcMain.handle("backup:restore", async (_event: Electron.IpcMainInvokeEvent, id: string): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.restoreBackup(id);
+    return {
+      success: result.success,
+      data: null,
+      message: result.success ? 'Restauration effectuée avec succès' : 'Échec de la restauration',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la restauration de la sauvegarde');
+  }
+});
+
+ipcMain.handle("backup:delete", async (_event: Electron.IpcMainInvokeEvent, id: string): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.deleteBackup(id);
+    return {
+      success: result.success,
+      data: null,
+      message: result.success ? 'Sauvegarde supprimée avec succès' : 'Échec de la suppression de la sauvegarde',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la suppression de la sauvegarde');
+  }
+});
+
+ipcMain.handle("backup:download", async (_event: Electron.IpcMainInvokeEvent, id: string): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.downloadBackup(id);
+    return {
+      success: result.success,
+      data: result.path,
+      message: result.success ? 'Téléchargement effectué avec succès' : 'Échec du téléchargement',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors du téléchargement de la sauvegarde');
+  }
+});
+
+ipcMain.handle("backup:history", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.getBackupHistory();
+    return {
+      success: result.success,
+      data: result.data,
+      message: result.success ? 'Récupération de l\'historique réussie' : 'Échec de la récupération de l\'historique',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération de l\'historique des sauvegardes');
+  }
+});
+
+ipcMain.handle("backup:config:get", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.getConfig();
+    return {
+      success: result.success,
+      data: result.data,
+      message: result.success ? 'Récupération de la configuration réussie' : 'Échec de la récupération de la configuration',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la récupération de la configuration des sauvegardes');
+  }
+});
+
+ipcMain.handle("backup:config:update", async (_event: Electron.IpcMainInvokeEvent, config: any): Promise<ResultType> => {
+  try {
+    const result = await global.backupService.updateConfig(config);
+    return {
+      success: result.success,
+      data: null,
+      message: result.success ? 'Configuration mise à jour avec succès' : 'Échec de la mise à jour de la configuration',
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la mise à jour de la configuration des sauvegardes');
+  }
+});
+
+// Gestionnaire d'événement pour afficher un fichier dans l'explorateur
+ipcMain.handle("file:showInFolder", async (_event: Electron.IpcMainInvokeEvent, filePath: string): Promise<ResultType> => {
+  try {
+    const { shell } = require('electron');
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Vérifier que le fichier existe
+    if (!fs.existsSync(filePath)) {
+      return {
+        success: false,
+        data: null,
+        message: 'Le fichier n\'existe pas',
+        error: 'Le fichier spécifié n\'existe pas: ' + filePath
+      };
+    }
+    
+    // Afficher le fichier dans l'explorateur
+    const result = shell.showItemInFolder(path.normalize(filePath));
+    
+    return {
+      success: result,
+      data: null,
+      message: result ? 'Fichier affiché dans l\'explorateur' : 'Échec de l\'affichage du fichier',
+      error: result ? null : 'Impossible d\'afficher le fichier dans l\'explorateur'
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de l\'affichage du fichier dans l\'explorateur');
   }
 });

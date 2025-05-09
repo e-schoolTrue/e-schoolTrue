@@ -136,6 +136,13 @@ export const AppItems: MenuItem[] = [
                 title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
+            },
+            {
+                id: "submenu-5-3",
+                title: "Sauvegarde et Restauration",
+                icon: "mdi:database-sync",
+                route: "/tools/backup",
+                description: "Gérer les sauvegardes et restaurations de données"
             }
         ]
     },

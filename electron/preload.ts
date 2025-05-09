@@ -52,5 +52,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       console.error('Erreur lors de l\'impression des cartes:', error);
       throw error;
     }
+  },
+  
+  // API pour afficher un fichier dans l'explorateur de fichiers
+  showItemInFolder: async (filePath) => {
+    try {
+      const result = await ipcRenderer.invoke('file:showInFolder', filePath);
+      return result.success;
+    } catch (error) {
+      console.error('Erreur lors de l\'affichage du fichier dans l\'explorateur:', error);
+      return false;
+    }
   }
 })

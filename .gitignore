@@ -24,3 +24,7 @@ release
 *.njsproj
 *.sln
 *.sw?
+
+.env
+.env.example
+.env.local
