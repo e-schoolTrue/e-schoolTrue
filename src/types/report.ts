@@ -48,3 +48,23 @@ export interface SaveStudentGradesInput {
         appreciation: string;
     }>;
 }
+
+export interface SchoolInfo {
+    name: string;
+    type: string;
+    address: string;
+    town: string;
+    phone: string;
+    email: string;
+    country: 'MAR' | 'SEN' | 'CAF' | 'GIN';
+    logo?: {
+        url: string;
+    };
+}
+
+export interface ReportCardTemplate {
+    id: string;
+    name: string;
+    description: string;
+    component: any; // This will be a Vue component type
+}

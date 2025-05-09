@@ -15,9 +15,9 @@ export class GradeEntity {
     @PrimaryGeneratedColumn()
     id?: number;
     @Column({type: 'text'})
-    name?: string;
+    name!: string;
     @Column({type: 'text'})
-    code?: string;
+    code!: string;
     @OneToMany(() => StudentEntity, (student) => student.grade)
     students?: StudentEntity[];
     @OneToMany(() => BranchEntity , branch => branch.grade)

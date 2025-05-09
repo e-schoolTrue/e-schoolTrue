@@ -3,12 +3,11 @@ import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/enti
 import {AppDataSource} from "#electron/data-source.ts";
 import {messages} from "#app/messages.ts";
 import {
-    IGradeServiceParams,
     IGradeServiceResponse,
     GradeCommand,
     BranchCommand,
-    ClassRoomCommand
-} from "../../../src/types/grade";
+    ClassRoomCommand,
+    IClassRoomData} from "../../../src/types/grade";
 
 export class GradeService {
     private gradeRepository: Repository<GradeEntity>;
@@ -156,30 +155,29 @@ export class GradeService {
 
     async newClassRoom(command: ClassRoomCommand): Promise<IGradeServiceResponse> {
         try {
-            if (!command.name || !command.code || !command.capacity || !command.gradeId) {
-                return {
+            if (!command.name || !command.code || !command.capacity || !command.gradeId) {                return {
                     success: false,
                     message: "Tous les champs sont requis",
-                    error: "Missing required fields"
+                    error: "Missing required fields",
+                    data: null
                 };
             }
 
             const grade = await this.gradeRepository.findOne({ where: { id: command.gradeId } });
-            if (!grade) {
-                return {
+            if (!grade) {                return {
                     success: false,
                     message: "Niveau non trouvé",
-                    error: "Grade not found"
+                    error: "Grade not found",
+                    data: null
                 };
             }
 
             const classRoom = new ClassRoomEntity();
             classRoom.name = command.name;
             classRoom.code = command.code;
-            classRoom.capacity = command.capacity;
-            classRoom.grade = grade;
-
-            const savedClassRoom = await this.classRoomRepository.save(classRoom);
+            classRoom.capacity = command.capacity;            classRoom.grade = grade;            
+            // Save the new classroom
+            await this.classRoomRepository.save(classRoom);
             
             // Récupérer toutes les salles après création
             const classRooms = await this.classRoomRepository.find({
@@ -191,14 +189,15 @@ export class GradeService {
             
             return {
                 success: true,
-                data: classRooms,
-                message: "Salle de classe créée avec succès"
+                data: classRooms as IClassRoomData[],
+                message: "Salle de classe créée avec succès",
+                error: null
             };
         } catch (error) {
-            return {
-                success: false,
+            return {                success: false,
                 message: "Erreur lors de la création de la salle de classe",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Unknown error",
+                data: null
             };
         }
     }
@@ -232,8 +231,7 @@ export class GradeService {
             }
             if (command.branchId) {
                 classRoom.branch = {id: command.branchId} as BranchEntity;
-            }
-            await this.classRoomRepository.save(classRoom);
+            }            await this.classRoomRepository.save(classRoom);
             const classRooms = await this.classRoomRepository.find({
                 relations: {
                     branch: true,
@@ -243,7 +241,7 @@ export class GradeService {
             return {
                 success: true,
                 message: messages.class_room_update_successfully,
-                data: classRooms,
+                data: classRooms as IClassRoomData[],
                 error: null
             };
         } catch (e: any) {
@@ -267,8 +265,7 @@ export class GradeService {
                     error: null
                 };
             }
-            await this.classRoomRepository.delete(id);
-            const classRooms = await this.classRoomRepository.find({
+            await this.classRoomRepository.delete(id);            const classRooms = await this.classRoomRepository.find({
                 relations: {
                     branch: true,
                     grade: true
@@ -277,7 +274,7 @@ export class GradeService {
             return {
                 success: true,
                 message: messages.class_room_delete_successfully,
-                data: classRooms,
+                data: classRooms as IClassRoomData[],
                 error: null
             };
         } catch (e: any) {
@@ -298,10 +295,9 @@ export class GradeService {
                     grade: true
                 }
             });
-            return {
-                success: true,
+            return {                success: true,
                 message: "",
-                data: classRooms,
+                data: classRooms as IClassRoomData[],
                 error: null
             };
         } catch (e: any) {

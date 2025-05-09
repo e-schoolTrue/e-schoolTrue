@@ -1,8 +1,8 @@
 
 export interface IGradeData {
     id?: number;
-    name?: string;
-    code?: string;
+    name: string;  // Required
+    code: string;  // Required
     students?: any[];
     branches?: IBranchData[];
     createdAt?: Date;
