@@ -1524,7 +1524,43 @@ ipcMain.handle('print:studentCards', async (_event, data) => {
 // Gestionnaires d'événements pour le service de sauvegarde
 ipcMain.handle("backup:create", async (_event: Electron.IpcMainInvokeEvent, name?: string): Promise<ResultType> => {
   try {
-    const result = await global.backupService.createBackup(name);    return {
+    // Récupérer les informations de l'école
+    const schoolResponse = await global.schoolService.getSchool();
+    
+    if (!schoolResponse.success || !schoolResponse.data) {
+      return {
+        success: false,
+        data: null,
+        message: "Impossible de récupérer les informations de l'école",
+        error: "SCHOOL_INFO_NOT_FOUND"
+      };
+    }
+
+    // Générer un UUID à partir de l'ID numérique
+    const schoolId = schoolResponse.data.id;
+    if (!schoolId) {
+      return {
+        success: false,
+        data: null,
+        message: "L'ID de l'école est manquant",
+        error: "MISSING_SCHOOL_ID"
+      };
+    }
+
+    // Créer un UUID v4 à partir de l'ID numérique
+    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = (schoolId + Math.random() * 16) % 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+
+    const schoolInfo = {
+      id: uuid,
+      name: schoolResponse.data.name
+    };
+
+    const result = await global.backupService.createBackup(name, schoolInfo);
+    return {
       success: result.success,
       data: result.data,
       message: result.success ? 'Sauvegarde créée avec succès' : 'Échec de la création de la sauvegarde',

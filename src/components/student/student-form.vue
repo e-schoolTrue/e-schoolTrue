@@ -66,13 +66,18 @@ watch(
       // Mettre à jour formData avec les nouvelles données
       Object.keys(newData).forEach(key => {
         if (key in formData) {
-          // @ts-ignore - Ignorer les erreurs de type ici car nous vérifions que la clé existe
-          formData[key] = newData[key];
+          if (key === 'grade' && newData.grade?.id) {
+            formData.gradeId = newData.grade.id;
+          } else {
+            // @ts-ignore - Ignorer les erreurs de type ici car nous vérifions que la clé existe
+            formData[key] = newData[key] || ''; // Utiliser une chaîne vide comme valeur par défaut pour les champs optionnels
+          }
         }
       });
+      console.log('formData après mise à jour:', formData);
     }
   },
-  { immediate: true, deep: true } // Exécuter immédiatement et observer en profondeur
+  { immediate: true, deep: true }
 );
 
 const emit = defineEmits<{
@@ -92,8 +97,30 @@ const previousStep = () => {
   }
 };
 
+// Validation des champs obligatoires uniquement
+const validateRequiredFields = () => {
+  if (!formData.firstname?.trim()) {
+    ElMessage.error('Le prénom est obligatoire');
+    return false;
+  }
+  if (!formData.lastname?.trim()) {
+    ElMessage.error('Le nom est obligatoire');
+    return false;
+  }
+  if (!formData.gradeId) {
+    ElMessage.error('La classe est obligatoire');
+    return false;
+  }
+  return true;
+};
+
+// Mise à jour de la fonction saveData pour utiliser la nouvelle validation
 const saveData = () => {
   console.log("Données brutes à sauvegarder:", formData);
+  
+  if (!validateRequiredFields()) {
+    return;
+  }
   
   // Fonction pour nettoyer l'objet
   const cleanObject = (obj: any) => {
@@ -102,7 +129,6 @@ const saveData = () => {
       if (value instanceof Date) {
         cleanedObj[key] = value.toISOString();
       } else if (Array.isArray(value)) {
-        // Traiter spécifiquement les tableaux
         cleanedObj[key] = value.map(item => {
           if (typeof item === 'object' && item !== null) {
             return cleanObject(item);

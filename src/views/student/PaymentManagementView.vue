@@ -337,7 +337,6 @@ import { Plus, Document, Download, Refresh, Printer, Discount, Money, Wallet, Se
 import PaymentDialog from '@/components/payment/PaymentDialog.vue';
 import PaymentHistoryDialog from '@/components/payment/PaymentHistory.vue';
 import PaymentHistoryMini from '@/components/payment/PaymentHistoryMini.vue';
-import printJS from 'print-js';
 import * as XLSX from 'xlsx';
 import { PaymentConfig, PaymentAmounts } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
@@ -868,6 +867,12 @@ const getPaymentStatus = (studentId: number) => {
   return 'unpaid';
 };
 
+const cleanText = (text: string): string => {
+  if (!text) return '';
+  // Décoder les caractères spéciaux
+  return decodeURIComponent(escape(text));
+};
+
 const printReceipt = async (student: Student) => {
   try {
     const result = await window.ipcRenderer.invoke('payment:getByStudent', student.id);
@@ -880,6 +885,8 @@ const printReceipt = async (student: Student) => {
 
     const lastPayment = result.data.payments[result.data.payments.length - 1];
     const schoolInfo = await window.ipcRenderer.invoke('school:get');
+    console.log('Données de l\'école:', schoolInfo);
+
     if (!schoolInfo?.success) {
       throw new Error('Impossible de récupérer les informations de l\'école');
     }
@@ -887,16 +894,25 @@ const printReceipt = async (student: Student) => {
     const studentName = `${student.firstname} ${student.lastname}`;
     const { currency } = useCurrency();
 
-    const content = `
-      <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif;">
+    // Nettoyer les textes
+    const schoolName = cleanText(schoolInfo.data.name);
+    const schoolTown = cleanText(schoolInfo.data.town);
+    const schoolAddress = cleanText(schoolInfo.data.address);
+
+    // Créer un élément temporaire pour contenir le reçu
+    const receiptElement = document.createElement('div');
+    receiptElement.innerHTML = `
+      <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
         <div style="text-align: center; margin-bottom: 20px;">
           ${schoolInfo?.data?.logo ? `<img src="data:${schoolInfo.data.logo.type};base64,${schoolInfo.data.logo.content}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
-          <h2>${schoolInfo?.data?.name || 'École'}</h2>
-          <h3>Reçu de Paiement N°${lastPayment.id}</h3>
+          <h2 style="font-size: 24px; margin-bottom: 5px; text-transform: uppercase;">${schoolName}</h2>
+          <p style="margin: 5px 0;">${schoolTown}, ${schoolAddress}</p>
+          <p style="margin: 5px 0;">Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
+          <h3 style="margin-top: 20px;">Reçu de Paiement N°${lastPayment.id}</h3>
           <p style="margin: 5px 0;">Date: ${formatDate(lastPayment.createdAt)}</p>
         </div>
         
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 5px;"><strong>Élève:</strong></td>
@@ -913,7 +929,7 @@ const printReceipt = async (student: Student) => {
           </table>
         </div>
         
-        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px;">
+        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; background-color: #f9f9f9;">
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 5px;"><strong>Type de paiement:</strong></td>
@@ -921,7 +937,7 @@ const printReceipt = async (student: Student) => {
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Montant:</strong></td>
-              <td style="padding: 5px;">${new Intl.NumberFormat('fr-FR').format(lastPayment.amount)} ${currency.value}</td>
+              <td style="padding: 5px; font-weight: bold;">${new Intl.NumberFormat('fr-FR').format(lastPayment.amount)} ${currency.value}</td>
             </tr>
             <tr>
               <td style="padding: 5px;"><strong>Mode de paiement:</strong></td>
@@ -937,37 +953,86 @@ const printReceipt = async (student: Student) => {
         </div>
         
         <div style="margin-top: 40px; display: flex; justify-content: space-between;">
-          <div>
+          <div style="width: 45%;">
             <p style="margin-bottom: 40px;">Signature du payeur:</p>
-            <p>_____________________</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
           </div>
-          <div>
+          <div style="width: 45%;">
             <p style="margin-bottom: 40px;">Signature du caissier:</p>
-            <p>_____________________</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
           </div>
         </div>
         
-        <div style="margin-top: 20px; font-size: 10pt; text-align: center;">
-          <p>${schoolInfo?.data?.address || ''}</p>
+        <div style="margin-top: 40px; font-size: 10pt; text-align: center; color: #666; border-top: 1px dotted #ccc; padding-top: 10px;">
+          <p style="text-transform: uppercase;">${schoolName}</p>
+          <p>${schoolTown}, ${schoolAddress}</p>
           <p>Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
         </div>
       </div>
     `;
 
-    printJS({
-      printable: content,
-      type: 'raw-html',
-      documentTitle: `Reçu de paiement - ${studentName}`,
-      targetStyles: ['*'],
-      style: `
-        .receipt-container { max-width: 800px; margin: 0 auto; }
-        @media print {
-          body { font-size: 12pt; }
-          .receipt-container { padding: 0; }
-          @page { margin: 1cm; }
+    // Styles d'impression
+    const style = document.createElement('style');
+    style.textContent = `
+      @media print {
+        @page {
+          size: A4;
+          margin: 1cm;
         }
-      `
-    });
+        body {
+          margin: 0;
+          padding: 0;
+        }
+        .receipt-container {
+          width: 100%;
+          max-width: none;
+          margin: 0;
+          padding: 20px;
+        }
+        .receipt-container * {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    `;
+    
+    // Créer un conteneur d'impression
+    const printContainer = document.createElement('div');
+    printContainer.id = 'receipt-for-print';
+    printContainer.style.cssText = 'position: fixed; left: -9999px; top: 0;';
+    printContainer.appendChild(receiptElement);
+    
+    // Ajouter les éléments au document
+    document.body.appendChild(style);
+    document.body.appendChild(printContainer);
+    
+    // Attendre que l'image soit chargée si elle existe
+    if (schoolInfo?.data?.logo) {
+      const img = receiptElement.querySelector('img');
+      if (img) {
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }
+    }
+    
+    // Lancer l'impression
+    window.print();
+    
+    // Nettoyer après l'impression
+    const cleanup = () => {
+      if (document.body.contains(printContainer)) {
+        document.body.removeChild(printContainer);
+      }
+      if (document.body.contains(style)) {
+        document.body.removeChild(style);
+      }
+    };
+    
+    // Nettoyer après l'impression ou l'annulation
+    window.onafterprint = cleanup;
+    setTimeout(cleanup, 5000); // Fallback de nettoyage après 5 secondes
 
     ElMessage.success('Reçu généré avec succès');
   } catch (error) {

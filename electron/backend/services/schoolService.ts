@@ -100,10 +100,15 @@ export class SchoolService {
                 where: {},
                 relations: ['logo']
             });
-    
+            
+            console.log('Données de l\'école récupérées:', school);
+            
+            const mappedData = school ? this.mapToISchoolData(school) : null;
+            console.log('Données mappées:', mappedData);
+
             return {
                 success: true,
-                data: school ? this.mapToISchoolData(school) : null,
+                data: mappedData,
                 error: null,
                 message: "Informations de l'école récupérées avec succès"
             };
