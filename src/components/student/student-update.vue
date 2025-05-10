@@ -34,7 +34,12 @@ const loadStudentData = async () => {
     isLoading.value = true;
     const result = await window.ipcRenderer.invoke('student:getDetails', props.studentId);
     if (result.success) {
-      studentData.value = result.data;
+      const mappedData = {
+        ...result.data,
+        gradeId: result.data.grade?.id || null
+      };
+      studentData.value = mappedData;
+      console.log('Données de l\'étudiant chargées:', mappedData);
     } else {
       ElMessage.error('Erreur lors de la récupération des détails de l\'étudiant');
     }
@@ -48,7 +53,7 @@ const loadStudentData = async () => {
 
 const loadClasses = async () => {
   try {
-    const classesResult = await window.ipcRenderer.invoke('classRoom:all');
+    const classesResult = await window.ipcRenderer.invoke('grade:all');
     if (classesResult.success) {
       classes.value = classesResult.data;
     } else {

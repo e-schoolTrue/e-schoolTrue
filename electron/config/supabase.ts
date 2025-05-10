@@ -1,8 +1,23 @@
 // Configuration pour Supabase
 export const supabaseConfig = {
-    url: process.env.VITE_SUPABASE_URL || 'https://xebukndcynlvjpguwrcb.supabase.co',
-    key: process.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlYnVrbmRjeW5sdmpwZ3V3cmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY3NDQ5ODcsImV4cCI6MjA2MjMyMDk4N30.N6avpTRmQ-OPAoLuWviaKJVMJ7Eq-Q7j5sjDY04tEVE',
-    bucket: 'backups', // Le nom de votre bucket pour les sauvegardes
+    url: 'https://xebukndcynlvjpguwrcb.supabase.co',
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlYnVrbmRjeW5sdmpwZ3V3cmNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Njc0NDk4NywiZXhwIjoyMDYyMzIwOTg3fQ.0zfw4ZM_5SdqNgLzh9PnA4fTqA9IyKdZJRnKUDpyFTQ',
+    bucket: 'school', // Le nom de votre bucket pour les sauvegardes
+    options: {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+        },
+        db: {
+            schema: 'public' as const
+        },
+        global: {
+            headers: {
+                'x-application-name': 'e-school'
+            }
+        }
+    }
 }; 
 
 // Validation de la configuration

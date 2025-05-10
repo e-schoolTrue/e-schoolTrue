@@ -59,30 +59,21 @@ const handleSave = async (professorData: ProfessorFormData) => {
     if (!professorData.civility) {
       throw new Error("La civilité est obligatoire");
     }
-    if (!professorData.family_situation) {
-      throw new Error("La situation familiale est obligatoire");
-    }
     if (!professorData.birth_date) {
       throw new Error("La date de naissance est obligatoire");
-    }
-    if (!professorData.birth_town?.trim()) {
-      throw new Error("Le lieu de naissance est obligatoire");
-    }
-    if (!professorData.address?.trim()) {
-      throw new Error("L'adresse est obligatoire");
-    }
-    if (!professorData.town?.trim()) {
-      throw new Error("La ville est obligatoire");
     }
     if (!professorData.cni_number?.trim()) {
       throw new Error("Le numéro CNI est obligatoire");
     }
-    if (!professorData.diploma?.name?.trim()) {
-      throw new Error("Le diplôme est obligatoire");
-    }
-    if (!professorData.qualification?.name?.trim()) {
-      throw new Error("La qualification est obligatoire");
-    }
+
+    // Les champs suivants sont maintenant optionnels
+    // - family_situation
+    // - birth_town
+    // - address
+    // - town
+    // - diploma
+    // - qualification
+    // - nbr_child
 
     // Validation des données d'enseignement
     if (professorData.teaching) {

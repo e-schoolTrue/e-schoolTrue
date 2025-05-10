@@ -455,9 +455,11 @@ const printPayslip = async (paymentDetails: Payment) => {
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <tr>
             <td style="width: 50%; border: 1px solid black; padding: 10px;">
-              KAYA<br>
+              <div style="text-align: center; margin-bottom: 10px;">
+                <h2 style="margin: 0; text-transform: uppercase;">${schoolData.name}</h2>
+              </div>
+              ${schoolData.address}<br>
               ${schoolData.town}<br>
-              Bangui<br>
               Tel: ${schoolData.phone}<br>
               Email: ${schoolData.email}
             </td>
@@ -471,7 +473,7 @@ const printPayslip = async (paymentDetails: Payment) => {
         </table>
 
         <div style="margin-bottom: 20px;">
-          ${paymentDetails.professor.firstname} ${paymentDetails.professor.lastname}
+          <strong>Professeur:</strong> ${paymentDetails.professor.firstname} ${paymentDetails.professor.lastname}
         </div>
 
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -510,8 +512,14 @@ const printPayslip = async (paymentDetails: Payment) => {
         </div>
 
         <div style="margin-top: 60px; display: flex; justify-content: space-between;">
-          <div>L'employé</div>
-          <div>L'employeur</div>
+          <div style="width: 45%;">
+            <p style="margin-bottom: 40px;">Signature du professeur:</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
+          </div>
+          <div style="width: 45%;">
+            <p style="margin-bottom: 40px;">Signature de l'employeur:</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
+          </div>
         </div>
       </div>
     `;

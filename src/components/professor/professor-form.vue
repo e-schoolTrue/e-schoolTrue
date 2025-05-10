@@ -129,30 +129,12 @@ const rules = reactive<FormRules>({
   civility: [
     { required: true, message: 'La civilité est requise', trigger: 'change' }
   ],
-  family_situation: [
-    { required: true, message: 'La situation familiale est requise', trigger: 'change' }
-  ],
   birth_date: [
     { required: true, message: 'La date de naissance est requise', trigger: 'change' }
   ],
-  birth_town: [
-    { required: true, message: 'Le lieu de naissance est requis', trigger: 'blur' }
-  ],
-  address: [
-    { required: true, message: "L'adresse est requise", trigger: 'blur' }
-  ],
-  town: [
-    { required: true, message: 'La ville est requise', trigger: 'blur' }
-  ],
   cni_number: [
     { required: true, message: 'Le numéro CNI est requis', trigger: 'blur' }
-  ],
-  'diploma.name': [
-    { required: true, message: 'Le diplôme est requis', trigger: 'blur' }
-  ],
-  'qualification.name': [
-    { required: true, message: 'La qualification est requise', trigger: 'blur' }
-  ],
+  ]
 });
 
 const formRef = ref();

@@ -92,20 +92,19 @@ const handleFileLoaded = async (students: IStudentData[]) => {
           // Champs obligatoires
           firstname: student.firstname || 'Importé',
           lastname: student.lastname || 'IMPORTÉ',
-          fatherFirstname: student.fatherFirstname || 'Père',
-          fatherLastname: student.fatherLastname || 'NON SPÉCIFIÉ',
-          // Correction: motherFirstname et motherLastname ne peuvent pas être NULL (contrainte NOT NULL)
-          motherFirstname: student.motherFirstname || 'Non spécifié',
-          motherLastname: student.motherLastname || 'Non spécifié',
-          
-          // Classe (obligatoire)
           gradeId: student.gradeId,
           
-          // Champs avec valeurs par défaut
+          // Champs optionnels (parents)
+          fatherFirstname: student.fatherFirstname || '',
+          fatherLastname: student.fatherLastname || '',
+          motherFirstname: student.motherFirstname || '',
+          motherLastname: student.motherLastname || '',
+          
+          // Autres champs optionnels
           birthDay: student.birthDay ? new Date(student.birthDay) : null,
-          birthPlace: student.birthPlace || 'Non spécifié',
-          address: student.address || 'Non spécifié',
-          famillyPhone: student.famillyPhone || '000000000',
+          birthPlace: student.birthPlace || '',
+          address: student.address || '',
+          famillyPhone: student.famillyPhone || '',
           personalPhone: student.personalPhone || '',
           sex: convertSex(student.sex),
           schoolYear: student.schoolYear || currentSchoolYear.value,

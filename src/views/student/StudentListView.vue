@@ -5,6 +5,7 @@ import type { ComponentPublicInstance } from 'vue';
 import printJS from 'print-js'; 
 import StudentFilter from "@/components/student/student-filter.vue";
 import StudentTable from "@/components/student/student-table.vue";
+import SchoolPrintTemplate from "@/components/student/school-print-template.vue";
 import { ElMessage } from 'element-plus';
 import type { IStudentDetails, IStudentFile } from '@/types/student';
 import type { IFilterCriteria } from '@/types/shared';
@@ -131,41 +132,7 @@ const handlePrint = async (data: Student[]) => {
     schoolYear: data[0]?.schoolYear || ''
   };
   
-  printDialogVisible.value = true;
-
-  await nextTick();
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  const printElement = schoolPrintRef.value?.$el;
-  
-  if (!printElement) {
-    ElMessage.error("Le template d'impression n'est pas prêt");
-    return;
-  }
-
-  try {
-    printJS({
-      printable: printElement.id || 'school-print-template',
-      type: 'html',
-      documentTitle: 'Liste des étudiants',
-      targetStyles: ['*'],
-      scanStyles: true,
-      css: [],
-      onPrintDialogClose: () => {
-        printDialogVisible.value = false;
-        ElMessage.success("Impression terminée");
-      },
-      onError: (error) => {
-        console.error("Erreur d'impression:", error);
-        ElMessage.error("Erreur lors de l'impression");
-        printDialogVisible.value = false;
-      }
-    });
-  } catch (error) {
-    console.error("Erreur lors de l'impression:", error);
-    ElMessage.error("Erreur lors de l'impression");
-    printDialogVisible.value = false;
-  }
+  proceedWithPrint();
 };
 
 const getGradeName = async (gradeId: number): Promise<string> => {
@@ -294,40 +261,137 @@ const handlePreview = async (data: Student[]) => {
 
 const proceedWithPrint = () => {
   previewDialogVisible.value = false;
-  setTimeout(async () => {
-    printDialogVisible.value = true;
-    await nextTick();
-    
-    const printElement = schoolPrintRef.value?.$el;
-    if (!printElement) {
-      ElMessage.error("Le template d'impression n'est pas prêt");
-      return;
-    }
-
+  printDialogVisible.value = true;
+  
+  nextTick(async () => {
     try {
-      printJS({
-        printable: printElement.id || 'school-print-template',
-        type: 'html',
-        documentTitle: 'Liste des étudiants',
-        targetStyles: ['*'],
-        scanStyles: true,
-        css: [],
-        onPrintDialogClose: () => {
-          printDialogVisible.value = false;
-          ElMessage.success("Impression terminée");
-        },
-        onError: (error) => {
-          console.error("Erreur d'impression:", error);
-          ElMessage.error("Erreur lors de l'impression");
-          printDialogVisible.value = false;
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const printElement = document.getElementById('school-print-template');
+      if (!printElement) {
+        ElMessage.error("Le template d'impression n'est pas prêt");
+        printDialogVisible.value = false;
+        return;
+      }
+
+      // Créer une copie de l'élément pour l'impression
+      const printContent = printElement.cloneNode(true) as HTMLElement;
+      
+      // Créer un conteneur pour l'impression
+      const printContainer = document.createElement('div');
+      printContainer.id = 'print-container';
+      printContainer.style.position = 'absolute';
+      printContainer.style.left = '-9999px';
+      printContainer.appendChild(printContent);
+      document.body.appendChild(printContainer);
+
+      // Configurer les styles d'impression
+      const style = document.createElement('style');
+      style.textContent = `
+        @media print {
+          @page {
+            margin: 20mm;
+            size: portrait;
+          }
+          body > *:not(#print-container) {
+            display: none !important;
+          }
+          #print-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            display: block !important;
+            transform: none !important;
+          }
+          #print-container * {
+            visibility: visible !important;
+            transform: none !important;
+          }
+          .print-header {
+            display: block !important;
+            page-break-inside: avoid;
+            transform: none !important;
+          }
+          .school-info {
+            display: flex !important;
+            page-break-inside: avoid;
+            transform: none !important;
+          }
+          .logo-container {
+            display: flex !important;
+            transform: none !important;
+          }
+          .school-logo {
+            display: block !important;
+            max-width: 100%;
+            height: auto;
+            transform: none !important;
+          }
+          .school-details {
+            display: block !important;
+            transform: none !important;
+          }
+          .document-title {
+            display: block !important;
+            page-break-inside: avoid;
+            transform: none !important;
+          }
+          .print-table {
+            display: table !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 20px !important;
+            transform: none !important;
+          }
+          .print-table thead {
+            display: table-header-group !important;
+            transform: none !important;
+          }
+          .print-table tbody {
+            display: table-row-group !important;
+            transform: none !important;
+          }
+          .print-table tr {
+            display: table-row !important;
+            page-break-inside: avoid !important;
+            transform: none !important;
+          }
+          .print-table th,
+          .print-table td {
+            display: table-cell !important;
+            padding: 8px !important;
+            border: 1px solid #000 !important;
+            text-align: left !important;
+            font-size: 12px !important;
+            transform: none !important;
+          }
+          .print-table th {
+            background-color: #f5f5f5 !important;
+            font-weight: bold !important;
+          }
+          .print-table tr:nth-child(even) {
+            background-color: #f9f9f9 !important;
+          }
         }
-      });
+      `;
+      document.head.appendChild(style);
+
+      // Lancer l'impression
+      window.print();
+
+      // Nettoyer après l'impression
+      document.body.removeChild(printContainer);
+      document.head.removeChild(style);
+      printDialogVisible.value = false;
+
+      ElMessage.success("Impression terminée");
     } catch (error) {
       console.error("Erreur lors de l'impression:", error);
       ElMessage.error("Erreur lors de l'impression");
       printDialogVisible.value = false;
     }
-  }, 300);
+  });
 };
 </script>
 
@@ -390,6 +454,7 @@ const proceedWithPrint = () => {
         ref="schoolPrintRef"
         :students="printData"
         :filter-criteria="filterCriteria"
+        id="school-print-template"
       />
     </div>
   </div>

@@ -60,6 +60,14 @@
           >
             Actualiser
           </el-button>
+          <el-button
+            type="info"
+            @click="handlePrint"
+            :loading="loading"
+          >
+            <Icon icon="mdi:printer" />
+            Imprimer
+          </el-button>
         </div>
       </div>
 
@@ -219,7 +227,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["detail", "edit", "pageChange", "delete", "refresh"]);
+const emit = defineEmits(["detail", "edit", "pageChange", "delete", "refresh", "print"]);
 
 const currentPage = ref(1);
 const pageSize = ref(5);
@@ -376,6 +384,10 @@ const refreshData = () => {
     loading.value = false;
   }
 };
+
+const handlePrint = () => {
+  emit("print", filteredStudents.value);
+};
 </script>
 
 <style scoped>
@@ -519,6 +531,12 @@ const refreshData = () => {
 
 :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb:hover) {
   background: #7c7c7c;
+}
+
+.table-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 </style>
 

@@ -2,7 +2,7 @@
   <div class="backup-view">
     <el-row :gutter="20">
       <!-- Configuration et actions -->
-      <el-col :span="8">
+      <el-col :span="24" :md="8">
         <el-card>
           <template #header>
             <div class="card-header">
@@ -10,13 +10,17 @@
                 <Icon icon="mdi:database-sync" class="mr-2" />
                 Sauvegarde et restauration
               </h2>
+              <el-tag :type="isOnline ? 'success' : 'danger'" size="small">
+                <Icon :icon="isOnline ? 'mdi:wifi' : 'mdi:wifi-off'" class="mr-2" />
+                {{ isOnline ? 'En ligne' : 'Hors ligne' }}
+              </el-tag>
             </div>
           </template>
 
           <div class="actions-container">
             <el-button 
               type="primary" 
-              size="large" 
+              size="default" 
               @click="handleCreateBackup"
               :loading="isCreatingBackup"
               :disabled="isCreatingBackup"
@@ -25,28 +29,17 @@
               <Icon icon="mdi:database-export" class="mr-2" />
               Créer une sauvegarde
             </el-button>
-            
-            <!-- Bouton de test pour l'insertion directe -->
-            <el-button 
-              type="warning" 
-              size="large" 
-              @click="testDirectInsert"
-              :loading="isTestingInsert"
-              :disabled="isTestingInsert"
-              class="action-button mt-4"
-            >
-              <Icon icon="mdi:database-check" class="mr-2" />
-              Tester l'insertion directe
-            </el-button>
 
             <div class="divider">
               <span>Configuration</span>
             </div>
 
-            <BackupSettings 
-              :config="backupConfig" 
-              @update="handleConfigUpdate" 
-            />
+            <div class="config-content">
+              <BackupSettings 
+                :config="backupConfig" 
+                @update="handleConfigUpdate" 
+              />
+            </div>
           </div>
         </el-card>
 
@@ -192,24 +185,11 @@
         </el-button>
       </template>
     </el-dialog>
-
-    <!-- Bouton de test pour l'insertion directe -->
-    <div class="actions">
-      <el-button type="primary" @click="createBackup" :loading="isCreatingBackup">
-        <Icon icon="mdi:database-plus" class="mr-2" />
-        Créer une sauvegarde
-      </el-button>
-      
-      <el-button type="warning" @click="testDirectInsert" :loading="isTestingInsert">
-        <Icon icon="mdi:database-check" class="mr-2" />
-        Tester l'insertion directe
-      </el-button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -234,7 +214,6 @@ const backupHistory = ref<BackupHistoryType[]>([]);
 const isLoadingHistory = ref(true);
 const isCreatingBackup = ref(false);
 const isRestoring = ref(false);
-const isTestingInsert = ref(false);
 const showRestoreDialog = ref(false);
 const showBackupDialog = ref(false);
 const backupToRestoreId = ref<string | null>(null);
@@ -245,6 +224,41 @@ const newBackupForm = ref({
   tables: ['students', 'professors', 'grades', 'courses', 'payments'],
   includeFiles: true
 });
+
+const isOnline = ref(navigator.onLine);
+const isSupabaseAvailable = ref(true);
+
+// Fonction pour vérifier la connexion internet
+const checkInternetConnection = async () => {
+  try {
+    // Vérifier d'abord si le navigateur est en ligne
+    if (!navigator.onLine) {
+      isOnline.value = false;
+      isSupabaseAvailable.value = false;
+      return;
+    }
+
+    // Tenter de se connecter à un service fiable
+    
+    isOnline.value = true;
+    isSupabaseAvailable.value = true;
+  } catch (error) {
+    console.error('Erreur de connexion internet:', error);
+    isOnline.value = false;
+    isSupabaseAvailable.value = false;
+  }
+};
+
+// Écouter les changements d'état de la connexion
+const handleOnline = () => {
+  isOnline.value = true;
+  checkInternetConnection();
+};
+
+const handleOffline = () => {
+  isOnline.value = false;
+  isSupabaseAvailable.value = false;
+};
 
 // Computed properties
 const cloudBackupCount = computed(() => {
@@ -343,6 +357,9 @@ const handleConfigUpdate = async (config: BackupConfig) => {
     if (success) {
       ElMessage.success("Configuration mise à jour avec succès");
       backupConfig.value = config;
+      
+      // Recharger l'historique pour refléter les changements
+      await loadBackupHistory();
     } else {
       ElMessage.error(`Erreur: ${error}`);
     }
@@ -376,7 +393,6 @@ const createBackup = async () => {
     isCreatingBackup.value = false;
   }
 };
-
 
 const handleRestore = (id: string) => {
   backupToRestoreId.value = id;
@@ -459,32 +475,6 @@ const handleDownload = async (backup: BackupHistoryType) => {
   }
 };
 
-// Fonction pour tester l'insertion directe dans la table backups
-const testDirectInsert = async () => {
-  isTestingInsert.value = true;
-
-  try {
-    // Cloner proprement l'objet en supprimant la réactivité Vue
-    const formToSend = JSON.parse(JSON.stringify(newBackupForm.value));
-
-    const { success, error } = await window.ipcRenderer.invoke("backup:test:directInsert", formToSend);
-
-    if (success) {
-      ElMessage.success('Test d\'insertion directe réussi!');
-      await loadBackupHistory();
-    } else if (error) {
-      ElMessage.error(`Erreur lors du test d'insertion: ${error.message || JSON.stringify(error)}`);
-      console.error('Détails de l\'erreur:', error);
-    }
-  } catch (error) {
-    console.error('Exception lors du test d\'insertion:', error);
-    ElMessage.error(`Exception: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-  } finally {
-    isTestingInsert.value = false;
-  }
-};
-
-
 const formatSize = (bytes: number) => {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -495,8 +485,16 @@ const formatSize = (bytes: number) => {
 
 // Lifecycle hooks
 onMounted(async () => {
+  await checkInternetConnection();
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
   await loadBackupConfig();
   await loadBackupHistory();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('online', handleOnline);
+  window.removeEventListener('offline', handleOffline);
 });
 </script>
 
@@ -515,27 +513,28 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   color: #409EFF;
 }
 
 .actions-container {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 .action-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
 }
 
 .divider {
   display: flex;
   align-items: center;
-  margin: 20px 0;
+  margin: 10px 0;
   color: #909399;
+  font-size: 13px;
 }
 
 .divider::before,
@@ -547,7 +546,39 @@ onMounted(async () => {
 
 .divider span {
   padding: 0 10px;
-  font-size: 14px;
+}
+
+.config-content {
+  padding: 5px 0;
+}
+
+.config-content :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
+.config-content :deep(.el-form-item__label) {
+  font-size: 13px;
+  padding-bottom: 4px;
+}
+
+.config-content :deep(.el-switch) {
+  height: 24px;
+}
+
+.config-content :deep(.el-input__wrapper) {
+  padding: 0 8px;
+}
+
+.config-content :deep(.el-select) {
+  width: 100%;
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+
+.mt-4 {
+  margin-top: 16px;
 }
 
 .stats-container {
@@ -589,13 +620,5 @@ onMounted(async () => {
 .stat-label {
   font-size: 14px;
   color: #909399;
-}
-
-.mr-2 {
-  margin-right: 8px;
-}
-
-.mt-4 {
-  margin-top: 16px;
 }
 </style>

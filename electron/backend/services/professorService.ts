@@ -202,23 +202,24 @@ export class ProfessorService {
                     professor.photo = savedPhoto;
                 }
 
-                const savedProfessor = await transactionalEntityManager.save(professor);
-
                 // Handle documents upload
                 if (professorData.documents && professorData.documents.length > 0) {
                     const validDocuments = professorData.documents.filter(doc => doc.content);
-                    const savedDocuments = await Promise.all(
-                        validDocuments.map(doc => 
-                            this.fileService.saveFile({
-                                content: doc.content!,
-                                name: doc.name,
-                                type: doc.type
-                            })
-                        )
-                    );
-                    savedProfessor.documents = [...(savedProfessor.documents || []), ...savedDocuments];
-                    await transactionalEntityManager.save(savedProfessor);
+                    if (validDocuments.length > 0) {
+                        const savedDocuments = await Promise.all(
+                            validDocuments.map(doc => 
+                                this.fileService.saveFile({
+                                    content: doc.content!,
+                                    name: doc.name,
+                                    type: doc.type
+                                })
+                            )
+                        );
+                        professor.documents = savedDocuments;
+                    }
                 }
+
+                const savedProfessor = await transactionalEntityManager.save(professor);
 
                 // Handle teaching assignments
                 if (professorData.teaching) {
@@ -237,19 +238,22 @@ export class ProfessorService {
                         const grade = await transactionalEntityManager.findOne(GradeEntity, {
                             where: { id: professorData.teaching.classId }
                         });
-                        teachingAssignment.class = grade || undefined;
+                        if (grade) {
+                            teachingAssignment.class = grade;
+                            await transactionalEntityManager.save(teachingAssignment);
+                        }
                     }
-
                     // Handle SECONDARY teaching type
                     else if (professorData.teaching.schoolType === 'SECONDARY') {
                         if (professorData.teaching.courseId) {
                             const course = await transactionalEntityManager.findOne(CourseEntity, {
                                 where: { id: professorData.teaching.courseId }
                             });
-                            teachingAssignment.course = course || undefined;
+                            if (course) {
+                                teachingAssignment.course = course;
+                            }
                         }
 
-                        // Traiter les gradeIds
                         let gradeIdsArray: number[] = [];
                         if (typeof professorData.teaching.gradeIds === 'string') {
                             gradeIdsArray = professorData.teaching.gradeIds.split(',')
@@ -260,20 +264,17 @@ export class ProfessorService {
                         }
 
                         if (gradeIdsArray.length > 0) {
-                            const grades = await this.gradeRepository.find({
+                            const grades = await transactionalEntityManager.find(GradeEntity, {
                                 where: { id: In(gradeIdsArray) }
                             });
                             
-                            // Sauvegarder d'abord l'affectation d'enseignement de base
-                            const savedTeaching = await this.teachingAssignmentRepository.save({
-                                ...teachingAssignment,
-                                class: grades[0], // Utiliser le premier grade comme classe principale
-                                grades: grades,
-                                gradeIds: gradeIdsArray.join(','),
-                                gradeNames: grades.map(g => g.name).join(', ')
-                            });
-
-                            console.log("Affectation sauvegardée avec grades:", savedTeaching);
+                            if (grades.length > 0) {
+                                teachingAssignment.class = grades[0];
+                                teachingAssignment.grades = grades;
+                                teachingAssignment.gradeIds = gradeIdsArray.join(',');
+                                teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
+                                await transactionalEntityManager.save(teachingAssignment);
+                            }
                         }
                     }
                 }
@@ -320,137 +321,149 @@ export class ProfessorService {
     async updateProfessor(id: number, professorData: IProfessorServiceParams['updateProfessor']['data']): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
+            const dataSource = AppDataSource.getInstance();
 
-            // Récupérer le professeur existant avec toutes ses relations
-            const existingProfessor = await this.professorRepository.findOne({
-                where: { id },
-                relations: ['photo', 'documents', 'teaching', 'teaching.class', 'teaching.course', 'teaching.grades', 'diploma', 'qualification']
-            });
+            return await dataSource.manager.transaction(async transactionalEntityManager => {
+                // Récupérer le professeur existant avec toutes ses relations
+                const existingProfessor = await transactionalEntityManager.findOne(ProfessorEntity, {
+                    where: { id },
+                    relations: ['photo', 'documents', 'teaching', 'teaching.class', 'teaching.course', 'teaching.grades', 'diploma', 'qualification']
+                });
 
-            if (!existingProfessor) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Professeur non trouvé",
-                    error: "NOT_FOUND"
-                };
-            }
+                if (!existingProfessor) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: "Professeur non trouvé",
+                        error: "NOT_FOUND"
+                    };
+                }
 
-            console.log("updateProfessor: Données existantes du professeur: ID=" + existingProfessor.id + ", Nom=" + existingProfessor.firstname + " " + existingProfessor.lastname);
-            console.log("updateProfessor: Affectations existantes: Nombre=" + (existingProfessor.teaching?.length || 0));
+                // Mettre à jour les propriétés de base
+                Object.assign(existingProfessor, {
+                    firstname: professorData.firstname,
+                    lastname: professorData.lastname,
+                    civility: professorData.civility,
+                    nbr_child: professorData.nbr_child,
+                    family_situation: professorData.family_situation,
+                    birth_date: professorData.birth_date,
+                    birth_town: professorData.birth_town,
+                    address: professorData.address,
+                    town: professorData.town,
+                    cni_number: professorData.cni_number
+                });
 
-            // Mettre à jour les propriétés de base
-            Object.assign(existingProfessor, {
-                firstname: professorData.firstname,
-                lastname: professorData.lastname,
-                civility: professorData.civility,
-                nbr_child: professorData.nbr_child,
-                family_situation: professorData.family_situation,
-                birth_date: professorData.birth_date,
-                birth_town: professorData.birth_town,
-                address: professorData.address,
-                town: professorData.town,
-                cni_number: professorData.cni_number
-            });
-
-            // Save the updated professor first
-            const savedProfessor = await this.professorRepository.save(existingProfessor);
-
-            // Handle teaching assignments if provided
-            if (professorData.teaching) {
-                console.log("updateProfessor: Données d'affectation reçues:", JSON.stringify(professorData.teaching, null, 2));
-                
-                // Delete existing teaching assignments
-                await this.teachingAssignmentRepository
-                    .createQueryBuilder()
-                    .delete()
-                    .from(TeachingAssignmentEntity)
-                    .where("professorId = :id", { id: existingProfessor.id })
-                    .execute();
-
-                const teachingType = professorData.teaching.schoolType === 'PRIMARY' 
-                    ? TEACHING_TYPE.CLASS_TEACHER 
-                    : TEACHING_TYPE.SUBJECT_TEACHER;
-
-                let teachingData = new TeachingAssignmentEntity();
-                teachingData.professor = existingProfessor;
-                teachingData.schoolType = professorData.teaching.schoolType;
-                teachingData.teachingType = teachingType;
-
-                if (professorData.teaching.schoolType === 'PRIMARY' && professorData.teaching.classId) {
-                    const grade = await this.gradeRepository.findOne({
-                        where: { id: professorData.teaching.classId }
-                    });
-                    if (grade) {
-                        teachingData.class = grade;
-                    }
-                } else if (professorData.teaching.schoolType === 'SECONDARY') {
-                    if (professorData.teaching.courseId) {
-                        const course = await this.courseRepository.findOne({
-                            where: { id: professorData.teaching.courseId }
-                        });
-                        if (course) {
-                            teachingData.course = course;
-                        }
-                    }
-
-                    let gradeIdsArray: number[] = [];
-                    if (typeof professorData.teaching.gradeIds === 'string') {
-                        gradeIdsArray = professorData.teaching.gradeIds.split(',')
-                            .map(id => parseInt(id.trim()))
-                            .filter(id => !isNaN(id));
-                    } else if (Array.isArray(professorData.teaching.gradeIds)) {
-                        gradeIdsArray = professorData.teaching.gradeIds;
-                    }
-
-                    if (gradeIdsArray.length > 0) {
-                        const grades = await this.gradeRepository.find({
-                            where: { id: In(gradeIdsArray) }
-                        });
-                        
-                        // Sauvegarder d'abord l'affectation d'enseignement de base
-                        const savedTeaching = await this.teachingAssignmentRepository.save({
-                            ...teachingData,
-                            class: grades[0], // Utiliser le premier grade comme classe principale
-                            grades: grades,
-                            gradeIds: gradeIdsArray.join(','),
-                            gradeNames: grades.map(g => g.name).join(', ')
-                        });
-
-                        console.log("Affectation sauvegardée avec grades:", savedTeaching);
+                // Handle documents upload
+                if (professorData.documents && professorData.documents.length > 0) {
+                    const validDocuments = professorData.documents.filter(doc => doc.content);
+                    if (validDocuments.length > 0) {
+                        const savedDocuments = await Promise.all(
+                            validDocuments.map(doc => 
+                                this.fileService.saveFile({
+                                    content: doc.content!,
+                                    name: doc.name,
+                                    type: doc.type
+                                })
+                            )
+                        );
+                        existingProfessor.documents = savedDocuments;
                     }
                 }
-            }
 
-            // Fetch the professor with all updated relations
-            console.log("updateProfessor: Récupération du professeur mis à jour avec toutes les relations");
+                // Save the updated professor
+                const savedProfessor = await transactionalEntityManager.save(existingProfessor);
 
-            const finalProfessor = await this.professorRepository
-                .createQueryBuilder("professor")
-                .leftJoinAndSelect("professor.photo", "photo")
-                .leftJoinAndSelect("professor.documents", "documents")
-                .leftJoinAndSelect("professor.teaching", "teaching")
-                .leftJoinAndSelect("teaching.class", "class")
-                .leftJoinAndSelect("teaching.course", "course")
-                .leftJoinAndSelect("teaching.grades", "grades")
-                .leftJoinAndSelect("professor.diploma", "diploma")
-                .leftJoinAndSelect("professor.qualification", "qualification")
-                .where("professor.id = :id", { id: savedProfessor.id })
-                .getOne();
+                // Handle teaching assignments if provided
+                if (professorData.teaching) {
+                    console.log("updateProfessor: Données d'affectation reçues:", JSON.stringify(professorData.teaching, null, 2));
+                    
+                    // Delete existing teaching assignments
+                    await transactionalEntityManager
+                        .createQueryBuilder()
+                        .delete()
+                        .from(TeachingAssignmentEntity)
+                        .where("professorId = :id", { id: existingProfessor.id })
+                        .execute();
 
-            if (!finalProfessor) {
-                throw new Error("Impossible de récupérer le professeur mis à jour");
-            }
+                    const teachingType = professorData.teaching.schoolType === 'PRIMARY' 
+                        ? TEACHING_TYPE.CLASS_TEACHER 
+                        : TEACHING_TYPE.SUBJECT_TEACHER;
 
-            // Log des données pour le débogage
-            console.log("Teaching data in entity:", finalProfessor.teaching);
+                    const teachingAssignment = this.teachingAssignmentRepository.create({
+                        professor: existingProfessor,
+                        schoolType: professorData.teaching.schoolType,
+                        teachingType: teachingType
+                    });
 
-            return {
-                success: true,
-                data: this.mapToProfessorDetails(finalProfessor),
-                message: "Professeur mis à jour avec succès",
-                error: null
-            };
+                    if (professorData.teaching.schoolType === 'PRIMARY' && professorData.teaching.classId) {
+                        const grade = await transactionalEntityManager.findOne(GradeEntity, {
+                            where: { id: professorData.teaching.classId }
+                        });
+                        if (grade) {
+                            teachingAssignment.class = grade;
+                            await transactionalEntityManager.save(teachingAssignment);
+                        }
+                    } else if (professorData.teaching.schoolType === 'SECONDARY') {
+                        if (professorData.teaching.courseId) {
+                            const course = await transactionalEntityManager.findOne(CourseEntity, {
+                                where: { id: professorData.teaching.courseId }
+                            });
+                            if (course) {
+                                teachingAssignment.course = course;
+                            }
+                        }
+
+                        let gradeIdsArray: number[] = [];
+                        if (typeof professorData.teaching.gradeIds === 'string') {
+                            gradeIdsArray = professorData.teaching.gradeIds.split(',')
+                                .map(id => parseInt(id.trim()))
+                                .filter(id => !isNaN(id));
+                        } else if (Array.isArray(professorData.teaching.gradeIds)) {
+                            gradeIdsArray = professorData.teaching.gradeIds;
+                        }
+
+                        if (gradeIdsArray.length > 0) {
+                            const grades = await transactionalEntityManager.find(GradeEntity, {
+                                where: { id: In(gradeIdsArray) }
+                            });
+                            
+                            if (grades.length > 0) {
+                                teachingAssignment.class = grades[0];
+                                teachingAssignment.grades = grades;
+                                teachingAssignment.gradeIds = gradeIdsArray.join(',');
+                                teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
+                                await transactionalEntityManager.save(teachingAssignment);
+                            }
+                        }
+                    }
+                }
+
+                // Fetch the professor with all updated relations
+                const finalProfessor = await transactionalEntityManager.findOne(ProfessorEntity, {
+                    where: { id: savedProfessor.id },
+                    relations: [
+                        'photo',
+                        'documents',
+                        'teaching',
+                        'teaching.class',
+                        'teaching.course',
+                        'teaching.grades',
+                        'diploma',
+                        'qualification'
+                    ]
+                });
+
+                if (!finalProfessor) {
+                    throw new Error("Impossible de récupérer le professeur mis à jour");
+                }
+
+                return {
+                    success: true,
+                    data: this.mapToProfessorDetails(finalProfessor),
+                    message: "Professeur mis à jour avec succès",
+                    error: null
+                };
+            });
         } catch (error) {
             console.error("Erreur lors de la mise à jour du professeur:", error);
             return {
