@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, Ref, nextTick } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import type { ComponentPublicInstance } from 'vue';
-import printJS from 'print-js'; 
 import StudentFilter from "@/components/student/student-filter.vue";
 import StudentTable from "@/components/student/student-table.vue";
 import SchoolPrintTemplate from "@/components/student/school-print-template.vue";
@@ -11,31 +10,40 @@ import type { IStudentDetails, IStudentFile } from '@/types/student';
 import type { IFilterCriteria } from '@/types/shared';
 import { Icon } from '@iconify/vue';
 
-interface Student {
-  id?: number;
+// Interface pour student-table
+interface StudentTableItem {
+  id: number;
   firstname: string;
   lastname: string;
-  matricule: string;
-  schoolYear: string;
-  gradeId: number;
-  famillyPhone?: string;
-  sex: "male" | "female";
-  birthDay?: Date | null | undefined;
+  matricule?: string;
+  birthDay?: Date | null;
   birthPlace?: string;
   address?: string;
   fatherFirstname?: string;
   fatherLastname?: string;
   motherFirstname?: string;
   motherLastname?: string;
+  famillyPhone?: string;
   personalPhone?: string;
+  sex?: "male" | "female";
+  schoolYear?: string;
+  gradeId?: number;
   photo?: IStudentFile;
-  documents?: IStudentFile[];
+  documents: IStudentFile[];
+  grade: {
+    id: number;
+    name: string;
+    code: string;
+  } | undefined;
 }
 
+// Interface pour les composants d'impression
+type PrintStudent = IStudentDetails;
+
 const router = useRouter();
-const students = ref<Student[]>([]);
-const filteredStudents = ref<Student[]>([]);
-const printData: Ref<Student[]> = ref([]);
+const students = ref<StudentTableItem[]>([]);
+const filteredStudents = ref<StudentTableItem[]>([]);
+const printData = ref<PrintStudent[]>([]);
 const schoolPrintRef = ref<ComponentPublicInstance | null>(null);
 const previewPrintRef = ref<ComponentPublicInstance | null>(null);
 const printDialogVisible = ref(false);
@@ -54,16 +62,21 @@ const loadStudents = async () => {
 
     if (result.success) {
       students.value = result.data.map((student: IStudentDetails) => {
-        const mappedStudent: Student = {
+        const mappedStudent: StudentTableItem = {
           id: student.id,
           matricule: student.matricule || '',
           lastname: student.lastname,
           firstname: student.firstname,
           schoolYear: student.schoolYear || '',
           gradeId: student.grade?.id || 0,
+          grade: student.grade ? {
+            id: student.grade.id,
+            name: student.grade.name || '',
+            code: student.grade.code || ''
+          } : undefined,
           famillyPhone: student.famillyPhone || '',
           sex: student.sex || 'male',
-          birthDay: student.birthDay ? new Date(student.birthDay) : undefined,
+          birthDay: student.birthDay ? new Date(student.birthDay) : null,
           birthPlace: student.birthPlace,
           address: student.address,
           fatherFirstname: student.fatherFirstname,
@@ -76,7 +89,7 @@ const loadStudents = async () => {
             name: student.photo.name,
             type: student.photo.type
           } : undefined,
-          documents: student.documents?.map(doc => ({
+          documents: student.documents.map(doc => ({
             id: doc.id,
             name: doc.name,
             type: doc.type
@@ -105,7 +118,7 @@ const resetFilter = () => {
 
 const filterCriteria = ref<IFilterCriteria>({});
 
-const handlePrint = async (data: Student[]) => {
+const handlePrint = async (data: StudentTableItem[]) => {
   if (!data || data.length === 0) {
     ElMessage.error("Aucune donnée à imprimer");
     return;
@@ -120,7 +133,23 @@ const handlePrint = async (data: Student[]) => {
     return;
   }
 
-  printData.value = data;
+  // Convertir les données pour l'impression
+  printData.value = data.map(student => ({
+    ...student,
+    photo: student.photo ? {
+      id: student.photo.id,
+      name: student.photo.name,
+      type: student.photo.type,
+      path: '',
+      createdAt: new Date()
+    } : null,
+    grade: student.grade ? {
+      id: student.grade.id,
+      name: student.grade.name,
+      code: student.grade.code,
+      description: ''
+    } : null
+  })) as IStudentDetails[];
   
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
@@ -149,7 +178,7 @@ const getGradeName = async (gradeId: number): Promise<string> => {
   }
 };
 
-const handleDetail = (student: Student) => {
+const handleDetail = (student: StudentTableItem) => {
   if (student && student.id) {
     isDetailActive.value = true;
     router.push({ name: 'StudentDetails', params: { id: student.id.toString() } });
@@ -158,7 +187,7 @@ const handleDetail = (student: Student) => {
   }
 };
 
-const handleEdit = (studentOrId: Student | number) => {
+const handleEdit = (studentOrId: StudentTableItem | number) => {
   let studentId: number | undefined;
 
   if (typeof studentOrId === 'object' && studentOrId !== null) {
@@ -238,13 +267,28 @@ const handlePageChange = (page: number) => {
   console.log('Page changée:', page);
 };
 
-const handlePreview = async (data: Student[]) => {
+const handlePreview = async (data: StudentTableItem[]) => {
   if (!data || data.length === 0) {
     ElMessage.error("Aucune donnée à afficher");
     return;
   }
 
-  printData.value = data;
+  printData.value = data.map(student => ({
+    ...student,
+    photo: student.photo ? {
+      id: student.photo.id,
+      name: student.photo.name,
+      type: student.photo.type,
+      path: '',
+      createdAt: new Date()
+    } : null,
+    grade: student.grade ? {
+      id: student.grade.id,
+      name: student.grade.name,
+      code: student.grade.code,
+      description: ''
+    } : null
+  })) as IStudentDetails[];
   
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
