@@ -48,4 +48,4 @@ self.onmessage = async (event: MessageEvent<WorkerMessageData>) => {
     console.error('Erreur dans le worker PDF:', error);
     self.postMessage({ success: false, error: errorMessage, stack: error instanceof Error ? error.stack : undefined });
   }
-};
+}; 
