@@ -1,4 +1,8 @@
-import {ElLoading} from "element-plus";
+import {ElLoading, ElMessage} from "element-plus";
+
+export function openErrorNotification(message: string) {
+    ElMessage.error(message);
+}
 
 export class Loader{
     static loadingInstance: any;

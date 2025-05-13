@@ -3,7 +3,7 @@
 import {Icon} from "@iconify/vue";
 import {onMounted, ref} from "vue";
 import {ElMessageBox, FormInstance} from "element-plus";
-import {ClassRoomCommand, Grade, ClassRoom} from "@/types/grade";
+import {ClassRoomCommand, ClassRoom, GradeEntity, ClassRoomEntity} from "@/types/grade";
 import {cloneDeep} from "lodash"
 import {Loader} from "@/components/util/AppLoader.ts";
 import ClasseRoomForm from "@/components/classroom/classe-room-form.vue";
@@ -11,8 +11,8 @@ import ClassRoomTable from "@/components/classroom/class-room-table.vue";
 
 const newClassRoomFormRef = ref()
 const updateClassRoomFormRef = ref()
-const grades = ref<Grade[]>()
-const classRooms = ref<ClassRoom[]>([])
+const grades = ref<GradeEntity[]>([])
+const classRooms = ref<ClassRoomEntity[]>([])
 
 async function refreshClassRooms() {
   const classRoomsResult = await window.ipcRenderer.invoke("classRoom:all")
@@ -140,12 +140,12 @@ onMounted(async()=>{
   <classe-room-form
       ref="newClassRoomFormRef"
       @submit-action="newClassRoom"
-      :grades="grades as Grade[] "
+      :grades="grades"
   />
   <classe-room-form
       ref="updateClassRoomFormRef"
       @submit-action="updateClassRoom"
-      :grades="grades as Grade[]"
+      :grades="grades"
   />
   <el-space direction="vertical" fill="fill" size="large">
     <el-row justify="center" >
@@ -158,7 +158,7 @@ onMounted(async()=>{
       <el-button type="primary" @click="newClassRoomFormRef.open()" style="width: 200px; --el-button-text-color:var(--button-text-color); --el-button-hover-text-color: var(--button-hover-text-color); --el-button-hover-bg-color: var(--button-hover-bg-color)">Ajouter</el-button>
     </el-row>
     <class-room-table
-        :class-rooms="classRooms as ClassRoom[]"
+        :class-rooms="classRooms"
         @open-update-form="openUpdateForm"
         @delete-action="deleteClassRoom"
     />
