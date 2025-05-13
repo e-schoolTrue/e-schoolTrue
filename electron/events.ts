@@ -22,7 +22,8 @@ import { GradeConfigService } from './backend/services/gradeConfigService';
 import { PreferenceService } from './backend/services/preferenceService';
 import { BackupService } from './backend/services/backupService';
 import { IAbsenceServiceParams } from './backend/types/absence';
-
+import { ConfigService } from './backend/services/configService';
+import { AuthService } from './backend/services/authService';
 const global = {
     gradeService: new GradeService(),
     courseService: new CourseService(),
@@ -40,7 +41,9 @@ const global = {
     reportCardService: new ReportCardService(),
     gradeConfigService: new GradeConfigService(),
     preferenceService: new PreferenceService(),
-    backupService: new BackupService()
+    backupService: new BackupService(),
+    configService: ConfigService.getInstance(),
+    authService: new AuthService(),
 };
 
 // Fonction utilitaire pour gérer les erreurs
@@ -1717,3 +1720,52 @@ ipcMain.handle("backup:test:directInsert", async (_event: Electron.IpcMainInvoke
     return handleError(error, 'Erreur lors du test d\'insertion directe');
   }
 });
+
+// Gestionnaire pour vérifier si c'est le premier lancement
+ipcMain.handle('is-first-launch', async () => {
+    console.log('IPC: is-first-launch appelé');
+    try {
+        const configService = ConfigService.getInstance();
+        console.log('Instance ConfigService récupérée');
+        const isFirst = await configService.isFirstLaunchCheck();
+        console.log('Résultat de isFirstLaunchCheck:', isFirst);
+        return { success: true, data: isFirst };
+    } catch (error) {
+        console.error('Erreur lors de la vérification du premier lancement:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Erreur inconnue' };
+    }
+});
+
+ipcMain.handle("save-configuration", async (_event: Electron.IpcMainInvokeEvent, data: any): Promise<ResultType> => {
+  try {
+    console.log('Sauvegarde de la configuration...', data);
+    await global.configService.saveConfiguration(data);
+    return {
+      success: true,
+      data: null,
+      message: 'Configuration sauvegardée avec succès',
+      error: null
+    };
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la configuration:', error);
+    return handleError(error, 'Erreur lors de la sauvegarde de la configuration');
+  }
+});
+
+// Gestionnaires pour l'authentification du superviseur
+ipcMain.handle('supervisor:create', async (_event: Electron.IpcMainInvokeEvent, { username, password }: { username: string, password: string }): Promise<ResultType> => {
+    try {
+        return await global.authService.createSupervisor(username, password);
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la création du superviseur');
+    }
+});
+
+ipcMain.handle('supervisor:validate', async (_event: Electron.IpcMainInvokeEvent, { username, password }: { username: string, password: string }): Promise<ResultType> => {
+    try {
+        return await global.authService.validateSupervisor(username, password);
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la validation du superviseur');
+    }
+});
+

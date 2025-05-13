@@ -2,7 +2,11 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
+import { ConfigService } from './backend/services/configService';
 import './events';  // Importer tous les gestionnaires d'événements
+
+console.log('Démarrage de l\'application...');
+
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
@@ -26,7 +30,24 @@ async function initializeDataSource() {
 
 async function createWindow() {
   try {
+    console.log('Début de la création de la fenêtre...');
+    
+    // Initialiser le service de configuration
+    console.log('Initialisation du service de configuration...');
+    const configService = ConfigService.getInstance();
+    console.log('Instance du service de configuration créée');
+    
+    await configService.initialize();
+    console.log('Service de configuration initialisé');
+
+    // Vérifier si c'est le premier lancement
+    const isFirstLaunch = await configService.isFirstLaunchCheck();
+    console.log('Est-ce le premier lancement ?', isFirstLaunch);
+
+    // Initialiser la base de données dans tous les cas
     await initializeDataSource();
+    console.log('Base de données initialisée');
+
     win = new BrowserWindow({
       icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
       width: 1200,
@@ -86,6 +107,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  console.log('Application prête, création de la fenêtre...');
   try {
     await createWindow();
   } catch (error) {
@@ -115,4 +137,33 @@ ipcMain.on("app-quit", () => {
     win = null;
   }
 })
+
+// Ajouter les gestionnaires IPC pour la configuration
+ipcMain.handle('get-config-views', async () => {
+  const configService = ConfigService.getInstance();
+  return await configService.getConfigViews();
+});
+
+// Gestionnaire pour ouvrir le dialogue de sélection de fichier
+ipcMain.handle('open-file-dialog', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory']
+  });
+  return result.filePaths[0];
+});
+
+// Gestionnaire pour initialiser la base de données
+ipcMain.handle('init-db', async (event, path) => {
+  try {
+    // Initialisation de la base de données avec le chemin sélectionné
+    await AppDataSource.initialize({
+      type: "sqlite",
+      database: path + "/database.db",
+      // ... autres configurations
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error };
+  }
+});
 

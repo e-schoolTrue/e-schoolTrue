@@ -197,17 +197,28 @@ export interface BranchCommand {
     id?: number;
     name: string;
     code: string;
-    gradeId: number;
+    gradeId?: number;
 }
 
 // Types pour les réponses API
 export interface ApiResponse<T> {
     success: boolean;
     data: T | null;
-    message: string;
+    message: string | null;
     error: string | null;
 }
 
 export interface GradeResponse extends ApiResponse<Grade[]> {}
 export interface ClassRoomResponse extends ApiResponse<ClassRoom[]> {}
 export interface BranchResponse extends ApiResponse<Branch[]> {}
+
+export interface ClassRoomEntity {
+    id?: number;
+    name: string;
+    code: string;
+    capacity: number;
+    grade?: GradeEntity;
+    branch?: BranchEntity;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
