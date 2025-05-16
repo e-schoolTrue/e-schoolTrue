@@ -1,69 +1,206 @@
 <script setup lang="ts">
 // @ts-nocheck
 
-import {Icon} from "@iconify/vue";
-import schoolbanner from "@/assets/schoolbanner.png";
-import {useRouter} from "vue-router";
+import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 
-const router = useRouter();
+const router = useRouter()
+const loading = ref(false)
+const rememberMe = ref(false)
 
-const testDB = async()=>{
-  await window.backend.testDb()
-  console.log("task finished")
+const formData = reactive({
+  username: '',
+  password: ''
+})
+
+const rules = {
+  username: [
+    { required: true, message: "Le nom d'utilisateur est requis", trigger: 'blur' },
+    { min: 3, message: "Le nom d'utilisateur doit contenir au moins 3 caractères", trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: 'Le mot de passe est requis', trigger: 'blur' },
+    { min: 6, message: 'Le mot de passe doit contenir au moins 6 caractères', trigger: 'blur' }
+  ]
 }
 
+const handleLogin = async () => {
+  try {
+    loading.value = true
+    const result = await window.ipcRenderer.invoke('auth:validate', {
+      username: formData.username,
+      password: formData.password
+    })
+
+    if (result.success) {
+      // Stocker les informations de l'utilisateur si "Se souvenir de moi" est coché
+      if (rememberMe.value) {
+        localStorage.setItem('user', JSON.stringify(result.data))
+      } else {
+        // Si "Se souvenir de moi" n'est pas coché, stocker quand même temporairement
+        sessionStorage.setItem('user', JSON.stringify(result.data))
+      }
+      
+      ElMessage({
+        message: 'Connexion réussie',
+        type: 'success',
+        duration: 2000,
+        onClose: () => {
+          // Rediriger vers le dashboard
+          window.location.href = '/onboarding'
+        }
+      })
+    } else {
+      ElMessage.error(result.message || 'Erreur de connexion')
+    }
+  } catch (error) {
+    console.error('Erreur de connexion:', error)
+    ElMessage.error("Une erreur s'est produite lors de la connexion")
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <template>
   <div class="login-container">
-    <div class="login-left-container">
-      <el-text style="font-size: 20px; font-weight: bold; " class="">AUTHENTIFICATION</el-text>
-      <el-form  label-width="auto" style="max-width: 600px">
-        <el-form-item label="Nom d'utilisateur">
-          <el-input type="text" >
-            <template #prepend><Icon icon="ph:user" /></template>
-          </el-input>
+    <div class="login-card">
+      <div class="login-header">
+        <img src="/icon.png" alt="Logo" class="logo" />
+        <h1>Bienvenue</h1>
+        <p>Connectez-vous à votre espace</p>
+      </div>
+
+      <el-form
+        ref="loginForm"
+        :model="formData"
+        :rules="rules"
+        class="login-form"
+        @submit.prevent="handleLogin"
+      >
+        <el-form-item prop="username">
+          <el-input
+            v-model="formData.username"
+            placeholder="Nom d'utilisateur"
+            prefix-icon="User"
+          />
         </el-form-item>
-        <el-form-item label="Mot de passe">
-          <el-input type="password">
-            <template #prepend><Icon icon="mdi:password" /></template>
-          </el-input>
+
+        <el-form-item prop="password">
+          <el-input
+            v-model="formData.password"
+            type="password"
+            placeholder="Mot de passe"
+            prefix-icon="Lock"
+            show-password
+          />
         </el-form-item>
-        <el-form-item>
-          <el-row justify="center" style="width:100% ">
-            <el-button @click="testDB" size="large" style="width: 400px" type="primary">Se connecter</el-button>
-          </el-row>
-          <el-row justify="center"  style="width:100% ">
-            <el-link @click="router.push({name:'forgot-password'})" type="warning">mot de passe oublié</el-link>
-          </el-row>
-        </el-form-item>
+
+        <div class="form-options">
+          <el-checkbox v-model="rememberMe">Se souvenir de moi</el-checkbox>
+          <el-button link type="primary">Mot de passe oublié ?</el-button>
+        </div>
+
+        <div class="form-actions">
+          <el-button
+            type="primary"
+            native-type="submit"
+            :loading="loading"
+            class="submit-btn"
+          >
+            Se connecter
+          </el-button>
+
+          <el-button
+            type="text"
+            @click="$router.push('/forgot-password')"
+            :disabled="loading"
+          >
+            Mot de passe oublié ?
+          </el-button>
+        </div>
       </el-form>
-    </div>
-    <div class="login-right-container">
-      <el-image style="width:90%; height:90%; border-radius: 10px;" :src="schoolbanner" :fit="'scale-down'"  />
     </div>
   </div>
 </template>
+
 <style scoped>
-  .login-container{    display: flex;
-    flex-direction:row;
-  }
-  .login-left-container{
+.login-container {
+  min-height: 100vh;
     display: flex;
-    flex-direction: column;
+  align-items: center;
     justify-content: center;
-    gap: 60px;
-    width: 50%;
-    height: 100vh;
-    padding: 10px;
-  }
-  .login-right-container{
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.login-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 20px;
+  object-fit: contain;
+}
+
+.login-header h1 {
+  font-size: 28px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.login-header p {
+  color: #666;
+  font-size: 16px;
+}
+
+.login-form {
+  margin-top: 20px;
+}
+
+.form-options {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
+  justify-content: space-between;
     align-items: center;
-    width: 50%;
-    height: 100vh;
-    padding: 10px;
+  margin-bottom: 24px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+}
+
+:deep(.el-input__wrapper) {
+  padding: 12px;
+}
+
+:deep(.el-input__inner) {
+  font-size: 16px;
+}
+
+:deep(.el-form-item__error) {
+  font-size: 14px;
   }
 </style>

@@ -10,12 +10,15 @@
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.2",
     "better-sqlite3": "^9.6.0",
     "electron-print-preview": "^2.2.0",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@iconify-json/bi": "^1.1.23",
     "@iconify-json/carbon": "^1.1.31",
     "@iconify-json/ep": "^1.1.15",

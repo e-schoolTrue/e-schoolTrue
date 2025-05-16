@@ -4,7 +4,8 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import WizardViewBase from './WizardViewBase.vue';
 import { ElMessage } from 'element-plus';
-import type { FormInstance } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import { School, Location, OfficeBuilding } from '@element-plus/icons-vue';
 
 interface LanguageFormData {
   schoolCode: string;
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const formRef = ref<FormInstance>();
+const isSaving = ref(false);
 
 const formData = ref<LanguageFormData>({
   schoolCode: '',
@@ -26,20 +28,50 @@ const formData = ref<LanguageFormData>({
   departmentCode: ''
 });
 
-function goNext() {
+const rules: FormRules = {
+  schoolCode: [
+    { required: true, message: 'Le code de l\'établissement est requis', trigger: 'blur' },
+    { min: 3, message: 'Le code doit contenir au moins 3 caractères', trigger: 'blur' }
+  ],
+  inspectionZone: [
+    { required: true, message: 'La zone d\'inspection est requise', trigger: 'blur' }
+  ],
+  departmentCode: [
+    { required: true, message: 'Le code de département est requis', trigger: 'blur' }
+  ]
+};
+
+async function goNext() {
+  if (!formRef.value) return;
+  
   try {
-    // Validation des champs requis
-    if (!formData.value.schoolCode || !formData.value.inspectionZone || !formData.value.departmentCode) {
-      ElMessage.warning('Veuillez remplir tous les champs requis');
+    const valid = await formRef.value.validate();
+    if (!valid) {
+      ElMessage.error('Veuillez corriger les erreurs dans le formulaire');
       return;
     }
 
-    // Émettre les données et naviguer
-    emit('configuration-saved', formData.value);
-    router.push({ name: 'general-info' });
+    isSaving.value = true;
+
+    // Sauvegarder les paramètres de l'école
+    const result = await window.ipcRenderer.invoke('school:saveSettings', {
+      schoolCode: formData.value.schoolCode,
+      inspectionZone: formData.value.inspectionZone,
+      departmentCode: formData.value.departmentCode
+    });
+
+    if (result.success) {
+      ElMessage.success('Paramètres sauvegardés avec succès');
+      emit('configuration-saved', formData.value);
+      router.push({ name: 'general-info' });
+    } else {
+      throw new Error(result.message || 'Erreur lors de la sauvegarde des paramètres');
+    }
   } catch (error) {
-    console.error('Erreur lors de la navigation:', error);
-    ElMessage.error('Une erreur est survenue');
+    console.error('Erreur lors de la sauvegarde:', error);
+    ElMessage.error('Une erreur est survenue lors de la sauvegarde des paramètres');
+  } finally {
+    isSaving.value = false;
   }
 }
 
@@ -57,44 +89,58 @@ function goBack() {
 <template>
   <wizard-view-base>
     <template #title>
-      Veillez renseigner les paramètres de connexion
+      Veuillez renseigner les paramètres de connexion
     </template>
 
-    <el-form 
-      ref="formRef"
-      class="language-form" 
-      :model="formData"
-    >
-      <el-form-item label="Code de l'établissement" required>
-        <el-input 
-          v-model="formData.schoolCode"
-          placeholder="Code de l'établissement" 
-        />
-      </el-form-item>
-      <el-form-item label="Zone d'inspection" required>
-        <el-input 
-          v-model="formData.inspectionZone"
-          placeholder="Zone d'inspection" 
-        />
-      </el-form-item>
-      <el-form-item label="Code de département" required>
-        <el-input 
-          v-model="formData.departmentCode"
-          placeholder="Code de département" 
-        />
-      </el-form-item>
-    </el-form>
+    <div class="form-container">
+      <el-form 
+        ref="formRef"
+        class="language-form" 
+        :model="formData"
+        :rules="rules"
+        label-position="top"
+      >
+        <el-form-item label="Code de l'établissement" prop="schoolCode" required>
+          <el-input 
+            v-model="formData.schoolCode"
+            placeholder="000 si aucun code d'établissement"
+            :prefix-icon="School"
+            :disabled="isSaving"
+          />
+        </el-form-item>
+
+        <el-form-item label="Zone d'inspection" prop="inspectionZone" required>
+          <el-input 
+            v-model="formData.inspectionZone"
+            placeholder="000 si aucune zone d'inspection"
+            :prefix-icon="Location"
+            :disabled="isSaving"
+          />
+        </el-form-item>
+
+        <el-form-item label="Code de département" prop="departmentCode" required>
+          <el-input 
+            v-model="formData.departmentCode"
+            placeholder="000 si aucun code de département"
+            :prefix-icon="OfficeBuilding"
+            :disabled="isSaving"
+          />
+        </el-form-item>
+      </el-form>
+    </div>
 
     <template #actions>
       <el-button
         type="info"
         @click="goBack"
+        :disabled="isSaving"
         class="action-button">
         Retourner
       </el-button>
       <el-button
         type="primary"
         @click="goNext"
+        :loading="isSaving"
         class="action-button">
         Continuer
       </el-button>
@@ -103,13 +149,65 @@ function goBack() {
 </template>
 
 <style scoped>
+.form-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
 .language-form {
   width: 100%;
   max-width: 500px;
-  margin: 0 auto;
-  height: calc(100vh - 200px);
-  overflow-y: auto;
-  margin-bottom: 20px;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 25px;
+}
+
+:deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #606266;
+  padding-bottom: 8px;
+  line-height: 1.4;
+}
+
+:deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px #dcdfe6 inset;
+  transition: all 0.3s ease;
+  padding: 0 15px;
+}
+
+:deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+
+:deep(.el-input__prefix-icon) {
+  font-size: 18px;
+  color: #909399;
+}
+
+.action-button {
+  min-width: 200px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.action-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Assure que les boutons restent en bas */
@@ -137,19 +235,30 @@ function goBack() {
   z-index: 10;
 }
 
-:deep(.el-form-item__label) {
-  font-weight: 600;
-  color: #606266;
-  padding-bottom: 4px;
-  line-height: 1.4;
+/* Animation de transition */
+.language-form {
+  animation: fadeIn 0.3s ease-in-out;
 }
 
-:deep(.el-input__wrapper) {
-  box-shadow: 0 0 0 1px #dcdfe6 inset;
-  transition: all 0.3s ease;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-:deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+/* Responsive design */
+@media (max-width: 768px) {
+  .language-form {
+    padding: 20px;
+  }
+
+  .action-button {
+    min-width: 160px;
+  }
 }
 </style>

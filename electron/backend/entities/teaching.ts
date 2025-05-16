@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTabl
 import { ProfessorEntity } from "./professor";
 import { GradeEntity } from "./grade";
 import { CourseEntity } from "./course";
-import { TEACHING_TYPE } from "#electron/command";
+import { TEACHING_TYPE } from "../../command";
 
 @Entity("teaching_assignment")
 export class TeachingAssignmentEntity {

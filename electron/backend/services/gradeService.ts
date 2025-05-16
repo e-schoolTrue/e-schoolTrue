@@ -1,7 +1,7 @@
 import {Repository} from "typeorm";
-import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
-import {AppDataSource} from "#electron/data-source.ts";
-import {messages} from "#app/messages.ts";
+import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade";
+import {AppDataSource} from "#electron/data-source";
+import {messages} from "#electron/messages";
 import {
     IGradeServiceResponse,
     GradeCommand,

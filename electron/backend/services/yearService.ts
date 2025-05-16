@@ -222,12 +222,15 @@ export class YearRepartitionService {
 
     async setCurrentYearRepartition(id: number): Promise<ResultType<YearRepartition>> {
         try {
+            console.log(`=== setCurrentYearRepartition - Début - ID: ${id} ===`);
+            
             // Vérifier si la répartition existe
             const yearRepartition = await this.yearRepartitionRepository.findOne({
                 where: { id }
             });
 
             if (!yearRepartition) {
+                console.log(`=== setCurrentYearRepartition - Répartition non trouvée - ID: ${id} ===`);
                 return {
                     success: false,
                     data: null,
@@ -235,36 +238,64 @@ export class YearRepartitionService {
                     message: "Répartition d'année scolaire non trouvée"
                 };
             }
+            
+            console.log(`=== setCurrentYearRepartition - Répartition trouvée: ${yearRepartition.schoolYear} ===`);
 
             // Mettre à jour toutes les répartitions pour désactiver l'année courante
-            await this.yearRepartitionRepository.update({}, { isCurrent: false });
+            console.log(`=== setCurrentYearRepartition - Désactivation de toutes les répartitions ===`);
+            try {
+                await this.yearRepartitionRepository
+                    .createQueryBuilder()
+                    .update()
+                    .set({ isCurrent: false })
+                    .execute();
+                    
+                console.log(`=== setCurrentYearRepartition - Toutes les répartitions désactivées ===`);
+            } catch (updateError) {
+                console.error('Erreur lors de la désactivation des répartitions:', updateError);
+                throw updateError;
+            }
             
             // Mettre à jour seulement la répartition spécifiée
+            console.log(`=== setCurrentYearRepartition - Activation de la répartition ${id} ===`);
             yearRepartition.isCurrent = true;
-            const saved = await this.yearRepartitionRepository.save(yearRepartition);
-
-            // Rafraîchir la liste des répartitions pour s'assurer qu'une seule est marquée comme courante
-            const allRepartitions = await this.yearRepartitionRepository.find();
-            const currentCount = allRepartitions.filter(rep => rep.isCurrent).length;
             
-            if (currentCount > 1) {
-                console.warn(`Multiple current year repartitions found (${currentCount}). Fixing...`);
-                // S'il y a plus d'une répartition marquée comme courante, garder uniquement la dernière
-                for (const rep of allRepartitions) {
-                    if (rep.isCurrent && rep.id !== yearRepartition.id) {
-                        rep.isCurrent = false;
-                        await this.yearRepartitionRepository.save(rep);
+            try {
+                const saved = await this.yearRepartitionRepository.save(yearRepartition);
+                console.log(`=== setCurrentYearRepartition - Répartition sauvegardée: ${saved.id} ===`);
+                
+                // Rafraîchir la liste des répartitions pour s'assurer qu'une seule est marquée comme courante
+                const allRepartitions = await this.yearRepartitionRepository.find();
+                console.log(`=== setCurrentYearRepartition - Nombre total de répartitions: ${allRepartitions.length} ===`);
+                
+                const currentCount = allRepartitions.filter(rep => rep.isCurrent).length;
+                console.log(`=== setCurrentYearRepartition - Nombre de répartitions courantes: ${currentCount} ===`);
+                
+                if (currentCount > 1) {
+                    console.warn(`Multiple current year repartitions found (${currentCount}). Fixing...`);
+                    // S'il y a plus d'une répartition marquée comme courante, garder uniquement la dernière
+                    for (const rep of allRepartitions) {
+                        if (rep.isCurrent && rep.id !== yearRepartition.id) {
+                            console.log(`=== setCurrentYearRepartition - Désactivation de la répartition ${rep.id} ===`);
+                            rep.isCurrent = false;
+                            await this.yearRepartitionRepository.save(rep);
+                        }
                     }
                 }
-            }
 
-            return {
-                success: true,
-                data: this.convertToResponse(saved),
-                message: "Année scolaire courante définie avec succès",
-                error: null
-            };
+                console.log(`=== setCurrentYearRepartition - Succès ===`);
+                return {
+                    success: true,
+                    data: this.convertToResponse(saved),
+                    message: "Année scolaire courante définie avec succès",
+                    error: null
+                };
+            } catch (saveError) {
+                console.error('Erreur lors de la sauvegarde de la répartition:', saveError);
+                throw saveError;
+            }
         } catch (error) {
+            console.error("=== setCurrentYearRepartition - Erreur globale ===", error);
             return {
                 success: false,
                 data: null,

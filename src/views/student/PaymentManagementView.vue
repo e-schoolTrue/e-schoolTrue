@@ -290,7 +290,7 @@
                 <el-button
                   type="warning"
                   size="small"
-                  @click="showNewPaymentDialog(row)"
+                  @click="openPaymentDialog(row)"
                 >
                   <el-icon><Plus /></el-icon>
                 </el-button>
@@ -332,7 +332,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, Document, Download, Refresh, Printer, Discount, Money, Wallet, Search, Filter, School } from "@element-plus/icons-vue";
 import PaymentDialog from '@/components/payment/PaymentDialog.vue';
 import PaymentHistoryDialog from '@/components/payment/PaymentHistory.vue';
@@ -341,6 +341,7 @@ import * as XLSX from 'xlsx';
 import { PaymentConfig, PaymentAmounts } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
+import { useRouter } from 'vue-router';
 
 interface Student {
   id: number;
@@ -406,6 +407,7 @@ const filters = ref<Filters>({
   grade: undefined,
   paymentStatus: undefined
 });
+const router = useRouter();
 
 const loadPaymentConfigs = async () => {
   try {
@@ -473,14 +475,8 @@ const getPaidAmount = (studentId: number): number => {
 };
 
 const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
-  if (!student?.grade?.id) {
-    console.log('Pas de grade pour l\'étudiant');
-    return null;
-  }
-
-  const config = classConfigs.value.get(student.grade.id);
-  console.log('Configuration trouvée pour l\'étudiant:', config);
-  return config || null;
+  if (!student?.grade?.id) return null;
+  return classConfigs.value.get(student.grade.id) || null;
 };
 
 const loadStudents = async () => {
@@ -565,24 +561,28 @@ const handleFilter = () => {
   totalStudents.value = filteredStudents.value.length;
 };
 
-const showNewPaymentDialog = (student: Student) => {
-  console.log("Ouverture du dialogue de paiement pour l'étudiant:", student);
+const openPaymentDialog = (student: Student) => {
+  if (!verifyPaymentConfigs()) {
+    // Proposer d'aller à la configuration des paiements
+    ElMessageBox.confirm(
+      'Voulez-vous configurer les paiements maintenant ?',
+      'Configuration des paiements',
+      {
+        confirmButtonText: 'Oui, configurer',
+        cancelButtonText: 'Non, plus tard',
+        type: 'info'
+      }
+    )
+      .then(() => {
+        // Rediriger vers la page de configuration des paiements
+        router.push('/settings/payment');
+      })
+      .catch(() => {
+        // L'utilisateur ne souhaite pas configurer maintenant
+      });
+    return;
+  }
   
-  if (!verifyPaymentConfigs()) return;
-  if (!student) return;
-  if (!student.grade) {
-    ElMessage.error("L'étudiant n'a pas de classe assignée");
-    return;
-  }
-
-  const configData = getConfigForStudent(student);
-  if (!configData) {
-    ElMessage.warning(
-      `Aucune configuration de paiement trouvée pour la classe ${student.grade.name}. Veuillez d'abord configurer les paiements.`
-    );
-    return;
-  }
-
   selectedStudent.value = student;
   paymentDialogVisible.value = true;
 };
@@ -592,26 +592,10 @@ const showPaymentHistory = (student: Student) => {
   historyDialogVisible.value = true;
 };
 
-const handlePaymentAdded = async (paymentData: any) => {
-  try {
-    paymentDialogVisible.value = false;
-    console.log('Nouveau paiement ajouté:', paymentData);
-    
-    // Rafraîchir les données de l'étudiant concerné uniquement
-    if (paymentData && paymentData.studentId) {
-      console.log(`Actualisation des données pour l'étudiant ID ${paymentData.studentId} après paiement`);
-      await loadStudentPayments(paymentData.studentId);
-    } else {
-      // Si aucun ID d'étudiant n'est fourni, recharger tous les étudiants
-      console.log('Aucun ID étudiant fourni, actualisation complète des données');
-    await loadStudents();
-    }
-    
-    ElMessage.success('Paiement enregistré avec succès');
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour après paiement:', error);
-    ElMessage.error('Erreur lors de la mise à jour des données');
-  }
+const handlePaymentAdded = async () => {
+  await loadStudentAmounts();
+  ElMessage.success('Paiement enregistré avec succès');
+  paymentDialogVisible.value = false;
 };
 
 const exportToExcel = async () => {
@@ -793,8 +777,9 @@ const getTotalRemainingAmount = () => {
 
 const verifyPaymentConfigs = () => {
   if (classConfigs.value.size === 0) {
-    ElMessage.warning({
-      message: "Aucune configuration de paiement n'est définie. Veuillez configurer les paiements dans le menu Configuration.",
+    ElMessage({
+      message: "Aucune configuration de paiement n'est définie. Vous pouvez configurer les paiements dans les paramètres.",
+      type: "warning",
       duration: 5000,
       showClose: true
     });

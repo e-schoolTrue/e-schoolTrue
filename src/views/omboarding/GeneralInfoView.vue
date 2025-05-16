@@ -340,7 +340,7 @@ function goBack() {
 
 <style scoped>
 .general-info-container {
-  padding: 20px;
+  padding: 5px;
   width: 100%;
   box-sizing: border-box;
   display: flex;
@@ -354,7 +354,7 @@ function goBack() {
 
 .info-text {
   text-align: center;
-  margin-bottom: 15px;
+  margin-bottom: 5px;
   display: block;
   width: 100%;
   flex-shrink: 0; /* Ne pas réduire cet élément */
@@ -379,19 +379,21 @@ function goBack() {
 
 .general-info-form {
   width: 100%;
-  padding: 25px;
+  padding: 5px;
   box-sizing: border-box;
-  height: calc(100vh - 200px);
-  overflow-y: auto;
-  margin-bottom: 20px;
+  height: auto;
+  overflow: visible;
+  margin-bottom: 10px;
 }
 
 .el-row {
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   background-color: #fff;
   border-radius: 4px;
-  padding: 15px;
+  padding: 1px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .full-width {
@@ -424,7 +426,7 @@ function goBack() {
   max-width: 200px;
   border: 2px dashed var(--el-border-color);
   border-radius: 8px;
-  padding: 20px;
+  padding: 10px;
   box-sizing: border-box;
   transition: all 0.3s ease;
   background-color: #fafafa;
@@ -437,15 +439,15 @@ function goBack() {
 
 /* Prévisualisation du logo */
 .logo-preview {
-  width: 150px;
-  height: 150px;
+  width: 100px;
+  height: 100px;
   border-radius: 8px;
   background-color: #fff;
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   border: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -465,7 +467,7 @@ function goBack() {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
 }
 
 .hidden-input {
@@ -504,18 +506,20 @@ function goBack() {
 
 /* Styles des éléments de formulaire */
 :deep(.el-form-item) {
-  margin-bottom: 22px;
+  margin-bottom: 10px;
 }
 
 :deep(.el-form-item__label) {
   font-weight: 600;
   color: #606266;
-  padding-bottom: 4px;
-  line-height: 1.4;
+  padding-bottom: 2px;
+  line-height: 1.1;
 }
 
 :deep(.el-input__wrapper),
 :deep(.el-textarea__wrapper) {
+  width: 100%;
+  box-sizing: border-box;
   box-shadow: 0 0 0 1px #dcdfe6 inset;
   transition: all 0.3s ease;
 }
@@ -527,6 +531,7 @@ function goBack() {
 
 :deep(.el-select) {
   width: 100%;
+  box-sizing: border-box;
 }
 
 /* --- Media Queries --- */
@@ -588,5 +593,32 @@ function goBack() {
   position: sticky;
   bottom: 0;
   z-index: 10;
+}
+
+/* Ajuster les espacements des colonnes */
+.el-col {
+  padding: 2px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Ajuster la hauteur des inputs */
+:deep(.el-input__wrapper) {
+  padding: 0 8px;
+  height: 32px;
+}
+
+:deep(.el-textarea__inner) {
+  min-height: 60px;
+}
+
+/* Ajuster la hauteur des selects */
+:deep(.el-select .el-input__wrapper) {
+  height: 32px;
+}
+
+/* Ajuster la hauteur des datepickers */
+:deep(.el-date-editor.el-input) {
+  height: 32px;
 }
 </style>

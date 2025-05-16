@@ -6,17 +6,25 @@ export class UserEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: 'varchar', length: 255 })
+    @Column({ type: "varchar", unique: true })
     username!: string;
 
-    @Column({ type: 'varchar', length: 255 })
+    @Column({ type: "varchar" })
     password!: string;
 
     @Column({ 
         type: 'varchar',
         enum: ROLE,
-        default: ROLE.student
+        default: ROLE.admin
     })
     role!: ROLE;
 
+    @Column({ type: "varchar" })
+    securityQuestion!: string;
+
+    @Column({ type: "varchar" })
+    securityAnswer!: string;
+
+    @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+    createdAt!: Date;
 }

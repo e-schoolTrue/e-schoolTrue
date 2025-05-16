@@ -4,6 +4,8 @@ import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
 import { ConfigService } from './backend/services/configService';
 import './events';  // Importer tous les gestionnaires d'événements
+import { ipcMain, app } from 'electron';
+
 
 console.log('Démarrage de l\'application...');
 

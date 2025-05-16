@@ -229,19 +229,35 @@ const setCurrentYear = async (repartition: YearRepartitionResponse) => {
       }
     );
 
-    const result = await window.ipcRenderer.invoke(
-      "yearRepartition:setCurrent", 
-      repartition.id
-    );
+    console.log(`Tentative de définition de l'année courante avec ID: ${repartition.id}`);
+    
+    try {
+      const result = await window.ipcRenderer.invoke(
+        "yearRepartition:setCurrent", 
+        repartition.id
+      );
+      
+      console.log("Résultat de yearRepartition:setCurrent:", JSON.stringify(result, null, 2));
 
-    if (result.success) {
-      ElMessage.success("Année scolaire en cours mise à jour avec succès");
+      if (result.success) {
+        ElMessage.success("Année scolaire en cours mise à jour avec succès");
+      } else {
+        console.error("Erreur de définition de l'année courante:", result.error || result.message);
+        ElMessage.error(`Erreur: ${result.error || result.message}`);
+      }
+      
+      // Rafraîchir la liste dans tous les cas pour refléter l'état actuel
       await fetchYearRepartitions();
-    } else {
-      throw new Error(result.message);
+      
+    } catch (apiError) {
+      console.error("Exception lors de l'appel à yearRepartition:setCurrent:", apiError);
+      ElMessage.error("Une erreur technique est survenue lors de la définition de l'année scolaire en cours");
+      // Essayer quand même de rafraîchir la liste
+      await fetchYearRepartitions();
     }
   } catch (error) {
     if (error !== 'cancel') {
+      console.error("Erreur dans le processus setCurrentYear:", error);
       ElMessage.error(
         error instanceof Error ? error.message : "Une erreur est survenue"
       );

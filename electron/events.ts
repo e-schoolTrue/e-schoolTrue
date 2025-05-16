@@ -1,11 +1,12 @@
 import {  ipcMain } from "electron";
-import { GradeService } from "#electron/backend/services/gradeService.ts";
-import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "#electron/command/settingsCommand.ts";
-import { CourseService } from "#electron/backend/services/courseService.ts";
+
+import { GradeService } from "./backend/services/gradeService";
+import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "./command/settingsCommand";
+import { CourseService } from "./backend/services/courseService";
 import { StudentService } from "./backend/services/studentService";
 import { FileService } from "./backend/services/fileService";
-import { YearRepartitionService } from "#electron/backend/services/yearService";
-import { ResultType } from "#electron/command";
+import { YearRepartitionService } from "./backend/services/yearService";
+import { ResultType } from "./command/index";
 import * as fs from 'fs/promises';
 import { app } from 'electron';
 import path from 'path';
@@ -1721,18 +1722,32 @@ ipcMain.handle("backup:test:directInsert", async (_event: Electron.IpcMainInvoke
   }
 });
 
-// Gestionnaire pour vérifier si c'est le premier lancement
-ipcMain.handle('is-first-launch', async () => {
-    console.log('IPC: is-first-launch appelé');
+// Gestionnaires pour la vérification du premier lancement
+ipcMain.handle("is-first-launch", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
     try {
-        const configService = ConfigService.getInstance();
-        console.log('Instance ConfigService récupérée');
-        const isFirst = await configService.isFirstLaunchCheck();
-        console.log('Résultat de isFirstLaunchCheck:', isFirst);
-        return { success: true, data: isFirst };
+        const isFirstLaunch = await global.configService.isFirstLaunchCheck();
+        return {
+            success: true,
+            data: isFirstLaunch,
+            message: 'Vérification du premier lancement réussie',
+            error: null
+        };
     } catch (error) {
-        console.error('Erreur lors de la vérification du premier lancement:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Erreur inconnue' };
+        return handleError(error, 'Erreur lors de la vérification du premier lancement');
+    }
+});
+
+ipcMain.handle("set-first-launch-complete", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+    try {
+        await global.configService.setFirstLaunchComplete();
+        return {
+            success: true,
+            data: null,
+            message: 'Premier lancement marqué comme terminé',
+            error: null
+        };
+    } catch (error) {
+        return handleError(error, 'Erreur lors du marquage du premier lancement comme terminé');
     }
 });
 
@@ -1752,20 +1767,91 @@ ipcMain.handle("save-configuration", async (_event: Electron.IpcMainInvokeEvent,
   }
 });
 
-// Gestionnaires pour l'authentification du superviseur
-ipcMain.handle('supervisor:create', async (_event: Electron.IpcMainInvokeEvent, { username, password }: { username: string, password: string }): Promise<ResultType> => {
+// Gestionnaires pour l'authentification
+ipcMain.handle('auth:create', async (_event: Electron.IpcMainInvokeEvent, userData: any): Promise<ResultType> => {
+  try {
+    const result = await global.authService.createSupervisor(userData.username, userData.password, userData.securityQuestion, userData.securityAnswer);
+    return result;
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la création de l\'utilisateur');
+  }
+});
+ipcMain.handle('auth:getSecurityQuestion', async (_event: Electron.IpcMainInvokeEvent, { username }: { username: string }): Promise<ResultType> => {
     try {
-        return await global.authService.createSupervisor(username, password);
+        console.log('=== Récupération de la question de sécurité ===');
+        const result = await global.authService.getSecurityQuestion(username);
+        console.log('=== Résultat de la récupération ===', result);
+        return result;
     } catch (error) {
-        return handleError(error, 'Erreur lors de la création du superviseur');
+        console.error('=== Erreur lors de la récupération ===', error);
+        return handleError(error, 'Erreur lors de la récupération de la question de sécurité');
     }
 });
-
-ipcMain.handle('supervisor:validate', async (_event: Electron.IpcMainInvokeEvent, { username, password }: { username: string, password: string }): Promise<ResultType> => {
+ipcMain.handle('auth:validate', async (_event: Electron.IpcMainInvokeEvent, { username, password }: { username: string, password: string }): Promise<ResultType> => {
     try {
-        return await global.authService.validateSupervisor(username, password);
+        console.log('=== Validation du superviseur ===');
+        const result = await global.authService.validateSupervisor(username, password);
+        console.log('=== Résultat de la validation ===', result);
+        return result;  
     } catch (error) {
+        console.error('=== Erreur lors de la validation ===', error);
         return handleError(error, 'Erreur lors de la validation du superviseur');
     }
 });
 
+
+ipcMain.handle('auth:validateSecurityAnswer', async (_event: Electron.IpcMainInvokeEvent, { username, answer }: { username: string, answer: string }): Promise<ResultType> => {
+    try {
+        console.log('=== Validation de la réponse de sécurité ===');
+        const result = await global.authService.validateSecurityAnswer(username, answer);
+        console.log('=== Résultat de la validation ===', result);
+        return result;
+    } catch (error) {
+        console.error('=== Erreur lors de la validation ===', error);
+        return handleError(error, 'Erreur lors de la validation de la réponse');
+    }
+});
+
+ipcMain.handle('auth:resetPassword', async (_event: Electron.IpcMainInvokeEvent, { username, newPassword }: { username: string, newPassword: string }): Promise<ResultType> => {
+    try {
+        console.log('=== Réinitialisation du mot de passe ===');
+        const result = await global.authService.resetPassword(username, newPassword);
+        console.log('=== Résultat de la réinitialisation ===', result);
+        return result;
+    } catch (error) {
+        console.error('=== Erreur lors de la réinitialisation ===', error);
+        return handleError(error, 'Erreur lors de la réinitialisation du mot de passe');
+    }
+});
+
+
+ipcMain.handle('school:saveSettings', async (_event: Electron.IpcMainInvokeEvent, settings: any): Promise<ResultType> => {
+  try {
+    // Vérifier que les champs requis sont présents
+    if (!settings.schoolCode || !settings.inspectionZone || !settings.departmentCode) {
+      return {
+        success: false,
+        data: null,
+        error: 'MISSING_REQUIRED_FIELDS',
+        message: 'Les champs schoolCode, inspectionZone et departmentCode sont requis'
+      };
+    }
+
+    // Structurer les données selon l'interface attendue
+    const settingsData = {
+      schoolCode: settings.schoolCode,
+      inspectionZone: settings.inspectionZone,
+      departmentCode: settings.departmentCode
+    };
+
+    const result = await global.schoolService.saveOrUpdateSettings(settingsData);
+    return {
+      success: result.success,
+      data: result.data,
+      message: result.message,
+      error: result.error
+    };
+  } catch (error) {
+    return handleError(error, 'Erreur lors de la sauvegarde des paramètres de l\'école');
+  }
+});

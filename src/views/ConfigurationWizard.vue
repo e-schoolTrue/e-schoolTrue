@@ -2,18 +2,7 @@
   <div class="configuration-wizard">
     <el-card class="wizard-card">
       <template #header>
-        <div class="wizard-header">
-          <!-- Indicateur d'étapes pour Desktop -->
-          <el-steps :active="currentStep" finish-status="success" simple class="desktop-steps">
-            <el-step v-for="(titre, index) in etapesTitres" :key="index" :title="titre" />
-          </el-steps>
-
-          <!-- Indicateur d'étapes pour Mobile/Tablette -->
-          <div class="mobile-steps-indicator">
-            <span class="step-info">Étape {{ currentStep + 1 }} sur {{ configViewsKeys.length }}</span>
-            <span class="step-title">: {{ currentStepTitle }}</span>
-          </div>
-        </div>
+       
       </template>
 
       <div class="wizard-content">
@@ -30,7 +19,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus'; // Importer ElMessage pour les erreurs
+import { ElMessage } from 'element-plus'; // Importer ElMessage et ElMessageBox pour les erreurs et les confirmations
 
 // Importation des composants de vue
 import WelcomView from './omboarding/WelcomView.vue';
@@ -40,16 +29,8 @@ import YearRepartitionView from './omboarding/YearRepartitionView.vue';
 import GradeView from './omboarding/GradeView.vue';
 import CourseView from './omboarding/CourseView.vue';
 import LanguageSettingView from './omboarding/LanguageSettingView.vue';
-import SupervisorInfoView from './omboarding/SupervisorInfoView.vue';
 import PayementConfigurationView from './omboarding/PayementConfigurationView.vue';
-// ... autres imports ...
-
-// Interface pour le format attendu du logo par le backend (basé sur SchoolInfoView)
-interface IFileUpload {
-  content: string; // Base64 content
-  name: string;
-  type: string;
-}
+import SupervisorInfoView from './omboarding/SupervisorInfoView.vue';
 
 const router = useRouter();
 const currentStep = ref(0);
@@ -63,22 +44,11 @@ const configViewsKeys = ref([
   'Grade',
   'Course',
   'LanguageSetting',
-  'SupervisorInfo',
-  'PayementConfiguration'
+  'PayementConfiguration',
+  'SupervisorInfo'
 ]);
 
 // Titres français
-const etapesTitres = ref([
-  'Bienvenue',
-  'Localisation',
-  'Infos Générales',
-  'Année Scolaire',
-  'Niveaux',
-  'Matières',
-  'Langue',
-  'Superviseur',
-  'Configuration des Paiements'
-]);
 
 // Mapping Clés -> Composants
 const viewComponents = {
@@ -89,12 +59,9 @@ const viewComponents = {
   Grade: GradeView,
   Course: CourseView,
   LanguageSetting: LanguageSettingView,
-  SupervisorInfo: SupervisorInfoView,
-  PayementConfiguration: PayementConfigurationView
+  PayementConfiguration: PayementConfigurationView,
+  SupervisorInfo: SupervisorInfoView
 };
-
-// Stockage des données de configuration de chaque étape
-const configurationData = ref<Record<string, any>>({});
 
 // --- Computed Properties ---
 const currentViewComponent = computed(() => {
@@ -102,9 +69,6 @@ const currentViewComponent = computed(() => {
   return viewComponents[currentViewKey as keyof typeof viewComponents];
 });
 
-const currentStepTitle = computed(() => {
-  return etapesTitres.value[currentStep.value] || '';
-});
 
 // --- Lifecycle Hooks ---
 onMounted(async () => {
@@ -130,8 +94,7 @@ onMounted(async () => {
         }
     } else {
         console.warn("Contexte non-Electron, la vérification du premier lancement est ignorée.");
-        // Comportement par défaut si hors Electron (ex: développement web)
-        // Mettez ici la logique appropriée, par exemple toujours afficher le wizard
+        
     }
   } catch (error: any) {
     console.error('Erreur lors de la vérification du premier lancement:', error);
@@ -142,40 +105,43 @@ onMounted(async () => {
 
 // --- Methodes ---
 
-// Fonction utilitaire pour convertir File en Base64
-async function convertFileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file); // Lit le contenu en Base64 Data URL
-    reader.onload = () => {
-        // Extrait uniquement la partie base64 après la virgule
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-    }
-    reader.onerror = (error) => reject(error);
-  });
-}
-
-
 // Gère la réception des données d'une étape et passe à la suivante
-const handleConfigurationSaved = async (data: any) => {
+const handleConfigurationSaved = async () => {
   const currentKey = configViewsKeys.value[currentStep.value];
+  console.log(`Configuration sauvegardée pour l'étape ${currentKey}`);
   
-  // Mapping des clés frontend vers backend
-  const keyMapping: Record<string, string> = {
-    'GeneralInfo': 'school',
-    'Grade': 'grades',
-    'Course': 'courses',
-    'PayementConfiguration': 'paymentConfig',
-    'YearRepartition': 'yearRepartition'
-  };
 
-  // Utiliser la clé mappée ou la clé originale si pas de mapping
-  const backendKey = keyMapping[currentKey] || currentKey;
-  configurationData.value[backendKey] = data;
+  if (currentStep.value === configViewsKeys.value.length - 1) {
+    await finishConfiguration();
+  } else {
   
-  console.log(`Données sauvegardées pour l'étape ${currentKey} (${backendKey}):`, data);
-  await nextStep();
+    await nextStep();
+  }
+};
+
+
+const finishConfiguration = async () => {
+  try {
+  
+    const firstLaunchResult = await window.ipcRenderer.invoke('set-first-launch-complete');
+    
+    if (!firstLaunchResult.success) {
+      console.warn('Avertissement: Impossible de marquer le premier lancement comme terminé');
+    }
+
+    ElMessage({
+      message: 'Configuration terminée avec succès',
+      type: 'success',
+      duration: 2000,
+      onClose: () => {
+        // Rediriger vers la page d'accueil après le message de succès
+        window.location.href = '/';
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la finalisation de la configuration:', error);
+    ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la finalisation');
+  }
 };
 
 // Gère le retour à l'étape précédente
@@ -185,84 +151,39 @@ const handleGoBack = () => {
     currentStep.value--;
   } else {
      console.log('Impossible de retourner en arrière depuis la première étape');
-     // Optionnel: peut-être rediriger ou afficher un message si on est sur la première "vraie" étape
-     // Par exemple, si l'étape 0 est 'Welcome', on ne peut pas revenir en arrière.
   }
 };
 
-// Passe à l'étape suivante ou sauvegarde la configuration finale
+
 const nextStep = async () => {
   if (currentStep.value < configViewsKeys.value.length - 1) {
     currentStep.value++;
     console.log('Passage à l\'étape:', currentStep.value, configViewsKeys.value[currentStep.value]);
   } else {
-    // --- Dernière étape : Préparation et Sauvegarde finale ---
-    console.log('Tentative de sauvegarde de la configuration finale...');
-    console.log('Données brutes collectées:', JSON.stringify(configurationData.value, null, 2)); // Log pour voir les données avant traitement
-
-    // Préparer le payload final pour l'IPC
-    const finalPayload: Record<string, any> = {};
-
+   
+    console.log('Configuration terminée, redirection vers l\'application...');
+    
     try {
-        // Copier les données et traiter le logo si nécessaire
-        for (const key in configurationData.value) {
-            if (key === 'GeneralInfo' && configurationData.value[key]?.logoFile instanceof File) {
-                // Traitement spécifique pour GeneralInfo avec logoFile
-                const generalInfoData = { ...configurationData.value[key] };
-                const logoFile: File = generalInfoData.logoFile;
 
-                console.log('Traitement du logoFile pour GeneralInfo...');
-                const base64Content = await convertFileToBase64(logoFile);
-
-                // Créer la structure attendue par le backend pour le logo
-                const logoPayload: IFileUpload = {
-                    content: base64Content,
-                    name: logoFile.name,
-                    type: logoFile.type,
-                };
-
-                // Ajouter les données de GeneralInfo au payload final
-                // en remplaçant logoFile par la structure logo
-                delete generalInfoData.logoFile; // Supprimer le fichier brut
-                finalPayload[key] = {
-                    ...generalInfoData,
-                    logo: logoPayload // Ajouter le logo traité
-                };
-                 console.log('Logo traité et ajouté au payload pour GeneralInfo.');
-
-            } else {
-                // Copier les autres données telles quelles
-                finalPayload[key] = configurationData.value[key];
-            }
+      if (window.ipcRenderer) {
+        try {
+          await window.ipcRenderer.invoke('set-first-launch-complete');
+          console.log('Premier lancement marqué comme terminé');
+        } catch (e) {
+          console.warn('Impossible de marquer le premier lancement comme terminé:', e);
         }
-
-        console.log('Payload final préparé pour IPC:', JSON.stringify(finalPayload, null, 2));
-
-       // Envoyer via IPC si disponible
-       if (window.ipcRenderer) {
-          const response = await window.ipcRenderer.invoke('save-configuration', finalPayload);
-          console.log('Réponse de la sauvegarde IPC:', response);
-
-          if (response.success) {
-            ElMessage.success('Configuration initiale sauvegardée avec succès !');
-            console.log('Configuration sauvegardée, redirection vers /...');
-            await window.ipcRenderer.invoke('set-first-launch-complete');
-            router.replace('/');
-          } else {
-            console.error('Erreur lors de la sauvegarde via IPC:', response.error);
-            ElMessage.error(`Erreur lors de la sauvegarde: ${response.error || 'Erreur inconnue du backend'}`);
-          }
-       } else {
-            console.warn("Contexte non-Electron, la sauvegarde est simulée/ignorée.");
-            ElMessage.info("Mode développement: Sauvegarde simulée.");
-            router.replace('/'); // Simuler la redirection
-       }
+      }
+      
+  
+      
+      ElMessage.success('Configuration initiale terminée avec succès !');
+      console.log('Redirection vers /...');
+      
+      // Forcer une redirection dure pour contourner les guards de navigation
+      window.location.href = '/';
     } catch (error: any) {
-        console.error('Erreur lors de la préparation ou sauvegarde de la configuration:', error);
-        ElMessage.error(`Erreur critique lors de la sauvegarde: ${error.message || 'Erreur inconnue'}`);
-        if (error instanceof Error && error.message.includes('FileReader')) {
-             ElMessage.error('Erreur lors de la lecture du fichier logo.');
-        }
+      console.error('Erreur lors de la finalisation:', error);
+      ElMessage.error(`Erreur finale: ${error.message || 'Erreur inconnue'}`);
     }
   }
 };
