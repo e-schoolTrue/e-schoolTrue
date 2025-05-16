@@ -82,6 +82,12 @@ export class ConfigService {
         return this.isFirstLaunch;
     }
 
+    async setFirstLaunchComplete(): Promise<void> {
+        console.log('Marquage du premier lancement comme terminé');
+        this.isFirstLaunch = false;
+        console.log('Nouveau statut de premier lancement:', this.isFirstLaunch);
+    }
+
     async saveConfiguration(data: any): Promise<void> {
         try {
             const dataSource = await AppDataSource.initialize();

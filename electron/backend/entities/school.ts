@@ -4,6 +4,25 @@ import { FileEntity } from "./file";
 export type CountryCode = 'MAR' | 'SEN' | 'CAF' | 'GIN';
 export type CurrencyCode = 'MAD' | 'XOF' | 'XAF' | 'GNF';
 
+@Entity("school_settings")
+export class SchoolSettingsEntity {
+    @PrimaryGeneratedColumn()
+    id?: number;
+
+    @Column({ type: "varchar", length: 50 })
+    schoolCode: string = '';
+
+    @Column({ type: "varchar", length: 100 })
+    inspectionZone: string = '';
+
+    @Column({ type: "varchar", length: 50 })
+    departmentCode: string = '';
+
+    @OneToOne(() => SchoolEntity, school => school.settings)
+    @JoinColumn()
+    school?: SchoolEntity;
+}
+
 @Entity("school")
 export class SchoolEntity {
     @PrimaryGeneratedColumn()
@@ -52,6 +71,9 @@ export class SchoolEntity {
 
     @Column({ type: "int" })
     foundationYear: number = new Date().getFullYear();
+
+    @OneToOne(() => SchoolSettingsEntity, settings => settings.school)
+    settings?: SchoolSettingsEntity;
 
     // Getter virtuel pour la devise
     get currency(): CurrencyCode {

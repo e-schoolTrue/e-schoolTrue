@@ -5,7 +5,25 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "strict": true
+    "strict": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "baseUrl": ".", // pour que "paths" fonctionne
+    "paths": {
+      "#electron/*": ["electron/*"]
+    },
+    "types": ["electron"] // ✅ Important pour éviter l'erreur sur "Electron"
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "electron",
+    "electron/**/*.ts",
+    "electron/**/*.tsx",
+    "auto-imports.d.ts",
+    "node_modules/unplugin-auto-import/auto-imports.d.ts",
+    "vite.config.ts"
+, "app"  ]
 }

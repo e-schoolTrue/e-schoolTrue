@@ -79,6 +79,47 @@
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
 }
 
+/* Styles communs pour tous les composants qui utilisent ce base */
+:deep(.wizard-view-base) {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+:deep(.wizard-view-base__content) {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.wizard-view-base__actions) {
+  flex-shrink: 0;
+  padding: 20px;
+  background: white;
+  border-top: 1px solid #ebeef5;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+:deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #606266;
+  padding-bottom: 4px;
+  line-height: 1.4;
+}
+
+:deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px #dcdfe6 inset;
+  transition: all 0.3s ease;
+}
+
+:deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+
 @media (max-width: 768px) {
   .wizard-view-container {
     padding: 10px;

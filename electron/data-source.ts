@@ -1,16 +1,17 @@
+import "reflect-metadata";
 import {DataSource} from "typeorm";
 import {UserEntity} from "./backend/entities/user";
-import {StudentEntity} from "./backend/entities/students.ts";
-import {FileEntity} from "./backend/entities/file.ts";
-import {ProfessorEntity, QualificationEntity,DiplomaEntity} from  "./backend/entities/professor.ts";
-import {AbsenceEntity} from "./backend/entities/absence.ts";
-import {PaymentEntity} from "./backend/entities/payment.ts";
-import {PaymentConfigEntity} from "./backend/entities/paymentConfig.ts";
-import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
-import {app} from "electron";
-import {CourseEntity, ObservationEntity} from "#electron/backend/entities/course.ts";
-import { SchoolEntity } from "./backend/entities/school.ts";
-import {YearRepartitionEntity} from "#electron/backend/entities/yearRepartition";
+import {StudentEntity} from "./backend/entities/students";
+import {FileEntity} from "./backend/entities/file";
+import {ProfessorEntity, QualificationEntity,DiplomaEntity} from  "./backend/entities/professor";
+import {AbsenceEntity} from "./backend/entities/absence";
+import {PaymentEntity} from "./backend/entities/payment";
+import {PaymentConfigEntity} from "./backend/entities/paymentConfig";
+import {BranchEntity, ClassRoomEntity, GradeEntity} from "./backend/entities/grade";
+import { app } from 'electron';
+import {CourseEntity, ObservationEntity} from "./backend/entities/course";
+import { SchoolEntity, SchoolSettingsEntity } from "./backend/entities/school";
+import {YearRepartitionEntity} from "./backend/entities/yearRepartition";
 import { ReportCardEntity } from "./backend/entities/report";
 import path from 'path';
 import { TeachingAssignmentEntity } from "./backend/entities/teaching";
@@ -47,7 +48,8 @@ const entities = [
     ReportCardEntity,
     ScholarshipEntity,
     PreferenceEntity,
-    GradeConfigEntity
+    GradeConfigEntity,
+    SchoolSettingsEntity
 ];
 
 export class AppDataSource {
@@ -65,13 +67,14 @@ export class AppDataSource {
             
             AppDataSource.instance = new DataSource({
                 type: "better-sqlite3",
-                synchronize: true, // Toujours synchroniser pour s'assurer que les tables sont créées
-                dropSchema: false, // Ne jamais supprimer le schéma
+                synchronize: true,
+                dropSchema: isFirstLaunch,
                 database: dbPath,
                 logging: true,
                 entities: entities,
                 subscribers: [],
-                migrationsRun: true
+                migrationsRun: true,
+                cache: false 
             });
         }
         return AppDataSource.instance;
@@ -91,6 +94,11 @@ export class AppDataSource {
                 // Forcer la synchronisation du schéma
                 console.log('Synchronisation du schéma...');
                 await instance.synchronize();
+                
+                // Vérifier la connexion
+                if (!instance.isInitialized) {
+                    throw new Error('La DataSource n\'a pas été correctement initialisée');
+                }
                 
                 console.log("Base de données initialisée avec succès.");
             } catch (error) {

@@ -27,6 +27,7 @@ const routes = [
                 path: "",
                 name: "dashboard",
                 component: DashboardView,
+                meta: { requiresAuth: true }
             },
             ...fileRoutes,
             ...studentRoutes,
@@ -40,6 +41,11 @@ const routes = [
     {
         path: "/onboarding",
         children: omboardingRoutes
+    },
+    // Redirection par défaut vers le dashboard
+    {
+        path: "/:pathMatch(.*)*",
+        redirect: "/"
     }
 ];
 
@@ -50,20 +56,46 @@ const router = createRouter({
 
 // Ajouter un guard pour rediriger vers /configuration-wizard au premier lancement
 router.beforeEach(async (to, from, next) => {
-    if (to.path !== '/configuration-wizard') {
-        try {
-            const response = await window.ipcRenderer.invoke('is-first-launch');
-            if (response.data) {
-                next('/configuration-wizard');
-            } else {
-                next();
-            }
-        } catch (error) {
-            console.error('Erreur lors de la vérification du premier lancement:', error);
-            next();
+    // Liste des routes publiques qui ne nécessitent pas d'authentification
+    const publicRoutes = ['/login', '/forgot-password', '/validate-account', '/configuration-wizard'];
+    
+    try {
+        // Vérifier d'abord si c'est le premier lancement
+        const response = await window.ipcRenderer.invoke('is-first-launch');
+        if (response.data && to.path !== '/configuration-wizard') {
+            next('/configuration-wizard');
+            return;
         }
-    } else {
+
+        // Si ce n'est pas le premier lancement, vérifier l'authentification
+        if (publicRoutes.includes(to.path)) {
+            next();
+            return;
+        }
+
+        // Vérifier si l'utilisateur est connecté
+        const user = localStorage.getItem('user');
+        if (!user && to.path !== '/login') {
+            next('/login');
+            return;
+        }
+
+        // Si l'utilisateur est sur /login et est déjà connecté, rediriger vers le dashboard
+        if (to.path === '/login' && user) {
+            next('/');
+            return;
+        }
+
+        // Si l'utilisateur est authentifié et essaie d'accéder à une route protégée
+        if (to.meta.requiresAuth && !user) {
+            next('/login');
+            return;
+        }
+
         next();
+    } catch (error) {
+        console.error('Erreur lors de la vérification du premier lancement:', error);
+        next('/login');
     }
 });
 

@@ -2,12 +2,20 @@
   <wizard-view-base>
     <template #title>
       Configurez les frais de scolarité pour chaque classe.
+      <div class="subtitle">
+        Vous pourrez toujours modifier ces configurations plus tard dans les paramètres.
+      </div>
     </template>
 
     <div class="container-content">
-      <el-button type="primary" @click="openCreateModal" class="create-btn">
-        Configurer les Frais de Scolarité
-      </el-button>
+      <div class="actions-container">
+        <el-button type="primary" @click="openCreateModal" class="create-btn">
+          Configurer les Frais de Scolarité
+        </el-button>
+        <el-button @click="skipConfiguration" class="skip-btn">
+          Configurer Plus Tard
+        </el-button>
+      </div>
 
       <el-table 
         :data="configurations" 
@@ -134,7 +142,7 @@
 
 <script setup lang="ts">
 import { ref, computed, defineEmits } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
@@ -239,8 +247,8 @@ const loadConfigurations = async () => {
 
     const grades = gradesResult.data;
     const configs = configsResult.success ? configsResult.data : [];
-
-    configurations.value = grades.map((grade: { id: string; name: string; }) => {
+    
+    configurations.value = grades.map((grade: { id: string; name: string }) => {
       const config = configs.find((c: PaymentConfig) => String(c.classId) === String(grade.id));
       return {
         classId: String(grade.id),
@@ -272,11 +280,43 @@ const goNext = async () => {
     return;
   }
 
-  emit('configuration-saved', configurations.value);
+  // S'assurer qu'il n'y a pas de dupliqués avant d'émettre l'événement
+  const uniqueConfigs = new Map();
+  configurations.value.forEach(config => {
+    // Si une configuration existe déjà pour cette classe, on utilise celle avec le montant le plus élevé
+    if (!uniqueConfigs.has(config.className) || 
+        uniqueConfigs.get(config.className).annualAmount < config.annualAmount) {
+      uniqueConfigs.set(config.className, config);
+    }
+  });
+
+  // Convertir le Map en tableau pour l'émission d'événement
+  const uniqueConfigsArray = Array.from(uniqueConfigs.values());
+  
+  console.log('Configurations uniques envoyées:', uniqueConfigsArray);
+  emit('configuration-saved', uniqueConfigsArray);
 };
 
 const goBack = () => {
   emit('go-back');
+};
+
+const skipConfiguration = () => {
+  ElMessageBox.confirm(
+    'Vous pourrez configurer les frais de scolarité plus tard dans les paramètres. Voulez-vous continuer ?',
+    'Confirmer',
+    {
+      confirmButtonText: 'Oui, configurer plus tard',
+      cancelButtonText: 'Non, configurer maintenant',
+      type: 'warning'
+    }
+  )
+    .then(() => {
+      emit('configuration-saved', []);
+    })
+    .catch(() => {
+      // L'utilisateur a choisi de rester sur la page de configuration
+    });
 };
 
 // Charger les configurations au montage
@@ -318,8 +358,21 @@ loadConfigurations();
   z-index: 10;
 }
 
-.create-btn {
-  margin-bottom: 20px;
+.actions-container {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.create-btn, .skip-btn {
+  min-width: 200px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #606266;
+  margin-top: 0.5rem;
 }
 
 .config-table {

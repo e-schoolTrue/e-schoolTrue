@@ -1,8 +1,8 @@
 import {Repository} from "typeorm";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
-import {AppDataSource} from "#electron/data-source.ts";
+import {CourseEntity} from "#electron/backend/entities/course";
+import {AppDataSource} from "#electron/data-source";
 import {Mapper} from "#electron/command";
-import {messages} from "#app/messages.ts";
+import {messages} from "#electron/messages";
 import {
     ICourseServiceParams,
     ICourseServiceResponse

@@ -1,5 +1,5 @@
 import { Repository } from "typeorm";
-import { SchoolEntity } from "../entities/school";
+import { SchoolEntity, SchoolSettingsEntity } from "../entities/school";
 import { AppDataSource } from "../../data-source";
 import { FileService } from "./fileService";
 import {
@@ -8,8 +8,23 @@ import {
     ISchoolData
 } from "../types/school";
 
+interface ISchoolSettingsData {
+    id?: number;
+    schoolCode: string;
+    inspectionZone: string;
+    departmentCode: string;
+}
+
+interface ISchoolSettingsServiceResponse {
+    success: boolean;
+    data: ISchoolSettingsData | null;
+    message: string;
+    error: string | null;
+}
+
 export class SchoolService {
     private schoolRepository: Repository<SchoolEntity>;
+    private settingsRepository: Repository<SchoolSettingsEntity>;
     private fileService: FileService;
 
     private mapToISchoolData(school: SchoolEntity): ISchoolData {
@@ -23,9 +38,19 @@ export class SchoolService {
         };
     }
 
+    private mapToISchoolSettingsData(settings: SchoolSettingsEntity): ISchoolSettingsData {
+        return {
+            id: settings.id,
+            schoolCode: settings.schoolCode,
+            inspectionZone: settings.inspectionZone,
+            departmentCode: settings.departmentCode
+        };
+    }
+
     constructor() {
         const dataSource = AppDataSource.getInstance();
         this.schoolRepository = dataSource.getRepository(SchoolEntity);
+        this.settingsRepository = dataSource.getRepository(SchoolSettingsEntity);
         this.fileService = new FileService();
     }
 
@@ -119,6 +144,94 @@ export class SchoolService {
                 data: null,
                 error: error instanceof Error ? error.message : "Erreur inconnue",
                 message: "Échec de la récupération des informations de l'école"
+            };
+        }
+    }
+
+    async saveOrUpdateSettings(settingsData: {
+        schoolCode: string;
+        inspectionZone: string;
+        departmentCode: string;
+    }): Promise<ISchoolSettingsServiceResponse> {
+        try {
+            const school = await this.schoolRepository.findOne({
+                where: {},
+                relations: ['settings']
+            });
+
+            if (!school) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Aucune école trouvée",
+                    error: "SCHOOL_NOT_FOUND"
+                };
+            }
+
+            if (school.settings) {
+                // Mise à jour des paramètres existants
+                Object.assign(school.settings, settingsData);
+                const savedSettings = await this.settingsRepository.save(school.settings);
+                return {
+                    success: true,
+                    data: this.mapToISchoolSettingsData(savedSettings),
+                    message: "Paramètres mis à jour avec succès",
+                    error: null
+                };
+            } else {
+                // Création de nouveaux paramètres
+                const newSettings = this.settingsRepository.create({
+                    ...settingsData,
+                    school
+                });
+                const savedSettings = await this.settingsRepository.save(newSettings);
+                return {
+                    success: true,
+                    data: this.mapToISchoolSettingsData(savedSettings),
+                    message: "Paramètres créés avec succès",
+                    error: null
+                };
+            }
+        } catch (error) {
+            console.error("Erreur dans saveOrUpdateSettings:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Échec de l'enregistrement des paramètres",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getSettings(): Promise<ISchoolSettingsServiceResponse> {
+        try {
+            const school = await this.schoolRepository.findOne({
+                where: {},
+                relations: ['settings']
+            });
+
+            if (!school || !school.settings) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Aucun paramètre trouvé",
+                    error: "SETTINGS_NOT_FOUND"
+                };
+            }
+
+            return {
+                success: true,
+                data: this.mapToISchoolSettingsData(school.settings),
+                message: "Paramètres récupérés avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur dans getSettings:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Échec de la récupération des paramètres",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }

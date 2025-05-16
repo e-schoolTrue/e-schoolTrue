@@ -265,15 +265,42 @@ const goBack = () => {
 };
 
 const saveYearRepartition = async () => {
+  isSaving.value = true;
+  Loader.showLoader('Sauvegarde en cours...');
+  
   try {
-    isSaving.value = true;
-    Loader.showLoader("Sauvegarde de la répartition annuelle en cours...");
+    // Valider les périodes
+    const maxPeriods = periodType.value === 'trimestre' ? 3 : 2;
+    if (periodConfigurations.value.length !== maxPeriods) {
+      throw new Error(`Veuillez configurer exactement ${maxPeriods} ${periodType.value}s.`);
+    }
 
-    const finalPeriods = periodConfigurations.value.map(p => ({
-      name: p.name,
-      start: p.start ? new Date(p.start).toISOString() : null,
-      end: p.end ? new Date(p.end).toISOString() : null,
-      type: p.type
+    // S'assurer que les dates sont valides
+    const sortedPeriods = [...periodConfigurations.value].sort((a, b) => {
+      const aStartTime = a.start ? new Date(a.start).getTime() : 0;
+      const bStartTime = b.start ? new Date(b.start).getTime() : 0;
+      return aStartTime - bStartTime;
+    });
+
+    // Vérifier que les périodes ne se chevauchent pas
+    for (let i = 0; i < sortedPeriods.length - 1; i++) {
+      if (!sortedPeriods[i].end || !sortedPeriods[i + 1].start) {
+        throw new Error(`Les dates de ${sortedPeriods[i].name} ou ${sortedPeriods[i + 1].name} sont incomplètes.`);
+      }
+      
+      const currentEnd = new Date(sortedPeriods[i].end as string);
+      const nextStart = new Date(sortedPeriods[i + 1].start as string);
+      
+      if (currentEnd >= nextStart) {
+        throw new Error(`Les périodes se chevauchent: ${sortedPeriods[i].name} et ${sortedPeriods[i + 1].name}`);
+      }
+    }
+
+    // Préparer les données finales pour l'enregistrement
+    const finalPeriods = sortedPeriods.map(period => ({
+      name: period.name,
+      start: period.start ? new Date(period.start).toISOString() : null,
+      end: period.end ? new Date(period.end).toISOString() : null
     }));
 
     const payload = {
@@ -283,27 +310,43 @@ const saveYearRepartition = async () => {
       periodType: periodType.value
     };
 
+    console.log("Envoi de la création de répartition avec données:", JSON.stringify(payload, null, 2));
+    
     // Sauvegarder la répartition
     const result = await window.ipcRenderer.invoke('yearRepartition:create', payload);
+    console.log("Résultat de la création:", JSON.stringify(result, null, 2));
 
     if (result.success) {
-      // Définir comme année en cours
-      const setCurrentResult = await window.ipcRenderer.invoke(
-        "yearRepartition:setCurrent", 
-        result.data.id
-      );
+      try {
+        // Définir comme année en cours
+        console.log(`Définition de l'année courante avec ID: ${result.data.id}`);
+        const setCurrentResult = await window.ipcRenderer.invoke(
+          "yearRepartition:setCurrent", 
+          result.data.id
+        );
+        console.log("Résultat de setCurrent:", JSON.stringify(setCurrentResult, null, 2));
 
-      if (setCurrentResult.success) {
-        ElMessage.success('Répartition annuelle sauvegardée et définie comme année en cours');
+        if (setCurrentResult.success) {
+          ElMessage.success('Répartition annuelle sauvegardée et définie comme année en cours');
+        } else {
+          console.error('Échec de définition année courante:', setCurrentResult.error || setCurrentResult.message);
+          // Message d'avertissement mais on continue
+          ElMessage.warning(`Répartition annuelle sauvegardée mais non définie comme année en cours: ${setCurrentResult.error || setCurrentResult.message}`);
+        }
+        // Dans tous les cas, on considère que c'est un succès car la répartition a été créée
         return true;
-      } else {
-        throw new Error(setCurrentResult.message || 'Erreur lors de la définition de l\'année en cours');
+      } catch (setCurrError) {
+        console.error('Exception lors de la définition comme année courante:', setCurrError);
+        // Message d'avertissement mais on continue
+        ElMessage.warning(`Répartition annuelle sauvegardée mais erreur lors de la définition comme année courante: ${setCurrError instanceof Error ? setCurrError.message : 'Erreur inconnue'}`);
+        // On considère que c'est un succès car la répartition a été créée
+        return true;
       }
     } else {
       throw new Error(result.message || 'Erreur lors de la sauvegarde de la répartition');
     }
   } catch (error) {
-    console.error('Erreur:', error);
+    console.error('Erreur complète:', error);
     ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
     return false;
   } finally {
@@ -524,11 +567,11 @@ const revalidatePeriodFields = () => {
 
 .year-repartition-form {
   width: 100%;
-  padding: 5px 10px;
+  padding: 5px;
   box-sizing: border-box;
-  height: calc(100vh - 200px); /* Hauteur fixe moins l'espace pour le titre et les boutons */
-  overflow-y: auto; /* Permet le défilement vertical */
-  margin-bottom: 20px; /* Espace avant les boutons */
+  height: auto;
+  overflow: visible;
+  margin-bottom: 10px;
 }
 
 .section-card {
@@ -649,12 +692,13 @@ const revalidatePeriodFields = () => {
 }
 
 :deep(.el-form-item) {
-    margin-bottom: 18px;
+    margin-bottom: 8px;
 }
 :deep(.el-form-item__label) {
-  font-weight: 500;
+  font-weight: 600;
+  color: #606266;
   padding-bottom: 2px;
-  line-height: 1.3;
+  line-height: 1.1;
 }
 
 :deep(.el-date-editor.el-input),
@@ -664,24 +708,25 @@ const revalidatePeriodFields = () => {
 
 .repartition-info {
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .repartition-info .el-alert {
   margin-bottom: 0;
+  padding: 8px 16px;
 }
 
 .periods-container {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 8px;
 }
 
 .period-item {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 15px;
+  padding: 8px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   background-color: #fff;
@@ -706,50 +751,12 @@ const revalidatePeriodFields = () => {
 }
 
 .add-period {
-  margin-top: 10px;
+  margin-top: 8px;
   width: 100%;
-}
-
-:deep(.el-form-item__label) {
-  font-weight: 600;
-  color: #606266;
-  padding-bottom: 4px;
-  line-height: 1.4;
-}
-
-:deep(.el-input__wrapper),
-:deep(.el-date-editor) {
-  box-shadow: 0 0 0 1px #dcdfe6 inset;
-  transition: all 0.3s ease;
 }
 
 :deep(.el-input__wrapper:hover),
 :deep(.el-date-editor:hover) {
   box-shadow: 0 0 0 1px var(--el-color-primary) inset;
-}
-
-/* Assure que les boutons restent en bas */
-:deep(.wizard-view-base) {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-}
-
-:deep(.wizard-view-base__content) {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-:deep(.wizard-view-base__actions) {
-  flex-shrink: 0;
-  padding: 20px;
-  background: white;
-  border-top: 1px solid #ebeef5;
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
 }
 </style>

@@ -1,0 +1,25 @@
+{
+  "name": "e-school",
+  "version": "1.0.0",
+  "description": "Application de gestion scolaire",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "electron-store": "^8.1.0",
+    "typeorm": "^0.3.20",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "@types/bcryptjs": "^2.4.6",
+    "typescript": "^5.3.3"
+  }
+} 

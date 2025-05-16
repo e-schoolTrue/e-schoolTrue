@@ -1,5 +1,5 @@
-import { FileEntity } from "../entities/file.ts";
-import { AppDataSource } from "#electron/data-source.ts"; 
+import { FileEntity } from "../entities/file";
+import { AppDataSource } from "#electron/data-source"; 
 
 export class PhotoService {
   private fileRepository = AppDataSource.getInstance().getRepository(FileEntity);
