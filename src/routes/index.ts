@@ -56,12 +56,17 @@ const router = createRouter({
 
 // Ajouter un guard pour rediriger vers /configuration-wizard au premier lancement
 router.beforeEach(async (to, from, next) => {
+    console.log('Navigation vers:', to.path)
+    console.log('État utilisateur:', localStorage.getItem('user'))
+    
     // Liste des routes publiques qui ne nécessitent pas d'authentification
     const publicRoutes = ['/login', '/forgot-password', '/validate-account', '/configuration-wizard'];
     
     try {
         // Vérifier d'abord si c'est le premier lancement
         const response = await window.ipcRenderer.invoke('is-first-launch');
+        console.log('Premier lancement ?', response.data)
+        
         if (response.data && to.path !== '/configuration-wizard') {
             next('/configuration-wizard');
             return;
@@ -74,7 +79,9 @@ router.beforeEach(async (to, from, next) => {
         }
 
         // Vérifier si l'utilisateur est connecté
-        const user = localStorage.getItem('user');
+        const user = localStorage.getItem('user') || sessionStorage.getItem('user');
+        console.log('Utilisateur trouvé:', user)
+        
         if (!user && to.path !== '/login') {
             next('/login');
             return;
@@ -86,15 +93,9 @@ router.beforeEach(async (to, from, next) => {
             return;
         }
 
-        // Si l'utilisateur est authentifié et essaie d'accéder à une route protégée
-        if (to.meta.requiresAuth && !user) {
-            next('/login');
-            return;
-        }
-
         next();
     } catch (error) {
-        console.error('Erreur lors de la vérification du premier lancement:', error);
+        console.error('Erreur lors de la vérification:', error);
         next('/login');
     }
 });
