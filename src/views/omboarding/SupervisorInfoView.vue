@@ -148,7 +148,6 @@ async function goNext() {
     });
 
     if (result.success) {
-      ElMessage.success('Superviseur créé avec succès');
       emit('configuration-saved', {
         username: formData.value.username,
         createdAt: new Date().toISOString()

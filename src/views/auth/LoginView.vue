@@ -35,22 +35,28 @@ const handleLogin = async () => {
     })
 
     if (result.success) {
-      // Stocker les informations de l'utilisateur si "Se souvenir de moi" est coché
-      if (rememberMe.value) {
-        localStorage.setItem('user', JSON.stringify(result.data))
-      } else {
-        // Si "Se souvenir de moi" n'est pas coché, stocker quand même temporairement
-        sessionStorage.setItem('user', JSON.stringify(result.data))
+      // Stocker les informations de l'utilisateur
+      const userData = {
+        id: result.data.id,
+        username: result.data.username
       }
       
-      ElMessage({
-        message: 'Connexion réussie',
-        type: 'success',
-        duration: 2000,
-        onClose: () => {
-          // Rediriger vers le dashboard
-          window.location.href = '/onboarding'
-        }
+      if (rememberMe.value) {
+        localStorage.setItem('user', JSON.stringify(userData))
+      } else {
+        sessionStorage.setItem('user', JSON.stringify(userData))
+      }
+      
+      // Utiliser router.push avec un callback pour s'assurer que la navigation est terminée
+      router.push('/').then(() => {
+        ElMessage({
+          message: 'Connexion réussie',
+          type: 'success'
+        })
+      }).catch((err) => {
+        console.error('Erreur de navigation:', err)
+        // Si la navigation échoue, forcer le rechargement
+        window.location.href = '/'
       })
     } else {
       ElMessage.error(result.message || 'Erreur de connexion')
@@ -100,7 +106,6 @@ const handleLogin = async () => {
 
         <div class="form-options">
           <el-checkbox v-model="rememberMe">Se souvenir de moi</el-checkbox>
-          <el-button link type="primary">Mot de passe oublié ?</el-button>
         </div>
 
         <div class="form-actions">

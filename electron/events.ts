@@ -1,5 +1,4 @@
 import {  ipcMain } from "electron";
-
 import { GradeService } from "./backend/services/gradeService";
 import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "./command/settingsCommand";
 import { CourseService } from "./backend/services/courseService";
@@ -25,6 +24,8 @@ import { BackupService } from './backend/services/backupService';
 import { IAbsenceServiceParams } from './backend/types/absence';
 import { ConfigService } from './backend/services/configService';
 import { AuthService } from './backend/services/authService';
+import * as licenseService from './backend/services/licenseService';
+
 const global = {
     gradeService: new GradeService(),
     courseService: new CourseService(),
@@ -1854,4 +1855,57 @@ ipcMain.handle('school:saveSettings', async (_event: Electron.IpcMainInvokeEvent
   } catch (error) {
     return handleError(error, 'Erreur lors de la sauvegarde des paramètres de l\'école');
   }
+});
+
+// --- License Service Handlers ---
+ipcMain.handle("license:generateMachineId", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+    try {
+        const machineId = licenseService.generateMachineId();
+        return {
+            success: true,
+            data: machineId,
+            message: 'Machine ID généré avec succès',
+            error: null
+        };
+    } catch (error) {
+        return handleError(error, 'Erreur lors de la génération du Machine ID');
+    }
+});
+
+ipcMain.handle("license:activate", async (_event: Electron.IpcMainInvokeEvent, licenseCode: string): Promise<ResultType> => {
+    try {
+        if (!licenseCode || typeof licenseCode !== 'string') {
+            return {
+                success: false,
+                data: null,
+                message: 'Code de licence invalide fourni.',
+                error: 'INVALID_LICENSE_CODE'
+            };
+        }
+        const success = await licenseService.activateLicense(licenseCode);
+        return {
+            success: success,
+            data: null,
+            message: success ? 'Licence activée avec succès' : 'Échec de l\'activation de la licence',
+            error: success ? null : 'ACTIVATION_FAILED'
+        };
+    } catch (error) {
+        return handleError(error, 'Erreur lors de l\'activation de la licence');
+    }
+});
+
+ipcMain.handle("license:isValid", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+    try {
+        const isValid = await licenseService.isLicenseValid();
+        return {
+            success: true, // The operation of checking itself was successful
+            data: isValid, // This holds the boolean result of the check
+            message: isValid ? 'La licence est valide' : 'La licence est invalide ou absente',
+            error: null
+        };
+    } catch (error) {
+        // This catch block is for errors during the process of checking,
+        // not for the license being invalid.
+        return handleError(error, 'Erreur lors de la vérification de la validité de la licence');
+    }
 });

@@ -21,6 +21,7 @@ import { VacationEntity } from "./backend/entities/vacation";
 import { ScholarshipEntity } from "./backend/entities/scholarship";
 import { PreferenceEntity } from "./backend/entities/preference";
 import { GradeConfigEntity } from "./backend/entities/gradeConfig";
+import { License } from "./backend/entities/licence";
 import fs from 'fs';
 
 // Liste de toutes les entités
@@ -49,7 +50,8 @@ const entities = [
     ScholarshipEntity,
     PreferenceEntity,
     GradeConfigEntity,
-    SchoolSettingsEntity
+    SchoolSettingsEntity,
+    License
 ];
 
 export class AppDataSource {

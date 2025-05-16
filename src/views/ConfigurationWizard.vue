@@ -31,7 +31,7 @@ import CourseView from './omboarding/CourseView.vue';
 import LanguageSettingView from './omboarding/LanguageSettingView.vue';
 import PayementConfigurationView from './omboarding/PayementConfigurationView.vue';
 import SupervisorInfoView from './omboarding/SupervisorInfoView.vue';
-
+import LicenseView from './omboarding/LicenseView.vue';
 const router = useRouter();
 const currentStep = ref(0);
 
@@ -45,7 +45,8 @@ const configViewsKeys = ref([
   'Course',
   'LanguageSetting',
   'PayementConfiguration',
-  'SupervisorInfo'
+  'SupervisorInfo',
+  'License'
 ]);
 
 // Titres français
@@ -60,7 +61,8 @@ const viewComponents = {
   Course: CourseView,
   LanguageSetting: LanguageSettingView,
   PayementConfiguration: PayementConfigurationView,
-  SupervisorInfo: SupervisorInfoView
+  SupervisorInfo: SupervisorInfoView,
+  License: LicenseView
 };
 
 // --- Computed Properties ---
@@ -135,7 +137,12 @@ const finishConfiguration = async () => {
       duration: 2000,
       onClose: () => {
         // Rediriger vers la page d'accueil après le message de succès
-        window.location.href = '/';
+        router.push('/').then(() => {
+        ElMessage({
+          message: 'Connexion réussie',
+          type: 'success'
+        })
+      })
       }
     });
   } catch (error) {
