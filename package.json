@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build && electron-builder",
+    "build:electron": "tsc -p tsconfig.node.json",
+    "build:frontend": "vue-tsc --noEmit && vite build",
+    "build": "npm run build:electron && npm run build:frontend && electron-builder",
     "preview": "vite preview",
     "test:unit": "vitest --environment jsdom",
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
@@ -57,8 +59,47 @@
     "vue-chartjs": "^5.3.2",
     "vue-html-to-paper": "^2.0.3",
     "vue-router": "^4.3.0",
-    "vue-tsc": "^2.1.10",
+    "vue-tsc": "^2.2.10",
     "xlsx": "^0.18.5"
   },
-  "main": "dist-electron/main.js"
+  "main": "dist-electron/main.js",
+  "build": {
+    "appId": "com.exemple.eschool",
+    "productName": "eSchool",
+    "copyright": "Copyright © annee VotreNomOuSociete",
+    "directories": {
+      "output": "release/",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
 }

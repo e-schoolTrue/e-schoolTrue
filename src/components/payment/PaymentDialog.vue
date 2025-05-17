@@ -8,7 +8,7 @@
     <div class="dialog-content">
       <div class="left-column">
     <div class="student-header">
-      <el-avatar :size="50" :src="student?.photo?.path">
+      <el-avatar :size="50" :src="student?.photo?.url">
         {{ getInitials() }}
       </el-avatar>
       <div class="student-info">
@@ -51,16 +51,16 @@
           <h4>Aperçu du paiement</h4>
           <div class="preview-content">
             <div class="preview-item">
-              <span>Montant:</span>
+              <span>Montant saisi:</span>
               <strong><currency-display :amount="form.amount" /></strong>
             </div>
-            <div v-if="form.hasScholarship" class="preview-item scholarship">
+            <div v-if="form.hasScholarship && form.scholarshipPercentage" class="preview-item scholarship">
               <span>Bourse appliquée:</span>
               <strong>-{{ form.scholarshipPercentage }}%</strong>
             </div>
             <div class="preview-item total">
-              <span>Total à payer:</span>
-              <strong><currency-display :amount="getAdjustedAmount()" /></strong>
+              <span>Total à payer (ce versement):</span>
+              <strong><currency-display :amount="getAdjustedAmountForCurrentPayment()" /></strong>
             </div>
           </div>
         </div>
@@ -74,35 +74,35 @@
       label-width="140px"
       class="payment-form"
     >
-      <el-form-item label="Montant" prop="amount">
+      <el-form-item label="Montant à payer" prop="amount">
         <el-input-number
           v-model="form.amount"
           :min="0"
-          :max="getMaxAmount"
+          :max="getMaxAmountToPay"
           :step="1000"
           class="w-full"
+          controls-position="right"
         >
           <template #suffix>{{ currency }}</template>
         </el-input-number>
-        <small v-if="form.scholarshipPercentage" class="amount-info">
-          Montant initial: <currency-display :amount="config?.annualAmount || 0" />
-          <br>
-          Réduction: {{ form.scholarshipPercentage }}%
+        <small v-if="form.hasScholarship && form.scholarshipPercentage && config?.annualAmount" class="amount-info">
+          Montant annuel total (après bourse): <currency-display :amount="getAdjustedAnnualAmount()" />
         </small>
       </el-form-item>
 
       <el-form-item label="Type" prop="type">
-        <el-select v-model="form.type" class="w-full">
+        <el-select v-model="form.type" class="w-full" placeholder="Sélectionner un type">
           <el-option label="Frais de scolarité" value="tuition" />
           <el-option label="Frais d'inscription" value="registration" />
           <el-option label="Uniforme" value="uniform" />
           <el-option label="Transport" value="transport" />
           <el-option label="Cantine" value="cafeteria" />
+          <el-option label="Autre" value="other" />
         </el-select>
       </el-form-item>
 
       <el-form-item label="Mode de paiement" prop="paymentMethod">
-        <el-select v-model="form.paymentMethod" class="w-full">
+        <el-select v-model="form.paymentMethod" class="w-full" placeholder="Sélectionner un mode">
           <el-option label="Espèces" value="cash" />
           <el-option label="Chèque" value="check" />
           <el-option label="Virement" value="transfer" />
@@ -113,7 +113,7 @@
       <el-form-item label="Référence" prop="reference">
         <el-input
           v-model="form.reference"
-          placeholder="Numéro de chèque, référence de transaction..."
+          placeholder="Numéro de chèque, transaction ID..."
         />
       </el-form-item>
 
@@ -130,7 +130,8 @@
         <div class="scholarship-section">
           <el-switch
             v-model="form.hasScholarship"
-            active-text="Activer la bourse"
+            active-text="Appliquer une bourse sur le montant annuel"
+            @change="handleScholarshipSwitchChange"
           />
           
           <template v-if="form.hasScholarship">
@@ -138,6 +139,9 @@
               v-model="form.scholarshipPercentage"
               placeholder="Sélectionner le pourcentage"
               class="scholarship-select"
+              clearable
+              style="margin-top: 10px; width: 100%;"
+              @change="recalculateMaxAmount"
             >
               <el-option
                 v-for="percentage in config.scholarshipPercentages"
@@ -147,13 +151,13 @@
               />
             </el-select>
 
-            <div class="scholarship-info" v-if="form.scholarshipPercentage">
-              <p>Montant initial: <currency-display :amount="config.annualAmount" /></p>
+            <div class="scholarship-info" v-if="form.scholarshipPercentage && config?.annualAmount">
+              <p>Montant annuel initial: <currency-display :amount="config.annualAmount" /></p>
               <p class="reduction">
-                Réduction: -<currency-display :amount="getScholarshipAmount()" />
+                Réduction de bourse: -<currency-display :amount="getScholarshipReductionAmountOnAnnual()" />
               </p>
               <p class="final-amount">
-                Montant après bourse: <currency-display :amount="getAdjustedAmount()" />
+                Montant annuel après bourse: <currency-display :amount="getAdjustedAnnualAmount()" />
               </p>
             </div>
           </template>
@@ -170,18 +174,18 @@
         :loading="loading"
         @click="handleSubmit"
       >
-        Enregistrer
+        Enregistrer le paiement
       </el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import { Student } from '@/types/card';
-import { PaymentConfig } from '@/types/payment';
+import { PaymentConfig, IPaymentData, StudentPaymentData } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
 
@@ -212,31 +216,43 @@ interface PaymentForm {
   scholarshipPercentage: number | null;
 }
 
-const form = ref<PaymentForm>({
+const initialFormState = (): PaymentForm => ({
   amount: 0,
   type: 'tuition',
   paymentMethod: 'cash',
   reference: '',
   comment: '',
-  hasScholarship: props.student?.scholarshipPercentage ? true : false,
-  scholarshipPercentage: props.student?.scholarshipPercentage || null
+  hasScholarship: false,
+  scholarshipPercentage: null,
 });
+
+const form = ref<PaymentForm>(initialFormState());
 
 const rules: FormRules = {
   amount: [
     { required: true, message: 'Veuillez saisir un montant', trigger: 'blur' },
-    { type: 'number', min: 1, message: 'Le montant doit être supérieur à 0', trigger: 'blur' }
+    { type: 'number', min: 0.01, message: 'Le montant doit être supérieur à 0', trigger: 'blur' }
   ],
   type: [
     { required: true, message: 'Veuillez sélectionner un type', trigger: 'change' }
   ],
   paymentMethod: [
     { required: true, message: 'Veuillez sélectionner un mode de paiement', trigger: 'change' }
+  ],
+  scholarshipPercentage: [
+    { validator: (_rule, value, callback) => {
+        if (form.value.hasScholarship && (value === null || value === undefined || value <=0)) {
+          callback(new Error('Veuillez sélectionner un pourcentage de bourse valide'));
+        } else {
+          callback();
+        }
+      }, trigger: 'change'
+    }
   ]
 };
 
 
-interface PaymentData {
+interface PaymentDataToSend {
   studentId: number;
   amount: number;
   paymentType: string;
@@ -245,10 +261,11 @@ interface PaymentData {
   comment?: string;
   installmentNumber: number;
   schoolYear: string;
-  scholarshipPercentage: number;
-  scholarshipAmount: number;
-  adjustedAmount: number;
-  baseAmount: number;
+  scholarshipAppliedOnAnnual: boolean;
+  annualScholarshipPercentage?: number;
+  annualScholarshipAmount?: number;
+  annualAmountAfterScholarship?: number;
+  baseAnnualAmount?: number;
 }
 
 const dialogTitle = computed(() => {
@@ -258,9 +275,8 @@ const dialogTitle = computed(() => {
 const totalPaid = ref(0);
 
 const remainingAmount = computed(() => {
-  const annualAmount = props.config?.annualAmount || 0;
-  const paid = totalPaid.value || 0;
-  return Math.max(0, annualAmount - paid);
+  const adjustedAnnual = getAdjustedAnnualAmount();
+  return Math.max(0, adjustedAnnual - totalPaid.value);
 });
 
 const getInitials = () => {
@@ -268,24 +284,36 @@ const getInitials = () => {
   return `${props.student.firstname[0]}${props.student.lastname[0]}`.toUpperCase();
 };
 
+const getAdjustedAnnualAmount = () => {
+  if (!props.config?.annualAmount) return 0;
+  const baseAnnual = props.config.annualAmount;
+  if (form.value.hasScholarship && form.value.scholarshipPercentage) {
+    return baseAnnual * (1 - form.value.scholarshipPercentage / 100);
+  }
+  return baseAnnual;
+};
+
+const getScholarshipReductionAmountOnAnnual = () => {
+  if (!form.value.hasScholarship || !form.value.scholarshipPercentage || !props.config?.annualAmount) {
+    return 0;
+  }
+  return (props.config.annualAmount * form.value.scholarshipPercentage) / 100;
+};
+
+const getAdjustedAmountForCurrentPayment = () => {
+  return form.value.amount;
+};
+
 const handleSubmit = async () => {
   if (!formRef.value) return;
   
   try {
-    await formRef.value.validate();
+    const isValid = await formRef.value.validate();
+    if (!isValid) return;
+
     loading.value = true;
 
-    const adjustedAmount = getAdjustedAmount();
-    const scholarshipPercentage = form.value.hasScholarship ? Number(form.value.scholarshipPercentage) : 0;
-    const scholarshipAmount = getScholarshipAmount();
-
-    console.log('=== Vérification des données de bourse ===');
-    console.log('Form hasScholarship:', form.value.hasScholarship);
-    console.log('Form scholarshipPercentage:', form.value.scholarshipPercentage);
-    console.log('Calculated scholarshipAmount:', scholarshipAmount);
-    console.log('Calculated adjustedAmount:', adjustedAmount);
-
-    const paymentData: PaymentData = {
+    const paymentDataToSend: PaymentDataToSend = {
       studentId: props.student?.id ?? 0,
       amount: form.value.amount,
       paymentType: form.value.type,
@@ -293,23 +321,20 @@ const handleSubmit = async () => {
       reference: form.value.reference,
       comment: form.value.comment,
       installmentNumber: 1,
-      schoolYear: new Date().getFullYear().toString(),
-      scholarshipPercentage: scholarshipPercentage,
-      scholarshipAmount: scholarshipAmount,
-      adjustedAmount: adjustedAmount,
-      baseAmount: props.config?.annualAmount || 0
+      schoolYear: props.config?.classId.split('-')[1] || new Date().getFullYear().toString(),
+      
+      scholarshipAppliedOnAnnual: form.value.hasScholarship && !!form.value.scholarshipPercentage,
+      annualScholarshipPercentage: form.value.hasScholarship ? form.value.scholarshipPercentage || 0 : 0,
+      annualScholarshipAmount: form.value.hasScholarship ? getScholarshipReductionAmountOnAnnual() : 0,
+      annualAmountAfterScholarship: form.value.hasScholarship ? getAdjustedAnnualAmount() : props.config?.annualAmount || 0,
+      baseAnnualAmount: props.config?.annualAmount || 0,
     };
 
-    console.log('=== Données finales du paiement ===');
-    console.log(JSON.stringify(paymentData, null, 2));
+    console.log('Données finales du paiement envoyées:', JSON.stringify(paymentDataToSend, null, 2));
 
-    const result = await window.ipcRenderer.invoke('payment:create', paymentData);
+    const result = await window.ipcRenderer.invoke('payment:create', paymentDataToSend);
 
     if (result?.success) {
-      console.log('=== Résultat de la création du paiement ===');
-      console.log('Succès:', result);
-      console.log('============================');
-      
       ElMessage.success('Paiement enregistré avec succès');
       emit('payment-added');
       handleClose();
@@ -324,97 +349,95 @@ const handleSubmit = async () => {
   }
 };
 
+const resetForm = () => {
+  form.value = initialFormState();
+  if (props.config?.allowScholarship && studentScholarshipPercentageFromLoad.value) {
+      form.value.hasScholarship = true;
+      form.value.scholarshipPercentage = studentScholarshipPercentageFromLoad.value;
+  }
+  nextTick(() => {
+    formRef.value?.clearValidate();
+  });
+};
+
 const handleClose = () => {
-  formRef.value?.resetFields();
+  resetForm();
   dialogVisible.value = false;
 };
 
-const getMaxAmount = computed(() => {
-  if (!props.config?.annualAmount) return 0;
-  
-  const baseAmount = props.config.annualAmount;
-  if (!form.value.scholarshipPercentage) return baseAmount;
-  
-  return baseAmount * (1 - form.value.scholarshipPercentage / 100);
+const getMaxAmountToPay = computed(() => {
+  return remainingAmount.value;
 });
 
-const getScholarshipAmount = () => {
-  if (!form.value.hasScholarship || !form.value.scholarshipPercentage || !props.config?.annualAmount) {
-    return 0;
+const handleScholarshipSwitchChange = (isActive: boolean) => {
+  if (!isActive) {
+    form.value.scholarshipPercentage = null;
   }
-  return (props.config.annualAmount * form.value.scholarshipPercentage) / 100;
+  else if (studentScholarshipPercentageFromLoad.value) {
+     form.value.scholarshipPercentage = studentScholarshipPercentageFromLoad.value;
+  }
+  recalculateMaxAmount();
 };
 
-const getAdjustedAmount = () => {
-  console.log('=== Calcul du montant ajusté ===');
-  if (!props.config?.annualAmount) {
-    console.log('Pas de montant annuel configuré');
-    return 0;
-  }
-  
-  const baseAmount = props.config.annualAmount;
-  console.log('Montant de base:', baseAmount);
-  
-  if (!form.value.hasScholarship || !form.value.scholarshipPercentage) {
-    console.log('Pas de bourse appliquée');
-    return baseAmount;
-  }
-  
-  const scholarshipAmount = getScholarshipAmount();
-  const adjustedAmount = baseAmount - scholarshipAmount;
-  
-  console.log('Bourse activée:', form.value.hasScholarship);
-  console.log('Pourcentage de bourse:', form.value.scholarshipPercentage);
-  console.log('Montant de la réduction:', scholarshipAmount);
-  console.log('Montant ajusté final:', adjustedAmount);
-  
-  return adjustedAmount;
+const recalculateMaxAmount = () => {
+  // This function is called by the @change of the percentage select
+  // It doesn't need to do much here as getMaxAmountToPay is a computed property
+  // which already depends on form.scholarshipPercentage and totalPaid.
+  // Force an update if necessary, but Vue should do it automatically.
 };
 
-// Ajouter un watcher pour voir les valeurs
 watch(() => props.config, (newConfig) => {
   console.log('Config reçue dans le dialogue:', newConfig);
-  console.log('allowScholarship:', newConfig?.allowScholarship);
-  console.log('scholarshipPercentages:', newConfig?.scholarshipPercentages);
-}, { immediate: true });
+}, { immediate: true, deep: true });
 
 const { currency } = useCurrency();
 
-// Mettre à jour la fonction loadPaymentData
+const studentScholarshipPercentageFromLoad = ref<number | null>(null);
+
 const loadPaymentData = async () => {
+  loading.value = true;
+  totalPaid.value = 0;
+  studentScholarshipPercentageFromLoad.value = null;
+  resetForm();
+
   try {
     if (!props.student?.id) return;
     
-    const result = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
-    console.log('Résultat des paiements:', result);
+    const result: { success: boolean, data: StudentPaymentData | null, message?: string } = 
+      await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
     
     if (result.success && result.data) {
-      // Récupérer les paiements
       const payments = Array.isArray(result.data.payments) ? result.data.payments : [];
-      
-      // Calculer le total payé
-      totalPaid.value = payments.reduce((sum, payment) => {
+      totalPaid.value = payments.reduce((sum: number, payment: IPaymentData) => {
         return sum + (Number(payment.amount) || 0);
       }, 0);
       
-      console.log('Total payé:', totalPaid.value);
-      
-      // Appliquer les informations de bourse si disponibles
-      if (result.data.scholarshipPercentage > 0) {
+      if (props.config?.allowScholarship && result.data.scholarshipPercentage > 0) {
+        studentScholarshipPercentageFromLoad.value = result.data.scholarshipPercentage;
         form.value.hasScholarship = true;
         form.value.scholarshipPercentage = result.data.scholarshipPercentage;
       }
+    } else {
+      console.warn("Impossible de charger les données de paiement:", result.message)
     }
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);
+    ElMessage.error('Erreur lors du chargement des données de paiement.');
+  } finally {
+    loading.value = false;
   }
 };
 
-// Appeler loadPaymentData quand le dialogue s'ouvre
 watch(() => props.visible, (newValue) => {
-  if (newValue) {
+  if (newValue && props.student) {
     loadPaymentData();
+  } else if (!newValue) {
+    resetForm();
   }
+}, { immediate: true });
+
+watch(() => props.config?.annualAmount, () => {
+    recalculateMaxAmount();
 });
 
 </script>
@@ -428,74 +451,49 @@ watch(() => props.visible, (newValue) => {
   overflow: hidden;
 }
 
+.left-column, .right-column {
+  overflow-y: auto;
+  padding: 5px;
+}
+
 .left-column {
   padding-right: 24px;
   border-right: 1px solid var(--el-border-color-lighter);
-  overflow-y: auto;
-}
-
-.right-column {
-  overflow-y: auto;
 }
 
 .payment-dialog :deep(.el-dialog__body) {
-  padding: 20px;
+  padding-top: 10px;
+  padding-bottom: 10px;
   overflow: hidden;
 }
 
 .student-header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.student-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .student-info h3 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.matricule, .grade {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
+  font-size: 1.1em;
 }
 
 .payment-summary {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .summary-card {
-  background-color: var(--el-fill-color-lighter);
-  padding: 12px;
-  border-radius: 8px;
-  text-align: center;
+  padding: 10px;
 }
 
 .summary-card .label {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-  margin-bottom: 8px;
+  font-size: 0.85em;
 }
 
 .summary-card .value {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.summary-card .value.success {
-  color: var(--el-color-success);
-}
-
-.summary-card .value.warning {
-  color: var(--el-color-warning);
+  font-size: 1em;
 }
 
 .payment-form {
@@ -503,44 +501,37 @@ watch(() => props.visible, (newValue) => {
 }
 
 .payment-preview {
-  margin-top: 24px;
-  padding: 16px;
-  background-color: var(--el-fill-color-lighter);
-  border-radius: 8px;
+  margin-top: 20px;
+  padding: 12px;
 }
 
 .payment-preview h4 {
-  margin: 0 0 12px 0;
-  color: var(--el-text-color-primary);
-}
-
-.preview-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.preview-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.preview-item.scholarship {
-  color: var(--el-color-success);
-}
-
-.preview-item.total {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  font-size: 16px;
+  margin-bottom: 10px;
 }
 
 .scholarship-section {
   background-color: var(--el-fill-color-lighter);
-  padding: 16px;
-  border-radius: 8px;
-  margin-top: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+
+.scholarship-info p {
+  margin: 6px 0;
+  font-size: 0.9em;
+}
+
+.scholarship-select {
+  width: 100%;
+  margin-top: 10px;
+}
+.w-full {
+  width: 100%;
+}
+.amount-info {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.8em;
+  color: var(--el-text-color-secondary);
 }
 </style> 

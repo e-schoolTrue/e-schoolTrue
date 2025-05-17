@@ -4,7 +4,7 @@
     <div class="report-banner">
       <div class="banner-content">
         <div class="school-brand">
-          <img v-if="schoolInfo?.logo?.url" :src="schoolInfo.logo.url" alt="Logo" class="school-logo">
+          <img v-if="schoolInfo?.logo?.content && schoolInfo?.logo?.type" :src="`data:${schoolInfo.logo.type};base64,${schoolInfo.logo.content}`" alt="Logo" class="school-logo">
           <div class="school-info">
             <h1>{{ schoolInfo?.name }}</h1>
             <div class="school-contact">
@@ -268,13 +268,13 @@ const initChart = () => {
     datasets: [
       {
         label: 'Notes de l\'élève',
-        data: props.grades.map(g => g.average),
+        data: props.grades.map(g => g.average === undefined ? null : g.average),
         borderColor: '#4CAF50',
         backgroundColor: 'rgba(76, 175, 80, 0.2)',
       },
       {
         label: 'Moyenne de classe',
-        data: props.grades.map(g => g.classAverage),
+        data: props.grades.map(g => g.classAverage === undefined ? null : g.classAverage),
         borderColor: '#2196F3',
         backgroundColor: 'rgba(33, 150, 243, 0.2)',
       }

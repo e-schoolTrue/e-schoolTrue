@@ -38,6 +38,6 @@
     "electron",
     "auto-imports.d.ts",
     "node_modules/unplugin-auto-import/auto-imports.d.ts"
-, "app"  ],
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

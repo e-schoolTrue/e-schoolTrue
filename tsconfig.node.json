@@ -13,17 +13,19 @@
     "paths": {
       "#electron/*": ["electron/*"]
     },
-    "types": ["electron"] // ✅ Important pour éviter l'erreur sur "Electron"
+    "types": ["electron", "node"], // Ajout de "node" pour être sûr
+    "declaration": true,          // Générer les fichiers .d.ts
+    "emitDeclarationOnly": false,   // Générer .js et .d.ts (ou true si seul .d.ts est voulu et qu'un autre outil gère le JS)
+    "outDir": "dist-electron",    // Répertoire de sortie pour les fichiers compilés
+    "noEmit": false,              // S'assurer que les fichiers sont émis
+    "target": "ES2022",           // Assurez-vous que la cible est compatible
+    "lib": ["ES2020"]             // Libs pour l'environnement Node
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
-    "electron",
-    "electron/**/*.ts",
-    "electron/**/*.tsx",
-    "auto-imports.d.ts",
-    "node_modules/unplugin-auto-import/auto-imports.d.ts",
-    "vite.config.ts"
-, "app"  ]
+    "electron/**/*.ts" // Cibler uniquement les fichiers du backend Electron
+  ],
+  "exclude": [ // Optionnel: exclure les fichiers de test ou autres si nécessaire
+    "node_modules",
+    "dist" 
+  ]
 }

@@ -197,6 +197,15 @@ interface Vacation {
   comment?: string;
 }
 
+interface VacationPayload {
+  id?: number;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  studentId: number;
+}
+
 // États
 const loading = ref(false);
 const saving = ref(false);
@@ -297,7 +306,8 @@ const saveVacation = async () => {
   saving.value = true;
   try {
     const [startDate, endDate] = form.value.dateRange;
-    const data = {
+    
+    const dataToSend: VacationPayload = {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(), 
       reason: form.value.reason,
@@ -305,16 +315,14 @@ const saveVacation = async () => {
       studentId: form.value.studentId
     };
 
-    // Si on est en mode édition, inclure l'ID
     if (isEditing.value && selectedVacation.value) {
-      data.id = selectedVacation.value.id;
+      dataToSend.id = selectedVacation.value.id;
     }
 
-    // Utiliser l'endpoint approprié selon qu'on crée ou édite
     const endpoint = isEditing.value ? 'vacation:update' : 'vacation:create';
-    console.log(`Appel IPC: ${endpoint}`, data);
+    console.log(`Appel IPC: ${endpoint}`, dataToSend);
     
-    const result = await window.ipcRenderer.invoke(endpoint, data);
+    const result = await window.ipcRenderer.invoke(endpoint, dataToSend);
 
     if (result.success) {
       ElMessage.success(isEditing.value ? 'Demande modifiée' : 'Demande soumise');

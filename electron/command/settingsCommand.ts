@@ -1,4 +1,4 @@
-import {GradeEntity} from "#electron/backend/entities/grade.ts";
+import {GradeEntity} from "#electron/backend/entities/grade";
 
 class SettingCommand {
     id?: number;

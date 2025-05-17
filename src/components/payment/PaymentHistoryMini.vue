@@ -89,9 +89,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watchEffect } from 'vue';
+import { ref, watchEffect } from 'vue';
 import { ElMessage } from 'element-plus';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import type { IPaymentData } from '@/types/payment';
 
 interface Props {
   student: any;
@@ -99,7 +100,7 @@ interface Props {
 
 const props = defineProps<Props>();
 const loading = ref(false);
-const paymentData = ref([]);
+const paymentData = ref<IPaymentData[]>([]);
 const totalPaid = ref(0);
 const annualAmount = ref(0);
 const remainingAmount = ref(0);
@@ -146,40 +147,45 @@ const loadPayments = async () => {
     if (!props.student?.id) return;
     
     loading.value = true;
-    const result = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
+    const result: { success: boolean; data?: { payments: IPaymentData[] | undefined; baseAmount?: number; adjustedAmount?: number; /* autres champs de StudentPaymentData */ } } 
+      = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
 
     if (!result.success || !result.data) {
-      console.warn('Aucun paiement trouvé pour cet étudiant');
+      console.warn('Aucun paiement trouvé pour cet étudiant ou erreur de service');
       paymentData.value = [];
+      totalPaid.value = 0;
+      annualAmount.value = 0;
+      adjustedAnnualAmount.value = 0;
+      remainingAmount.value = 0;
       return;
     }
 
     const { 
       payments = [], 
       baseAmount = 0, 
-      scholarshipAmount = 0,
-      adjustedAmount = 0,
-      scholarshipPercentage = 0 
+      adjustedAmount = 0
     } = result.data;
     
-    // Mettre à jour les montants avec la bourse
     annualAmount.value = Number(baseAmount);
     adjustedAnnualAmount.value = Number(adjustedAmount) || Number(baseAmount);
     
-    // Calculer le total payé
     if (Array.isArray(payments)) {
       paymentData.value = payments;
-      totalPaid.value = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      totalPaid.value = payments.reduce((sum: number, p: IPaymentData) => sum + Number(p.amount || 0), 0);
     } else {
       paymentData.value = [];
       totalPaid.value = 0;
     }
     
-    // Calculer le reste à payer en utilisant le montant ajusté
     remainingAmount.value = Math.max(0, adjustedAnnualAmount.value - totalPaid.value);
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);
     ElMessage.error('Erreur lors du chargement des paiements');
+    paymentData.value = [];
+    totalPaid.value = 0;
+    annualAmount.value = 0;
+    adjustedAnnualAmount.value = 0;
+    remainingAmount.value = 0;
   } finally {
     loading.value = false;
   }

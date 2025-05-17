@@ -15,7 +15,7 @@ const form = reactive<ClassRoomCommand>({
   name:"",
   code:"",
   capacity: 0,
-  gradeId: undefined
+  gradeId: 0
 })
 const formRule = reactive<FormRules<ClassRoomCommand>>({
   code:[
@@ -28,7 +28,8 @@ const formRule = reactive<FormRules<ClassRoomCommand>>({
     {required:true , message:"ce champ est requis" , trigger:"blur"}
   ],
   gradeId:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+    {required:true , message:"ce champ est requis" , trigger:"blur"},
+    { type: 'number', min: 1, message: 'Veuillez sélectionner un niveau valide', trigger: 'change', transform: (value) => Number(value) }
   ]
 })
 function open(classRoom?:ClassRoomEntity){
@@ -37,7 +38,7 @@ function open(classRoom?:ClassRoomEntity){
   form.name=classRoom?.name || ""
   form.code=classRoom?.code || ""
   form.capacity=classRoom?.capacity || 0
-  form.gradeId=classRoom?.grade?.id
+  form.gradeId=classRoom?.grade?.id ?? 0
 }
 function close(){
   dialogVisible.value = false
@@ -76,10 +77,10 @@ defineExpose({
         <el-input v-model="form.name" />
       </el-form-item>
       <el-form-item label="Capacité" prop="capacity">
-        <el-input v-model="form.capacity" type="number" />
+        <el-input v-model.number="form.capacity" type="number" />
       </el-form-item>
       <el-form-item label="Niveau" prop="gradeId">
-        <el-select v-model="form.gradeId" no-data-text="aucun niveau trouvé">
+        <el-select v-model="form.gradeId" placeholder="Sélectionner un niveau" no-data-text="aucun niveau trouvé" style="width: 100%;">
           <el-option
               v-for="grade in props.grades"
               :key="grade.id"

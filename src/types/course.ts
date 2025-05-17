@@ -66,6 +66,13 @@ export type CourseGroupFormData = ICourseGroupFormData;
 export type ApiResponse<T> = IApiResponse<T>;
 export type CourseResponse = IApiResponse<ICourse[]>;
 export type CourseGroupResponse = IApiResponse<ICourse[]>;
-export type CourseCommand = ICourseBase;
-export type CourseGroupCommand = ICourseBase & { groupementId?: number; isInGroupement?: boolean; };
+export type CourseCommand = ICourseBase & { 
+  isInGroupement?: boolean; 
+  groupementId?: number; 
+};
+export type CourseGroupCommand = ICourseBase & { 
+  groupementId?: number; 
+  groupement?: ICourseBase; // Pour stocker les informations de base du parent
+  isInGroupement?: boolean; 
+};
 export type CourseObservation = ICourseObservation;
