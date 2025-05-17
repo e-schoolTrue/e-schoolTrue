@@ -171,7 +171,6 @@ onMounted(fetchCourses);
         <el-table-column prop="name" label="Matière" />
         <el-table-column prop="code" label="Code" width="120" />
         <el-table-column prop="coefficient" label="Coefficient" width="120" />
-        <el-table-column prop="weeklyHours" label="Heures/Semaine" width="150" />
         <el-table-column label="Actions" width="200">
           <template #default="scope">
             <el-button 
@@ -222,7 +221,7 @@ onMounted(fetchCourses);
               v-model="currentCourse.description"
               type="textarea"
               :rows="3"
-              placeholder="Description de la matière"
+              placeholder="Optionnel"
             />
           </el-form-item>
 
@@ -236,15 +235,6 @@ onMounted(fetchCourses);
             />
           </el-form-item>
 
-          <el-form-item label="Volume horaire (heures/semaine)" required>
-            <el-input-number
-              v-model="currentCourse.weeklyHours"
-              :min="1"
-              :max="40"
-              :step="1"
-              class="full-width"
-            />
-          </el-form-item>
         </el-form>
 
         <template #footer>

@@ -14,6 +14,7 @@
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^9.6.0",
+    "dotenv": "^16.5.0",
     "electron-print-preview": "^2.2.0",
     "node-machine-id": "^1.1.12",
     "typeorm": "^0.3.20"

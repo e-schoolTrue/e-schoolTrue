@@ -1,10 +1,11 @@
 <script setup lang="ts">
-
+import LicenseChecker from './components/LicenseChecker.vue'
 </script>
 
 
 <template>
     <RouterView/>
+    <LicenseChecker />
 </template>
 
 <style>

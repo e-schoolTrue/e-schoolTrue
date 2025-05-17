@@ -31,7 +31,6 @@ import CourseView from './omboarding/CourseView.vue';
 import LanguageSettingView from './omboarding/LanguageSettingView.vue';
 import PayementConfigurationView from './omboarding/PayementConfigurationView.vue';
 import SupervisorInfoView from './omboarding/SupervisorInfoView.vue';
-import LicenseView from './omboarding/LicenseView.vue';
 const router = useRouter();
 const currentStep = ref(0);
 
@@ -45,8 +44,7 @@ const configViewsKeys = ref([
   'Course',
   'LanguageSetting',
   'PayementConfiguration',
-  'SupervisorInfo',
-  'License'
+  'SupervisorInfo'
 ]);
 
 // Titres français
@@ -61,8 +59,7 @@ const viewComponents = {
   Course: CourseView,
   LanguageSetting: LanguageSettingView,
   PayementConfiguration: PayementConfigurationView,
-  SupervisorInfo: SupervisorInfoView,
-  License: LicenseView
+  SupervisorInfo: SupervisorInfoView
 };
 
 // --- Computed Properties ---
