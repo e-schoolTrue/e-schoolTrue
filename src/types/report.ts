@@ -1,3 +1,6 @@
+import type { ISchoolData } from '@/types/school';
+
+
 export interface ReportCard {
     id: number;
     studentId: number;
@@ -8,6 +11,8 @@ export interface ReportCard {
     finalGrade: number | null;
     appreciation: string | null;
     createdAt: Date;
+    fileUrl?: string | null;
+
 }
 
 export interface GradeData {
@@ -18,11 +23,21 @@ export interface GradeData {
     exam: number;
     average: number;
     appreciation: string;
+    courseGroup?: string;
+    classAverage?: number;
 }
 
 export interface ReportCardData {
+    schoolInfo?: ISchoolData | null;
+    student?: any | null;
     grades: GradeData[];
+    period: string;
+    rank?: number | string | null;
+    totalStudents?: number | null;
+    observations?: string | null;
+    fileUrl?: string | null;
     generalAverage: number;
+    conduct?: ConductData | null;
 }
 
 export interface GenerateReportCardsInput {
@@ -67,4 +82,11 @@ export interface ReportCardTemplate {
     name: string;
     description: string;
     component: any; // This will be a Vue component type
+}
+
+export interface ConductData {
+    discipline?: string;
+    attendance?: string;
+    workEthic?: string;
+    // ... autres aspects du comportement si nécessaire
 }

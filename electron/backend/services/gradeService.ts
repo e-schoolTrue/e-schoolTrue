@@ -3,11 +3,10 @@ import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/enti
 import {AppDataSource} from "#electron/data-source";
 import {messages} from "#electron/messages";
 import {
-    IGradeServiceResponse,
     GradeCommand,
     BranchCommand,
-    ClassRoomCommand,
-    IClassRoomData} from "../../../src/types/grade";
+    ClassRoomCommand} from "#electron/command/settingsCommand";
+import { IGradeServiceResponse,  IClassRoomData } from "#electron/backend/types/grade";
 
 export class GradeService {
     private gradeRepository: Repository<GradeEntity>;

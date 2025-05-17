@@ -2,27 +2,34 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { CourseFormData, CourseGroupFormData } from '@/types/course';
+import type { ICourseBase, ICourseFormData, ICourseGroupFormData } from '@/types/course';
 
 const props = defineProps<{
   isGroupement?: boolean;
-  initialData?: CourseFormData | CourseGroupFormData;
+  initialData?: ICourseFormData | ICourseGroupFormData;
   groupementId?: number;
 }>();
 
 const emit = defineEmits<{
-  (e: 'submit', data: CourseFormData | CourseGroupFormData): void;
+  (e: 'submit', data: ICourseFormData | ICourseGroupFormData): void;
   (e: 'close'): void;
 }>();
 
 const formRef = ref<FormInstance>();
 const dialogVisible = ref(false);
 
-const form = reactive<CourseFormData | CourseGroupFormData>({
+// Définir une interface locale pour l'état du formulaire qui étend ICourseBase
+// et inclut toujours groupementId comme optionnel pour la réactivité du formulaire.
+interface FormState extends ICourseBase {
+  groupementId?: number; // Rendre groupementId explicitement optionnel ici pour l'état interne du formulaire
+}
+
+const form = reactive<FormState>({
   name: '',
   code: '',
   coefficient: 1,
-  ...(props.isGroupement && { groupementId: props.groupementId })
+  // Initialiser groupementId en fonction de props.isGroupement
+  groupementId: props.isGroupement ? props.groupementId : undefined,
 });
 
 const rules = reactive<FormRules>({
@@ -40,7 +47,7 @@ const rules = reactive<FormRules>({
   ]
 });
 
-const openDialog = (initialData?: CourseFormData | CourseGroupFormData) => {
+const openDialog = (initialData?: ICourseFormData | ICourseGroupFormData) => {
   if (initialData) {
     form.id = initialData.id;
     form.name = initialData.name;
@@ -71,14 +78,29 @@ const handleSubmit = async () => {
 
   try {
     await formRef.value.validate();
-    const formData = {
-      id: form.id,
-      name: form.name,
-      code: form.code,
-      coefficient: form.coefficient,
-      ...(props.isGroupement && form.groupementId && { groupementId: form.groupementId })
-    };
-    emit('submit', formData);
+    let formDataToSend: ICourseFormData | ICourseGroupFormData;
+
+    if (props.isGroupement) {
+      if (typeof form.groupementId !== 'number') { // S'assurer qu'il est défini et est un nombre
+        ElMessage.error('ID de groupement est requis pour un cours groupé.');
+        return;
+      }
+      formDataToSend = { // Ceci correspondra à ICourseGroupFormData
+        id: form.id,
+        name: form.name,
+        code: form.code,
+        coefficient: form.coefficient,
+        groupementId: form.groupementId,
+      };
+    } else {
+      formDataToSend = { // Ceci correspondra à ICourseFormData
+        id: form.id,
+        name: form.name,
+        code: form.code,
+        coefficient: form.coefficient,
+      };
+    }
+    emit('submit', formDataToSend);
     closeDialog();
   } catch (error) {
     ElMessage.error('Veuillez corriger les erreurs dans le formulaire');

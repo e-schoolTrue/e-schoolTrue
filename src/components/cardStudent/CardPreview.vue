@@ -27,7 +27,7 @@
             :min="50"
             :max="150"
             :step="10"
-            :format-tooltip="(value) => `${value}%`"
+            :format-tooltip="(value: number) => `${value}%`"
           />
         </el-tooltip>
       </div>
@@ -53,7 +53,8 @@ import { ref, provide } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { Student, SchoolInfo, ColorScheme } from '@/types';
 
-const props = defineProps<{
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+defineProps<{
   student: Student;
   schoolInfo: SchoolInfo;
   colorScheme: ColorScheme;
