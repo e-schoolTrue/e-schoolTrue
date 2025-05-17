@@ -7,6 +7,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import type { StorageError } from '@supabase/storage-js';
 import { supabaseConfig } from '../../config/supabase';
 import type { Database as SupabaseDatabase } from '../../types/supabase';
+import { randomUUID } from 'crypto';
 
 // Types
 export interface BackupConfig {
@@ -77,6 +78,9 @@ type MockSupabaseClient = {
     insert: (rows: any, options?: any) => Promise<{ data: any[] | null; error: PostgrestError | Error | null }>;
     delete: (options?: any) => any; // Simplified
     upsert: (rows: any, options?: any) => Promise<{ data: any[] | null; error: PostgrestError | Error | null }>;
+  };
+  auth: {
+    getUser: () => Promise<{ data: { user: { id: string } }; error: null }>;
   };
 };
 
@@ -173,6 +177,16 @@ export class BackupService {
         listBuckets: async () => ({ data: [], error: mockError('listBuckets') }),
         createBucket: async (_bucketId: string, _options?: any) => ({ data: null, error: mockError('createBucket') }),
       },
+      auth: {
+        getUser: async () => ({ 
+          data: { 
+            user: { 
+              id: randomUUID() // Générer un UUID unique à chaque fois
+            } 
+          }, 
+          error: null 
+        })
+      },
       from: (_table: string) => ({
         select: (_columns?: string) => ({
           order: () => ({
@@ -231,8 +245,14 @@ export class BackupService {
       const fileSize = stats.size;
 
       // Récupérer l'ID de l'utilisateur actuel depuis Supabase
-      const { data: { user } } = await (this.supabase as SupabaseClient).auth.getUser();
-      const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+      let userId: string;
+      try {
+        const { data: { user } } = await this.supabase.auth.getUser();
+        userId = user?.id || randomUUID();
+      } catch (error) {
+        console.warn('Failed to get user ID, generating new UUID:', error);
+        userId = randomUUID();
+      }
 
       const backupRecord: BackupHistory = {
         id: uniqueId,
@@ -685,6 +705,10 @@ export class BackupService {
 
   async getConfig(): Promise<{ success: boolean; data?: BackupConfig; error?: string }> {
     try {
+      if (!this.backupDir) {
+        throw new Error('Backup service not properly initialized');
+      }
+
       let config = { ...DEFAULT_CONFIG };
       const configPath = path.join(this.backupDir, 'config.json');
       
@@ -722,7 +746,7 @@ export class BackupService {
       return { success: true, data: config };
     } catch (error) {
       console.error('Error getting config:', error);
-      return { success: true, data: { ...DEFAULT_CONFIG } }; // Fallback to default
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
@@ -865,24 +889,50 @@ export class BackupService {
     }
   }
 
+  private initializePaths() {
+    // Initialiser les chemins de base
+    this.backupDir = path.join(app.getPath('userData'), 'backups');
+    this.dbPath = path.join(app.getPath('userData'), 'database.db');
+
+    // Vérifier et créer le dossier de sauvegarde
+    if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true });
+    }
+
+    // Vérifier le chemin de la base de données depuis AppDataSource
+    try {
+        const ds = AppDataSource as any;
+        if (ds && ds.options && typeof ds.options.database === 'string') {
+            this.dbPath = ds.options.database;
+        } else {
+            console.warn('AppDataSource.options.database not found or not a string, using default dbPath:', this.dbPath);
+        }
+    } catch (error) {
+        console.error('Error accessing AppDataSource.options, using default dbPath:', this.dbPath, error);
+    }
+  }
+
   async initialize() {
     try {
-      // Vérifier la disponibilité de Supabase
-      const isAvailable = await this.checkSupabaseAvailability();
-      if (!isAvailable) {
-        console.warn('Supabase is not available, using mock client');
-        this.initializeMockClient();
-        return;
-      }
+        // Initialiser les chemins en premier
+        this.initializePaths();
 
-      // Si Supabase est disponible, on peut continuer avec l'initialisation normale
-      await this.loadConfig();
-      await this.initializeBackupDirectory();
-      await this.cleanupOldBackups();
-      await this.scheduleNextBackup();
+        // Vérifier la disponibilité de Supabase
+        const isAvailable = await this.checkSupabaseAvailability();
+        if (!isAvailable) {
+            console.warn('Supabase is not available, using mock client');
+            this.initializeMockClient();
+            return;
+        }
+
+        // Si Supabase est disponible, continuer avec l'initialisation normale
+        await this.loadConfig();
+        await this.initializeBackupDirectory();
+        await this.cleanupOldBackups();
+        await this.scheduleNextBackup();
     } catch (error) {
-      console.error('Error initializing backup service:', error);
-      throw error;
+        console.error('Error initializing backup service:', error);
+        throw error;
     }
   }
 

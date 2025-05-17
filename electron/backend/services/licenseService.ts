@@ -14,6 +14,20 @@ const getSupabaseClient = () => {
 };
 
 /**
+ * Initialise la table de licence locale
+ */
+export const initializeLicenseTable = async (): Promise<void> => {
+    try {
+        const connection = AppDataSource.getInstance();
+        await connection.synchronize(false); // false pour ne pas supprimer les tables existantes
+        console.log('[LicenseService] Table de licence initialisée avec succès');
+    } catch (error) {
+        console.error('[LicenseService] Erreur lors de l\'initialisation de la table:', error);
+        throw new Error('Impossible d\'initialiser la table de licence');
+    }
+};
+
+/**
  * Génère un identifiant unique pour la machine
  */
 export const generateMachineId = (): string => {
@@ -28,11 +42,17 @@ export const generateMachineId = (): string => {
 /**
  * Active une licence en contactant Supabase et en sauvegardant localement
  */
-export const activateLicense = async (licenseCode: string): Promise<boolean> => {
+export const activateLicense = async (licenseCode: string): Promise<{ success: boolean; message?: string }> => {
     const client = getSupabaseClient();
     const machineId = generateMachineId();
 
     try {
+        // Vérifier que la base de données est initialisée
+        const connection = AppDataSource.getInstance();
+        if (!connection.isInitialized) {
+            throw new Error('La base de données n\'est pas initialisée');
+        }
+
         const { data, error } = await client.rpc('activate_license', {
             p_code: licenseCode,
             p_machine_id: machineId,
@@ -40,14 +60,14 @@ export const activateLicense = async (licenseCode: string): Promise<boolean> => 
 
         if (error) {
             console.error('[LicenseService] Erreur Supabase RPC:', error);
-            return false;
+            return { success: false, message: 'Erreur lors de la vérification de la licence' };
         }
 
         const activationResult = data && data.length > 0 ? data[0] : null;
 
         if (!activationResult || !activationResult.code) {
             console.warn('[LicenseService] Code invalide ou réponse vide Supabase:', activationResult);
-            return false;
+            return { success: false, message: 'Code de licence invalide' };
         }
 
         const { type, duration_days, activated_at: activatedAtStr } = activationResult;
@@ -60,10 +80,15 @@ export const activateLicense = async (licenseCode: string): Promise<boolean> => 
             expiresAt.setDate(expiresAt.getDate() + duration_days);
         }
 
-        const licenseRepository = AppDataSource.getInstance().getRepository(License);
+        const licenseRepository = connection.getRepository(License);
 
-        // Supprimer toute ancienne licence
-        await licenseRepository.delete({ machine_id: machineId });
+        // Supprimer toute ancienne licence dans un bloc try/catch séparé
+        try {
+            await licenseRepository.delete({ machine_id: machineId });
+        } catch (deleteError) {
+            console.warn('[LicenseService] Erreur lors de la suppression de l\'ancienne licence:', deleteError);
+            // Continuer même si la suppression échoue
+        }
 
         const newLicense = new License();
         newLicense.code = licenseCode;
@@ -74,18 +99,21 @@ export const activateLicense = async (licenseCode: string): Promise<boolean> => 
 
         await licenseRepository.save(newLicense);
         console.log('[LicenseService] Licence activée et enregistrée localement.');
-        return true;
+        return { success: true, message: 'Licence activée avec succès' };
 
-    } catch (dbError) {
-        console.error('[LicenseService] Erreur DB locale:', dbError);
-        return false;
+    } catch (error) {
+        console.error('[LicenseService] Erreur critique:', error);
+        return { 
+            success: false, 
+            message: error instanceof Error ? error.message : 'Erreur inattendue lors de l\'activation'
+        };
     }
 };
 
 /**
- * Vérifie la validité de la licence actuelle sur cette machine
+ * Vérifie la validité de la licence actuelle sur cette machine et retourne les détails
  */
-export const isLicenseValid = async (): Promise<boolean> => {
+export const getLicenseStatus = async (): Promise<{ isValid: boolean; daysRemaining: number | null }> => {
     const machineId = generateMachineId();
 
     try {
@@ -93,27 +121,25 @@ export const isLicenseValid = async (): Promise<boolean> => {
         const license = await licenseRepository.findOneBy({ machine_id: machineId });
 
         if (!license) {
-            console.log('[LicenseService] Aucune licence trouvée localement.');
-            return false;
+            return { isValid: false, daysRemaining: null };
         }
 
         if (license.expires_at === null) {
-            console.log('[LicenseService] Licence à vie valide.');
-            return true;
+            return { isValid: true, daysRemaining: null }; // Licence à vie
         }
 
         const expiresAtDate = new Date(license.expires_at);
         const now = new Date();
 
         if (expiresAtDate > now) {
-            console.log('[LicenseService] Licence valide jusqu’au :', expiresAtDate.toISOString());
-            return true;
+            const diffTime = Math.abs(expiresAtDate.getTime() - now.getTime());
+            const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return { isValid: true, daysRemaining };
         } else {
-            console.log('[LicenseService] Licence expirée le :', expiresAtDate.toISOString());
-            return false;
+            return { isValid: false, daysRemaining: 0 };
         }
     } catch (error) {
         console.error('[LicenseService] Erreur de vérification de licence :', error);
-        return false;
+        return { isValid: false, daysRemaining: null };
     }
 };

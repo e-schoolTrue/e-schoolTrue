@@ -48,6 +48,11 @@ const global = {
     authService: new AuthService(),
 };
 
+// Initialiser le service de sauvegarde
+global.backupService.initialize().catch(error => {
+    console.error('Erreur lors de l\'initialisation du service de sauvegarde:', error);
+});
+
 // Fonction utilitaire pour gérer les erreurs
 const handleError = (error: any, message: string): ResultType => {
     console.error('Erreur:', error);
@@ -1882,12 +1887,12 @@ ipcMain.handle("license:activate", async (_event: Electron.IpcMainInvokeEvent, l
                 error: 'INVALID_LICENSE_CODE'
             };
         }
-        const success = await licenseService.activateLicense(licenseCode);
+        const result = await licenseService.activateLicense(licenseCode);
         return {
-            success: success,
+            success: result.success,
             data: null,
-            message: success ? 'Licence activée avec succès' : 'Échec de l\'activation de la licence',
-            error: success ? null : 'ACTIVATION_FAILED'
+            message: result.message || (result.success ? 'Licence activée avec succès' : 'Échec de l\'activation de la licence'),
+            error: result.success ? null : 'ACTIVATION_FAILED'
         };
     } catch (error) {
         return handleError(error, 'Erreur lors de l\'activation de la licence');
@@ -1896,16 +1901,17 @@ ipcMain.handle("license:activate", async (_event: Electron.IpcMainInvokeEvent, l
 
 ipcMain.handle("license:isValid", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
     try {
-        const isValid = await licenseService.isLicenseValid();
+        const status = await licenseService.getLicenseStatus();
         return {
-            success: true, // The operation of checking itself was successful
-            data: isValid, // This holds the boolean result of the check
-            message: isValid ? 'La licence est valide' : 'La licence est invalide ou absente',
+            success: true,
+            data: {
+                isValid: status.isValid,
+                daysRemaining: status.daysRemaining
+            },
+            message: status.isValid ? 'La licence est valide' : 'La licence est invalide ou absente',
             error: null
         };
     } catch (error) {
-        // This catch block is for errors during the process of checking,
-        // not for the license being invalid.
         return handleError(error, 'Erreur lors de la vérification de la validité de la licence');
     }
 });

@@ -1,13 +1,9 @@
 <script setup lang="ts">
-import { ref, inject } from "vue";
+import { ref } from "vue";
 import { ElMessage, ElMessageBox } from 'element-plus';
-import WizardViewBase from './WizardViewBase.vue';
+import { Key } from '@element-plus/icons-vue';
 
-inject('activeIndex', {
-    activeIndex: ref(9),
-    updateActiveIndex: (index: number) => { console.log('Update active index to:', index); }
-});
-const emit = defineEmits(['configuration-saved', 'go-back']);
+const emit = defineEmits(['license-activated']);
 
 const licenseCode = ref('');
 const isLoading = ref(false);
@@ -22,8 +18,7 @@ async function activateLicense() {
     const result = await window.ipcRenderer.invoke('license:activate', licenseCode.value.trim());
     if (result.success) {
       ElMessage.success('Licence activée avec succès !');
-     
-      emit('configuration-saved', { licenseActivated: true, codeUsed: licenseCode.value.trim() });
+      emit('license-activated');
     } else {
       ElMessageBox.alert(
         result.message || 'Échec de l\'activation de la licence. Veuillez vérifier le code et réessayer.',
@@ -43,113 +38,143 @@ async function activateLicense() {
   }
 }
 
-function goBack() {
-   
-  emit('go-back');
+function handleInput(value: string) {
+  licenseCode.value = value.toUpperCase();
 }
-
 </script>
 
 <template>
-  <wizard-view-base>
-    <template #title>
-      Activation de la Licence du Logiciel
-    </template>
-    <template #description>
-      Veuillez entrer votre code de licence pour activer toutes les fonctionnalités du logiciel.
-      Si vous ne possédez pas de code de licence, veuillez contacter notre support commercial.
-    </template>
+  <div class="license-view">
+    <div class="license-container">
+      <div class="license-header">
+        <el-icon :size="40" class="header-icon">
+          <Key />
+        </el-icon>
+        <h1>Activation de la Licence</h1>
+      </div>
 
-    <div class="license-form-container">
-      <el-form @submit.prevent="activateLicense" class="license-form">
-        <el-form-item label="Code de Licence" prop="licenseCode">
-          <el-input
-            v-model="licenseCode"
-            placeholder="Ex: XXXX-XXXX-XXXX-XXXX"
-            :disabled="isLoading"
-            clearable
-            size="large"
-            class="license-input"
-          />
-        </el-form-item>
-      </el-form>
-      <div class="form-hint">
-        Le code de licence est généralement fourni lors de l'achat du logiciel. Assurez-vous de le copier correctement.
+      <div class="license-content">
+        <el-form @submit.prevent="activateLicense">
+          <el-form-item>
+            <el-input
+              v-model="licenseCode"
+              placeholder="XXXX-XXXX-XXXX-XXXX"
+              :disabled="isLoading"
+              maxlength="19"
+              class="license-input"
+              @input="handleInput"
+            >
+              <template #prefix>
+                <el-icon><Key /></el-icon>
+              </template>
+            </el-input>
+            <p class="input-hint">Format: XXXX-XXXX-XXXX-XXXX</p>
+          </el-form-item>
+
+          <el-button
+            type="primary"
+            @click="activateLicense"
+            :loading="isLoading"
+            class="activate-button"
+          >
+            {{ isLoading ? 'Activation en cours...' : 'Activer la Licence' }}
+          </el-button>
+        </el-form>
       </div>
     </div>
-
-    <template #actions>
-      <el-button
-        @click="goBack"
-        :disabled="isLoading"
-        class="action-button">
-        Retour
-      </el-button>
-      <el-button
-        type="primary"
-        @click="activateLicense"
-        :loading="isLoading"
-        class="action-button">
-        Activer la Licence
-      </el-button>
-    </template>
-  </wizard-view-base>
+  </div>
 </template>
 
 <style scoped>
-.license-form-container {
+.license-view {
+  min-height: 50vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  height: calc(100% - 100px); /* Adjust based on title/description height */
-  box-sizing: border-box;
+  padding: 1rem;
+  background: transparent;
 }
 
-.license-form {
+.license-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   width: 100%;
-  max-width: 480px; /* Increased max-width */
-  background-color: #fff;
-  padding: 30px; /* Increased padding */
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-width: 440px;
+  padding: 2rem;
+}
+
+.license-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.header-icon {
+  color: #409EFF;
+  background: rgba(64, 158, 255, 0.1);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.license-header h1 {
+  font-size: 1.5rem;
+  color: #2c3e50;
+  margin: 0;
+  font-weight: 600;
+}
+
+.license-content {
+  margin-top: 1.5rem;
 }
 
 .license-input {
-  margin-top: 8px;
+  font-size: 1.125rem;
+  letter-spacing: 1px;
 }
 
-.form-hint {
-  font-size: 0.9em;
-  color: #888;
-  margin-top: 15px;
-  max-width: 480px;
+.input-hint {
+  color: #909399;
+  font-size: 0.875rem;
+  margin: 0.5rem 0 1.5rem;
   text-align: center;
-  line-height: 1.5;
 }
 
-.action-button {
-  min-width: 160px; /* Increased min-width */
-  padding: 12px 24px; /* Adjusted padding */
-  font-size: 1em; /* Adjusted font size */
+.activate-button {
+  width: 100%;
+  height: 44px;
+  font-size: 1rem;
+  font-weight: 500;
 }
 
-:deep(.el-form-item__label) {
-  font-weight: 600;
-  padding-bottom: 8px;
-  color: #333; /* Darker label color */
-  font-size: 1.05em; /* Slightly larger label */
+:deep(.el-input__wrapper) {
+  padding: 0.5rem;
 }
 
-/* Ensure WizardViewBase structure is respected for actions alignment */
-:deep(.wizard-view-base__actions) {
-  flex-shrink: 0;
-  padding: 20px;
-  background: white; /* Or inherit from wizard base */
-  border-top: 1px solid #ebeef5; /* Consistent border */
-  display: flex; /* Use flex for alignment */
-  justify-content: flex-end; /* Align buttons to the right */
-  gap: 10px; /* Space between buttons */
+:deep(.el-input__prefix) {
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .license-container {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+
+  .license-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .header-icon {
+    padding: 10px;
+  }
+
+  .license-input {
+    font-size: 1rem;
+  }
+
+  .activate-button {
+    height: 40px;
+  }
 }
 </style>

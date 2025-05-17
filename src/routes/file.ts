@@ -4,6 +4,8 @@ import CourseView from "@/views/file/CourseView.vue";
 import PayementConfigurationView from "@/views/file/PayementConfigurationView.vue";
 import SchoolInfoView from "@/views/file/SchoolInfoView.vue";
 import YearRepartitionView from "@/views/file/YearRepartitionView.vue";
+import ForgotPasswordView from "@/views/auth/ForgotPasswordView.vue";
+import LicenseStatusView from "@/views/file/LicenseStatusView.vue";
 
 
 export const fileRoutes = [
@@ -40,5 +42,16 @@ export const fileRoutes = [
         name: "Répartition année scolaire",
         component: YearRepartitionView
     },
+    {
+        path: '/change-password',
+        name: "Changement de mot de passe",
+        component: ForgotPasswordView
+    },
+    {
+        path: '/license-status',
+        name: "Statut de la licence",
+        component: LicenseStatusView
+    }
+
 ]
  
