@@ -71,7 +71,7 @@ export class StudentService {
             }
 
             // Vérification des champs obligatoires
-            if (!studentData.firstname || !studentData.lastname || !studentData.fatherFirstname || !studentData.fatherLastname) {
+            if (!studentData.firstname || !studentData.lastname ) {
                 return {
                     success: false,
                     data: null,

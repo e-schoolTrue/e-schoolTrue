@@ -3,6 +3,7 @@ import { FileEntity } from '../entities/file';
 import { AppDataSource } from '../../data-source';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { app } from 'electron';
 import {
     IFileResponse,
     IFileServiceParams
@@ -14,7 +15,7 @@ export class FileService {
 
     constructor() {
         this.fileRepository = AppDataSource.getInstance().getRepository(FileEntity);
-        this.uploadDir = path.resolve(process.cwd(), 'uploads');
+        this.uploadDir = path.join(app.getPath('userData'), 'uploads');
         this.initializeUploadDir();
     }
 
@@ -37,11 +38,11 @@ export class FileService {
     }
 
     private getRelativePath(absolutePath: string): string {
-        return path.relative(process.cwd(), absolutePath);
+        return path.relative(this.uploadDir, absolutePath);
     }
 
     private getAbsolutePath(relativePath: string): string {
-        return path.resolve(process.cwd(), relativePath);
+        return path.join(this.uploadDir, relativePath);
     }
 
     async saveFile(fileData: IFileServiceParams['saveFile']): Promise<FileEntity> {
@@ -56,7 +57,7 @@ export class FileService {
             
             const fileEntity = this.fileRepository.create({
                 name: fileData.name,
-                path: filePath,
+                path: this.getRelativePath(filePath),
                 type: fileData.type
             });
             

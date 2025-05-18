@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { SCHOOL_TYPE } from "#electron/command";
+import { SCHOOL_TYPE, type SchoolType } from '@/types/shared';
 
 interface Teaching {
-  schoolType: SCHOOL_TYPE | null;
+  schoolType: SchoolType | null;
   classId?: number;
   courseId?: number;
   gradeIds?: number[];

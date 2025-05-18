@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
-import { CIVILITY, FAMILY_SITUATION } from "#electron/command";
+import { CIVILITY, FAMILY_SITUATION, type CivilityType, type FamilySituationType } from '@/types/shared';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import * as XLSX from "xlsx";
@@ -73,8 +73,8 @@ const handlePageChange = (page: number) => {
   emit('pageChange', page);
 };
 
-const getCivilityLabel = (civility: CIVILITY): string => {
-  const labels: Record<CIVILITY, string> = {
+const getCivilityLabel = (civility: CivilityType): string => {
+  const labels: Record<CivilityType, string> = {
     [CIVILITY.MR]: 'Monsieur',
     [CIVILITY.MME]: 'Madame',
     [CIVILITY.MLLE]: 'Mademoiselle'
@@ -82,8 +82,8 @@ const getCivilityLabel = (civility: CIVILITY): string => {
   return labels[civility] || civility;
 };
 
-const getFamilySituationLabel = (situation: FAMILY_SITUATION): string => {
-  const labels: Record<FAMILY_SITUATION, string> = {
+const getFamilySituationLabel = (situation: FamilySituationType): string => {
+  const labels: Record<FamilySituationType, string> = {
     [FAMILY_SITUATION.SINGLE]: 'Célibataire',
     [FAMILY_SITUATION.MARRIED]: 'Marié(e)',
     [FAMILY_SITUATION.DIVORCED]: 'Divorcé(e)',
@@ -115,10 +115,10 @@ const handleExport = () => {
   try {
     // Préparer les données pour l'export
     const exportData = filteredProfessors.value.map(prof => ({
-      'Civilité': getCivilityLabel(prof.civility as CIVILITY),
-      'Nom': prof.lastname, 
+      'Civilité': getCivilityLabel(prof.civility as CivilityType),
+      'Nom': prof.lastname,
       'Prénom': prof.firstname,
-      'Situation Familiale': getFamilySituationLabel(prof.family_situation as FAMILY_SITUATION),
+      'Situation Familiale': getFamilySituationLabel(prof.family_situation as FamilySituationType),
       'Nombre d\'enfants': prof.nbr_child,
       'Date de naissance': prof.birth_date ? new Date(prof.birth_date).toLocaleDateString() : '',
       'Ville de naissance': prof.birth_town,

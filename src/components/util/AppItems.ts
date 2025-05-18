@@ -171,7 +171,7 @@ export const AppItems: MenuItem[] = [
                     {
                         id: "submenu-6-1-3",
                         title: "Salles de classe",
-                        icon: "fluent-emoji:classroom",
+                        icon: "mdi:school",
                         route: "/classroom",
                     },
                     {

@@ -2,12 +2,13 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { CIVILITY, FAMILY_SITUATION, SCHOOL_TYPE } from "#electron/command";
 import { View, Download } from '@element-plus/icons-vue';
+import { CIVILITY, FAMILY_SITUATION, SCHOOL_TYPE, type CivilityType, type FamilySituationType, type SchoolType } from "@/types/shared";
+import type { IFile } from "@/types/shared";
 
 interface Teaching {
   id: number;
-  schoolType: SCHOOL_TYPE;
+  schoolType: SchoolType;
   class?: {
     id: number;
     name: string;
@@ -26,9 +27,9 @@ interface Professor {
   id?: number;
   firstname: string;
   lastname: string;
-  civility: CIVILITY;
+  civility: CivilityType;
   nbr_child: number;
-  family_situation: FAMILY_SITUATION;
+  family_situation: FamilySituationType;
   birth_date: Date | null;
   birth_town: string;
   address: string;
@@ -40,27 +41,17 @@ interface Professor {
   qualification?: {
     name: string;
   };
-  photo?: { id: number; name: string; type: string };
-  documents?: Array<{
-    id: number;
-    name: string;
-    type: string;
-  }>;
+  photo?: IFile;
+  documents?: IFile[];
   teaching?: Teaching[];
 }
 
-interface DocumentData {
-  id: number;
-  name: string;
-  type: string;
+interface DocumentData extends IFile {
   content?: string;
 }
 
-interface CurrentDocument {
-  id?: number;
+interface CurrentDocument extends IFile {
   content?: string;
-  type?: string;
-  name?: string;
 }
 
 const route = useRoute();
@@ -73,7 +64,7 @@ const currentDocument = ref<CurrentDocument | null>(null);
 
 const photoUrl = ref<string | null>(null);
 
-const loadPhoto = async (photo?: { id: number; name: string; type: string }) => {
+const loadPhoto = async (photo?: IFile) => {
   if (!photo) {
     photoUrl.value = null;
     return;
@@ -169,8 +160,8 @@ const loadProfessor = async () => {
   }
 };
 
-const getCivilityLabel = (civility: CIVILITY) => {
-  const labels = {
+const getCivilityLabel = (civility: CivilityType) => {
+  const labels: Record<CivilityType, string> = {
     [CIVILITY.MR]: 'Monsieur',
     [CIVILITY.MME]: 'Madame',
     [CIVILITY.MLLE]: 'Mademoiselle'
@@ -178,8 +169,8 @@ const getCivilityLabel = (civility: CIVILITY) => {
   return labels[civility] || civility;
 };
 
-const getFamilySituationLabel = (situation: FAMILY_SITUATION) => {
-  const labels = {
+const getFamilySituationLabel = (situation: FamilySituationType) => {
+  const labels: Record<FamilySituationType, string> = {
     [FAMILY_SITUATION.SINGLE]: 'Célibataire',
     [FAMILY_SITUATION.MARRIED]: 'Marié(e)',
     [FAMILY_SITUATION.DIVORCED]: 'Divorcé(e)',
@@ -199,12 +190,12 @@ const getTeachingInfo = (teachings: Teaching[]) => {
   const teaching = teachings[0];
   console.log("Teaching data being processed:", teaching);
 
-  if (teaching.schoolType === 'PRIMARY') {
+  if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
     return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
   }
   
   // Pour les enseignants du secondaire
-  if (teaching.schoolType === 'SECONDARY') {
+  if (teaching.schoolType === SCHOOL_TYPE.SECONDARY) {
     const courseName = teaching.course?.name || 'Matière non assignée';
     const gradeNames = teaching.grades?.map(grade => grade.name).join(', ') || 'Classes non assignées';
     return `Enseignant - ${courseName} (${gradeNames})`;

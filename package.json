@@ -1,7 +1,9 @@
 {
-  "name": "eschool",
+  "name": "e-school",
   "private": true,
   "version": "1.0.0",
+  "description": "Application de gestion d'école",
+  "author": "",
   "scripts": {
     "dev": "vite",
     "build:electron": "tsc -p tsconfig.node.json",
@@ -12,6 +14,7 @@
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "reflect-metadata": "^0.1.13",
     "@supabase/supabase-js": "^2.49.4",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.2",
@@ -65,8 +68,8 @@
   "main": "dist-electron/main.js",
   "build": {
     "appId": "com.exemple.eschool",
-    "productName": "eSchool",
-    "copyright": "Copyright © annee VotreNomOuSociete",
+    "productName": "e-school",
+    "copyright": "Copyright © 2025 NovaTech",
     "directories": {
       "output": "release/",
       "buildResources": "build"
@@ -75,10 +78,11 @@
       "dist-electron/**/*",
       "dist/**/*",
       "node_modules/**/*",
-      "package.json"
+      "package.json",
+      ".env"
     ],
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "public/icon.ico",
       "target": [
         {
           "target": "nsis",

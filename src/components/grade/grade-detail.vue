@@ -2,12 +2,12 @@
 
 import {Icon} from "@iconify/vue";
 import {ref} from "vue";
-import {GradeEntity} from "#electron/backend/entities/grade.ts";
+import type {IGradeData} from "@/types/grade";
 
-const currGrade = ref<GradeEntity>()
+const currGrade = ref<IGradeData>()
 const dialogVisible = ref(false)
 
-function open(grade:GradeEntity){
+function open(grade:IGradeData){
   currGrade.value = grade
   dialogVisible.value = true
 }

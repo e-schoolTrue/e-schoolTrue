@@ -1,4 +1,4 @@
-import { CountryCode, CurrencyCode } from "#electron/backend/entities/school";
+import type { CountryCode, CurrencyCode } from "./shared";
 import { IFileData } from "./file";     
 
 export interface ISchoolData {

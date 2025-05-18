@@ -16,6 +16,7 @@
     "types": ["electron", "node"], // Ajout de "node" pour être sûr
     "declaration": true,          // Générer les fichiers .d.ts
     "emitDeclarationOnly": false,   // Générer .js et .d.ts (ou true si seul .d.ts est voulu et qu'un autre outil gère le JS)
+    "rootDir": "electron",        // Spécifier le répertoire racine des sources
     "outDir": "dist-electron",    // Répertoire de sortie pour les fichiers compilés
     "noEmit": false,              // S'assurer que les fichiers sont émis
     "target": "ES2022",           // Assurez-vous que la cible est compatible

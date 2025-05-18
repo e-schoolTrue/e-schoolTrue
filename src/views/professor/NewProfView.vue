@@ -3,12 +3,12 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorForm from '@/components/professor/professor-form.vue';
-import { SCHOOL_TYPE } from "#electron/command";
 import type { IProfessorServiceParams, IProfessorFile } from '@/types/professor';
+import { SCHOOL_TYPE, type SchoolType, type CivilityType, type FamilySituationType } from '@/types/shared';
 
 // Définition de l'interface des données du formulaire alignée avec les types
 interface TeachingData {
-  schoolType: SCHOOL_TYPE;
+  schoolType: SchoolType;
   classId?: number;
   courseId?: number | null;
   gradeIds?: string | number[];
@@ -23,9 +23,9 @@ interface TeachingData {
 interface ProfessorFormData {
   firstname: string;
   lastname: string;
-  civility: string;
+  civility: CivilityType;
   nbr_child: number;
-  family_situation: string;
+  family_situation: FamilySituationType;
   birth_date: Date | null;
   birth_town: string;
   address: string;
@@ -79,9 +79,9 @@ const handleSave = async (professorData: ProfessorFormData) => {
     if (professorData.teaching) {
       console.log("Données de teaching pour validation:", professorData.teaching);
 
-      const teachingData = professorData.teaching as TeachingData;
+      const teachingData = professorData.teaching;
       
-      if (teachingData.schoolType === 'PRIMARY') {
+      if (teachingData.schoolType === SCHOOL_TYPE.PRIMARY) {
         if (!teachingData.classId && (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses?.length === 0)) {
           throw new Error("La classe est requise pour l'enseignement primaire");
         }
@@ -91,7 +91,7 @@ const handleSave = async (professorData: ProfessorFormData) => {
         }
       }
       
-      if (teachingData.schoolType === 'SECONDARY') {
+      if (teachingData.schoolType === SCHOOL_TYPE.SECONDARY) {
         if (!teachingData.courseId) {
           throw new Error("La matière est requise pour l'enseignement secondaire");
         }

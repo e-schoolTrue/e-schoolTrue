@@ -1,5 +1,5 @@
 // @ts-nocheck
-import './config/env';  
+import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
