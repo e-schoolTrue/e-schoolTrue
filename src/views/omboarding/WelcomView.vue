@@ -18,13 +18,13 @@ function goNext() {
 <template>
   <wizard-view-base>
     <template #title>
-      Bienvenue à Eschool
+      Bienvenue à eSchool
     </template>
 
     <div class="welcome-content">
       <el-space direction="vertical" alignment="center" fill="fill">
         <el-text>
-          Eschool est une solution logicielle destinée à la gestion intégrée des établissements scolaires.
+          eSchool est une solution logicielle destinée à la gestion intégrée des établissements scolaires.
         </el-text>
         <el-text>
           Ce document détaille les spécifications fonctionnelles nécessaires pour le développement et la mise en œuvre de cette application.

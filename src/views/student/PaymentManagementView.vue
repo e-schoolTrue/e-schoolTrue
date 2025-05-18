@@ -486,11 +486,17 @@ const loadStudents = async () => {
     const result = await window.ipcRenderer.invoke('student:all');
     if (result.success && Array.isArray(result.data)) {
       console.log(`${result.data.length} étudiants récupérés.`);
-      students.value = result.data.map((student: any) => {
-        // Assurer que les images ont des URLs relatives
-        if (student.photo && student.photo.url && student.photo.url.startsWith('file:///')) {
-          // Convertir les chemins absolus en chemins relatifs
-          student.photo.url = student.photo.url.replace(/^file:\/\/\/C:\/Users\/Briand\/e-schoolTrue\//, '/');
+      students.value = result.data.map(async (student: any) => {
+        // Si une photo existe, récupérer son URL via le service de fichiers
+        if (student.photo?.id) {
+          try {
+            const photoUrl = await window.ipcRenderer.invoke('file:getFileUrl', { fileId: student.photo.id });
+            if (photoUrl) {
+              student.photo.url = photoUrl;
+            }
+          } catch (error) {
+            console.error('Erreur lors de la récupération de la photo:', error);
+          }
         }
         return student;
       });

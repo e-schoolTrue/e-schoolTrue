@@ -1,7 +1,4 @@
-import { StudentEntity } from "#electron/backend/entities/students";
-import { CourseEntity } from "#electron/backend/entities/course";
-import { FileEntity } from "#electron/backend/entities/file";
-import { GradeEntity } from "#electron/backend/entities/grade";
+import type { IStudent, ICourse, IFile, IGrade } from './shared';
 
 // Types pour les données d'absence
 export interface IAbsenceData {
@@ -20,10 +17,10 @@ export interface IAbsenceData {
     courseId?: number;
     professorId?: number;
     parentNotified?: boolean;
-    student?: StudentEntity;
-    grade?: GradeEntity;
-    course?: CourseEntity;
-    document?: FileEntity;
+    student?: IStudent;
+    grade?: IGrade;
+    course?: ICourse;
+    document?: IFile;
 }
 
 // Types pour les statistiques d'absence

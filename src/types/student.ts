@@ -1,9 +1,5 @@
-import { FileEntity } from "#electron/backend/entities/file";
-import { GradeEntity } from "#electron/backend/entities/grade";            
-import { AbsenceEntity } from "#electron/backend/entities/absence";
-import { PaymentEntity } from "#electron/backend/entities/payment";
-import { ScholarshipEntity } from "#electron/backend/entities/scholarship";
 import { ResponseType } from "./index";
+import type { IFile, IGrade, IAbsence, IPayment, IScholarship, Gender } from "./shared";
 
 // Types pour les données de l'étudiant
 export interface IStudentData {
@@ -20,15 +16,15 @@ export interface IStudentData {
     motherLastname?: string;
     famillyPhone?: string;
     personalPhone?: string;
-    sex?: "male" | "female";
+    sex?: Gender;
     schoolYear?: string;
     createdAt?: Date;
     updatedAt?: Date;
     gradeId?: number;
     photoId?: number;
     documentId?: number;
-    documents: FileEntity[];
-    photo: FileEntity | null;
+    documents: IFile[];
+    photo: IFile | null;
     grade?: {
         id: number;
         name: string;
@@ -37,12 +33,7 @@ export interface IStudentData {
 }
 
 // Types pour les fichiers de l'étudiant
-export interface IStudentFile {
-    id: number;
-    name: string;
-    type: string;
-    content?: string;
-}
+export interface IStudentFile extends IFile {}
 
 // Types pour les détails complets de l'étudiant
 export interface IStudentDetails {
@@ -59,21 +50,16 @@ export interface IStudentDetails {
     motherLastname?: string;
     famillyPhone?: string;
     personalPhone?: string;
-    sex?: "male" | "female";
+    sex?: Gender;
     schoolYear?: string;
     createdAt?: Date;
     updatedAt?: Date;
     gradeId?: number;
     photoId?: number;
     documentId?: number;
-    photo: FileEntity | null;
-    documents: FileEntity[];
-    grade: {
-        id: number;
-        name?: string;
-        description?: string;
-        code?: string;
-    } | null;
+    photo: IFile | null;
+    documents: IFile[];
+    grade: IGrade | null;
 }
 
 // Types pour les paramètres des méthodes du service
@@ -90,7 +76,7 @@ export interface IStudentServiceParams {
         motherLastname?: string;
         famillyPhone?: string;
         personalPhone?: string;
-        sex?: "male" | "female";
+        sex?: Gender;
         schoolYear?: string;
         gradeId?: number;
         photo?: IStudentFile;
@@ -143,10 +129,10 @@ export interface IStudentStatistics {
 
 // Types pour les relations de l'étudiant
 export interface IStudentRelations {
-    photo?: FileEntity;
-    documents?: FileEntity[];
-    grade?: GradeEntity;
-    absences?: AbsenceEntity[];
-    payments?: PaymentEntity[];
-    scholarship?: ScholarshipEntity[];
+    photo?: IFile;
+    documents?: IFile[];
+    grade?: IGrade;
+    absences?: IAbsence[];
+    payments?: IPayment[];
+    scholarship?: IScholarship[];
 }

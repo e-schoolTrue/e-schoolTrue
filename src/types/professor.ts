@@ -1,14 +1,14 @@
-import { TeachingAssignmentEntity } from "#electron/backend/entities/teaching";
 import { ResponseType } from "./index";
+import type { CivilityType, FamilySituationType, SchoolType, ITeachingAssignment } from "./shared";
 
 // Types pour les données du professeur
 export interface IProfessorData {
     id?: number;
     firstname: string;
     lastname: string;
-    civility: string;
+    civility: CivilityType;
     nbr_child?: number;
-    family_situation: string;
+    family_situation: FamilySituationType;
     birth_date?: Date;
     birth_town: string;
     address: string;
@@ -37,7 +37,7 @@ export interface IProfessorDetails extends IProfessorData {
         id: number;
         name: string;
     };
-    teaching?: TeachingAssignmentEntity[];
+    teaching?: ITeachingAssignment[];
 }
 
 // Types pour les paramètres des méthodes du service
@@ -45,9 +45,9 @@ export interface IProfessorServiceParams {
     createProfessor: {
         firstname: string;
         lastname: string;
-        civility: string;
+        civility: CivilityType;
         nbr_child?: number;
-        family_situation: string;
+        family_situation: FamilySituationType;
         birth_date?: Date;
         birth_town: string;
         address: string;
@@ -58,7 +58,7 @@ export interface IProfessorServiceParams {
         photo?: IProfessorFile;
         documents?: IProfessorFile[];
         teaching?: {
-            schoolType: 'PRIMARY' | 'SECONDARY';
+            schoolType: SchoolType;
             classId?: number;
             courseId?: number;
             gradeIds?: number[];
@@ -73,7 +73,7 @@ export interface IProfessorServiceParams {
             qualification?: { name: string };
             teaching?: {
                 teachingType?: string;
-                schoolType?: 'PRIMARY' | 'SECONDARY' | null;
+                schoolType?: SchoolType | null;
                 classId?: number;
                 courseId?: number | null;
                 gradeIds?: string | number[];
@@ -107,4 +107,10 @@ export interface IProfessorStatistics {
         classTeacher: number;
         subjectTeacher: number;
     };
+}
+
+export interface ROLE{
+    admin: "admin",
+    professor: "professor",
+    student: "student"
 }

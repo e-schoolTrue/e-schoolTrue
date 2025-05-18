@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import ProfessorTable from '@/components/professor/professor-table.vue';
-import { SCHOOL_TYPE } from '#electron/command';
+import { SCHOOL_TYPE, type ITeachingAssignment } from '@/types/shared';
 import type { IProfessorDetails } from '@/types/professor';
 import { Icon } from '@iconify/vue';
 
@@ -56,12 +56,13 @@ const formatTeachingInfo = (professor: IProfessorDetails) => {
     return 'Non assigné';
   }
 
-  return professor.teaching.map((teaching) => {
+  return professor.teaching.map((teaching: ITeachingAssignment) => {
     if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
       return `Instituteur - ${teaching.class?.name || 'N/A'}`;
     } else {
       const courseName = teaching.course?.name || 'N/A';
-      const classes = teaching.gradeNames || 'Aucune classe';
+      const gradeIds = Array.isArray(teaching.gradeIds) ? teaching.gradeIds : [];
+      const classes = gradeIds.length > 0 ? gradeIds.join(', ') : 'Aucune classe';
       return `Professeur de ${courseName} - Classes: ${classes}`;
     }
   }).join(', ');
