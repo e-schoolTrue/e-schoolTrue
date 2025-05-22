@@ -23,7 +23,7 @@ export class PaymentEntity {
     @CreateDateColumn()
     createdAt!: Date;
 
-    @ManyToOne(() => StudentEntity, student => student.payments)
+    @ManyToOne(() => StudentEntity, student => student.payments, { onDelete: "CASCADE" })
     student!: StudentEntity;
 
     @Column({ type: "integer" })
@@ -41,7 +41,7 @@ export class PaymentEntity {
     @Column({ type: "varchar", nullable: true })
     comment?: string;
 
-    @ManyToOne(() => ScholarshipEntity)
+    @ManyToOne(() => ScholarshipEntity, { onDelete: "CASCADE" })
     @JoinColumn({ name: "scholarshipId" })
     scholarship?: ScholarshipEntity;
 

@@ -90,6 +90,9 @@ export class QualificationEntity {
 
     @Column({ type: 'varchar', length: 255 })
     name: string = '';
+
+    @OneToMany(() => ProfessorEntity, professor => professor.qualification, { onDelete: "CASCADE" })
+    professors!: ProfessorEntity[];
 }
 
 @Entity("diploma")
@@ -99,4 +102,7 @@ export class DiplomaEntity {
 
     @Column({ type: 'varchar', length: 255 })
     name: string = '';
+
+    @OneToMany(() => ProfessorEntity, professor => professor.diploma, { onDelete: "CASCADE" })
+    professors!: ProfessorEntity[];
 }

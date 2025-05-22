@@ -18,7 +18,7 @@ export class ProfessorPaymentEntity {
     @CreateDateColumn()
     createdAt!: Date;
 
-    @ManyToOne(() => ProfessorEntity, professor => professor)
+    @ManyToOne(() => ProfessorEntity, professor => professor, { onDelete: "CASCADE" })
     professor!: ProfessorEntity;
 
     @Column({ type: "integer" })

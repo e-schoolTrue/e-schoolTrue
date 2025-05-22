@@ -50,6 +50,7 @@ const printDialogVisible = ref(false);
 const isDetailActive = ref(false);
 const isEditActive = ref(false);
 const previewDialogVisible = ref(false);
+const loading = ref(false);
 
 onMounted(async () => {
   await loadStudents();
@@ -206,16 +207,27 @@ const handleEdit = (studentOrId: StudentTableItem | number) => {
 
 const handleDeleteStudent = async (studentId: number) => {
   try {
+    // Afficher un indicateur de chargement
+    loading.value = true;
+    
     const result = await window.ipcRenderer.invoke("delete-student", studentId);
     if (result.success) {
       ElMessage.success("L'étudiant a été supprimé avec succès");
       await loadStudents();
     } else {
-      ElMessage.error(`Échec de la suppression de l'étudiant : ${result.message}`);
+      ElMessage.error({
+        message: `Échec de la suppression de l'étudiant : ${result.message}`,
+        duration: 5000
+      });
     }
   } catch (error) {
     console.error("Erreur lors de la suppression de l'étudiant:", error);
-    ElMessage.error("Une erreur est survenue lors de la suppression de l'étudiant");
+    ElMessage.error({
+      message: "Une erreur est survenue lors de la suppression de l'étudiant",
+      duration: 5000
+    });
+  } finally {
+    loading.value = false;
   }
 };
 

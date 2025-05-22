@@ -25,7 +25,7 @@ export class ScholarshipEntity {
     @CreateDateColumn()
     createdAt!: Date;
 
-    @ManyToOne(() => StudentEntity, student => student.scholarship)
+    @ManyToOne(() => StudentEntity, student => student.scholarship, { onDelete: "CASCADE" })
     student!: StudentEntity;
 
     @ManyToOne(() => PaymentConfigEntity, config => config.scholarships)
