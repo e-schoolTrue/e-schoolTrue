@@ -8,6 +8,7 @@ import { CourseEntity } from "../entities/course";
 import { FileService } from "#electron/backend/services/fileService";
 import { DashboardService } from "#electron/backend/services/dashboardService";
 import { SchoolService } from "#electron/backend/services/schoolService";
+import { CascadeDelete } from "../utils/cascadeDelete";
 import {
     IProfessorServiceParams,
     IProfessorServiceResponse,
@@ -475,13 +476,14 @@ export class ProfessorService {
         }
     }
 
+  
     async deleteProfessor(id: number): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
 
             const professor = await this.professorRepository.findOne({
                 where: { id },
-                relations: ['diploma', 'qualification', 'user']
+                relations: ['diploma', 'qualification']
             });
 
             if (!professor) {
@@ -511,6 +513,7 @@ export class ProfessorService {
             };
         }
     }
+
 
     async getAllProfessors(): Promise<IProfessorServiceResponse> {
         try {

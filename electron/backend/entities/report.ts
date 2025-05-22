@@ -58,7 +58,7 @@ export class ReportCardEntity {
     @CreateDateColumn()
     createdAt!: Date;
 
-    @ManyToOne(() => StudentEntity)
+    @ManyToOne(() => StudentEntity, { onDelete: "CASCADE" })
     student!: StudentEntity;
 
     @ManyToOne(() => CourseEntity, { eager: true })

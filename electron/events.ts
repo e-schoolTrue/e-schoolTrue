@@ -122,9 +122,9 @@ ipcMain.handle("grade:delete"  , async (_event: Electron.IpcMainInvokeEvent, id:
         const result = await global.gradeService.deleteGrade(id);
         return {
             success: result.success,
-            data: result.data,
+            data: null,
             message: result.message || 'Suppression du grade réussie',
-            error: result.error
+            error: "erreur de suppression"
         };
     } catch (error) {
         return handleError(error, 'Erreur lors de la suppression du grade');

@@ -22,6 +22,6 @@ export class FileEntity {
     @ManyToOne(() => StudentEntity, student => student.documents, { onDelete: "CASCADE" })
     student?: StudentEntity;
 
-    @ManyToOne(() => ProfessorEntity, professor => professor.documents)
+    @ManyToOne(() => ProfessorEntity, professor => professor.documents, { onDelete: "CASCADE" })
     professor?: ProfessorEntity;
 }

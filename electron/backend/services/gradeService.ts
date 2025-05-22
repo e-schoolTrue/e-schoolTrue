@@ -7,6 +7,7 @@ import {
     BranchCommand,
     ClassRoomCommand} from "#electron/command/settingsCommand";
 import { IGradeServiceResponse,  IClassRoomData } from "#electron/backend/types/grade";
+import { CascadeDelete } from "#electron/backend/utils/cascadeDelete";
 
 export class GradeService {
     private gradeRepository: Repository<GradeEntity>;
@@ -119,35 +120,46 @@ export class GradeService {
         }
     }
 
-    async deleteGrade(id: number): Promise<IGradeServiceResponse> {
+    async deleteGrade(id: number): Promise<{ success: boolean; message: string }> {
         try {
-            const grade = await this.gradeRepository.findOneBy({id: id});
+            // Vérifier si le grade existe
+            const grade = await this.gradeRepository.findOne({
+                where: { id },
+                relations: ['students', 'branches', 'classRooms']
+            });
+
             if (!grade) {
                 return {
                     success: false,
-                    message: messages.grade_not_found,
-                    data: null,
-                    error: null
+                    message: "Grade non trouvé"
                 };
             }
-            await this.gradeRepository.delete(id);
-            const grades = await this.gradeRepository.find({
-                relations: {
-                    branches: true
-                }
+
+            // Log des relations à supprimer
+            console.log(`Suppression du grade ${id} avec ses relations :`, {
+                students: grade.students?.length || 0,
+                branches: grade.branches?.length || 0,
+                classRooms: grade.classRooms?.length || 0
             });
-            return {
-                success: true,
-                message: messages.grade_delete_successfully,
-                data: grades,
-                error: null
-            };
-        } catch (e: any) {
+
+            const cascadeDelete = CascadeDelete.getInstance();
+            return await cascadeDelete.delete({
+                entityName: 'grade',
+                id,
+                relations: [
+                    { tableName: 'grade_config', foreignKey: 'grade_id', cascade: true },
+                    { tableName: 'teaching_assignment', foreignKey: 'classId', cascade: true },
+                    { tableName: 'homework', foreignKey: 'gradeId', cascade: true },
+                    { tableName: 'T_student', foreignKey: 'gradeId', cascade: false },
+                    { tableName: 'class_room', foreignKey: 'gradeId', cascade: true },
+                    { tableName: 'branch', foreignKey: 'gradeId', cascade: true }
+                ]
+            });
+        } catch (error) {
+            console.error("Erreur lors de la suppression du grade:", error);
             return {
                 success: false,
-                message: messages.grade_delete_failed,
-                data: null,
-                error: e.message
+                message: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }

@@ -22,10 +22,10 @@ export class VacationEntity {
     @Column({ type: "integer", nullable: true })
     professorId?: number;
 
-    @ManyToOne(() => ProfessorEntity, { nullable: true })
+    @ManyToOne(() => ProfessorEntity, { nullable: true , onDelete:"CASCADE"})
     professor?: ProfessorEntity;
 
-    @ManyToOne(() => StudentEntity, { nullable: true })
+    @ManyToOne(() => StudentEntity, { nullable: true , onDelete:"CASCADE"})
     student?: StudentEntity;
 
     @CreateDateColumn()

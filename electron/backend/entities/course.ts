@@ -12,7 +12,7 @@ export class CourseEntity{
     coefficient?:number
     @Column({type:"boolean" , default:false})
     isInGroupement?:boolean ;
-    @ManyToOne(()=>CourseEntity , (course)=>course.courses)
+    @ManyToOne(()=>CourseEntity , (course)=>course.courses , {onDelete:"CASCADE"}) 
     groupement?:CourseEntity ;
     @OneToMany(()=>ObservationEntity , (observation)=>observation.course)
     observations?:ObservationEntity[]

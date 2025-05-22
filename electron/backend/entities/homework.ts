@@ -20,7 +20,7 @@ export class HomeworkEntity {
     @ManyToOne(() => GradeEntity)
     grade!: GradeEntity;
 
-    @ManyToOne(() => ProfessorEntity)
+    @ManyToOne(() => ProfessorEntity, { onDelete: "CASCADE" })
     professor!: ProfessorEntity;
 
     @CreateDateColumn()
