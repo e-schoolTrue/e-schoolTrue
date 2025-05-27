@@ -37,7 +37,7 @@
     "src/**/*.vue",
     "electron",
     "auto-imports.d.ts",
-    "node_modules/unplugin-auto-import/auto-imports.d.ts"
+    "node_modules/unplugin-auto-import/auto-imports.d.ts",
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

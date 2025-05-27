@@ -539,14 +539,21 @@ ipcMain.handle("update-student", async (_event: Electron.IpcMainInvokeEvent, { s
 });
 
 ipcMain.handle('delete-student', async (_event, studentId: number) => {
-    try {
-      await global.studentService.deleteStudent(studentId); // Appel sans affecter le résultat à une variable
-      return { success: true, message: "Étudiant supprimé avec succès" };
-    } catch (error) {
-      console.error("Erreur lors de la suppression de l'étudiant:", error);
-      return { success: false, message: "Une erreur est survenue lors de la suppression de l'étudiant" };
-    }
-  });
+  try {
+    const result = await global.studentService.deleteStudent(studentId);
+    return {
+      success: result.success,
+      message: result.message,
+    };
+  } catch (error) {
+    console.error("Erreur lors de la suppression de l'étudiant:", error);
+    return {
+      success: false,
+      message: "Une erreur est survenue lors de la suppression de l'étudiant",
+    };
+  }
+});
+
 
 // Garder uniquement ces handlers pour les absences
 ipcMain.handle('absence:allStudent', async () => {

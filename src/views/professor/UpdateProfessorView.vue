@@ -279,7 +279,7 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 gradeIds: Array.isArray(teachingData.selectedClasses) ? teachingData.selectedClasses.join(',') : undefined,
                 selectedClasses: teachingData.selectedClasses,
                 selectedCourse: teachingData.selectedCourse
-            };
+        };
 
             // Vérification supplémentaire pour s'assurer que les données de classe sont correctement formatées
             if (professorData.teaching && teachingData.schoolType === 'PRIMARY') {
