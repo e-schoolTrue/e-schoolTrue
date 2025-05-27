@@ -480,44 +480,55 @@ const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
 };
 
 const loadStudents = async () => {
-    loading.value = true;
+  loading.value = true;
   try {
     console.log('Chargement de tous les étudiants...');
     const result = await window.ipcRenderer.invoke('student:all');
+    
     if (result.success && Array.isArray(result.data)) {
       console.log(`${result.data.length} étudiants récupérés.`);
-      students.value = result.data.map(async (student: any) => {
-        // Si une photo existe, récupérer son URL via le service de fichiers
-        if (student.photo?.id) {
-          try {
-            const photoUrl = await window.ipcRenderer.invoke('file:getFileUrl', { fileId: student.photo.id });
-            if (photoUrl) {
-              student.photo.url = photoUrl;
-            }
-          } catch (error) {
-            console.error('Erreur lors de la récupération de la photo:', error);
-          }
-        }
-        return student;
-      });
       
-      // Pour chaque étudiant, charger les paiements
-      for (const student of students.value) {
-        try {
-          if (!student || typeof student.id !== 'number') {
-            console.warn('Étudiant invalide, id manquant:', student);
-            continue;
+      // Transform the raw students data into a proper format
+      const processedStudents = await Promise.all(
+        result.data.map(async (student: any) => {
+          // Process photo if exists
+          if (student.photo?.id) {
+            try {
+              const photoUrl = await window.ipcRenderer.invoke('file:getFileUrl', { 
+                fileId: student.photo.id 
+              });
+              if (photoUrl) {
+                student.photo.url = photoUrl;
+              }
+            } catch (error) {
+              console.error('Erreur lors de la récupération de la photo:', error);
+            }
           }
-          
-          console.log(`Traitement des données pour l'étudiant ${student.firstname} ${student.lastname} (ID: ${student.id})`);
+          return student;
+        })
+      );
+      
+      // Update the students ref with processed data
+      students.value = processedStudents;
+      
+      // Load payments for each student
+      for (const student of students.value) {
+        if (!student || typeof student.id !== 'number') {
+          console.warn('Étudiant invalide:', student);
+          continue;
+        }
+        
+        try {
+          console.log(`Chargement des paiements pour ${student.firstname} ${student.lastname} (ID: ${student.id})`);
           await loadStudentPayments(student.id);
-        } catch (studentError) {
-          console.error(`Erreur lors du traitement de l'étudiant ${student?.id}:`, studentError);
-          // Continuer avec l'étudiant suivant malgré l'erreur
+        } catch (error) {
+          console.error(`Erreur lors du chargement des paiements pour l'étudiant ${student.id}:`, error);
         }
       }
       
-      console.log('Chargement des paiements terminé pour tous les étudiants.');
+      // Update filtered students after loading
+      handleFilter();
+      
     } else {
       console.error('Erreur lors de la récupération des étudiants:', result.message);
       ElMessage.error('Erreur lors du chargement des étudiants');
@@ -527,6 +538,7 @@ const loadStudents = async () => {
     ElMessage.error('Erreur lors du chargement des données des étudiants');
   } finally {
     loading.value = false;
+    console.log('Chargement des paiements terminé pour tous les étudiants.');
   }
 };
 
@@ -542,9 +554,15 @@ const handleSizeChange = async (size: number) => {
 };
 
 const handleFilter = () => {
-  if (!students.value) return;
+  if (!students.value || !Array.isArray(students.value)) {
+    filteredStudents.value = [];
+    totalStudents.value = 0;
+    return;
+  }
 
   filteredStudents.value = students.value.filter(student => {
+    if (!student) return false;
+
     // Filtre par nom/prénom
     const fullName = `${student.firstname} ${student.lastname}`.toLowerCase();
     const searchName = filters.value.studentFullName.toLowerCase();
@@ -599,8 +617,7 @@ const showPaymentHistory = (student: Student) => {
 };
 
 const handlePaymentAdded = async () => {
-  await loadStudentAmounts();
-  ElMessage.success('Paiement enregistré avec succès');
+  await loadStudentAmounts(); 
   paymentDialogVisible.value = false;
 };
 

@@ -308,51 +308,41 @@ export class StudentService {
     }
 
     // Supprimer un étudiant
-    async deleteStudent(studentId: number): Promise<IStudentServiceResponse> {
-        try {
-            const cascadeDelete = CascadeDelete.getInstance();
-            const result = await cascadeDelete.delete({
-                entityName: 'student',
-                id: studentId,
-                relations: [
-                    // Relations à supprimer en cascade
-                    { tableName: 'absences', foreignKey: 'studentId', cascade: true },
-                    { tableName: 'grades', foreignKey: 'studentId', cascade: true },
-                    { tableName: 'homework_submissions', foreignKey: 'studentId', cascade: true },
-                    // Utiliser les noms de colonnes corrects pour les relations many-to-many
-                    { tableName: 'student_documents_document', foreignKey: 'studentId', cascade: true },
-                    { tableName: 'student_photo_photo', foreignKey: 'studentId', cascade: true }
-                ]
-            });
+  async deleteStudent(studentId: number): Promise<IStudentServiceResponse> {
+    try {
+        const studentRepo = this.studentRepository;
+        const student = await studentRepo.findOne({ where: { id: studentId } });
 
-            if (!result.success) {
-                return {
-                    success: false,
-                    data: null,
-                    error: result.message,
-                    message: "Échec de la suppression de l'étudiant"
-                };
-            }
-
-            // Mise à jour des statistiques du tableau de bord
-            await this.dashboardService.getStats();
-
-            return {
-                success: true,
-                data: null,
-                error: null,
-                message: "Étudiant supprimé avec succès"
-            };
-        } catch (error) {
-            console.error("Erreur lors de la suppression de l'étudiant:", error);
+        if (!student) {
             return {
                 success: false,
                 data: null,
-                error: error instanceof Error ? error.message : "Erreur inconnue",
-                message: "Erreur lors de la suppression de l'étudiant"
+                error: "Étudiant introuvable",
+                message: "Impossible de supprimer : étudiant introuvable"
             };
         }
+
+        await studentRepo.remove(student); // Cela déclenchera les cascades automatiquement
+
+        await this.dashboardService.getStats();
+
+        return {
+            success: true,
+            data: null,
+            error: null,
+            message: "Étudiant supprimé avec succès"
+        };
+    } catch (error) {
+        console.error("Erreur lors de la suppression de l'étudiant:", error);
+        return {
+            success: false,
+            data: null,
+            error: error instanceof Error ? error.message : "Erreur inconnue",
+            message: "Erreur lors de la suppression de l'étudiant"
+        };
     }
+}
+
 
     // Récupérer un étudiant par son ID
     async getStudentById(id: number): Promise<ResultType> {

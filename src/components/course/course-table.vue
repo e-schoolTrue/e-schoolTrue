@@ -86,12 +86,12 @@ function addNewSubModule(subModuleFormRef: FormInstance | undefined, subModuleFo
   }
 
   subModuleFormRef.validate((valid, _fields) => {
-    if (valid) {
+      if (valid) {
       const newCourseData: Course = {
         name: subModuleFormData.name,
         code: subModuleFormData.code,
         coefficient: subModuleFormData.coefficient,
-        isInGroupement: true,
+          isInGroupement: true,
         groupementId: currentParentCourseForSubModule.value!.id,
       };
       

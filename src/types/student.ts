@@ -136,3 +136,26 @@ export interface IStudentRelations {
     payments?: IPayment[];
     scholarship?: IScholarship[];
 }
+
+export interface Student {
+    id: number;
+    firstname: string;
+    lastname: string;
+    matricule: string;
+    grade?: {
+        id: number;
+        name: string;
+    };
+    payments?: Array<{
+        id: number;
+        amount: number;
+        createdAt: string;
+        paymentType: string;
+    }>;
+    scholarship?: Array<{
+        id: number;
+        percentage: number;
+        isActive: boolean;
+        schoolYear: string;
+    }>;
+}

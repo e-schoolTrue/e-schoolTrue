@@ -40,10 +40,13 @@ export class AbsenceEntity {
     @Column({ type: "text", nullable: true })
     comments?: string;
 
-    @ManyToOne(() => StudentEntity, { nullable: true })
+    @ManyToOne(() => StudentEntity, { nullable: true, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'studentId' }) 
     student?: StudentEntity;
 
-    @ManyToOne(() => ProfessorEntity, { nullable: true })
+
+    @ManyToOne(() => ProfessorEntity, { nullable: true, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'professorId' })
     professor?: ProfessorEntity;
 
     @ManyToOne(() => GradeEntity)

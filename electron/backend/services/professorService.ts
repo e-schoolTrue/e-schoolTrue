@@ -476,27 +476,25 @@ export class ProfessorService {
         }
     }
 
-  
     async deleteProfessor(id: number): Promise<IProfessorServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-
-            const professor = await this.professorRepository.findOne({
-                where: { id },
-                relations: ['diploma', 'qualification']
-            });
-
+    
+            const professor = await this.professorRepository.findOne({ where: { id } });
+    
             if (!professor) {
                 return {
                     success: false,
                     data: null,
-                    message: "Professeur non trouvé",
+                    message: "Professeur introuvable",
                     error: "NOT_FOUND"
                 };
             }
-
-            await this.professorRepository.remove(professor);
-
+    
+            await this.professorRepository.remove(professor); // Suppression en cascade via les entités
+    
+            await this.dashboardService.getStats();
+    
             return {
                 success: true,
                 data: null,
@@ -504,7 +502,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error("Error deleting professor:", error);
+            console.error("Erreur lors de la suppression du professeur:", error);
             return {
                 success: false,
                 data: null,
@@ -513,7 +511,7 @@ export class ProfessorService {
             };
         }
     }
-
+    
 
     async getAllProfessors(): Promise<IProfessorServiceResponse> {
         try {

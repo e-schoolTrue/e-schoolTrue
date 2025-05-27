@@ -56,12 +56,12 @@ function handleInput(value: string) {
       <div class="license-content">
         <el-form @submit.prevent="activateLicense">
           <el-form-item>
-            <el-input
-              v-model="licenseCode"
+          <el-input
+            v-model="licenseCode"
               placeholder="XXXX-XXXX-XXXX-XXXX"
-              :disabled="isLoading"
+            :disabled="isLoading"
               maxlength="19"
-              class="license-input"
+            class="license-input"
               @input="handleInput"
             >
               <template #prefix>
@@ -69,16 +69,16 @@ function handleInput(value: string) {
               </template>
             </el-input>
             <p class="input-hint">Format: XXXX-XXXX-XXXX-XXXX</p>
-          </el-form-item>
+        </el-form-item>
 
-          <el-button
-            type="primary"
-            @click="activateLicense"
-            :loading="isLoading"
+      <el-button
+        type="primary"
+        @click="activateLicense"
+        :loading="isLoading"
             class="activate-button"
           >
             {{ isLoading ? 'Activation en cours...' : 'Activer la Licence' }}
-          </el-button>
+      </el-button>
         </el-form>
       </div>
     </div>
