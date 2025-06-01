@@ -37,11 +37,11 @@
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": false ,
-    publish: [{
-      private: true,
-      provider: "github" ,
-      repo: "school-system",
-      owner: "dianeDev224"
+    "publish": [{
+      "private": false,
+      "provider": "github" ,
+      "repo": "school-system",
+      "owner": "dianeDev224"
     }
     ]
   },

@@ -1,0 +1,6 @@
+autoUpdater.forceDevUpdateConfig = true
+autoUpdater.forceDevUpdateConfig.url = "http://localhost:3000/update/dev"
+autoUpdater.forceDevUpdateConfig.headers = {
+  "X-Custom-Header": "true"
+}
+autoUpdater.forceDevUpdateConfig.autoInstallOnAppQuit = true
