@@ -12,6 +12,7 @@
   "dependencies": {
     "better-sqlite3": "^9.6.0",
     "electron-print-preview": "^2.2.0",
+    "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
