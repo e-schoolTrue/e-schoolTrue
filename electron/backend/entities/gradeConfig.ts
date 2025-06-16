@@ -5,7 +5,9 @@ import { GradeEntity } from "./grade";
 export class GradeConfigEntity {
     @PrimaryGeneratedColumn()
     id!: number;
-
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
     @ManyToOne(() => GradeEntity, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'grade_id' })
     @Index({ unique: true })

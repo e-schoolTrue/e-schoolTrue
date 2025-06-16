@@ -6,6 +6,10 @@ export class ProfessorPaymentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
+     
     @Column("decimal", { precision: 10, scale: 2 })
     amount!: number;
 

@@ -14,6 +14,9 @@ import { StudentEntity } from "./students";
 export class GradeEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
     @Column({type: 'text'})
     name!: string;
     @Column({type: 'text'})
@@ -34,6 +37,9 @@ export class GradeEntity {
 export class ClassRoomEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
     @Column({type: 'text'})
     name?: string;
     @Column({type: 'text'})
@@ -56,6 +62,9 @@ export class ClassRoomEntity {
 export class BranchEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
     @Column({type: 'text'})
     name?: string;
     @Column({type: 'text'})

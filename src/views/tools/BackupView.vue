@@ -17,6 +17,35 @@
             </div>
           </template>
 
+          <div class="actions-container mb-4">
+            <!-- Ajouter ce bouton dans la section des actions -->
+            <el-button
+              v-if="!isAuthenticated"
+              type="primary"
+              size="large"
+              @click="showAuthDialog = true"
+              class="auth-button"
+            >
+              <Icon icon="mdi:login" class="mr-2" />
+              Se connecter au cloud
+            </el-button>
+
+            <!-- Afficher les informations de connexion si authentifié -->
+            <el-alert
+              v-else
+              type="success"
+              :closable="false"
+              class="mb-4"
+            >
+              <template #title>
+                <div class="flex items-center">
+                  <Icon icon="mdi:check-circle" class="mr-2" />
+                  Connecté au cloud
+                </div>
+              </template>
+            </el-alert>
+          </div>
+
           <div class="actions-container">
             <el-button 
               type="primary" 
@@ -28,6 +57,19 @@
             >
               <Icon icon="mdi:database-export" class="mr-2" />
               Créer une sauvegarde
+            </el-button>
+
+            <!-- Ajouter dans la section des actions -->
+            <el-button 
+              type="success" 
+              size="default" 
+              @click="handleSync"
+              :loading="isSyncing"
+              :disabled="!isOnline || isSyncing"
+              class="action-button mt-2"
+            >
+              <Icon icon="mdi:cloud-sync" class="mr-2" />
+              Synchroniser
             </el-button>
 
             <div class="divider">
@@ -100,6 +142,21 @@
                   <div class="stat-content">
                     <div class="stat-value">{{ totalStorageUsed }}</div>
                     <div class="stat-label">Espace utilisé</div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+
+            <!-- Ajouter dans la section des statistiques -->
+            <el-row :gutter="20" class="mt-4">
+              <el-col :span="12">
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <Icon icon="mdi:sync" />
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value">{{ lastSyncDate }}</div>
+                    <div class="stat-label">Dernière synchro</div>
                   </div>
                 </div>
               </el-col>
@@ -185,6 +242,37 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- Dialogue d'authentification -->
+    <el-dialog
+      v-model="showAuthDialog"
+      :title="authMode === 'login' ? 'Connexion requise' : 'Création de compte'"
+      width="600px"
+      :close-on-click-modal="false"
+      :show-close="true"
+      @close="closeAuthDialog"
+    >
+      <login-form
+        v-if="authMode === 'login'"
+        @login-success="handleAuthSuccess"
+        class="mb-4"
+      />
+      <create-account
+        v-else
+        @account-created="handleAccountCreated"
+        class="mb-4"
+      />
+      
+      <div class="text-center mt-4">
+        <el-button
+          link
+          type="primary"
+          @click="authMode = authMode === 'login' ? 'create' : 'login'"
+        >
+          {{ authMode === 'login' ? 'Créer un compte' : 'Se connecter' }}
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -197,6 +285,8 @@ import { fr } from 'date-fns/locale';
 import BackupSettings from '@/components/backup/BackupSettings.vue';
 import BackupHistory from '@/components/backup/BackupHistory.vue';
 import type { BackupConfig, BackupHistory as BackupHistoryType } from '@/types/backup';
+import LoginForm from '@/components/login/supabase/login-form.vue';
+import CreateAccount from '@/components/login/supabase/create-account.vue';
 
 // États
 const backupConfig = ref<BackupConfig>({
@@ -217,6 +307,8 @@ const isRestoring = ref(false);
 const showRestoreDialog = ref(false);
 const showBackupDialog = ref(false);
 const backupToRestoreId = ref<string | null>(null);
+const isSyncing = ref(false);
+const lastSyncDate = ref<string>('Jamais');
 
 const newBackupForm = ref({
   name: `Sauvegarde du ${format(new Date(), 'dd MMMM yyyy', { locale: fr })}`,
@@ -227,6 +319,9 @@ const newBackupForm = ref({
 
 const isOnline = ref(navigator.onLine);
 const isSupabaseAvailable = ref(true);
+const showAuthDialog = ref(false);
+const authMode = ref<'login' | 'create'>('login');
+const isAuthenticated = ref(false);
 
 // Fonction pour vérifier la connexion internet
 const checkInternetConnection = async () => {
@@ -264,6 +359,34 @@ const handleOffline = () => {
 const cloudBackupCount = computed(() => {
   return backupHistory.value.filter(backup => backup.type === 'cloud').length;
 });
+
+const checkAuthentication = async () => {
+  try {
+    const response = await window.ipcRenderer.invoke("auth:checkStatus");
+    
+    // MODIFICATION CRUCIALE : On se base sur le statut de la session Supabase,
+    // qui est la seule chose qui compte pour les opérations cloud.
+    const isCloudAuthenticated = response.success && response.data?.supabaseStatus?.isConnected;
+
+    isAuthenticated.value = isCloudAuthenticated;
+
+    if (!isCloudAuthenticated) {
+      // Si on n'est pas connecté au cloud, on ne peut pas continuer.
+      // Le `return false` sera attrapé par les guards dans `handleCreateBackup` et `handleSync`.
+      console.log('Utilisateur non authentifié sur le cloud.');
+      return false; 
+    }
+    
+    // Si on arrive ici, c'est que la session cloud est valide.
+    console.log('Session cloud authentifiée et valide.');
+    return true;
+
+  } catch (error) {
+    console.error('Erreur lors de la vérification de l\'authentification:', error);
+    isAuthenticated.value = false; // En cas d'erreur, on est déconnecté.
+    return false;
+  }
+};
 
 const lastBackupDate = computed(() => {
   if (backupHistory.value.length === 0) return 'Aucune';
@@ -314,12 +437,38 @@ const totalStorageUsed = computed(() => {
 });
 
 // Méthodes
+const loadBackupHistory = async () => {
+  isLoadingHistory.value = true;
+
+  try {
+    const { success, data, error } = await window.ipcRenderer.invoke("backup:history");
+
+    if (success && data) {
+      // S'assurer que data est un tableau
+      backupHistory.value = Array.isArray(data) ? data : [];
+    } else {
+      console.error("Erreur lors du chargement de l'historique:", error);
+      backupHistory.value = []; // Initialiser avec un tableau vide en cas d'erreur
+      ElMessage.error(`Erreur: ${error}`);
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement de l'historique:", error);
+    backupHistory.value = []; // Initialiser avec un tableau vide en cas d'erreur
+    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
+  } finally {
+    isLoadingHistory.value = false;
+  }
+};
+
 const loadBackupConfig = async () => {
   try {
     const { success, data, error } = await window.ipcRenderer.invoke("backup:config:get");
 
     if (success && data) {
-      backupConfig.value = data;
+      backupConfig.value = {
+        ...DEFAULT_CONFIG,
+        ...data
+      };
     } else {
       console.error("Erreur lors du chargement de la configuration:", error);
       ElMessage.error(`Erreur: ${error}`);
@@ -330,24 +479,16 @@ const loadBackupConfig = async () => {
   }
 };
 
-const loadBackupHistory = async () => {
-  isLoadingHistory.value = true;
-
-  try {
-    const { success, data, error } = await window.ipcRenderer.invoke("backup:history");
-
-    if (success && data) {
-      backupHistory.value = data;
-    } else {
-      console.error("Erreur lors du chargement de l'historique:", error);
-      ElMessage.error(`Erreur: ${error}`);
-    }
-  } catch (error) {
-    console.error("Erreur lors du chargement de l'historique:", error);
-    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-  } finally {
-    isLoadingHistory.value = false;
-  }
+// Ajout d'une configuration par défaut
+const DEFAULT_CONFIG = {
+  autoBackup: true,
+  frequency: 'daily',
+  backupTime: '02:00',
+  maxBackups: 5,
+  includeFiles: true,
+  useSupabase: true,
+  notifyBeforeBackup: true,
+  retentionDays: 30
 };
 
 const handleConfigUpdate = async (config: BackupConfig) => {
@@ -369,20 +510,41 @@ const handleConfigUpdate = async (config: BackupConfig) => {
   }
 };
 
-const handleCreateBackup = () => {
+const handleCreateBackup = async () => {
+ 
+  const isAllowed = await checkAuthentication();
+  
+  // Si `checkAuthentication` renvoie false, on s'arrête ici.
+  if (!isAllowed) {
+    ElMessage.error("Une connexion au cloud est requise pour créer une sauvegarde.");
+    showAuthDialog.value = true; 
+    return;
+  }
+  
+  // Si on passe, on peut continuer
   showBackupDialog.value = true;
 };
 
 const createBackup = async () => {
   isCreatingBackup.value = true;
-
+  
   try {
-    const { success, data, error } = await window.ipcRenderer.invoke("backup:create", newBackupForm.value.name);
+    // Vérifier l'authentification avant de continuer
+    const isAuthenticated = await checkAuthentication();
+    if (!isAuthenticated) {
+      isCreatingBackup.value = false;
+      return; // Arrêter ici si non authentifié
+    }
+
+    const { success, data, error } = await window.ipcRenderer.invoke(
+      "backup:create", 
+      newBackupForm.value.name
+    );
 
     if (success && data) {
       ElMessage.success("Sauvegarde créée avec succès");
       showBackupDialog.value = false;
-      await loadBackupHistory(); // recharger la liste
+      await loadBackupHistory();
     } else {
       ElMessage.error(`Erreur: ${error}`);
     }
@@ -475,6 +637,55 @@ const handleDownload = async (backup: BackupHistoryType) => {
   }
 };
 
+const checkConnection = async () => {
+  try {
+    const { success, data } = await window.ipcRenderer.invoke("backup:checkConnection");
+    isSupabaseAvailable.value = success && data?.isAvailable;
+  } catch (error) {
+    console.error('Erreur lors de la vérification de la connexion:', error);
+    isSupabaseAvailable.value = false;
+  }
+};
+
+const handleSync = async () => {
+  const isAuthenticated = await checkAuthentication();
+   const isAllowed = await checkAuthentication();
+  if (!isAllowed) {
+    ElMessage.error("Une connexion au cloud est requise pour synchroniser les données.");
+    showAuthDialog.value = true;
+    return;
+  }
+  if (!isAuthenticated) {
+    return;
+  }
+  // Vérifier si l'utilisateur est en ligne et si une synchronisation n'est pas déjà en cours
+  if (!isOnline.value || isSyncing.value) return;
+  
+  isSyncing.value = true;
+  try {
+    const { success, data, error } = await window.ipcRenderer.invoke("backup:sync", 
+    );
+
+    if (success) {
+      ElMessage.success('Synchronisation effectuée avec succès');
+      if (data?.sync_ended_at) {
+        lastSyncDate.value = formatDistanceToNow(new Date(data.sync_ended_at), {
+          addSuffix: true,
+          locale: fr
+        });
+      }
+      await loadBackupHistory(); // Recharger l'historique
+    } else {
+      ElMessage.error(`Erreur de synchronisation: ${error}`);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la synchronisation:', error);
+    ElMessage.error(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+  } finally {
+    isSyncing.value = false;
+  }
+};
+
 const formatSize = (bytes: number) => {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -483,16 +694,64 @@ const formatSize = (bytes: number) => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };
 
+// Gestion de l'authentification
+const closeAuthDialog = () => {
+  showAuthDialog.value = false;
+  authMode.value = 'login'; // Réinitialiser le mode
+};
+
+// Mettre à jour handleAuthSuccess
+const handleAuthSuccess = async () => {
+  isAuthenticated.value = true;
+  ElMessage.success('Connexion réussie');
+  showAuthDialog.value = false;
+  await loadBackupHistory();
+};
+
+const handleAccountCreated = () => {
+  ElMessage.success('Compte créé avec succès, vous pouvez maintenant vous connecter');
+  authMode.value = 'login';
+};
+
+// Add new ref for connection check interval
+const connectionCheckInterval = ref<NodeJS.Timeout>();
+
 // Lifecycle hooks
 onMounted(async () => {
-  await checkInternetConnection();
-  window.addEventListener('online', handleOnline);
-  window.addEventListener('offline', handleOffline);
-  await loadBackupConfig();
-  await loadBackupHistory();
+  try {
+    // Initial checks
+    await checkAuthentication();
+    await checkInternetConnection();
+    await checkConnection();
+
+    // Set up periodic connection checks
+    connectionCheckInterval.value = setInterval(async () => {
+      await checkAuthentication();
+      await checkConnection();
+    }, 30000); // Check every 30 seconds
+
+    // Add event listeners for online/offline status
+    window.addEventListener('online', async () => {
+      handleOnline();
+      await checkConnection();
+      await checkAuthentication();
+    });
+    window.addEventListener('offline', handleOffline);
+
+    // Load initial data
+    await loadBackupConfig();
+    await loadBackupHistory();
+  } catch (error) {
+    console.error('Error in component initialization:', error);
+    ElMessage.error('Erreur lors de l\'initialisation');
+  }
 });
 
 onUnmounted(() => {
+  // Clear interval and remove event listeners
+  if (connectionCheckInterval.value) {
+    clearInterval(connectionCheckInterval.value);
+  }
   window.removeEventListener('online', handleOnline);
   window.removeEventListener('offline', handleOffline);
 });
@@ -519,8 +778,31 @@ onUnmounted(() => {
 
 .actions-container {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.auth-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mr-2 {
+  margin-right: 0.5rem;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
 }
 
 .action-button {
@@ -578,7 +860,15 @@ onUnmounted(() => {
 }
 
 .mt-4 {
-  margin-top: 16px;
+  margin-top: 1rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.text-center {
+  text-align: center;
 }
 
 .stats-container {

@@ -14,6 +14,9 @@ export class User extends BaseEntity{
 
     @PrimaryGeneratedColumn()
     id?: number
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
     @Column({type: "text"})
     username?: string
     @Column({type: "text"})

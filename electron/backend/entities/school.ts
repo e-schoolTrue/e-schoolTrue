@@ -9,6 +9,10 @@ export class SchoolSettingsEntity {
     @PrimaryGeneratedColumn()
     id?: number;
 
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
+     
     @Column({ type: "varchar", length: 50 })
     schoolCode: string = '';
 
