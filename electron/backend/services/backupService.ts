@@ -84,28 +84,23 @@ export class CloudSyncService {
 
   constructor() {
     this.electronStore = new ElectronStore();
+    // Le client partagé est déjà assigné à this.supabase
 
-    // La logique de vérification de la source de données reste la même
-    if (!AppDataSource.getInstance() || !AppDataSource.getInstance().isInitialized) {
-      console.error("CloudSyncService FATAL: AppDataSource n'est pas initialisée.");
-      this.initializeMockClient(); // Utilise un mock si la DB n'est pas prête
-      this.syncHistoryDir = path.join(app.getPath('userData'), 'sync_history');
-      if (!fs.existsSync(this.syncHistoryDir)) fs.mkdirSync(this.syncHistoryDir, { recursive: true });
+    // Cette vérification est maintenant une sécurité, mais ne devrait plus être déclenchée
+    const dataSourceInstance = AppDataSource.getInstance();
+    if (!dataSourceInstance || !dataSourceInstance.isInitialized) {
+      // Si cela se produit encore, c'est une erreur de logique fatale
+      console.error("CloudSyncService FATAL: AppDataSource n'est pas initialisée au moment de la création du service. L'ordre d'initialisation dans main.ts est incorrect.");
+      // On peut toujours activer le mock comme fallback, mais c'est un symptôme d'un problème plus grave.
+      this.initializeMockClient(); 
       return;
     }
     
-    this.appDataSourceInstance = AppDataSource.getInstance();
+    this.appDataSourceInstance = dataSourceInstance;
     this.syncHistoryDir = path.join(app.getPath('userData'), 'sync_history');
     if (!fs.existsSync(this.syncHistoryDir)) fs.mkdirSync(this.syncHistoryDir, { recursive: true });
 
     this.populateEntitySyncMetas();
-
-    // La logique de vérification de la configuration Supabase reste la même
-    if (!supabaseConfig.url || !supabaseConfig.key) {
-      this.initializeMockClient();
-      console.warn('Supabase URL/Key non définis. Cloud Sync utilisera un mock.');
-      return;
-    }
     
     // NETTOYÉ: Logique d'initialisation simplifiée.
     // Le client réel est déjà défini. On vérifie juste son état.

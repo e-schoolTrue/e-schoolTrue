@@ -373,4 +373,19 @@ export class AuthService {
             return false;
         }
     }
+     async getSupabaseAuthUser(): Promise<{ id: string } | null> {
+        try {
+            const { data: { user }, error } = await this.supabase.auth.getUser();
+            
+            if (error || !user) {
+                console.warn("Erreur getSupabaseUser:", error?.message || "No user found");
+                return null;
+            }
+
+            return { id: user.id };
+        } catch (error) {
+            console.error("Erreur lors de la récupération de l'utilisateur Supabase:", error);
+            return null;
+        }
+    }
 }

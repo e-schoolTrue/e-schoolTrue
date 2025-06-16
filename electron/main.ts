@@ -1,178 +1,199 @@
 // @ts-nocheck
+// =================================================================
+// IMPORTS
+// =================================================================
 import 'reflect-metadata';
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import path from 'node:path'
-import { AppDataSource } from "#electron/data-source.ts";
-import { ConfigService } from './backend/services/configService';
-import './events';  
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import path from 'node:path';
 import dotenv from 'dotenv';
 import './config/env';
 
-dotenv.config();
+// --- Services et Logique Métier ---
+import { AppDataSource } from "#electron/data-source.ts";
+import { ConfigService } from './backend/services/configService';
+// Importez TOUTES les classes de service
+import { AuthService } from './backend/services/authService';
+import { CloudSyncService } from './backend/services/backupService'; // NOTE: Fichier renommé de backupService.ts -> CloudSyncService.ts
+import { GradeService } from "./backend/services/gradeService";
+import { CourseService } from "./backend/services/courseService";
+import { StudentService } from "./backend/services/studentService";
+import { FileService } from "./backend/services/fileService";
+import { YearRepartitionService } from "./backend/services/yearService";
+import { PaymentService } from "./backend/services/paymentService";
+import { AbsenceService } from "./backend/services/absenceService";
+import { SchoolService } from "./backend/services/schoolService";
+import { ProfessorService } from "./backend/services/professorService";
+import { DashboardService } from "./backend/services/dashboardService";
+import { HomeworkService } from "./backend/services/homeworkService";
+import { VacationService } from "./backend/services/vacationService";
+import { ScholarshipService } from "./backend/services/scholarshipService";
+import { ReportCardService } from "./backend/services/reportCardService";
+import { GradeConfigService } from "./backend/services/gradeConfigService";
+import { PreferenceService } from "./backend/services/preferenceService";
+import * as licenseService from "./backend/services/licenseService";
 
+// --- Handlers IPC ---
+import { registerIpcHandlers } from './events'; 
+
+// =================================================================
+// DÉCLARATION GLOBALE (pour TypeScript et l'autocomplétion)
+// =================================================================
+declare global {
+  var authService: AuthService;
+  var backupService: CloudSyncService;
+  var gradeService: GradeService;
+  var courseService: CourseService;
+  var studentService: StudentService;
+  var fileService: FileService;
+  var paymentService: PaymentService;
+  var absenceService: AbsenceService;
+  var schoolService: SchoolService;
+  var yearRepartitionService: YearRepartitionService;
+  var professorService: ProfessorService;
+  var dashboardService: DashboardService;
+  var homeworkService: HomeworkService;
+  var vacationService: VacationService;
+  var scholarshipService: ScholarshipService;
+  var reportCardService: ReportCardService;
+  var gradeConfigService: GradeConfigService;
+  var preferenceService: PreferenceService;
+  var configService: ConfigService;
+  var licenseService: typeof licenseService;
+}
+
+// =================================================================
+// INITIALISATION DE L'ENVIRONNEMENT
+// =================================================================
+dotenv.config();
 console.log('Démarrage de l\'application...');
 
-process.env.DIST = path.join(__dirname, '../dist')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
+process.env.DIST = path.join(__dirname, '../dist');
+process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
 
-let win: BrowserWindow | null
+let win: BrowserWindow | null;
 let dataSourceInitialized = false;
 
-
+// =================================================================
+// FONCTIONS D'INITIALISATION
+// =================================================================
 
 async function initializeDataSource() {
-  if (!dataSourceInitialized) {
-    try {
-      console.log("Début de l'initialisation de la base de données");
-      const dataSource = await AppDataSource.initialize();
-      console.log("État de la connexion:", dataSource.isInitialized);
-      console.log("Base de données initialisée avec succès");
-      dataSourceInitialized = true;
-    } catch (error) {
-      console.error("Erreur lors de l'initialisation de la base de données:", error);
-      throw error;
-    }
+  if (dataSourceInitialized) return;
+  try {
+    console.log("Début de l'initialisation de la source de données...");
+    await AppDataSource.initialize();
+    dataSourceInitialized = true;
+    console.log("Source de données initialisée avec succès.");
+  } catch (error) {
+    console.error("Erreur fatale lors de l'initialisation de la source de données:", error);
+    throw error;
   }
+}
+
+function initializeServicesAndIpc() {
+  console.log('Initialisation des services globaux...');
+  
+  // les instances de TOUS les services
+   global.configService = ConfigService.getInstance(); 
+  global.authService = new AuthService();
+  global.backupService = new CloudSyncService();
+  global.gradeService = new GradeService();
+  global.courseService = new CourseService();
+  global.studentService = new StudentService();
+  global.fileService = new FileService();
+  global.paymentService = new PaymentService();
+  global.absenceService = new AbsenceService();
+  global.schoolService = new SchoolService();
+  global.yearRepartitionService = new YearRepartitionService();
+  global.professorService = new ProfessorService();
+  global.dashboardService = new DashboardService();
+  global.homeworkService = new HomeworkService();
+  global.vacationService = new VacationService();
+  global.scholarshipService = new ScholarshipService();
+  global.reportCardService = new ReportCardService();
+  global.gradeConfigService = new GradeConfigService();
+  global.preferenceService = new PreferenceService();
+  global.configService = ConfigService.getInstance();
+  global.licenseService = licenseService; // C'est un module, pas une classe
+
+  console.log('Services créés. Enregistrement des handlers IPC...');
+  registerIpcHandlers();
+  console.log('Services et handlers IPC initialisés avec succès.');
 }
 
 async function createWindow() {
-  try {
-    console.log('Début de la création de la fenêtre...');
-    
-    // Initialiser le service de configuration
-    console.log('Initialisation du service de configuration...');
-    const configService = ConfigService.getInstance();
-    console.log('Instance du service de configuration créée');
-    
-    await configService.initialize();
-    console.log('Service de configuration initialisé');
+  console.log('Début de la création de la fenêtre...');
 
-    // Vérifier si c'est le premier lancement
-    const isFirstLaunch = await configService.isFirstLaunchCheck();
-    console.log('Est-ce le premier lancement ?', isFirstLaunch);
 
-    // Initialiser la base de données dans tous les cas
-    await initializeDataSource();
-    console.log('Base de données initialisée');
 
-    win = new BrowserWindow({
-      icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
-      width: 1200,
-      height: 670,
-      autoHideMenuBar: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        sandbox: false,
-        partition: 'persist:main',
-        contextIsolation: true,
-        webSecurity: true
-      },
-    });
 
-    console.log('Fenêtre créée, configuration de la session...');
+  // 2. Initialiser la base de données
+  await initializeDataSource();
 
-    // Configure session to handle storage properly
-    const session = win.webContents.session;
-    await session.clearStorageData({
-      storages: ['appcache', 'filesystem', 'indexdb', 'localstorage', 'shadercache', 'websql', 'serviceworkers', 'cachestorage'],
-    });
+  // 3. Initialiser les services métier et les handlers IPC
+  initializeServicesAndIpc();
 
-    console.log('Session configurée, attente du chargement...');
+  // 4. Créer la fenêtre du frontend
+  win = new BrowserWindow({
+    icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
+    width: 1200, height: 670, autoHideMenuBar: true, show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false, partition: 'persist:main', contextIsolation: true, webSecurity: true
+    },
+  });
 
-    // Test active push message to Renderer-process.
-    win.webContents.on('did-finish-load', () => {
-      console.log('Contenu chargé avec succès');
-      win?.webContents.send('main-process-message', (new Date).toLocaleString())
-    });
+  win.webContents.on('did-finish-load', () => {
+    console.log('Contenu de la fenêtre chargé.');
+    win?.webContents.send('main-process-message', `Bienvenue ! Heure du serveur: ${new Date().toLocaleString()}`);
+  });
 
-    win.on('ready-to-show', () => {
-      console.log('Fenêtre prête à être affichée');
-      if (win) {
-        win.show();
-        win.focus();
-      }
-    });
+  win.on('ready-to-show', () => {
+    console.log('Fenêtre prête à être affichée.');
+    win?.show();
+    win?.focus();
+  });
 
-    // Vérifiez si VITE_DEV_SERVER_URL est défini
-    if (process.env.VITE_DEV_SERVER_URL) {
-      console.log('Chargement de l\'URL de développement:', process.env.VITE_DEV_SERVER_URL);
-      await win.loadURL(process.env.VITE_DEV_SERVER_URL);
-      win.webContents.openDevTools();
-    } else {
-      console.log('Chargement du fichier de production:', path.join(process.env.DIST, 'index.html'));
-      win.loadFile(path.join(process.env.DIST, 'index.html'));
-    }
-  } catch (error) {
-    console.error("Erreur critique lors de la création de la fenêtre:", error);
-    dialog.showErrorBox(
-      'Erreur de démarrage',
-      `Une erreur est survenue lors du démarrage de l'application: ${error.message}`
-    );
-    app.quit();
+  if (process.env.VITE_DEV_SERVER_URL) {
+    console.log('Chargement de l\'URL du serveur de développement VITE...');
+    await win.loadURL(process.env.VITE_DEV_SERVER_URL);
+    win.webContents.openDevTools();
+  } else {
+    console.log('Chargement du fichier de production...');
+    await win.loadFile(path.join(process.env.DIST, 'index.html'));
   }
 }
 
+// =================================================================
+// CYCLE DE VIE DE L'APPLICATION ELECTRON
+// =================================================================
+
 app.whenReady().then(async () => {
-  console.log('Application prête, création de la fenêtre...');
+  console.log('Événement "app.whenReady" déclenché.');
   try {
     await createWindow();
   } catch (error) {
-    console.error("Erreur lors de l'initialisation:", error);
+    console.error("Échec critique du démarrage de l'application dans whenReady:", error);
+    dialog.showErrorBox('Échec du Démarrage', `Impossible de démarrer l'application. Erreur: ${error.message}`);
     app.quit();
   }
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
+    app.quit();
   }
-})
+});
+
+app.on('quit', () => {
+  win = null;
+});
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
-  }
-})
-
-ipcMain.on("app-quit", () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-    win = null;
-  }
-})
-
-// Ajouter les gestionnaires IPC pour la configuration
-ipcMain.handle('get-config-views', async () => {
-  const configService = ConfigService.getInstance();
-  return await configService.getConfigViews();
-});
-
-// Gestionnaire pour ouvrir le dialogue de sélection de fichier
-ipcMain.handle('open-file-dialog', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory']
-  });
-  return result.filePaths[0];
-});
-
-// Gestionnaire pour initialiser la base de données
-ipcMain.handle('init-db', async (event, path) => {
-  try {
-    // Initialisation de la base de données avec le chemin sélectionné
-    await AppDataSource.initialize({
-      type: "sqlite",
-      database: path + "/database.db",
-      // ... autres configurations
-    });
-    return { success: true };
-  } catch (error) {
-    return { success: false, error };
+    createWindow();
   }
 });
 
+// Gardez cet export si d'autres parties de votre code en dépendent
 export { ipcMain };
-
