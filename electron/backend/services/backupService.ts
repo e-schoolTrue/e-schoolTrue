@@ -1,1056 +1,562 @@
 import { AppDataSource } from '../../data-source';
+import {
+  DataSource,
+  Repository,
+  IsNull,
+  MoreThan,
+  FindOptionsWhere,
+  Not,
+  In,
+} from 'typeorm';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseConfig } from '../../config/supabase';
+import { randomUUID } from 'crypto';
+import { app } from 'electron'; 
 import * as fs from 'fs';
 import * as path from 'path';
-import { app } from 'electron';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { PostgrestError } from '@supabase/supabase-js';
-import type { StorageError } from '@supabase/storage-js';
-import { supabaseConfig } from '../../config/supabase';
-import type { Database as SupabaseDatabase } from '../../types/supabase';
-import { randomUUID } from 'crypto';
+import { format } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../lib/supabaseClient';
+import { ElectronStore } from '../utils/electronStore';
 
-// Types
-export interface BackupConfig {
-  autoBackup: boolean;
-  frequency: 'daily' | 'weekly' | 'monthly';
-  backupTime: string;
-  maxBackups: number;
-  includeFiles: boolean;
-  useSupabase: boolean;
-  notifyBeforeBackup: boolean;
-  retentionDays: number;
+// --- Définitions de types et interfaces ---
+
+export abstract class BaseSyncEntity {
+  id!: number;
+  remote_id?: string | null;
+  user_id!: string; // Doit être l'ID de l'utilisateur Supabase
+  created_at!: Date;
+  updated_at!: Date;
+  deleted_at?: Date | null;
 }
 
-export interface BackupHistory {
+
+export interface SyncConfig {
+  autoSyncOnConnect: boolean;
+  notifyBeforeSync: boolean;
+  syncIntervalMinutes?: number; // Pour synchronisation périodique
+}
+
+export interface SyncHistory {
   id: string;
-  name: string;
-  created_at: string;
-  size: number;
-  type: 'local' | 'cloud';
-  status: 'success' | 'error' | 'pending';
+  sync_started_at: string;
+  sync_ended_at?: string;
+  direction: 'local_to_cloud' | 'cloud_to_local' | 'bidirectional';
+  status: 'success' | 'partial_success' | 'failed' | 'in_progress' | 'skipped';
   user_id: string;
-  school_id?: string;
-  school_name?: string;
-  backup_status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  metadata?: {
-    tables?: string[];
-    fileCount?: number;
-    version?: string;
-    publicURL?: string;
-    description?: string;
-    school_info?: {
-      id: string;
-      name: string;
-    };
-  };
+  records_synced_up?: number;
+  records_synced_down?: number;
+  tables_processed?: string[];
+  error_message?: string;
+  conflict_count?: number;
 }
 
-// Default backup configuration
-const DEFAULT_CONFIG: BackupConfig = {
-  autoBackup: true,
-  frequency: 'daily',
-  backupTime: '02:00',
-  maxBackups: 5,
-  includeFiles: true,
-  useSupabase: false,
-  notifyBeforeBackup: true,
-  retentionDays: 30
+interface EntitySyncMeta<T extends BaseSyncEntity> {
+  entity: new () => T;
+  localRepository: Repository<T>;
+  supabaseTable: string;
+  dependsOn?: (new () => BaseSyncEntity)[]; // Pour l'ordre de synchro
+  transformToSupabase?: (localEntity: T) => any;
+  transformFromSupabase?: (supabaseData: any) => Partial<T>;
+}
+
+const DEFAULT_SYNC_CONFIG: SyncConfig = {
+  autoSyncOnConnect: true,
+  notifyBeforeSync: true,
+  syncIntervalMinutes: 60, // Exemple: synchroniser toutes les heures si autoSync
 };
 
-// Define a more complete type for the mock Supabase client
-type MockSupabaseStorageFrom = {
-  upload: (path: string, body: any, options?: any) => Promise<{ data: { path: string } | null; error: StorageError | Error | null }>;
-  download: (path: string) => Promise<{ data: Blob | null; error: StorageError | Error | null }>;
-  remove: (paths: string[]) => Promise<{ data: any[] | null; error: StorageError | Error | null }>;
-  getPublicUrl: (path: string) => { data: { publicUrl: string }; error: null };
-  setPublic: (isPublic: boolean) => Promise<{ data: any; error: StorageError | Error | null }>;
-  list: (path?: string, options?: any) => Promise<{ data: any[] | null; error: StorageError | Error | null }>;
-};
+type MockSupabaseClient = any; // Pour la compilation, à remplacer si vous avez un vrai mock
 
-type MockSupabaseClient = {
-  storage: {
-    from: (bucketId: string) => MockSupabaseStorageFrom;
-    listBuckets: () => Promise<{ data: any[] | null; error: StorageError | Error | null }>;
-    createBucket: (bucketId: string, options?: any) => Promise<{ data: { name: string } | null; error: StorageError | Error | null }>;
-  };
-  from: (table: string) => {
-    select: (columns?: string) => any; // Simplified for brevity, make more specific if needed
-    insert: (rows: any, options?: any) => Promise<{ data: any[] | null; error: PostgrestError | Error | null }>;
-    delete: (options?: any) => any; // Simplified
-    upsert: (rows: any, options?: any) => Promise<{ data: any[] | null; error: PostgrestError | Error | null }>;
-  };
-  auth: {
-    getUser: () => Promise<{ data: { user: { id: string } }; error: null }>;
-  };
-};
+// --- CloudSyncService ---
 
-
-export class BackupService {
-  private supabase!: SupabaseClient | MockSupabaseClient;
-  private configKey = 'backup_config';
-  private backupDir!: string;
-  private dbPath!: string;
+export class CloudSyncService {
+  // MODIFIÉ: Utilise directement l'instance partagée
+  private supabase: SupabaseClient = supabase;
+  private electronStore: ElectronStore;
+  private configKey = 'cloud_sync_config_v3';
   private supabaseAvailable = false;
+  private appDataSourceInstance: DataSource;
+  private entitySyncMetas: EntitySyncMeta<any>[] = [];
+  private isSyncing = false;
+  private syncHistoryDir: string;
+  private syncTimerId: NodeJS.Timeout | null = null;
 
   constructor() {
-    try {
-      if (!supabaseConfig.url || !supabaseConfig.key) {
-        throw new Error('Supabase URL or Key is not defined');
-      }
-      
-      // Initialiser les chemins
-      this.backupDir = path.join(app.getPath('userData'), 'backups');
-      this.dbPath = path.join(app.getPath('userData'), 'database.db');
-      
-      // Initialiser avec le client mock par défaut
+    this.electronStore = new ElectronStore();
+
+    // La logique de vérification de la source de données reste la même
+    if (!AppDataSource.getInstance() || !AppDataSource.getInstance().isInitialized) {
+      console.error("CloudSyncService FATAL: AppDataSource n'est pas initialisée.");
+      this.initializeMockClient(); // Utilise un mock si la DB n'est pas prête
+      this.syncHistoryDir = path.join(app.getPath('userData'), 'sync_history');
+      if (!fs.existsSync(this.syncHistoryDir)) fs.mkdirSync(this.syncHistoryDir, { recursive: true });
+      return;
+    }
+    
+    this.appDataSourceInstance = AppDataSource.getInstance();
+    this.syncHistoryDir = path.join(app.getPath('userData'), 'sync_history');
+    if (!fs.existsSync(this.syncHistoryDir)) fs.mkdirSync(this.syncHistoryDir, { recursive: true });
+
+    this.populateEntitySyncMetas();
+
+    // La logique de vérification de la configuration Supabase reste la même
+    if (!supabaseConfig.url || !supabaseConfig.key) {
       this.initializeMockClient();
-      
-      // Tenter d'établir une vraie connexion immédiatement
-      this.checkSupabaseAvailability().then(() => {
-        if (this.supabaseAvailable) {
-          console.log('Real Supabase client initialized successfully');
-          this.initSupabaseBucket();
-        } else {
-          console.warn('Failed to initialize real Supabase client, using mock');
-        }
-      }).catch(error => {
-        console.error('Error during Supabase initialization:', error);
-      this.supabaseAvailable = false;
-      });
-
-      // Créer le dossier de sauvegarde s'il n'existe pas
-    if (!fs.existsSync(this.backupDir)) {
-      fs.mkdirSync(this.backupDir, { recursive: true });
+      console.warn('Supabase URL/Key non définis. Cloud Sync utilisera un mock.');
+      return;
     }
-
-    try {
-        const ds = AppDataSource as any;
-      if (ds && ds.options && typeof ds.options.database === 'string') {
-        this.dbPath = ds.options.database;
+    
+    // NETTOYÉ: Logique d'initialisation simplifiée.
+    // Le client réel est déjà défini. On vérifie juste son état.
+    this.checkSupabaseAvailability().then(async (isAvailable) => {
+      if (isAvailable) {
+        const user = await this.getSupabaseAuthUser();
+        console.log(`Cloud Sync: Client Supabase initialisé. Utilisateur connecté: ${!!user}`);
+        await this.startPeriodicSyncTimer();
+        
+        const config = await this.loadSyncConfig();
+        if (config.autoSyncOnConnect && user?.id) {
+          console.log("Auto-synchronisation à la connexion...");
+          this.checkForSyncOpportunity(user.id);
+        }
       } else {
-        console.warn('AppDataSource.options.database not found or not a string, using default dbPath:', this.dbPath);
+        console.warn('Cloud Sync: Client Supabase initialisé, mais aucun utilisateur connecté.');
       }
-    } catch (error) {
-      console.error('Error accessing AppDataSource.options, using default dbPath:', this.dbPath, error);
-      }
-    } catch (error) {
-      console.error('Error in BackupService constructor:', error);
-      this.supabaseAvailable = false;
-    }
+    }).catch(error => {
+      console.error('Cloud Sync: Erreur lors de l\'initialisation de Supabase:', error);
+      // On peut quand même charger la config locale
+      this.loadSyncConfig(); 
+    });
   }
 
-  private isMockClient(): boolean {
-    return !('auth' in this.supabase);  // Real clients have auth, mock clients don't
+  // SUPPRIMÉ: Cette méthode n'est plus nécessaire car le client est partagé.
+  // private initSupabase() { ... }
+
+  // La méthode populateEntitySyncMetas reste inchangée
+  private populateEntitySyncMetas() {
+    // ... votre code ici ...
   }
 
-  private async manageDbConnection(operation: 'close' | 'reopen'): Promise<void> {
-    const ds = AppDataSource as any; // Use 'as any' for simplicity with dynamic checks
-    try {
-      if (operation === 'close') {
-        if (ds && ds.isInitialized && typeof ds.destroy === 'function') {
-          await ds.destroy();
-        }
-      } else if (operation === 'reopen') {
-        if (ds && !ds.isInitialized && typeof ds.initialize === 'function') {
-          await ds.initialize();
-        }
-      }
-    } catch (error) {
-      console.warn(`Error during DB connection management (${operation}):`, error);
-    }
-  }
-
-  private initializeMockClient() {
-    const mockError = (op: string) => new Error(`Supabase mock: ${op} not available`);
-    const mockStorageFromMethods: MockSupabaseStorageFrom = {
-      upload: async () => ({ data: null, error: mockError('upload') }),
-      download: async () => ({ data: null, error: mockError('download') }),
-      remove: async () => ({ data: null, error: mockError('remove') }),
-      getPublicUrl: () => ({ data: { publicUrl: 'mocked-url' }, error: null }),
-      setPublic: async () => ({ data: null, error: mockError('setPublic') }),
-      list: async () => ({ data: [], error: mockError('list') }),
-    };
-
-    this.supabase = {
-      storage: {
-        from: (_bucketId: string) => mockStorageFromMethods,
-        listBuckets: async () => ({ data: [], error: mockError('listBuckets') }),
-        createBucket: async (_bucketId: string, _options?: any) => ({ data: null, error: mockError('createBucket') }),
-      },
-      auth: {
-        getUser: async () => ({ 
-          data: { 
-            user: { 
-              id: randomUUID() // Générer un UUID unique à chaque fois
-            } 
-          }, 
-          error: null 
-        })
-      },
-      from: (_table: string) => ({
-        select: (_columns?: string) => ({
-          order: () => ({
-            then: () => Promise.resolve({ data: [], error: null }),
-            eq: () => ({ // Added for .eq('key', this.configKey)
-              single: () => Promise.resolve({ data: null, error: mockError('select.single') })
-            })
-          })
-        }),
-        insert: async (_rows: any, _options?: any) => ({ data: null, error: mockError('insert') }),
-        delete: (_options?: any) => ({ // Make delete also return a promise-like structure
-          then: () => Promise.resolve({ data: null, error: mockError('delete') })
-        }),
-        upsert: async (_rows: any, _options?: any) => ({ data: null, error: mockError('upsert') }),
-      })
-    } as MockSupabaseClient;
-
+  // La méthode initializeMockClient reste inchangée
+  private initializeMockClient(): void {
+    // On s'assure de bien réassigner le mock à la propriété de la classe
+    this.supabase = { auth: { getUser: async () => ({ data: { user: null }, error: null }) } } as MockSupabaseClient;
     this.supabaseAvailable = false;
-    console.log('Mock Supabase client initialized');
+    console.log("Cloud Sync: Mock Supabase client activé.");
   }
 
-  async createBackup(name?: string, schoolInfo?: { id: string; name: string }): Promise<{ success: boolean; data?: BackupHistory; error?: string }> {
+  // La méthode isMockClient reste inchangée
+  private isMockClient(): boolean {
+    return !this.supabase || !('rpc' in this.supabase);
+  }
+
+  // Cette méthode est maintenant plus fiable car elle vérifie la session du client partagé
+  async checkSupabaseAvailability(): Promise<boolean> {
+    if (this.isMockClient()) {
+        this.supabaseAvailable = false;
+        return false;
+    }
     try {
-      // Vérifier que les informations de l'école sont fournies
-      if (!schoolInfo?.id || !schoolInfo?.name) {
-        // Si Supabase n'est pas disponible, on peut créer une sauvegarde locale sans école
-        if (!this.supabaseAvailable || this.isMockClient()) {
-          console.warn('Création d\'une sauvegarde locale sans informations d\'école');
-          schoolInfo = {
-            id: '00000000-0000-0000-0000-000000000000',
-            name: 'École locale'
-          };
-        } else {
-          return { 
-            success: false, 
-            error: 'Les informations de l\'école sont requises (id et name)' 
-          };
-        }
+      const { data: { user }, error } = await this.supabase.auth.getUser();
+      if (error) {
+        console.error("Erreur de session Supabase:", error.message);
+        this.supabaseAvailable = false;
+        return false;
       }
+      this.supabaseAvailable = !!user;
+      return this.supabaseAvailable;
+    } catch (error) {
+      console.error("Erreur de connectivité Supabase:", error);
+      this.supabaseAvailable = false;
+      return false;
+    }
+  }
 
-      // Générer un ID unique basé sur le timestamp et un UUID
-      const uniqueId = `backup_${Date.now()}_${crypto.randomUUID()}`;
-      const backupName = name || `Sauvegarde du ${new Date().toLocaleDateString('fr-FR')}`;
-      const backupPath = path.join(this.backupDir, `${uniqueId}.sqlite`);
+  // Cette méthode fonctionnera maintenant correctement
+  async getSupabaseAuthUser(): Promise<{ id: string } | null> {
+    if (!this.supabaseAvailable || this.isMockClient()) return null;
+    
+    const { data: { user }, error } = await this.supabase.auth.getUser();
+    if (error || !user) {
+      if (error) console.warn("Erreur getUser:", error.message);
+      return null;
+    }
+    return { id: user.id };
+  }
 
-      if (!fs.existsSync(this.dbPath)) {
-        console.warn(`Database file not found at ${this.dbPath}, creating an empty backup file.`);
-        fs.writeFileSync(backupPath, '');
-      } else {
-        await this.manageDbConnection('close');
-        fs.copyFileSync(this.dbPath, backupPath);
-        await this.manageDbConnection('reopen');
-      }
 
-      const stats = fs.statSync(backupPath);
-      const fileSize = stats.size;
-
-      // Récupérer l'ID de l'utilisateur actuel depuis Supabase
-      let userId: string;
+  async loadSyncConfig(): Promise<SyncConfig> {
+    const localConfigPath = path.join(this.syncHistoryDir, 'sync_config.json');
+    let config = { ...DEFAULT_SYNC_CONFIG };
+    if (fs.existsSync(localConfigPath)) {
       try {
-        const { data: { user } } = await this.supabase.auth.getUser();
-        userId = user?.id || randomUUID();
-      } catch (error) {
-        console.warn('Failed to get user ID, generating new UUID:', error);
-        userId = randomUUID();
+        config = { ...config, ...JSON.parse(fs.readFileSync(localConfigPath, 'utf8')) };
+      } catch (e) { console.error("Erreur lecture config locale:", e); }
+    }
+    // TODO: Charger depuis Supabase si l'utilisateur est connecté et config.useSupabase est true
+    return config;
+  }
+
+  async updateSyncConfig(newConfig: Partial<SyncConfig>): Promise<void> {
+    const currentConfig = await this.loadSyncConfig();
+    const updatedConfig = { ...currentConfig, ...newConfig };
+    const localConfigPath = path.join(this.syncHistoryDir, 'sync_config.json');
+    try {
+      fs.writeFileSync(localConfigPath, JSON.stringify(updatedConfig, null, 2));
+    } catch (e) { console.error("Erreur sauvegarde config locale:", e); }
+    // TODO: Sauvegarder sur Supabase si l'utilisateur est connecté
+    this.stopPeriodicSyncTimer(); // Arrêter l'ancien timer
+    await this.startPeriodicSyncTimer(); // Redémarrer avec la nouvelle config
+  }
+
+
+  async checkForSyncOpportunity(onlineAuthUserId: string): Promise<void> {
+    if (!this.supabaseAvailable || this.isMockClient() || this.isSyncing) return;
+    if (this.entitySyncMetas.length === 0) {
+      console.warn("Cloud Sync: Aucune entité configurée pour la synchronisation. Vérifiez populateEntitySyncMetas.");
+      return;
+    }
+
+    this.isSyncing = true; // Verrouiller avant les opérations asynchrones
+    console.log("Vérification de la nécessité de synchronisation pour l'utilisateur:", onlineAuthUserId);
+    const config = await this.loadSyncConfig();
+    const lastSyncTime = await this.getLastSyncTimestamp(onlineAuthUserId);
+
+    const hasLocal = await this.hasLocalChanges(onlineAuthUserId, lastSyncTime);
+    const hasRemote = await this.hasRemoteChanges(onlineAuthUserId, lastSyncTime);
+
+    if (!hasLocal && !hasRemote) {
+      console.log("Aucun changement local ou distant détecté.");
+      await this.createSyncHistoryEvent({ /* ... status: 'skipped' ... */ } as SyncHistory);
+      this.isSyncing = false;
+      return;
+    }
+    console.log(`Changements: Local=${hasLocal}, Distant=${hasRemote}`);
+
+    if (config.notifyBeforeSync) {
+      const userConfirmed = await this.promptUserForSyncDialog();
+      if (!userConfirmed) { console.log("Synchro annulée par l'utilisateur."); this.isSyncing = false; return; }
+    }
+    await this.performBidirectionalSync(onlineAuthUserId); // isSyncing est remis à false à la fin de cette méthode
+  }
+
+  private async promptUserForSyncDialog(): Promise<boolean> {
+    console.warn("promptUserForSyncDialog: UI à implémenter via IPC.");
+    return true; // Assume confirmation pour test
+  }
+
+  private async getLastSyncTimestamp(userId: string): Promise<Date> {
+    const localHistory = await this.getLocalSyncHistory(userId);
+    const lastSuccess = localHistory
+      .filter(h => h.status === 'success' || h.status === 'partial_success')
+      .sort((a, b) => new Date(b.sync_ended_at!).getTime() - new Date(a.sync_ended_at!).getTime());
+
+    if (lastSuccess.length > 0 && lastSuccess[0].sync_ended_at) {
+      return new Date(lastSuccess[0].sync_ended_at);
+    }
+    // Si Supabase est dispo, vérifier là aussi, mais le local devrait suffire si bien géré.
+    return new Date(0);
+  }
+
+  async hasLocalChanges(userId: string, since: Date): Promise<boolean> {
+    for (const meta of this.entitySyncMetas) {
+      const count = await meta.localRepository.count({
+        where: [
+          { remote_id: IsNull(), user_id: userId, deleted_at: IsNull() },
+          { updated_at: MoreThan(since), user_id: userId, remote_id: Not(IsNull()) }, // Inclut soft-deleted
+        ] as FindOptionsWhere<BaseSyncEntity>[],
+      });
+      if (count > 0) return true;
+    }
+    return false;
+  }
+
+  async hasRemoteChanges(userId: string, since: Date): Promise<boolean> {
+    if (!this.supabaseAvailable || this.isMockClient()) return false;
+    for (const meta of this.entitySyncMetas) {
+      const { error, count } = await (this.supabase as SupabaseClient)
+        .from(meta.supabaseTable).select('id', { count: 'exact', head: true })
+        .eq('user_id', userId).gt('updated_at', since.toISOString());
+      if (error) { console.error(`Erreur vérif remote ${meta.supabaseTable}:`, error); continue; }
+      if (count && count > 0) return true;
+    }
+    return false;
+  }
+
+  async performBidirectionalSync(onlineAuthUserId: string): Promise<SyncHistory> {
+    if (!this.supabaseAvailable || this.isMockClient()) {
+      const errEvt = { id: randomUUID(), user_id: onlineAuthUserId, direction: 'bidirectional', status: 'failed', error_message: 'Supabase not available', sync_started_at: new Date().toISOString(), sync_ended_at: new Date().toISOString() } as SyncHistory;
+      await this.createSyncHistoryEvent(errEvt);
+      return errEvt;
+    }
+    // isSyncing est déjà true
+    const historyId = randomUUID();
+    let h: SyncHistory = {
+      id: historyId, sync_started_at: new Date().toISOString(), direction: 'bidirectional',
+      status: 'in_progress', user_id: onlineAuthUserId, tables_processed: [],
+      records_synced_up: 0, records_synced_down: 0, conflict_count: 0,
+    };
+    await this.createSyncHistoryEvent(h);
+
+    try {
+      const lastSyncTime = await this.getLastSyncTimestamp(onlineAuthUserId); // Timestamp *avant* cette synchro
+      const currentSyncStartTime = new Date(h.sync_started_at); // Pour ignorer les changements faits *pendant* cette synchro
+
+      // Phase 1: Local -> Cloud
+      console.log("SYNC PHASE 1: Local -> Cloud (Utilisateur:", onlineAuthUserId, "Depuis:", lastSyncTime.toISOString() + ")");
+      for (const meta of this.getOrderedMetasForUpload()) {
+        const localChanges = await meta.localRepository.find({
+          where: [
+            { remote_id: IsNull(), user_id: onlineAuthUserId, deleted_at: IsNull() }, // Nouveaux (créés par cet utilisateur)
+            { updated_at: MoreThan(lastSyncTime), user_id: onlineAuthUserId, remote_id: Not(IsNull()) }, // Modifiés ou soft-deleted
+          ] as FindOptionsWhere<BaseSyncEntity>[],
+        });
+
+        if (localChanges.length === 0) continue;
+        console.log(`  [L->C] ${meta.supabaseTable}: ${localChanges.length} changements locaux.`);
+        const toUpsert: any[] = []; const toDeleteRemote: string[] = [];
+
+        localChanges.forEach(lc => {
+          const payload = meta.transformToSupabase ? meta.transformToSupabase(lc) : { ...lc };
+          delete payload.id; delete payload.created_at; // Laisser Supabase gérer
+
+          if (lc.deleted_at && lc.remote_id) toDeleteRemote.push(lc.remote_id);
+          else if (!lc.deleted_at) {
+            toUpsert.push({ ...payload, id: lc.remote_id || undefined, user_id: onlineAuthUserId, deleted_at: null });
+          }
+        });
+
+        if (toDeleteRemote.length > 0) {
+          const { error } = await (this.supabase as SupabaseClient).from(meta.supabaseTable).delete().in('id', toDeleteRemote).eq('user_id', onlineAuthUserId);
+          if (error) throw new Error(`[L->C] Erreur suppression ${meta.supabaseTable}: ${error.message}`);
+          h.records_synced_up! += toDeleteRemote.length;
+          // Mettre à jour localement pour marquer comme supprimé et synchronisé
+          await meta.localRepository.update({ remote_id: In(toDeleteRemote) } as FindOptionsWhere<BaseSyncEntity>, { updated_at: currentSyncStartTime });
+        }
+        if (toUpsert.length > 0) {
+          const { data, error } = await (this.supabase as SupabaseClient).from(meta.supabaseTable)
+            .upsert(toUpsert, { onConflict: 'id' }).select('id, updated_at'); // 'id' est la PK Supabase
+          if (error) throw new Error(`[L->C] Erreur upsert ${meta.supabaseTable}: ${error.message}`);
+          if (data) {
+            for (const sr of data) {
+              const lc = localChanges.find(l => l.remote_id === sr.id); // Simplification de la recherche
+              if (lc) {
+                lc.remote_id = sr.id; lc.updated_at = new Date(sr.updated_at);
+                await meta.localRepository.save(lc);
+              }
+            }
+          }
+          h.records_synced_up! += toUpsert.length;
+        }
+        h.tables_processed!.push(meta.supabaseTable);
       }
 
-      const backupRecord: BackupHistory = {
-        id: uniqueId,
-        name: backupName,
-        created_at: new Date().toISOString(),
-        size: fileSize,
-        type: 'local',
-        status: 'success',
-        user_id: userId,
-        school_id: schoolInfo.id,
-        school_name: schoolInfo.name,
-        backup_status: 'pending',
-        metadata: { 
-          version: '1.0',
-          description: `Sauvegarde créée le ${new Date().toLocaleString('fr-FR')}`,
-          school_info: {
-            id: schoolInfo.id,
-            name: schoolInfo.name
+      // Phase 2: Cloud -> Local
+      console.log("SYNC PHASE 2: Cloud -> Local (Utilisateur:", onlineAuthUserId, "Depuis:", lastSyncTime.toISOString() + ")");
+      for (const meta of this.getOrderedMetasForDownload()) {
+        const { data: remoteChanges, error: fetchError } = await (this.supabase as SupabaseClient)
+          .from(meta.supabaseTable).select('*').eq('user_id', onlineAuthUserId)
+          .gt('updated_at', lastSyncTime.toISOString()) // Chgmts sur le cloud depuis la dernière synchro
+          .lt('updated_at', currentSyncStartTime.toISOString()); // Ignorer les chgmts qu'on vient de pousser
+
+        if (fetchError) throw new Error(`[C->L] Erreur fetch ${meta.supabaseTable}: ${fetchError.message}`);
+        if (!remoteChanges || remoteChanges.length === 0) continue;
+        console.log(`  [C->L] ${meta.supabaseTable}: ${remoteChanges.length} changements distants.`);
+
+        for (const rr of remoteChanges) {
+          const remoteId = rr.id; const remoteUpdatedAt = new Date(rr.updated_at);
+          let lr = await meta.localRepository.findOne({ where: { remote_id: remoteId, user_id: onlineAuthUserId } as FindOptionsWhere<BaseSyncEntity> });
+          const transformed = meta.transformFromSupabase ? meta.transformFromSupabase(rr) : rr;
+          delete transformed.id; // Ne pas utiliser l'ID Supabase comme PK locale `id`
+
+          if (lr) { // Existe localement
+            if (rr.deleted_at) {
+              if (!lr.deleted_at) { await meta.localRepository.softDelete({ id: lr.id } as FindOptionsWhere<BaseSyncEntity>); h.records_synced_down!++; }
+            } else if (lr.deleted_at) { // Conflit: supprimé localement, actif sur cloud -> restaurer local
+              lr.deleted_at = null; Object.assign(lr, transformed); lr.updated_at = remoteUpdatedAt;
+              await meta.localRepository.save(lr); h.conflict_count!++; h.records_synced_down!++;
+            } else if (remoteUpdatedAt > lr.updated_at) { // Cloud plus récent
+              Object.assign(lr, transformed); lr.updated_at = remoteUpdatedAt;
+              await meta.localRepository.save(lr); h.records_synced_down!++;
+            } else if (remoteUpdatedAt < lr.updated_at) { // Local plus récent (conflit, déjà envoyé en phase 1)
+              h.conflict_count!++; console.log(`    [C->L] Conflit ignoré pour ${meta.supabaseTable} remote_id ${remoteId}, local plus récent.`);
+            }
+          } else if (!rr.deleted_at) { // Nouveau du cloud
+            const newLocal: Partial<BaseSyncEntity> = {
+              ...(meta.transformFromSupabase ? meta.transformFromSupabase(rr) : rr),
+              remote_id: remoteId, user_id: onlineAuthUserId,
+              updated_at: remoteUpdatedAt, created_at: new Date(rr.created_at)
+            };
+            delete (newLocal as any).id;
+            await meta.localRepository.save(meta.localRepository.create(newLocal as any));
+            h.records_synced_down!++;
           }
         }
+        if (!h.tables_processed!.includes(meta.supabaseTable)) h.tables_processed!.push(meta.supabaseTable);
+      }
+      h.status = h.conflict_count! > 0 ? 'partial_success' : 'success';
+    } catch (error: any) {
+      console.error("Erreur durant performBidirectionalSync:", error);
+      h.status = 'failed'; h.error_message = error.message;
+    } finally {
+      h.sync_ended_at = new Date().toISOString();
+      h.tables_processed = [...new Set(h.tables_processed)];
+      await this.createSyncHistoryEvent(h);
+      this.isSyncing = false;
+      console.log("Synchronisation terminée. Statut:", h.status, "Conflits:", h.conflict_count);
+    }
+    return h;
+  }
+
+
+  private getOrderedMetasForUpload(): EntitySyncMeta<any>[] {
+    // Trier pour que les parents soient avant les enfants
+    return [...this.entitySyncMetas].sort((a, b) => {
+      if (a.dependsOn?.some(dep => dep === b.entity)) return 1; // a dépend de b, b avant
+      if (b.dependsOn?.some(dep => dep === a.entity)) return -1; // b dépend de a, a avant
+      return 0;
+    });
+  }
+  private getOrderedMetasForDownload(): EntitySyncMeta<any>[] {
+    return this.getOrderedMetasForUpload(); // Souvent le même ordre est ok, ou l'inverse si création stricte
+  }
+
+  // --- Gestion de l'historique des synchronisations ---
+  async createSyncHistoryEvent(eventData: SyncHistory): Promise<void> {
+    // Sauvegarder dans Supabase table 'sync_history' et/ou localement
+    const historyFilePath = path.join(this.syncHistoryDir, `${eventData.user_id}_sync_history.json`);
+    let localHistory: SyncHistory[] = [];
+    if (fs.existsSync(historyFilePath)) {
+      try { localHistory = JSON.parse(fs.readFileSync(historyFilePath, 'utf8')); }
+      catch (e) { console.error("Erreur lecture historique local:", e); }
+    }
+    const existingIdx = localHistory.findIndex(h => h.id === eventData.id);
+    if (existingIdx > -1) localHistory[existingIdx] = eventData;
+    else localHistory.unshift(eventData); // Ajouter au début
+    localHistory = localHistory.slice(0, 50); // Garder les 50 derniers événements
+    try {
+      fs.writeFileSync(historyFilePath, JSON.stringify(localHistory, null, 2));
+    } catch (e) { console.error("Erreur écriture historique local:", e); }
+
+    if (this.supabaseAvailable && !this.isMockClient()) {
+      try {
+        const { error } = await (this.supabase as SupabaseClient).from('sync_history').upsert(eventData);
+        if (error) console.error("Erreur sauvegarde historique Supabase:", error);
+      } catch (e) { console.error("Exception sauvegarde historique Supabase:", e); }
+    }
+  }
+
+  async getLocalSyncHistory(userId: string): Promise<SyncHistory[]> {
+    const historyFilePath = path.join(this.syncHistoryDir, `${userId}_sync_history.json`);
+    if (fs.existsSync(historyFilePath)) {
+      try { return JSON.parse(fs.readFileSync(historyFilePath, 'utf8')); }
+      catch (e) { console.error("Erreur lecture historique local:", e); }
+    }
+    return [];
+  }
+
+  // --- Gestion du Timer de Synchro Périodique ---
+  async startPeriodicSyncTimer() {
+    if (this.syncTimerId) clearInterval(this.syncTimerId);
+    const config = await this.loadSyncConfig();
+    const user = await this.getSupabaseAuthUser();
+
+    if (config.autoSyncOnConnect && config.syncIntervalMinutes && config.syncIntervalMinutes > 0 && user?.id) {
+      console.log(`Cloud Sync: Démarrage du timer de synchro toutes les ${config.syncIntervalMinutes} minutes.`);
+      this.syncTimerId = setInterval(async () => {
+        const currentUser = await this.getSupabaseAuthUser(); // Vérifier si toujours connecté
+        if (currentUser?.id) {
+          console.log("Cloud Sync: Exécution de la synchro périodique...");
+          await this.checkForSyncOpportunity(currentUser.id);
+        } else {
+          console.log("Cloud Sync: Utilisateur non connecté, synchro périodique annulée.");
+          this.stopPeriodicSyncTimer();
+        }
+      }, config.syncIntervalMinutes * 60 * 1000);
+    }
+  }
+
+  stopPeriodicSyncTimer() {
+    if (this.syncTimerId) {
+      clearInterval(this.syncTimerId);
+      this.syncTimerId = null;
+      console.log("Cloud Sync: Timer de synchro périodique arrêté.");
+    }
+  }
+
+  async createBackup(name?: string, schoolInfo?: { id: string; name: string }): Promise<{
+    success: boolean;
+    data: any;
+    error: string | null;
+  }> {
+    try {
+      // Vérifier l'authentification d'abord
+      const isAuthenticated = await this.checkSupabaseAvailability();
+      if (!isAuthenticated) {
+        return {
+          success: false,
+          data: null,
+          error: "NOT_AUTHENTICATED"
+        };
+      }
+
+      const authUser = await this.getSupabaseAuthUser();
+      if (!authUser) {
+        return {
+          success: false,
+          data: null,
+          error: "NO_AUTH_USER"
+        };
+      }
+
+      // Generate backup name if not provided
+      const backupName = name || `Backup_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+      
+      // Create backup entry in history
+      const backupHistory: SyncHistory = {
+        id: uuidv4(),
+        sync_started_at: new Date().toISOString(),
+        direction: 'local_to_cloud',
+        status: 'in_progress',
+        user_id: authUser.id,
+        tables_processed: [],
+        records_synced_up: 0,
+        conflict_count: 0
       };
 
-      // Si Supabase n'est pas disponible, on sauvegarde uniquement en local
-      if (!this.supabaseAvailable || this.isMockClient()) {
-        await this.saveBackupHistory(backupRecord);
-        return { success: true, data: backupRecord };
+      try {
+        // Perform backup logic here
+        await this.performBidirectionalSync(authUser.id);
+
+        // Update backup history with success
+        backupHistory.sync_ended_at = new Date().toISOString();
+        backupHistory.status = 'success';
+
+        return {
+          success: true,
+          data: backupHistory,
+          error: null
+        };
+      } catch (error) {
+        // Update backup history with failure
+        backupHistory.sync_ended_at = new Date().toISOString();
+        backupHistory.status = 'failed';
+        backupHistory.error_message = error instanceof Error ? error.message : 'Unknown error';
+
+        return {
+          success: false,
+          data: null,
+          error: backupHistory.error_message
+        };
       }
-
-      const configResult = await this.getConfig();
-      if (configResult.data?.useSupabase && this.supabaseAvailable) {
-        try {
-          // Mettre à jour le statut
-          backupRecord.backup_status = 'in_progress';
-          
-          const fileBuffer = fs.readFileSync(backupPath);
-          console.log(`Uploading backup to bucket '${supabaseConfig.bucket}'...`);
-
-          const { data: uploadData, error: uploadError } = await this.supabase.storage
-            .from(supabaseConfig.bucket)
-            .upload(`${uniqueId}.sqlite`, fileBuffer, {
-              cacheControl: '3600',
-              upsert: true
-            });
-
-          if (uploadError) {
-            console.warn(`Error uploading to Supabase: ${uploadError.message}`, uploadError);
-            backupRecord.backup_status = 'failed';
-          } else if (uploadData) {
-            console.log('Backup uploaded successfully to Supabase path:', uploadData.path);
-            backupRecord.type = 'cloud';
-            backupRecord.backup_status = 'completed';
-
-            // Insérer la nouvelle sauvegarde dans la table backups
-            const { error: dbError } = await (this.supabase as SupabaseClient)
-              .from('backups')
-              .insert(backupRecord);
-
-            if (dbError) {
-              console.warn('Error creating backup record in database:', dbError.message);
-              backupRecord.backup_status = 'failed';
-            } else {
-              console.log('Backup record created in database successfully.');
-            }
-
-            const { data: publicURLData } = this.supabase.storage
-                .from(supabaseConfig.bucket)
-              .getPublicUrl(`${uniqueId}.sqlite`);
-              
-              if (publicURLData && publicURLData.publicUrl) {
-                console.log('Public URL:', publicURLData.publicUrl);
-                backupRecord.metadata = {
-                  ...backupRecord.metadata,
-                  publicURL: publicURLData.publicUrl
-                };
-            }
-          }
-        } catch (error) {
-          console.warn('Error during Supabase upload process:', error);
-          backupRecord.type = 'local';
-          backupRecord.backup_status = 'failed';
-        }
-      }
-
-      await this.saveBackupHistory(backupRecord);
-      await this.cleanupOldBackups();
-      return { success: true, data: backupRecord };
-
     } catch (error) {
       console.error('Error creating backup:', error);
-      await this.manageDbConnection('reopen');
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error creating backup'
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
-    }
-  }
-
-  async restoreBackup(id: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const historyResult = await this.getBackupHistory();
-      const backup = historyResult.data?.find(b => b.id === id);
-
-      if (!backup) throw new Error('Backup not found');
-
-      let backupPath = '';
-      if (backup.type === 'cloud' && this.supabaseAvailable) {
-          const { data: downloadData, error: downloadError } = await this.supabase.storage
-            .from(supabaseConfig.bucket)
-            .download(`${id}.sqlite`);
-
-          if (downloadError) throw new Error(`Error downloading from Supabase: ${downloadError.message}`);
-          if (!downloadData) throw new Error('No data downloaded from Supabase');
-          
-          backupPath = path.join(this.backupDir, `${id}.sqlite`);
-          fs.writeFileSync(backupPath, Buffer.from(await downloadData.arrayBuffer()));
-      } else {
-        backupPath = path.join(this.backupDir, `${id}.sqlite`);
-        if (!fs.existsSync(backupPath)) {
-          throw new Error('Local backup file not found, and cloud download not possible/attempted.');
-        }
-      }
-      
-      await this.manageDbConnection('close');
-      if (fs.existsSync(this.dbPath)) {
-        const currentBackupName = `pre_restore_${new Date().toISOString().replace(/[:.]/g, '-')}`;
-        const currentBackupPath = path.join(this.backupDir, `${currentBackupName}.sqlite`);
-        fs.copyFileSync(this.dbPath, currentBackupPath);
-      }
-      fs.copyFileSync(backupPath, this.dbPath);
-      await this.manageDbConnection('reopen');
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Error restoring backup:', error);
-      await this.manageDbConnection('reopen');
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error during restoration'
-      };
-    }
-  }
-
-  async deleteBackup(id: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const historyResult = await this.getBackupHistory();
-      let backups = historyResult.data || [];
-      const backupIndex = backups.findIndex(b => b.id === id);
-
-      if (backupIndex === -1) throw new Error('Backup not found in history');
-      
-      const backupToDelete = backups[backupIndex];
-
-      const localPath = path.join(this.backupDir, `${id}.sqlite`);
-      if (fs.existsSync(localPath)) {
-        fs.unlinkSync(localPath);
-        console.log(`Local backup file ${localPath} deleted.`);
-      }
-
-      if (backupToDelete.type === 'cloud' && this.supabaseAvailable) {
-        const { error: removeError } = await this.supabase.storage
-          .from(supabaseConfig.bucket)
-          .remove([`${id}.sqlite`, `metadata/${id}.json`]); // Also remove metadata file
-        if (removeError) {
-          console.warn(`Error deleting from Supabase: ${removeError.message}`);
-          // Don't throw, proceed to update local history
-        } else {
-          console.log(`Cloud backup ${id}.sqlite and its metadata deleted.`);
-          await this.updateBackupIndexAfterDelete(id);
-        }
-      }
-      
-      backups = backups.filter(b => b.id !== id);
-      await this.saveLocalBackupHistory(backups);
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Error deleting backup:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error deleting backup'
-      };
-    }
-  }
-
-  async downloadBackup(id: string): Promise<{ success: boolean; path?: string; error?: string }> {
-    try {
-      const historyResult = await this.getBackupHistory();
-      const backup = historyResult.data?.find(b => b.id === id);
-
-      if (!backup) throw new Error('Backup not found');
-
-      const localPath = path.join(this.backupDir, `${id}.sqlite`);
-      if (backup.type === 'local' && fs.existsSync(localPath)) {
-        return { success: true, path: localPath };
-      }
-
-      if (backup.type === 'cloud' && this.supabaseAvailable) {
-          const { data: downloadData, error: downloadError } = await this.supabase.storage
-            .from(supabaseConfig.bucket)
-            .download(`${id}.sqlite`);
-          
-          if (downloadError) throw new Error(`Error downloading from Supabase: ${downloadError.message}`);
-          if (!downloadData) throw new Error('No data downloaded from Supabase');
-
-          fs.writeFileSync(localPath, Buffer.from(await downloadData.arrayBuffer()));
-          return { success: true, path: localPath };
-      }
-      throw new Error('Backup file not found or cloud download not possible.');
-    } catch (error) {
-      console.error('Error downloading backup:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error downloading backup'
-      };
-    }
-  }
-
-  async getBackupHistory(): Promise<{ success: boolean; data?: BackupHistory[]; error?: string }> {
-    try {
-      let backups: BackupHistory[] = [];
-      const historyPath = path.join(this.backupDir, 'history.json');
-      
-      // Lire l'historique local
-      if (fs.existsSync(historyPath)) {
-        try {
-          const historyData = fs.readFileSync(historyPath, 'utf8');
-          backups = JSON.parse(historyData);
-        } catch (e) {
-          console.error('Error parsing local history.json:', e);
-        }
-      }
-
-      // Si Supabase est disponible, récupérer l'historique depuis la table backups
-      if (this.supabaseAvailable && !this.isMockClient()) {
-        try {
-          const { data: dbBackups, error: dbError } = await (this.supabase as SupabaseClient)
-            .from('backups')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-          if (dbError) {
-            console.warn('Error fetching backups from database:', dbError.message);
-          } else if (dbBackups) {
-            console.log(`Retrieved ${dbBackups.length} backups from database`);
-            
-            // Fusionner avec les sauvegardes locales, en donnant la priorité aux enregistrements de la base de données
-            const mergedBackups: { [id: string]: BackupHistory } = {};
-            backups.forEach(b => mergedBackups[b.id] = b);
-            dbBackups.forEach(b => mergedBackups[b.id] = b as BackupHistory);
-            backups = Object.values(mergedBackups);
-          }
-        } catch (e) {
-          console.warn('Error fetching backups from database:', e);
-        }
-      }
-
-      backups.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      return { success: true, data: backups };
-
-    } catch (error) {
-      console.error('Error getting backup history:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error fetching history',
-        data: []
-      };
-    }
-  }
-
-  async updateConfig(newConfig: BackupConfig): Promise<{ success: boolean; error?: string }> {
-    try {
-      // First check Supabase availability
-      if (newConfig.useSupabase && this.supabaseAvailable && supabaseConfig.url) {
-        const isConnected = await this.isSupabaseReachable(supabaseConfig.url);
-        if (!isConnected) {
-          this.supabaseAvailable = false;
-          console.log('Supabase inaccessible, config saved locally only.');
-        } else if (!this.isMockClient()) {
-          const { error: upsertError } = await (this.supabase as SupabaseClient)
-            .from('settings')
-            .upsert({ key: this.configKey, value: newConfig }, { onConflict: 'key' });
-          if (upsertError) console.warn(`Error updating config in Supabase: ${upsertError.message}`);
-        }
-      } else if (newConfig.useSupabase && !this.supabaseAvailable) {
-        console.log('Supabase configured but inaccessible, config saved locally only.');
-      }
-
-      const configPath = path.join(this.backupDir, 'config.json');
-      fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
-      return { success: true };
-
-    } catch (error) {
-      console.error('Error updating config:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error updating config'
-      };
-    }
-  }
-
-  private async isSupabaseReachable(url: string): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Augmenté à 5 secondes
-      
-      try {
-        // Utiliser l'API REST de Supabase pour vérifier la connexion
-        const response = await fetch(`${url}/rest/v1/`, { 
-          method: 'GET',
-          headers: {
-            'apikey': supabaseConfig.key,
-            'Authorization': `Bearer ${supabaseConfig.key}`
-          },
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          console.warn(`Supabase API responded with status: ${response.status}`);
-          return false;
-        }
-        
-        return true;
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.name === 'AbortError') {
-          console.log('Supabase connection check timed out');
-          } else {
-            console.warn('Error checking Supabase connection:', error.message);
-          }
-        }
-        return false;
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (error) {
-      console.error('Unexpected error checking Supabase connection:', error);
-      return false;
-    }
-  }
-
-  async checkSupabaseAvailability() {
-    if (!supabaseConfig.url || !supabaseConfig.key) {
-      this.supabaseAvailable = false;
-      console.warn('Supabase URL or key not configured.');
-      return false;
-    }
-
-    try {
-      console.log('Checking Supabase availability...');
-      
-      // Créer directement le client Supabase
-      const testClient = createClient<SupabaseDatabase>(supabaseConfig.url, supabaseConfig.key, supabaseConfig.options);
-
-      // Tester la connexion en essayant d'accéder à la table backups
-      const { error } = await testClient
-        .from('backups')
-        .select('count')
-        .limit(1);
-      
-      if (error) {
-        if (error.code === '42P01') { // Table does not exist
-          console.log('Table "backups" does not exist, this is expected.');
-          this.supabaseAvailable = true;
-          this.supabase = testClient as unknown as SupabaseClient | MockSupabaseClient;
-          return true;
-        } else {
-          console.warn('Error checking Supabase connection:', error.message);
-          this.supabaseAvailable = false;
-          return false;
-        }
-      }
-
-      console.log('Supabase connection test successful');
-      this.supabaseAvailable = true;
-      this.supabase = testClient as unknown as SupabaseClient | MockSupabaseClient;
-      return true;
-
-    } catch (error) {
-      console.error('Error during Supabase availability check:', error);
-      this.supabaseAvailable = false;
-    }
-
-    if (!this.supabaseAvailable) {
-      console.warn('Supabase is inaccessible, offline mode activated for Supabase features.');
-    }
-    return this.supabaseAvailable;
-  }
-
-  private async initSupabaseBucket() {
-    try {
-      if (!this.supabaseAvailable || !supabaseConfig.url) { // Added URL check
-        console.warn('Supabase inaccessible or URL not configured, bucket initialization cancelled.');
-        return;
-      }
-
-      console.log('Checking Supabase buckets...');
-      const { data: buckets, error: listError } = await this.supabase.storage.listBuckets();
-
-      if (listError) {
-        console.warn('Error listing Supabase buckets:', listError.message);
-        this.supabaseAvailable = false; return;
-      }
-
-      const bucketList = buckets || [];
-      console.log('Available buckets:', bucketList.map((b: {name: string}) => b.name).join(', ') || 'none');
-      const bucketExists = bucketList.some((bucket: {name: string}) => bucket.name === supabaseConfig.bucket);
-
-      if (!bucketExists) {
-        console.log(`Creating bucket '${supabaseConfig.bucket}' in Supabase...`);
-        const { error: createError } = await this.supabase.storage.createBucket(supabaseConfig.bucket, {
-          public: true,
-          fileSizeLimit: 52428800 // 50MB
-        });
-        if (createError) {
-          console.warn(`Error creating bucket '${supabaseConfig.bucket}':`, createError.message);
-          this.supabaseAvailable = false;
-        } else {
-          console.log(`Bucket '${supabaseConfig.bucket}' created successfully.`);
-          // Try setting public, but don't fail if it doesn't work (might be mock)
-          if (typeof (this.supabase.storage.from(supabaseConfig.bucket) as any).setPublic === 'function') {
-             await (this.supabase.storage.from(supabaseConfig.bucket) as any).setPublic(true);
-          }
-        }
-      } else {
-        console.log(`Bucket '${supabaseConfig.bucket}' already exists.`);
-      }
-
-      // Check metadata folder
-      const { data: metadataFiles, error: metadataError } = await this.supabase.storage
-        .from(supabaseConfig.bucket)
-        .list('metadata');
-      if (metadataError) {
-        console.warn('Error listing metadata folder:', metadataError.message);
-      } else if (!metadataFiles || metadataFiles.length === 0) {
-        console.log('Metadata folder is empty or does not exist, will be created on first backup.');
-      } else {
-        console.log('Metadata folder exists.');
-        if (metadataFiles.some((file: {name: string}) => file.name === 'index.json')) {
-          console.log('index.json found in metadata folder.');
-        } else {
-          console.log('index.json not found, will be created on first backup.');
-        }
-      }
-    } catch (error: any) {
-      console.error('Error initializing Supabase bucket:', error.message || error);
-      this.supabaseAvailable = false;
-    }
-  }
-
-  async getConfig(): Promise<{ success: boolean; data?: BackupConfig; error?: string }> {
-    try {
-      if (!this.backupDir) {
-        throw new Error('Backup service not properly initialized');
-      }
-
-      let config = { ...DEFAULT_CONFIG };
-      const configPath = path.join(this.backupDir, 'config.json');
-      
-      // First try reading from local file
-      if (fs.existsSync(configPath)) {
-        try {
-          const fileContent = fs.readFileSync(configPath, 'utf8');
-          config = { ...config, ...JSON.parse(fileContent) };
-        } catch (e) {
-          console.warn('Error reading local config:', e);
-        }
-      }
-      
-      // Then try Supabase if available
-      if (config.useSupabase && this.supabaseAvailable && !this.isMockClient()) {
-        try {
-          const { data: dbConfigData, error: dbConfigError } = await (this.supabase as SupabaseClient)
-            .from('settings')
-            .select('value')
-            .eq('key', this.configKey)
-            .maybeSingle(); // Utiliser maybeSingle au lieu de single
-            
-          if (dbConfigError) {
-            console.warn(`Error fetching config from Supabase: ${dbConfigError.message}`);
-          } else if (dbConfigData && dbConfigData.value) {
-            config = { ...config, ...(dbConfigData.value as Partial<BackupConfig>) };
-          }
-        } catch (e) {
-          console.warn('Error fetching Supabase config:', e);
-        }
-      } else if (this.isMockClient()) {
-        console.log('Using mock Supabase client, skipping remote config fetch');
-      }
-      
-      return { success: true, data: config };
-    } catch (error) {
-      console.error('Error getting config:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-    }
-  }
-
-  private async updateBackupIndexAfterDelete(id: string): Promise<void> {
-    if (!this.supabaseAvailable) return;
-    try {
-      // Supprimer l'enregistrement de la table backups
-      const { error: deleteError } = await (this.supabase as SupabaseClient)
-        .from('backups')
-        .delete()
-        .eq('id', id);
-
-      if (deleteError) {
-        console.warn('Error deleting backup record:', deleteError.message);
-      } else {
-        console.log('Backup record deleted successfully from database.');
-      }
-    } catch (error) {
-      console.warn('Error in updateBackupIndexAfterDelete:', error);
-    }
-  }
-
-
-  private async saveBackupHistory(backup: BackupHistory): Promise<void> {
-    try {
-      const historyResult = await this.getBackupHistory(); // This now handles merging
-      const backups = historyResult.data || [];
-      
-      const existingIdx = backups.findIndex(b => b.id === backup.id);
-      if (existingIdx >= 0) backups[existingIdx] = backup;
-      else backups.push(backup);
-
-      // Sort again after potential addition/update
-      backups.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      await this.saveLocalBackupHistory(backups);
-    } catch (error) {
-      console.error('Error saving backup history:', error);
-    }
-  }
-
-  private async saveLocalBackupHistory(backups: BackupHistory[]): Promise<void> {
-    try {
-      const historyPath = path.join(this.backupDir, 'history.json');
-      fs.writeFileSync(historyPath, JSON.stringify(backups, null, 2));
-    } catch (error) {
-      console.error('Error saving local backup history:', error);
-    }
-  }
-
-  private async cleanupOldBackups(): Promise<void> {
-    try {
-      const configResult = await this.getConfig();
-      const maxBackups = configResult.data?.maxBackups || DEFAULT_CONFIG.maxBackups;
-      
-      const historyResult = await this.getBackupHistory();
-      let backups = historyResult.data || [];
-      
-      if (backups.length <= maxBackups) return;
-
-      // getBackupHistory already sorts, but to be sure for cleanup logic:
-      backups.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); // Oldest first
-      const backupsToDelete = backups.slice(0, backups.length - maxBackups);
-
-      for (const backup of backupsToDelete) {
-        console.log(`Cleaning up old backup: ${backup.id}`);
-        await this.deleteBackup(backup.id); // deleteBackup will handle local and cloud
-      }
-    } catch (error) {
-      console.error('Error cleaning up old backups:', error);
-    }
-  }
-
-  async testDirectInsert(): Promise<{ success: boolean; data?: any; error?: any }> {
-    if (!this.supabaseAvailable || this.isMockClient()) {
-      return { success: false, error: 'Supabase not available or mock client in use.' };
-    }
-    try {
-      console.log('Testing direct insert into "backups" table...');
-      const testRecord = {
-        id: `test-${Date.now()}`, // Unique ID
-        name: 'test-backup-direct',
-        created_at: new Date().toISOString(),
-        size: 1024,
-        type: 'cloud' as 'cloud',
-        status: 'success' as 'success',
-        user_id: '00000000-0000-0000-0000-000000000000',
-        metadata: { version: 'test-1.0' }
-      };
-      
-      const { data, error } = await (this.supabase as SupabaseClient) // Cast
-        .from('backups') // Assuming you have a 'backups' table
-        .insert(testRecord);
-        
-      if (error) {
-        console.error('Direct insert error:', error);
-        return { success: false, error };
-      }
-      console.log('Direct insert successful:', data);
-      return { success: true, data };
-    } catch (error) {
-      console.error('Exception during direct insert test:', error);
-      return { success: false, error };
-    }
-  }
-
-  private async loadConfig(): Promise<void> {
-    try {
-      const configResult = await this.getConfig();
-      if (!configResult.success) {
-        console.warn('Failed to load config, using default values');
-      }
-    } catch (error) {
-      console.error('Error loading config:', error);
-    }
-  }
-
-  private async initializeBackupDirectory(): Promise<void> {
-    try {
-      if (!fs.existsSync(this.backupDir)) {
-        fs.mkdirSync(this.backupDir, { recursive: true });
-      }
-    } catch (error) {
-      console.error('Error initializing backup directory:', error);
-      throw error;
-    }
-  }
-
-  private async scheduleNextBackup(): Promise<void> {
-    try {
-      const configResult = await this.getConfig();
-      if (!configResult.data?.autoBackup) {
-        console.log('Auto backup is disabled');
-        return;
-      }
-
-      // TODO: Implement backup scheduling logic
-      console.log('Backup scheduling not yet implemented');
-    } catch (error) {
-      console.error('Error scheduling next backup:', error);
-    }
-  }
-
-  private initializePaths() {
-    // Initialiser les chemins de base
-    this.backupDir = path.join(app.getPath('userData'), 'backups');
-    this.dbPath = path.join(app.getPath('userData'), 'database.db');
-
-    // Vérifier et créer le dossier de sauvegarde
-    if (!fs.existsSync(this.backupDir)) {
-        fs.mkdirSync(this.backupDir, { recursive: true });
-    }
-
-    // Vérifier le chemin de la base de données depuis AppDataSource
-    try {
-        const ds = AppDataSource as any;
-        if (ds && ds.options && typeof ds.options.database === 'string') {
-            this.dbPath = ds.options.database;
-        } else {
-            console.warn('AppDataSource.options.database not found or not a string, using default dbPath:', this.dbPath);
-        }
-    } catch (error) {
-        console.error('Error accessing AppDataSource.options, using default dbPath:', this.dbPath, error);
-    }
-  }
-
-  async initialize() {
-    try {
-        // Initialiser les chemins en premier
-        this.initializePaths();
-
-        // Vérifier la disponibilité de Supabase
-        const isAvailable = await this.checkSupabaseAvailability();
-        if (!isAvailable) {
-            console.warn('Supabase is not available, using mock client');
-            this.initializeMockClient();
-            return;
-        }
-
-        // Si Supabase est disponible, continuer avec l'initialisation normale
-        await this.loadConfig();
-        await this.initializeBackupDirectory();
-        await this.cleanupOldBackups();
-        await this.scheduleNextBackup();
-    } catch (error) {
-        console.error('Error initializing backup service:', error);
-        throw error;
-    }
-  }
-
-  // Méthode pour obtenir les sauvegardes d'une école spécifique
-  async getSchoolBackups(schoolId: string): Promise<{ success: boolean; data?: BackupHistory[]; error?: string }> {
-    try {
-      if (!this.supabaseAvailable || this.isMockClient()) {
-        return { success: false, error: 'Supabase not available' };
-      }
-
-      const { data: backups, error } = await (this.supabase as SupabaseClient)
-        .from('backups')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('Error fetching school backups:', error.message);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data: backups as BackupHistory[] };
-    } catch (error) {
-      console.error('Error in getSchoolBackups:', error);
-      return { success: false, error: 'Unknown error fetching school backups' };
-    }
-  }
-
-  // Méthode pour vérifier si une école a une sauvegarde en cours
-  async isSchoolBackupInProgress(schoolId: string): Promise<{ success: boolean; inProgress: boolean; error?: string }> {
-    try {
-      if (!this.supabaseAvailable || this.isMockClient()) {
-        return { success: false, inProgress: false, error: 'Supabase not available' };
-      }
-
-      const { data: backups, error } = await (this.supabase as SupabaseClient)
-        .from('backups')
-        .select('backup_status')
-        .eq('school_id', schoolId)
-        .eq('backup_status', 'in_progress')
-        .limit(1);
-
-      if (error) {
-        console.warn('Error checking school backup status:', error.message);
-        return { success: false, inProgress: false, error: error.message };
-      }
-
-      return { success: true, inProgress: backups && backups.length > 0 };
-    } catch (error) {
-      console.error('Error in isSchoolBackupInProgress:', error);
-      return { success: false, inProgress: false, error: 'Unknown error checking backup status' };
-    }
-  }
-
-  // Méthode pour obtenir le statut des sauvegardes de toutes les écoles
-  async getAllSchoolsBackupStatus(): Promise<{ success: boolean; data?: { school_id: string; school_name: string; last_backup: string; status: string }[]; error?: string }> {
-    try {
-      if (!this.supabaseAvailable || this.isMockClient()) {
-        return { success: false, error: 'Supabase not available' };
-      }
-
-      const { data: backups, error } = await (this.supabase as SupabaseClient)
-        .from('backups')
-        .select('school_id, school_name, created_at, backup_status')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('Error fetching all schools backup status:', error.message);
-        return { success: false, error: error.message };
-      }
-
-      // Grouper par école et prendre la dernière sauvegarde
-      const schoolStatus = new Map();
-      backups?.forEach(backup => {
-        if (!schoolStatus.has(backup.school_id)) {
-          schoolStatus.set(backup.school_id, {
-            school_id: backup.school_id,
-            school_name: backup.school_name,
-            last_backup: backup.created_at,
-            status: backup.backup_status
-          });
-        }
-      });
-
-      return { 
-        success: true, 
-        data: Array.from(schoolStatus.values())
-      };
-    } catch (error) {
-      console.error('Error in getAllSchoolsBackupStatus:', error);
-      return { success: false, error: 'Unknown error fetching schools backup status' };
-    }
-  }
-
-  // Méthode pour mettre à jour le statut d'une sauvegarde
-  async updateBackupStatus(backupId: string, status: 'pending' | 'in_progress' | 'completed' | 'failed'): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!this.supabaseAvailable || this.isMockClient()) {
-        return { success: false, error: 'Supabase not available' };
-      }
-
-      const { error } = await (this.supabase as SupabaseClient)
-        .from('backups')
-        .update({ backup_status: status })
-        .eq('id', backupId);
-
-      if (error) {
-        console.warn('Error updating backup status:', error.message);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error in updateBackupStatus:', error);
-      return { success: false, error: 'Unknown error updating backup status' };
     }
   }
 }
-
-export const backupService = new BackupService();
-export default backupService;

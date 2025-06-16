@@ -4,7 +4,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { AppDataSource } from "#electron/data-source.ts";
 import { ConfigService } from './backend/services/configService';
-import './events';  // Importer tous les gestionnaires d'événements
+import './events';  
 import dotenv from 'dotenv';
 import './config/env';
 
@@ -17,6 +17,8 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 let win: BrowserWindow | null
 let dataSourceInitialized = false;
+
+
 
 async function initializeDataSource() {
   if (!dataSourceInitialized) {

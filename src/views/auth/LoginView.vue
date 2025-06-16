@@ -5,10 +5,12 @@ import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import type { FormInstance } from 'element-plus'
 
 const router = useRouter()
 const loading = ref(false)
 const rememberMe = ref(false)
+const loginForm = ref<FormInstance>() // Changed from formRef to loginForm to match template
 
 const formData = reactive({
   username: '',
@@ -27,47 +29,36 @@ const rules = {
 }
 
 const handleLogin = async () => {
-  try {
-    loading.value = true
-    const result = await window.ipcRenderer.invoke('auth:validate', {
-      username: formData.username,
-      password: formData.password
-    })
+    if (!loginForm.value) return;
 
-    if (result.success) {
-      // Stocker les informations de l'utilisateur
-      const userData = {
-        id: result.data.id,
-        username: result.data.username
-      }
-      
-      if (rememberMe.value) {
-        localStorage.setItem('user', JSON.stringify(userData))
-      } else {
-        sessionStorage.setItem('user', JSON.stringify(userData))
-      }
-      
-      // Utiliser router.push avec un callback pour s'assurer que la navigation est terminée
-      router.push('/').then(() => {
-        ElMessage({
-          message: 'Connexion réussie',
-          type: 'success'
-        })
-      }).catch((err) => {
-        console.error('Erreur de navigation:', err)
-        // Si la navigation échoue, forcer le rechargement
-        window.location.href = '/'
-      })
-    } else {
-      ElMessage.error(result.message || 'Erreur de connexion')
-    }
-  } catch (error) {
-    console.error('Erreur de connexion:', error)
-    ElMessage.error("Une erreur s'est produite lors de la connexion")
-  } finally {
-    loading.value = false
-  }
-}
+    await loginForm.value.validate(async (valid: boolean) => {
+        if (!valid) return;
+
+        loading.value = true;
+        try {
+            const result = await window.ipcRenderer.invoke("auth:login", {
+                username: formData.username,
+                password: formData.password
+            });
+
+            if (result.success && result.data) {
+                // Stocker les informations de l'utilisateur
+                localStorage.setItem('user', JSON.stringify(result.data));
+                
+                ElMessage.success("Connexion réussie !");
+                // Utiliser '/' au lieu de '/dashboard' et replace au lieu de push
+                await router.replace('/');
+            } else {
+                ElMessage.error(result.message || "Échec de la connexion");
+            }
+        } catch (error) {
+            console.error("Erreur de connexion:", error);
+            ElMessage.error("Erreur lors de la connexion");
+        } finally {
+            loading.value = false;
+        }
+    });
+};
 </script>
 
 <template>
