@@ -4,8 +4,8 @@ export interface IGradeData {
     code: string;
     students?: any[];
     branches?: IBranchData[];
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 export interface IClassRoomData {
@@ -15,8 +15,8 @@ export interface IClassRoomData {
     capacity: number;
     grade?: IGradeData;
     branch?: IBranchData;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 export interface IBranchData {
@@ -24,8 +24,8 @@ export interface IBranchData {
     name: string;
     code: string;
     grade?: IGradeData;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 export interface IGradeServiceParams {
@@ -102,8 +102,8 @@ export interface GradeEntity {
     name: string;
     code: string;
     branches?: BranchEntity[];
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 export interface BranchEntity {
@@ -111,8 +111,8 @@ export interface BranchEntity {
     name: string;
     code: string;
     grade?: GradeEntity;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 // Types pour les formulaires
@@ -150,8 +150,8 @@ export interface Grade {
     students?: any[]; // Référence aux étudiants (à définir dans student.ts)
     branches?: Branch[];
     classRooms?: ClassRoom[];
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 export interface ClassRoom {
@@ -163,8 +163,8 @@ export interface ClassRoom {
     gradeId?: number;
     branch?: Branch;
     branchId?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 export interface Branch {
@@ -173,8 +173,8 @@ export interface Branch {
     code?: string;
     grade?: Grade;
     gradeId?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 // Types pour les commandes
@@ -219,6 +219,6 @@ export interface ClassRoomEntity {
     capacity: number;
     grade?: GradeEntity;
     branch?: BranchEntity;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }

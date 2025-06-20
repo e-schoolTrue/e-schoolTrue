@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Key } from '@element-plus/icons-vue';
+import { Icon } from '@iconify/vue';
 
 const emit = defineEmits(['license-activated']);
 
@@ -35,6 +35,7 @@ async function activateLicense() {
     );
   } finally {
     isLoading.value = false;
+    licenseCode.value = '';
   }
 }
 
@@ -47,38 +48,37 @@ function handleInput(value: string) {
   <div class="license-view">
     <div class="license-container">
       <div class="license-header">
-        <el-icon :size="40" class="header-icon">
-          <Key />
-        </el-icon>
+        <Icon icon="mdi:key" class="header-icon" :width="40" :height="40" />
         <h1>Activation de la Licence</h1>
+        <p class="subtitle">Entrez votre code de licence pour commencer à utiliser l'application</p>
       </div>
 
       <div class="license-content">
         <el-form @submit.prevent="activateLicense">
           <el-form-item>
-          <el-input
-            v-model="licenseCode"
+            <el-input
+              v-model="licenseCode"
               placeholder="XXXX-XXXX-XXXX-XXXX"
-            :disabled="isLoading"
+              :disabled="isLoading"
               maxlength="19"
-            class="license-input"
+              class="license-input"
               @input="handleInput"
             >
               <template #prefix>
-                <el-icon><Key /></el-icon>
+                <Icon icon="mdi:key" :width="16" :height="16" />
               </template>
             </el-input>
             <p class="input-hint">Format: XXXX-XXXX-XXXX-XXXX</p>
-        </el-form-item>
+          </el-form-item>
 
-      <el-button
-        type="primary"
-        @click="activateLicense"
-        :loading="isLoading"
+          <el-button
+            type="primary"
+            @click="activateLicense"
+            :loading="isLoading"
             class="activate-button"
           >
             {{ isLoading ? 'Activation en cours...' : 'Activer la Licence' }}
-      </el-button>
+          </el-button>
         </el-form>
       </div>
     </div>
@@ -120,8 +120,14 @@ function handleInput(value: string) {
 .license-header h1 {
   font-size: 1.5rem;
   color: #2c3e50;
-  margin: 0;
+  margin: 0 0 0.5rem 0;
   font-weight: 600;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0;
 }
 
 .license-content {
@@ -153,28 +159,5 @@ function handleInput(value: string) {
 
 :deep(.el-input__prefix) {
   margin-right: 0.5rem;
-}
-
-@media (max-width: 480px) {
-  .license-container {
-    padding: 1.5rem;
-    margin: 1rem;
-  }
-
-  .license-header h1 {
-    font-size: 1.25rem;
-  }
-
-  .header-icon {
-    padding: 10px;
-  }
-
-  .license-input {
-    font-size: 1rem;
-  }
-
-  .activate-button {
-    height: 40px;
-  }
 }
 </style>

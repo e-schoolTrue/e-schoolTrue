@@ -10,8 +10,8 @@ export const toolRoutes = [
       component: () => import("@/views/tools/ReportCardView.vue"),
     },
     {
-      path: "/tools/backup",
-      name: "BackupRestore",
-      component: () => import("@/views/tools/BackupView.vue"),
+      path: "/tools/sync",
+      name: "Sync",
+      component: () => import("@/views/tools/SyncView.vue"),
     },
   ]; 

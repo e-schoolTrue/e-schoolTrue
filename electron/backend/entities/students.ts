@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   Index,
+  DeleteDateColumn,
 } from "typeorm";
 
 import { FileEntity } from "./file";
@@ -27,7 +28,8 @@ export class StudentEntity {
    // ✅ UUID de Supabase (ajouté pour synchronisation distante)
    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
    remote_id?: string;
-   
+   @Column({ type: "varchar", length: 36, nullable: true })
+   user_id?: string;
   @Column({ type: "text" })
   firstname?: string;
 
@@ -50,7 +52,10 @@ export class StudentEntity {
   motherLastname?: string;
 
   @CreateDateColumn()
-  createdAt?: Date;
+  created_at?: Date;
+
+  @DeleteDateColumn()
+  deleted_at?: Date;
 
   // Relation avec FileEntity pour le document
   @OneToOne(() => FileEntity)
@@ -131,7 +136,7 @@ export class StudentEntity {
   payments!: PaymentEntity[];
 
   @UpdateDateColumn()
-  updatedAt?: Date;
+  updated_at?: Date;
 
   @OneToMany(() => ScholarshipEntity, scholarship => scholarship.student)
   scholarship!: ScholarshipEntity[];

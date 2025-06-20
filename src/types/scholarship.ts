@@ -5,7 +5,7 @@ export interface Scholarship {
     isActive: boolean;
     schoolYear: string;
     reason?: string;
-    createdAt: Date;
+    created_at: Date;
     configId?: number;
 }
 

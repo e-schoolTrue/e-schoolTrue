@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, OneToMany, ManyToOne } from "typeorm";
+import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
 import { TeachingAssignmentEntity } from "./teaching";
 import { FileEntity } from "./file";
 
@@ -10,7 +10,9 @@ export class ProfessorEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
-     
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
+
     @Column({ type: "text" })
     firstname!: string;
 
@@ -85,6 +87,13 @@ export class ProfessorEntity {
             
         return `${schoolPrefix}-P${currentYear}${randomPart}`;
     }
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn({ nullable: true })
+    updated_at?: Date;
+    @DeleteDateColumn({ nullable: true })
+    deleted_at?: Date;
 }
 
 @Entity("qualification")
@@ -92,11 +101,23 @@ export class QualificationEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
+
     @Column({ type: 'varchar', length: 255 })
     name: string = '';
 
     @OneToMany(() => ProfessorEntity, professor => professor.qualification, { onDelete: "CASCADE" })
     professors!: ProfessorEntity[];
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn({ nullable: true })
+    updated_at?: Date;
+    @DeleteDateColumn({ nullable: true })
+    deleted_at?: Date;
 }
 
 @Entity("diploma")
@@ -104,9 +125,21 @@ export class DiplomaEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
+
     @Column({ type: 'varchar', length: 255 })
     name: string = '';
 
     @OneToMany(() => ProfessorEntity, professor => professor.diploma, { onDelete: "CASCADE" })
     professors!: ProfessorEntity[];
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn({ nullable: true })
+    updated_at?: Date;
+    @DeleteDateColumn({ nullable: true })
+    deleted_at?: Date;
 }

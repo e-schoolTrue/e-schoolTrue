@@ -1,5 +1,4 @@
-// @ts-nocheck
-import {createMemoryHistory, createRouter, createWebHashHistory} from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'; 
 import HomeView from "@/views/HomeView.vue";
 import DashboardView from "@/views/DashboardView.vue";
 import ConfigurationWizard from "@/views/ConfigurationWizard.vue";
@@ -50,12 +49,12 @@ const routes = [
 ];
 
 const router = createRouter({
-    history: createMemoryHistory(),
+    history: createWebHashHistory(), // Changer ici
     routes
 });
 
 // Ajouter un guard pour rediriger vers /configuration-wizard au premier lancement
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
     console.log('Navigation vers:', to.path)
     console.log('État utilisateur:', localStorage.getItem('user'))
     

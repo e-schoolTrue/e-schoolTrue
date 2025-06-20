@@ -141,7 +141,7 @@ export const AppItems: MenuItem[] = [
                 id: "submenu-5-3",
                 title: "Sauvegarde et Restauration",
                 icon: "mdi:database-sync",
-                route: "/tools/backup",
+                route: "/tools/sync",
                 description: "Gérer les sauvegardes et restaurations de données"
             }
         ]

@@ -3,7 +3,7 @@ export interface IPaymentData {
     amount: number;
     paymentType: string;
     paymentMethod: string;
-    createdAt?: Date;
+    created_at?: Date;
     studentId: number;
     installmentNumber?: number;
     schoolYear?: string;

@@ -8,8 +8,8 @@ export interface YearRepartition {
     id?: number;
     schoolYear: string;
     periodConfigurations: PeriodConfiguration[];
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
     isCurrent?: boolean;
 }
 
@@ -28,6 +28,6 @@ export interface YearRepartitionResponse {
     schoolYear: string;
     periodConfigurations: PeriodConfiguration[];
     isCurrent: boolean;
-    createdAt: string;
-    updatedAt: string;
+    created_at: string;
+    updated_at: string;
 }

@@ -7,7 +7,7 @@ export interface Homework {
     gradeId: number;
     professorId: number;
     isCompleted: boolean;
-    createdAt: Date;
+    created_at: Date;
 }
 
 export interface HomeworkCreateInput {

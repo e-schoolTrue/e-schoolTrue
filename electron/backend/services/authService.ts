@@ -2,21 +2,27 @@ import { UserEntity } from '../entities/user';
 import { ResultType, ROLE } from '#electron/command';
 import * as bcrypt from 'bcryptjs';
 import { AppDataSource } from '../../data-source';
-import  Store  from 'electron-store';
+import Store from 'electron-store';
 import { supabaseConfig } from '../../config/supabase';
-import { supabase } from '../lib/supabaseClient'; 
+import { supabase } from '../lib/supabaseClient';
+import { setCurrentSupabaseUserId } from '../lib/session';
+
+//Variable globale pour stocker l'ID Supabase
+let currentSupabaseUserId: string | null = null;
+
+//Fonction exportée pour accéder à l'ID depuis d'autres modules
+export function getCurrentSupabaseUserId(): string | null {
+    return currentSupabaseUserId;
+}
 
 export class AuthService {
     private userRepository = AppDataSource.getInstance().getRepository(UserEntity);
     private currentUser: { id: number; username: string } | null = null;
     private store = new Store();
-  
-      private supabase = supabase; 
-
+    private supabase = supabase;
 
     async createSupervisor(username: string, password: string, securityQuestion: string, securityAnswer: string): Promise<ResultType> {
         try {
-            // Vérifier si un superviseur existe déjà
             const existingSupervisor = await this.userRepository.findOne({ where: { username } });
             if (existingSupervisor) {
                 return {
@@ -27,12 +33,10 @@ export class AuthService {
                 };
             }
 
-            // Hasher le mot de passe et la réponse de sécurité
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
             const hashedAnswer = await bcrypt.hash(securityAnswer.toLowerCase(), salt);
 
-            // Créer le superviseur
             const supervisor = this.userRepository.create({
                 username,
                 password: hashedPassword,
@@ -67,7 +71,7 @@ export class AuthService {
         try {
             console.log("=== Validation du superviseur ===");
             const user = await this.userRepository.findOne({ where: { username } });
-            
+
             if (!user) {
                 this.currentUser = null;
                 return {
@@ -89,7 +93,6 @@ export class AuthService {
                 };
             }
 
-            // Set current user after successful validation
             this.currentUser = {
                 id: user.id,
                 username: user.username
@@ -120,14 +123,21 @@ export class AuthService {
     }
 
     async init() {
-        this.currentUser = this.store.get('currentUser') as any; // Récupération
+        this.currentUser = this.store.get('currentUser') as any;
+
+        // ✅ Étape 1.5 : Restauration de l'ID Supabase au démarrage
+        const { data: { user }, error } = await this.supabase.auth.getUser();
+        if (user) {
+            currentSupabaseUserId = user.id;
+            console.log(`[AuthService:init] Session Supabase valide. ID restauré : ${currentSupabaseUserId}`);
+        } else {
+            currentSupabaseUserId = null;
+        }
     }
 
-  
     async getCurrentUser(): Promise<{ id: number; username: string } | null> {
         return this.currentUser;
     }
-
 
     async logout(): Promise<void> {
         this.currentUser = null;
@@ -136,7 +146,7 @@ export class AuthService {
     async getSecurityQuestion(username: string): Promise<ResultType> {
         try {
             const user = await this.userRepository.findOne({ where: { username } });
-            
+
             if (!user) {
                 return {
                     success: false,
@@ -168,7 +178,7 @@ export class AuthService {
     async validateSecurityAnswer(username: string, answer: string): Promise<ResultType> {
         try {
             const user = await this.userRepository.findOne({ where: { username } });
-            
+
             if (!user) {
                 return {
                     success: false,
@@ -210,7 +220,7 @@ export class AuthService {
     async resetPassword(username: string, newPassword: string): Promise<ResultType> {
         try {
             const user = await this.userRepository.findOne({ where: { username } });
-            
+
             if (!user) {
                 return {
                     success: false,
@@ -220,11 +230,9 @@ export class AuthService {
                 };
             }
 
-            // Hasher le nouveau mot de passe
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-            // Mettre à jour le mot de passe
             user.password = hashedPassword;
             await this.userRepository.save(user);
 
@@ -249,7 +257,6 @@ export class AuthService {
 
     async createSupabaseAccount(email: string, password: string): Promise<ResultType> {
         try {
-            // Verify Supabase URL is accessible
             const urlTest = new URL(supabaseConfig.url);
             try {
                 await fetch(`${urlTest.origin}/health`);
@@ -300,6 +307,91 @@ export class AuthService {
         }
     }
 
+    async signInWithSupabase(email: string, password: string): Promise<ResultType> {
+        try {
+            const { data, error } = await this.supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+            
+
+            if (error) {
+                console.error('Erreur connexion Supabase:', error);
+                currentSupabaseUserId = null;
+                return {
+                    success: false,
+                    data: null,
+                    message: "Échec de la connexion au compte cloud",
+                    error: error.message
+                };
+
+            }
+
+            if (data.user) {
+                currentSupabaseUserId = data.user.id;
+                setCurrentSupabaseUserId(data.user.id);
+                console.log(`[AuthService] Utilisateur Supabase connecté. ID stocké : ${currentSupabaseUserId}`);
+            }
+            else {
+                setCurrentSupabaseUserId(null);
+            }
+
+            this.store.set('supabaseUser', {
+                id: data.user?.id,
+                email: data.user?.email,
+                session: data.session
+            });
+
+            return {
+                success: true,
+                data: data.user,
+                message: "Connexion au compte cloud réussie",
+                error: null
+            };
+        } catch (error) {
+            console.error('Erreur inattendue:', error);
+            currentSupabaseUserId = null;
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la connexion au compte cloud",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async signOutFromSupabase(): Promise<void> {
+        await this.supabase.auth.signOut();
+        currentSupabaseUserId = null;
+        console.log('[AuthService] Utilisateur Supabase déconnecté. ID nettoyé.');
+    }
+
+    async isSupabaseSessionValid(): Promise<boolean> {
+        try {
+            const { data: { session }, error } = await this.supabase.auth.getSession();
+
+            if (error) {
+                console.error('Erreur vérification session Supabase:', error);
+                return false;
+            }
+
+            return !!session;
+        } catch (error) {
+            console.error('Erreur inattendue vérification session:', error);
+            return false;
+        }
+    }
+
+    async getSupabaseAuthUser(): Promise<{ id: string } | null> {
+        const { data: { user } } = await this.supabase.auth.getUser();
+        if (user) {
+            setCurrentSupabaseUserId(user.id); 
+            return { id: user.id };
+        }
+        setCurrentSupabaseUserId(null);
+        return null;
+    }
+
     private formatSupabaseError(error: any): string {
         if (error.message?.includes('ENOTFOUND')) {
             return "Impossible de se connecter au serveur Supabase";
@@ -315,77 +407,5 @@ export class AuthService {
             return error.message;
         }
         return "Erreur inconnue";
-    }
-
-    async signInWithSupabase(email: string, password: string): Promise<ResultType> {
-        try {
-            const { data, error } = await this.supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-
-            if (error) {
-                console.error('Erreur connexion Supabase:', error);
-                return {
-                    success: false,
-                    data: null,
-                    message: "Échec de la connexion au compte cloud",
-                    error: error.message
-                };
-            }
-
-            // Stocker les informations de connexion Supabase
-            this.store.set('supabaseUser', {
-                id: data.user?.id,
-                email: data.user?.email,
-                session: data.session
-            });
-
-            return {
-                success: true,
-                data: data.user,
-                message: "Connexion au compte cloud réussie",
-                error: null
-            };
-        } catch (error) {
-            console.error('Erreur inattendue:', error);
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la connexion au compte cloud",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async isSupabaseSessionValid(): Promise<boolean> {
-        try {
-            const { data: { session }, error } = await this.supabase.auth.getSession();
-            
-            if (error) {
-                console.error('Erreur vérification session Supabase:', error);
-                return false;
-            }
-
-            return !!session;
-        } catch (error) {
-            console.error('Erreur inattendue vérification session:', error);
-            return false;
-        }
-    }
-     async getSupabaseAuthUser(): Promise<{ id: string } | null> {
-        try {
-            const { data: { user }, error } = await this.supabase.auth.getUser();
-            
-            if (error || !user) {
-                console.warn("Erreur getSupabaseUser:", error?.message || "No user found");
-                return null;
-            }
-
-            return { id: user.id };
-        } catch (error) {
-            console.error("Erreur lors de la récupération de l'utilisateur Supabase:", error);
-            return null;
-        }
     }
 }

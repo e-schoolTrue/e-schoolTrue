@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
 import { ProfessorEntity } from "./professor";
 
 @Entity("professor_payments")
@@ -9,7 +9,8 @@ export class ProfessorPaymentEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
-     
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column("decimal", { precision: 10, scale: 2 })
     amount!: number;
 
@@ -59,4 +60,11 @@ export class ProfessorPaymentEntity {
         amount: number;
         description?: string;
     }[];
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn()
+    updated_at?: Date;
+    @DeleteDateColumn()
+    deleted_at?: Date;
 }

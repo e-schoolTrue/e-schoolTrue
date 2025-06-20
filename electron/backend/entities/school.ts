@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { FileEntity } from "./file";
 
 export type CountryCode = 'MAR' | 'SEN' | 'CAF' | 'GIN';
@@ -12,7 +12,8 @@ export class SchoolSettingsEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
-     
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column({ type: "varchar", length: 50 })
     schoolCode: string = '';
 
@@ -25,6 +26,13 @@ export class SchoolSettingsEntity {
     @OneToOne(() => SchoolEntity, school => school.settings)
     @JoinColumn()
     school?: SchoolEntity;
+
+    @DeleteDateColumn()
+    deleted_at?: Date;
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn()
+    updated_at?: Date;
 }
 
 @Entity("school")

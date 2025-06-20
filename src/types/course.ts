@@ -1,6 +1,6 @@
 // Types de base
 export interface ICourseBase {
-    id?: number;
+    id?: string;
     name: string;
     code: string;
     coefficient: number;
@@ -9,16 +9,16 @@ export interface ICourseBase {
 // Type principal pour les matières
 export interface ICourse extends ICourseBase {
     isInGroupement?: boolean;
-    groupementId?: number;
+    groupementId?: string;
     groupement?: ICourse;    // Matière parente
     courses?: ICourse[];     // Sous-matières
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
 // Type pour les observations
 export interface ICourseObservation {
-    id?: number;
+    id?: string;
     observation?: string;
     note?: number;
 }
@@ -32,7 +32,7 @@ export interface ICourseData extends ICourse {
 export interface ICourseFormData extends ICourseBase {}
 
 export interface ICourseGroupFormData extends ICourseBase {
-    groupementId?: number;
+    groupementId?: string;
 }
 
 // Types pour les requêtes de service
@@ -40,11 +40,11 @@ export interface ICourseServiceParams {
     newCourse: ICourseBase;
     
     addCourseToGroupement: ICourseBase & {
-        groupementId?: number;
+        groupementId?: string;
     };
     
     updateCourse: {
-        id: number;
+        id: string;
         data: ICourseBase;
     };
 }
@@ -68,10 +68,10 @@ export type CourseResponse = IApiResponse<ICourse[]>;
 export type CourseGroupResponse = IApiResponse<ICourse[]>;
 export type CourseCommand = ICourseBase & { 
   isInGroupement?: boolean; 
-  groupementId?: number; 
+  groupementId?: string; 
 };
 export type CourseGroupCommand = ICourseBase & { 
-  groupementId?: number; 
+  groupementId?: string; 
   groupement?: ICourseBase; // Pour stocker les informations de base du parent
   isInGroupement?: boolean; 
 };

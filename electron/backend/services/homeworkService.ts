@@ -1,26 +1,68 @@
 import { Repository } from "typeorm";
 import { HomeworkEntity } from "../entities/homework";
+import { CourseEntity } from "../entities/course";
+import { GradeEntity } from "../entities/grade";
+import { ProfessorEntity } from "../entities/professor";
 import { AppDataSource } from "../../data-source";
 import { ResultType } from "./paymentService";
 import { Homework, HomeworkCreateInput, HomeworkUpdateInput } from "../types/homework";
 
 export class HomeworkService {
     private homeworkRepository: Repository<HomeworkEntity>;
+    private courseRepository: Repository<CourseEntity>;
+    private gradeRepository: Repository<GradeEntity>;
+    private professorRepository: Repository<ProfessorEntity>;
 
     constructor() {
-        this.homeworkRepository = AppDataSource.getInstance().getRepository(HomeworkEntity);
+        const dataSource = AppDataSource.getInstance();
+        this.homeworkRepository = dataSource.getRepository(HomeworkEntity);
+        this.courseRepository = dataSource.getRepository(CourseEntity);
+        this.gradeRepository = dataSource.getRepository(GradeEntity);
+        this.professorRepository = dataSource.getRepository(ProfessorEntity);
     }
 
     async createHomework(data: HomeworkCreateInput): Promise<ResultType<Homework>> {
         try {
             console.log("Données reçues dans le service:", data);
 
+            // Vérifier que les entités liées existent
+            const course = await this.courseRepository.findOne({ where: { id: data.courseId } });
+            if (!course) {
+                return {
+                    success: false,
+                    data: null,
+                    message: `Cours avec l'ID ${data.courseId} non trouvé`,
+                    error: "COURSE_NOT_FOUND"
+                };
+            }
+
+            const grade = await this.gradeRepository.findOne({ where: { id: data.gradeId } });
+            if (!grade) {
+                return {
+                    success: false,
+                    data: null,
+                    message: `Classe avec l'ID ${data.gradeId} non trouvée`,
+                    error: "GRADE_NOT_FOUND"
+                };
+            }
+
+            const professor = await this.professorRepository.findOne({ where: { id: data.professorId } });
+            if (!professor) {
+                return {
+                    success: false,
+                    data: null,
+                    message: `Professeur avec l'ID ${data.professorId} non trouvé`,
+                    error: "PROFESSOR_NOT_FOUND"
+                };
+            }
+
+            // Créer le devoir avec les entités vérifiées
             const homework = this.homeworkRepository.create({
                 description: data.description,
                 dueDate: new Date(data.dueDate),
-                course: { id: data.courseId },
-                grade: { id: data.gradeId },
-                professor: { id: data.professorId }
+                course: course,
+                grade: grade,
+                professor: professor
             });
 
             const saved = await this.homeworkRepository.save(homework);
@@ -114,11 +156,51 @@ export class HomeworkService {
                 };
             }
 
+            // Vérifier les entités liées si elles sont fournies
+            let course, grade, professor;
+            
+            if (data.courseId !== undefined) {
+                course = await this.courseRepository.findOne({ where: { id: data.courseId } });
+                if (!course) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: `Cours avec l'ID ${data.courseId} non trouvé`,
+                        error: "COURSE_NOT_FOUND"
+                    };
+                }
+            }
+
+            if (data.gradeId !== undefined) {
+                grade = await this.gradeRepository.findOne({ where: { id: data.gradeId } });
+                if (!grade) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: `Classe avec l'ID ${data.gradeId} non trouvée`,
+                        error: "GRADE_NOT_FOUND"
+                    };
+                }
+            }
+
+            if (data.professorId !== undefined) {
+                professor = await this.professorRepository.findOne({ where: { id: data.professorId } });
+                if (!professor) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: `Professeur avec l'ID ${data.professorId} non trouvé`,
+                        error: "PROFESSOR_NOT_FOUND"
+                    };
+                }
+            }
+
+            // Mettre à jour le devoir avec les entités vérifiées
             const updatedHomework = this.homeworkRepository.merge(existingHomework, {
                 ...data,
-                course: data.courseId ? { id: data.courseId } : undefined,
-                grade: data.gradeId ? { id: data.gradeId } : undefined,
-                professor: data.professorId ? { id: data.professorId } : undefined
+                course: course || existingHomework.course,
+                grade: grade || existingHomework.grade,
+                professor: professor || existingHomework.professor
             });
 
             const saved = await this.homeworkRepository.save(updatedHomework);

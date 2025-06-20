@@ -1,6 +1,7 @@
 import {
     Column,
     CreateDateColumn,
+    DeleteDateColumn,
     Entity, JoinColumn,
     ManyToOne, OneToMany,
     OneToOne,
@@ -17,6 +18,8 @@ export class GradeEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column({type: 'text'})
     name!: string;
     @Column({type: 'text'})
@@ -28,9 +31,11 @@ export class GradeEntity {
     @OneToMany(() => ClassRoomEntity, classRoom => classRoom.grade)
     classRooms?: ClassRoomEntity[];
     @CreateDateColumn()
-    createdAt?: Date;
+    created_at?: Date;
     @UpdateDateColumn()
-    updatedAt?: Date;
+    updated_at?: Date;
+    @DeleteDateColumn()
+    deleted_at?: Date;
 }
 
 @Entity('class_room')
@@ -40,6 +45,8 @@ export class ClassRoomEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column({type: 'text'})
     name?: string;
     @Column({type: 'text'})
@@ -53,9 +60,11 @@ export class ClassRoomEntity {
     @JoinColumn()
     branch?: BranchEntity;
     @CreateDateColumn()
-    createdAt?: Date;
+    created_at?: Date;
     @UpdateDateColumn()
-    updatedAt?: Date;
+    updated_at?: Date;
+    @DeleteDateColumn()
+    deleted_at?: Date;
 }
 
 @Entity('branch')
@@ -65,6 +74,8 @@ export class BranchEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column({type: 'text'})
     name?: string;
     @Column({type: 'text'})
@@ -72,7 +83,9 @@ export class BranchEntity {
     @ManyToOne(() => GradeEntity , grade => grade.branches , {onDelete: 'CASCADE'})
     grade?: GradeEntity;
     @CreateDateColumn()
-    createdAt?: Date;
+        created_at?: Date;
     @UpdateDateColumn()
-    updatedAt?: Date;
+    updated_at?: Date;
+    @DeleteDateColumn()
+    deleted_at?: Date;
 }
