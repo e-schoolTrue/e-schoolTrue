@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
 import { StudentEntity } from "./students";
 import { ScholarshipEntity } from "./scholarship";
 
@@ -9,6 +9,8 @@ export class PaymentEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column("decimal", { precision: 10, scale: 2 })
     amount!: number;
 
@@ -23,7 +25,11 @@ export class PaymentEntity {
     paymentMethod!: string;
 
     @CreateDateColumn()
-    createdAt!: Date;
+    created_at!: Date;
+    @UpdateDateColumn()
+    updated_at?: Date;
+    @DeleteDateColumn()
+    deleted_at?: Date;
 
     @ManyToOne(() => StudentEntity, student => student.payments, { onDelete: "CASCADE" })
     student!: StudentEntity;

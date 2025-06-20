@@ -361,7 +361,7 @@ interface Student {
   payments?: Array<{
     id: number;
     amount: number;
-    createdAt: Date;
+    created_at: Date;
     paymentType: string;
   }>;
   scholarshipPercentage?: number;
@@ -917,7 +917,7 @@ const printReceipt = async (student: Student) => {
           <p style="margin: 5px 0;">${schoolTown}, ${schoolAddress}</p>
           <p style="margin: 5px 0;">Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
           <h3 style="margin-top: 20px;">Reçu de Paiement N°${lastPayment.id}</h3>
-          <p style="margin: 5px 0;">Date: ${formatDate(lastPayment.createdAt)}</p>
+          <p style="margin: 5px 0;">Date: ${formatDate(lastPayment.created_at)}</p>
         </div>
         
         <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">

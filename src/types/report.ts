@@ -10,7 +10,7 @@ export interface ReportCard {
     examGrade: number | null;
     finalGrade: number | null;
     appreciation: string | null;
-    createdAt: Date;
+    created_at: Date;
     fileUrl?: string | null;
 
 }
@@ -88,5 +88,5 @@ export interface ConductData {
     discipline?: string;
     attendance?: string;
     workEthic?: string;
-    // ... autres aspects du comportement si nécessaire
+   
 }

@@ -15,6 +15,7 @@ import {
     IProfessorDetails,
     ITeachingAssignment
 } from "../types/professor";
+import { getCurrentSupabaseUserId } from "../lib/session";
 
 export class ProfessorService {
     private professorRepository!: Repository<ProfessorEntity>;
@@ -120,7 +121,7 @@ export class ProfessorService {
         try {
             const dataSource = AppDataSource.getInstance();
             if (!dataSource.isInitialized) {
-                await AppDataSource.initialize();
+                await AppDataSource.initialize(false);
             }
             
             this.professorRepository = dataSource.getRepository(ProfessorEntity);
@@ -143,6 +144,7 @@ export class ProfessorService {
             // Récupérer les informations de l'école pour le matricule
             const schoolInfo = await this.schoolService.getSchool();
             const schoolName = schoolInfo.data?.name || undefined;
+            const UserId = getCurrentSupabaseUserId();
 
             const result = await dataSource.manager.transaction(async transactionalEntityManager => {
                 // Create or find diploma if provided
@@ -187,7 +189,8 @@ export class ProfessorService {
                     town: professorData.town,
                     cni_number: professorData.cni_number,
                     diploma: diploma || undefined,
-                    qualification: qualification || undefined
+                    qualification: qualification || undefined,
+                    user_id: UserId
                 });
 
                 // Générer le matricule personnalisé

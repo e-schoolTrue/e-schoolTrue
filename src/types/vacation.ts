@@ -8,7 +8,7 @@ export interface Vacation {
     status: VacationStatus;
     professorId?: number;
     studentId?: number;
-    createdAt?: Date;
+    created_at?: Date;
     comment?: string;
 }
 

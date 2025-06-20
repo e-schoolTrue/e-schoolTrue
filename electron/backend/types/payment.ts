@@ -13,6 +13,12 @@ export interface IPaymentData {
     scholarshipAmount?: number;
     adjustedAmount?: number;
     scholarshipPercentage?: number;
+    reference?: string;
+    scholarshipAppliedOnAnnual?: boolean;
+    annualScholarshipPercentage?: string | number;
+    annualScholarshipAmount?: number;
+    annualAmountAfterScholarship?: number;
+    baseAnnualAmount?: number;
 }
 
 export interface IPaymentConfigData {

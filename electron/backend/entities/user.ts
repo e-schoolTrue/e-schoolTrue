@@ -9,6 +9,8 @@ export class UserEntity {
      // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
 
     @Column({ type: "varchar", unique: true })
     username!: string;

@@ -78,7 +78,7 @@ export class DashboardService {
             const paymentRepo = dataSource.getRepository(PaymentEntity);
             const payments = await paymentRepo.find({
                 relations: ['student'],
-                order: { createdAt: 'DESC' },
+                order: { created_at: 'DESC' },
                 take: limit
             });
 
@@ -86,7 +86,7 @@ export class DashboardService {
                 id: payment.id,
                 studentName: `${payment.student.firstname} ${payment.student.lastname}`,
                 amount: payment.amount,
-                date: payment.createdAt
+                date: payment.created_at
             }));
 
             return {
@@ -115,13 +115,13 @@ export class DashboardService {
 
             const payments = await paymentRepo
                 .createQueryBuilder('payment')
-                .where('payment.createdAt >= :startDate', { startDate: lastSixMonths })
-                .andWhere('payment.createdAt <= :endDate', { endDate: new Date() })
-                .orderBy('payment.createdAt', 'ASC')
+                .where('payment.created_at >= :startDate', { startDate: lastSixMonths })
+                .andWhere('payment.created_at <= :endDate', { endDate: new Date() })
+                .orderBy('payment.created_at', 'ASC')
                 .getMany();
 
             const monthlyPayments = payments.reduce((acc: { [key: string]: number }, payment:any) => {
-                const month = new Date(payment.createdAt).toLocaleString('fr-FR', { month: 'long' });
+                    const month = new Date(payment.created_at).toLocaleString('fr-FR', { month: 'long' });
                 acc[month] = (acc[month] || 0) + payment.amount;
                 return acc;
             }, {});
@@ -157,8 +157,8 @@ export class DashboardService {
                 .leftJoinAndSelect('absence.grade', 'grade')
                 .leftJoinAndSelect('absence.student', 'student')
                 .leftJoinAndSelect('absence.professor', 'professor')
-                .where('absence.createdAt >= :startDate', { startDate: lastThreeMonths })
-                .andWhere('absence.createdAt <= :endDate', { endDate: new Date() })
+                .where('absence.created_at >= :startDate', { startDate: lastThreeMonths })
+                .andWhere('absence.created_at <= :endDate', { endDate: new Date() })
                 .getMany();
 
             console.log('Types des absences trouvées:', absences.map((a:any) => a.type));

@@ -18,8 +18,8 @@ export interface IStudentData {
     personalPhone?: string;
     sex?: Gender;
     schoolYear?: string;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
     gradeId?: number;
     photoId?: number;
     documentId?: number;
@@ -52,8 +52,8 @@ export interface IStudentDetails {
     personalPhone?: string;
     sex?: Gender;
     schoolYear?: string;
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at?: Date;
+    updated_at?: Date;
     gradeId?: number;
     photoId?: number;
     documentId?: number;
@@ -149,7 +149,7 @@ export interface Student {
     payments?: Array<{
         id: number;
         amount: number;
-        createdAt: string;
+        created_at: Date;
         paymentType: string;
     }>;
     scholarship?: Array<{

@@ -54,7 +54,7 @@ export class PaymentService {
         if (!this.initialized) {
             const dataSource = AppDataSource.getInstance();
             if (!dataSource.isInitialized) {
-                await AppDataSource.initialize();
+                await AppDataSource.initialize(false);
             }
             this.paymentRepository = dataSource.getRepository(PaymentEntity);
             this.configRepository = dataSource.getRepository(PaymentConfigEntity);
@@ -180,7 +180,7 @@ export class PaymentService {
                     percentage: paymentData.scholarshipPercentage,
                     schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
                     isActive: true,
-                    createdAt: new Date()
+                    created_at: new Date()
                 });
 
                 activeScholarship = await this.scholarshipRepository.save(scholarship);
@@ -195,7 +195,7 @@ export class PaymentService {
                 adjustedAmount: Number(paymentData.adjustedAmount) || Number(paymentData.baseAmount) || 0,
                 baseAmount: Number(paymentData.baseAmount) || 0,
                 scholarshipId: activeScholarship?.id || null,
-                createdAt: new Date()
+                created_at: new Date()
             } as PaymentCreateData);
 
             console.log('Paiement à sauvegarder:', payment);
@@ -226,7 +226,7 @@ export class PaymentService {
                 relations: ['student', 'scholarship'],
                 skip: (page - 1) * limit,
                 take: limit,
-                order: { createdAt: 'DESC' }
+                order: { created_at: 'DESC' }
             });
 
             return {
@@ -306,7 +306,7 @@ export class PaymentService {
             const payments = await this.paymentRepository.find({
                 where: { studentId },
                 relations: ['student', 'scholarship'],
-                order: { createdAt: 'DESC' }
+                order: { created_at: 'DESC' }
             });
             
             console.log(`Paiements trouvés: ${payments.length}`);
@@ -633,7 +633,7 @@ export class PaymentService {
             await this.ensureRepositoriesInitialized();
             const payments = await this.paymentRepository.find({
                 relations: ['student'],
-                order: { createdAt: 'DESC' },
+                order: { created_at: 'DESC' },
                 take: limit
             });
 

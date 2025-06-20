@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { Chart, registerables } from 'chart.js';
@@ -28,6 +28,11 @@ const loading = ref(true);
 const paymentChartRef = ref<HTMLCanvasElement | null>(null);
 const absenceChartRef = ref<HTMLCanvasElement | null>(null);
 const { currency } = useCurrency();
+
+const recentAbsencesDisplay = computed(() => {
+  const absences = stats.value?.stats?.recentAbsences;
+  return Array.isArray(absences) ? absences.slice(0, 5) : [];
+});
 
 const loadDashboardStats = async () => {
   try {
@@ -236,7 +241,7 @@ onMounted(() => {
       <div class="activity-list">
         <div
           class="activity-item"
-          v-for="(absence, index) in stats?.stats.recentAbsences.slice(0, 5)"
+          v-for="(absence, index) in recentAbsencesDisplay"
           :key="index"
         >
           <div class="activity-details">

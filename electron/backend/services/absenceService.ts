@@ -11,6 +11,7 @@ import {
     IAbsenceServiceParams, 
     IAbsenceServiceResponse 
 } from '../types/absence';
+import { getCurrentSupabaseUserId } from '../lib/session';
 
 interface FileUpload {
     content: string;
@@ -35,6 +36,7 @@ export class AbsenceService {
     }
 
     async addAbsence(absenceData: IAbsenceServiceParams['addAbsence']): Promise<IAbsenceServiceResponse> {
+        const UserId = getCurrentSupabaseUserId();
         try {
             console.log('=== Service - Début addAbsence ===');
             console.log('Données reçues:', absenceData);
@@ -234,7 +236,7 @@ export class AbsenceService {
                 .leftJoinAndSelect('teaching.grades', 'teachingGrades')
                 .where('absence.type = :type', { type })
                 .orderBy('absence.date', 'DESC')
-                .addOrderBy('absence.createdAt', 'DESC')
+                .addOrderBy('absence.created_at', 'DESC')
                 .getMany();
 
             console.log(`Absences de type ${type} récupérées: ${absences.length}`);

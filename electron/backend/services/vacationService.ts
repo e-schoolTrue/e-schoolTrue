@@ -88,7 +88,7 @@ export class VacationService {
                 .createQueryBuilder('vacation')
                 .leftJoinAndSelect('vacation.professor', 'professor')
                 .where('vacation.student IS NULL')
-                .orderBy('vacation.createdAt', 'DESC');
+                .orderBy('vacation.created_at', 'DESC');
 
             if (professorId) {
                 query.andWhere('professor.id = :professorId', { professorId });
@@ -181,7 +181,7 @@ export class VacationService {
         try {
             const vacations = await this.vacationRepository.find({
                 relations: ['student', 'professor'],
-                order: { createdAt: 'DESC' }
+                order: { created_at: 'DESC' }
             });
             
             return {

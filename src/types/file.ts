@@ -3,7 +3,7 @@ export interface IFileData {
     name: string;
     type: string;
     path?: string;
-    createdAt?: Date;
+    created_at?: Date;
     content?: string;
 }
 

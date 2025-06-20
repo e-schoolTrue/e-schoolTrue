@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import {ElTable} from 'element-plus'
-import {ClassRoomEntity} from "#electron/backend/entities/grade.ts";
+import { ClassRoomEntity} from "@/types/grade";
 import {Icon} from "@iconify/vue";
 import {computed, reactive, ref} from "vue";
-import {ClassRoomCommand} from "#electron/command/settingsCommand.ts";
+import {ClassRoomCommand} from "@/types/grade";
 import GradeDetail from "@/components/grade/grade-detail.vue";
 
 const props = defineProps<{classRooms:ClassRoomEntity[]}>()
@@ -28,7 +28,7 @@ const filteredClassRooms = computed(() => {
 const gradeDetailsRef = ref()
 const emits=defineEmits<{
   (e:"openUpdateForm" , classRoom:ClassRoomCommand):void,
-  (e:"deleteAction" , id:number):void,
+  (e:"deleteAction" , id:string):void,
 }>()
 
 function handleCurrentPage(pageNumber:number){

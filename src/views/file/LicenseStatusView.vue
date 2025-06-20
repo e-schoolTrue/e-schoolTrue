@@ -1,265 +1,527 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Key, Calendar, Warning } from '@element-plus/icons-vue'
+import { ref, onMounted, computed } from "vue";
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Icon } from '@iconify/vue';
 
-interface LicenseStatus {
-  isValid: boolean
-  daysRemaining: number | null
-}
+// États pour l'activation
+const licenseCode = ref('');
+const isLoading = ref(false);
+const showActivationDialog = ref(false);
 
-const licenseStatus = ref<LicenseStatus | null>(null)
-const loading = ref(true)
-const licenseCode = ref('')
-const isActivating = ref(false)
+// États pour la gestion de licence
+const licenseStatus = ref<any>(null);
+const licenseDetails = ref<any>(null);
+const isLoadingStatus = ref(true);
+const isGenerating = ref(false);
+const showGeneratedCode = ref(false);
+const generatedLicenseCode = ref('');
 
-const checkLicenseStatus = async () => {
+// Propriétés calculées
+const isLicenseValid = computed(() => licenseStatus.value?.isValid);
+const daysRemaining = computed(() => {
+  if (!licenseStatus.value?.expiryDate) return null;
+  const expiry = new Date(licenseStatus.value.expiryDate);
+  const now = new Date();
+  const diffTime = expiry.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+});
+const statusColor = computed(() => {
+  if (!isLicenseValid.value) return 'danger';
+  if (daysRemaining.value !== null && daysRemaining.value < 30) return 'warning';
+  return 'success';
+});
+
+// Charger le statut de la licence
+async function loadLicenseStatus() {
+  isLoadingStatus.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('license:isValid')
-    if (result.success) {
-      licenseStatus.value = result.data
-    } else {
-      ElMessage.error('Erreur lors de la vérification de la licence')
+    const statusResult = await window.ipcRenderer.invoke('license:isValid');
+    if (statusResult.success) {
+      licenseStatus.value = statusResult.data;
+    }
+
+    // Charger les détails de la licence si elle est valide
+    if (licenseStatus.value?.isValid) {
+      const detailsResult = await window.ipcRenderer.invoke('license:getDetails');
+      if (detailsResult.success) {
+        licenseDetails.value = detailsResult.data;
+      }
     }
   } catch (error) {
-    console.error('Erreur:', error)
-    ElMessage.error('Une erreur est survenue lors de la vérification de la licence')
+    console.error('Erreur lors du chargement du statut de la licence:', error);
   } finally {
-    loading.value = false
+    isLoadingStatus.value = false;
   }
 }
 
+// Ouvrir la dialog d'activation
+function openActivationDialog() {
+  showActivationDialog.value = true;
+  licenseCode.value = '';
+}
+
+// Fermer la dialog d'activation
+function closeActivationDialog() {
+  showActivationDialog.value = false;
+  licenseCode.value = '';
+}
+
+// Activer une licence
 async function activateLicense() {
   if (!licenseCode.value.trim()) {
-    ElMessage.error('Veuillez entrer un code de licence.')
-    return
+    ElMessage.error('Veuillez entrer un code de licence.');
+    return;
   }
-  isActivating.value = true
+  isLoading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('license:activate', licenseCode.value.trim())
+    const result = await window.ipcRenderer.invoke('license:activate', licenseCode.value.trim());
     if (result.success) {
-      ElMessage.success('Licence activée avec succès !')
-      await checkLicenseStatus() // Rafraîchir le statut après activation
-      licenseCode.value = '' // Réinitialiser le champ
+      ElMessage.success('Licence activée avec succès !');
+      closeActivationDialog();
+      await loadLicenseStatus();
     } else {
       ElMessageBox.alert(
         result.message || 'Échec de l\'activation de la licence. Veuillez vérifier le code et réessayer.',
         'Erreur d\'activation',
         { confirmButtonText: 'OK', type: 'error' }
-      )
+      );
     }
   } catch (error: any) {
-    console.error('Erreur lors de l\'activation de la licence:', error)
+    console.error('Erreur lors de l\'activation de la licence:', error);
     ElMessageBox.alert(
       error.message || 'Une erreur inattendue est survenue.',
       'Erreur critique',
       { confirmButtonText: 'OK', type: 'error' }
-    )
+    );
   } finally {
-    isActivating.value = false
+    isLoading.value = false;
   }
 }
 
+// Générer une sous-licence
+async function generateSubLicense() {
+  try {
+    await ElMessageBox.confirm(
+      'Êtes-vous sûr de vouloir générer une nouvelle sous-licence ? Cette action utilisera un de vos postes disponibles.',
+      'Générer une sous-licence',
+      {
+        confirmButtonText: 'Générer',
+        cancelButtonText: 'Annuler',
+        type: 'info',
+      }
+    );
+
+    isGenerating.value = true;
+    const result = await window.ipcRenderer.invoke('license:generateSub');
+    
+    if (result.success) {
+      generatedLicenseCode.value = result.data.subLicenseCode;
+      showGeneratedCode.value = true;
+      await loadLicenseStatus();
+      ElMessage.success('Sous-licence générée avec succès !');
+    } else {
+      ElMessage.error(result.error || 'Erreur lors de la génération de la sous-licence.');
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('Erreur lors de la génération de la sous-licence:', error);
+      ElMessage.error('Une erreur inattendue est survenue.');
+    }
+  } finally {
+    isGenerating.value = false;
+  }
+}
+
+// Copier le code généré
+async function copyGeneratedCode() {
+  try {
+    await navigator.clipboard.writeText(generatedLicenseCode.value);
+    ElMessage.success('Code copié dans le presse-papiers !');
+  } catch (error) {
+    console.error('Erreur lors de la copie:', error);
+    ElMessage.error('Impossible de copier le code.');
+  }
+}
+
+// Fermer la boîte de dialogue
+function closeGeneratedCodeDialog() {
+  showGeneratedCode.value = false;
+  generatedLicenseCode.value = '';
+}
+
 function handleInput(value: string) {
-  licenseCode.value = value.toUpperCase()
+  licenseCode.value = value.toUpperCase();
 }
 
 onMounted(() => {
-  checkLicenseStatus()
-})
-
-const getStatusColor = () => {
-  if (!licenseStatus.value?.isValid) return '#F56C6C' // Rouge pour licence invalide
-  if (licenseStatus.value.daysRemaining === null) return '#67C23A' // Vert pour licence à vie
-  if (licenseStatus.value.daysRemaining <= 7) return '#F56C6C' // Rouge pour moins de 7 jours
-  if (licenseStatus.value.daysRemaining <= 30) return '#E6A23C' // Orange pour moins de 30 jours
-  return '#67C23A' // Vert pour le reste
-}
-
-const getStatusMessage = () => {
-  if (!licenseStatus.value?.isValid) return 'Licence invalide'
-  if (licenseStatus.value.daysRemaining === null) return 'Licence à vie'
-  return `${licenseStatus.value.daysRemaining} jours restants`
-}
-
-const getStatusIcon = () => {
-  if (!licenseStatus.value?.isValid) return Warning
-  if (licenseStatus.value.daysRemaining === null) return Key
-  if (licenseStatus.value.daysRemaining <= 30) return Warning
-  return Calendar
-}
+  loadLicenseStatus();
+});
 </script>
 
 <template>
   <div class="license-status-view">
-    <el-card class="license-card">
-      <template #header>
-        <div class="card-header">
-          <el-icon :size="32" class="header-icon">
-            <Key />
-          </el-icon>
-          <h2>Gestion de la Licence</h2>
+    <div class="license-container">
+      <!-- En-tête avec bouton d'activation -->
+      <div class="license-header">
+        <Icon icon="mdi:key" class="header-icon" :width="40" :height="40" />
+        <h1>Gestion des Licences</h1>
+        <div class="header-actions">
+          <el-button 
+            type="primary" 
+            @click="openActivationDialog"
+            :icon="Icon"
+            class="activation-button"
+          >
+            <Icon icon="mdi:key-plus" :width="16" :height="16" class="mr-2" />
+            {{ isLicenseValid ? 'Changer de Licence' : 'Activer une Licence' }}
+          </el-button>
         </div>
-      </template>
+      </div>
 
-      <el-skeleton :loading="loading" animated>
-        <template #default>
+      <!-- Contenu -->
+      <div v-if="!isLoadingStatus" class="license-content">
+        <!-- Alerte si pas de licence -->
+        <el-alert 
+          v-if="!isLicenseValid"
+          title="Licence requise"
+          description="Vous devez activer une licence pour utiliser pleinement cette application."
+          type="warning"
+          show-icon
+          :closable="false"
+          class="mb-4"
+        />
+
+        <!-- Statut et informations de la licence -->
+        <el-card v-if="isLicenseValid" class="status-card">
+          <template #header>
+            <div class="card-header">
+              <Icon icon="mdi:information" :width="20" :height="20" />
+              <span>Statut de la Licence</span>
+            </div>
+          </template>
+          
           <div class="status-content">
-            <!-- Section Statut -->
-            <div class="status-section">
-              <div class="status-indicator" :style="{ backgroundColor: getStatusColor() }">
-                <el-icon :size="24" color="white">
-                  <component :is="getStatusIcon()" />
-                </el-icon>
-              </div>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <div class="status-item">
+                  <el-tag :type="statusColor" size="large">
+                    {{ isLicenseValid ? 'ACTIVE' : 'INACTIVE' }}
+                  </el-tag>
+                </div>
+              </el-col>
+              <el-col :span="12">
+                <div class="status-item" v-if="daysRemaining !== null">
+                  <Icon icon="mdi:calendar" :width="20" :height="20" />
+                  <span>{{ daysRemaining }} jours restants</span>
+                </div>
+              </el-col>
+            </el-row>
 
-              <div class="status-details">
-                <h3>État actuel</h3>
-                <p :style="{ color: getStatusColor() }" class="status-message">
-                  {{ getStatusMessage() }}
-                </p>
-
-                <template v-if="licenseStatus?.isValid && licenseStatus.daysRemaining !== null">
-                  <div class="expiration-warning" v-if="licenseStatus.daysRemaining <= 30">
-                    <el-alert
-                      :title="licenseStatus.daysRemaining <= 7 ? 'Action requise immédiatement' : 'Attention'"
-                      :type="licenseStatus.daysRemaining <= 7 ? 'error' : 'warning'"
-                      :description="
-                        licenseStatus.daysRemaining <= 7
-                          ? 'Votre licence expire très bientôt. Veuillez la renouveler immédiatement pour éviter toute interruption.'
-                          : 'Votre licence expirera bientôt. Pensez à la renouveler.'
-                      "
-                      show-icon
-                    />
-                  </div>
-                </template>
-              </div>
+            <!-- Informations détaillées -->
+            <div class="license-info" v-if="licenseStatus">
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="Code de licence">
+                  {{ licenseStatus.licenseCode || 'N/A' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="Type">
+                  {{ licenseStatus.licenseType || 'Standard' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="Date d'expiration">
+                  {{ licenseStatus.expiryDate ? new Date(licenseStatus.expiryDate).toLocaleDateString('fr-FR') : 'N/A' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="Machine ID">
+                  {{ licenseStatus.machineId || 'N/A' }}
+                </el-descriptions-item>
+              </el-descriptions>
             </div>
 
-            <!-- Section Activation -->
-            <div class="activation-section" v-if="!licenseStatus?.isValid || (licenseStatus?.daysRemaining !== null && licenseStatus.daysRemaining <= 30)">
-              <h3>Activation / Renouvellement de licence</h3>
-              <el-form @submit.prevent="activateLicense" class="license-form">
-                <el-form-item>
-                  <el-input
-                    v-model="licenseCode"
-                    placeholder="XXXX-XXXX-XXXX-XXXX"
-                    :disabled="isActivating"
-                    maxlength="19"
-                    class="license-input"
-                    @input="handleInput"
-                  >
-                    <template #prefix>
-                      <el-icon><Key /></el-icon>
-                    </template>
-                  </el-input>
-                  <p class="input-hint">Format: XXXX-XXXX-XXXX-XXXX</p>
-                </el-form-item>
+            <!-- Gestion des quotas et sous-licences -->
+            <div v-if="licenseDetails" class="quota-section">
+              <h3>
+                <Icon icon="mdi:desktop-classic" :width="20" :height="20" />
+                Postes Autorisés
+              </h3>
+              <div class="quota-display">
+                <el-progress 
+                  :percentage="(licenseDetails.usedActivations / licenseDetails.maxActivations) * 100"
+                  :format="() => `${licenseDetails.usedActivations} / ${licenseDetails.maxActivations}`"
+                  :status="licenseDetails.usedActivations >= licenseDetails.maxActivations ? 'exception' : 'success'"
+                />
+                <p class="quota-text">
+                  {{ licenseDetails.usedActivations }} postes utilisés sur {{ licenseDetails.maxActivations }} autorisés
+                </p>
+              </div>
 
-                <el-button
-                  type="primary"
-                  @click="activateLicense"
-                  :loading="isActivating"
-                  class="activate-button"
-                >
-                  {{ isActivating ? 'Activation en cours...' : 'Activer la Licence' }}
-                </el-button>
-              </el-form>
+              <el-button 
+                v-if="licenseDetails.usedActivations < licenseDetails.maxActivations"
+                type="primary" 
+                @click="generateSubLicense"
+                :loading="isGenerating"
+                class="generate-button"
+              >
+                <Icon icon="mdi:plus" :width="16" :height="16" class="mr-2" />
+                Générer une licence pour un autre ordinateur
+              </el-button>
+              <el-alert 
+                v-else
+                title="Quota épuisé"
+                description="Vous avez utilisé tous vos postes autorisés. Contactez votre fournisseur pour augmenter votre quota."
+                type="warning"
+                show-icon
+                :closable="false"
+              />
             </div>
           </div>
-        </template>
-      </el-skeleton>
-    </el-card>
+        </el-card>
+      </div>
+
+      <!-- Chargement -->
+      <div v-else class="loading-container">
+        <el-skeleton :rows="4" animated />
+      </div>
+    </div>
+
+    <!-- Dialog d'activation de licence -->
+    <el-dialog
+      v-model="showActivationDialog"
+      :title="isLicenseValid ? 'Changer de Licence' : 'Activer une Licence'"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="activation-dialog">
+        <div class="dialog-icon">
+          <Icon icon="mdi:key-variant" :width="48" :height="48" />
+        </div>
+        
+        <p class="dialog-description">
+          {{ isLicenseValid 
+            ? 'Entrez un nouveau code de licence pour remplacer l\'actuelle.' 
+            : 'Entrez votre code de licence pour activer l\'application.' 
+          }}
+        </p>
+        
+        <el-form @submit.prevent="activateLicense">
+          <el-form-item>
+            <el-input
+              v-model="licenseCode"
+              placeholder="XXXX-XXXX-XXXX-XXXX"
+              :disabled="isLoading"
+              maxlength="19"
+              class="license-input"
+              @input="handleInput"
+              size="large"
+            >
+              <template #prefix>
+                <Icon icon="mdi:key" :width="16" :height="16" />
+              </template>
+            </el-input>
+            <p class="input-hint">Format: XXXX-XXXX-XXXX-XXXX</p>
+          </el-form-item>
+        </el-form>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeActivationDialog" :disabled="isLoading">
+            <Icon icon="mdi:close" :width="16" :height="16" class="mr-2" />
+            Annuler
+          </el-button>
+          <el-button
+            type="primary"
+            @click="activateLicense"
+            :loading="isLoading"
+          >
+            <Icon v-if="!isLoading" icon="mdi:check" :width="16" :height="16" class="mr-2" />
+            {{ isLoading ? 'Activation en cours...' : 'Activer' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- Dialog code généré -->
+    <el-dialog
+      v-model="showGeneratedCode"
+      title="Licence générée avec succès !"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div class="generated-code-dialog">
+        <el-alert
+          title="Nouvelle sous-licence créée"
+          type="success"
+          show-icon
+          :closable="false"
+          class="mb-4"
+        />
+        
+        <p class="instruction">
+          <Icon icon="mdi:account-multiple" :width="20" :height="20" class="mr-2" />
+          Donnez ce code à votre collègue pour qu'il active le logiciel sur son ordinateur :
+        </p>
+        
+        <div class="code-display">
+          <el-input
+            :value="generatedLicenseCode"
+            readonly
+            size="large"
+            class="generated-code-input"
+          >
+            <template #append>
+              <el-button @click="copyGeneratedCode" type="primary">
+                <Icon icon="mdi:content-copy" :width="16" :height="16" class="mr-1" />
+                Copier
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+        
+        <el-alert
+          title="Important"
+          description="Ce code ne peut être utilisé qu'une seule fois. Assurez-vous de le transmettre correctement à la personne concernée."
+          type="info"
+          show-icon
+          :closable="false"
+          class="mt-4"
+        />
+      </div>
+      
+      <template #footer>
+        <el-button @click="closeGeneratedCodeDialog" type="primary">
+          <Icon icon="mdi:close" :width="16" :height="16" class="mr-2" />
+          Fermer
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .license-status-view {
   padding: 2rem;
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 
-.license-card {
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.license-container {
+  width: 100%;
+}
+
+.license-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.header-icon {
+  color: #409EFF;
+  background: rgba(64, 158, 255, 0.1);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.license-header h1 {
+  font-size: 1.75rem;
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.activation-button {
+  height: 42px;
+  font-size: 1rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.status-card {
+  margin-bottom: 1.5rem;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.header-icon {
-  color: #409EFF;
-  background-color: rgba(64, 158, 255, 0.1);
-  padding: 8px;
-  border-radius: 8px;
-}
-
-.card-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #303133;
+  gap: 0.5rem;
+  font-weight: 600;
 }
 
 .status-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  padding: 1rem 0;
+  padding: 0;
 }
 
-.status-section {
+.status-item {
   display: flex;
-  gap: 2rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.license-info {
+  margin: 1.5rem 0;
+}
+
+.quota-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
   border-radius: 8px;
 }
 
-.status-indicator {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
+.quota-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+}
+
+.quota-display {
+  margin-bottom: 1.5rem;
+}
+
+.quota-text {
+  text-align: center;
+  color: #666;
+  margin: 0.5rem 0 0 0;
+  font-size: 0.9rem;
+}
+
+.generate-button {
+  width: 100%;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
 }
 
-.status-details {
-  flex-grow: 1;
+.loading-container {
+  padding: 2rem;
 }
 
-.status-details h3 {
-  margin: 0 0 0.5rem 0;
-  color: #606266;
-  font-size: 1.1rem;
+/* Styles pour les dialogs */
+.activation-dialog {
+  text-align: center;
+  padding: 1rem 0;
 }
 
-.status-message {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0.5rem 0 1rem 0;
+.dialog-icon {
+  color: #409EFF;
+  margin-bottom: 1rem;
 }
 
-.activation-section {
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-}
-
-.activation-section h3 {
-  margin: 0 0 1.5rem 0;
-  color: #606266;
-  font-size: 1.1rem;
-}
-
-.license-form {
-  max-width: 440px;
-  margin: 0 auto;
+.dialog-description {
+  color: #2c3e50;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
 }
 
 .license-input {
@@ -270,60 +532,93 @@ const getStatusIcon = () => {
 .input-hint {
   color: #909399;
   font-size: 0.875rem;
-  margin: 0.5rem 0 1.5rem;
+  margin: 0.5rem 0 0 0;
   text-align: center;
 }
 
-.activate-button {
-  width: 100%;
-  height: 44px;
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.generated-code-dialog {
+  text-align: center;
+}
+
+.instruction {
+  color: #2c3e50;
   font-size: 1rem;
-  font-weight: 500;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.expiration-warning {
-  margin: 1rem 0;
+.code-display {
+  margin: 1.5rem 0;
 }
 
-:deep(.el-alert) {
-  margin: 1rem 0;
+.generated-code-input {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* Classes utilitaires */
+.mb-4 { margin-bottom: 1rem; }
+.mt-4 { margin-top: 1rem; }
+.mr-1 { margin-right: 0.25rem; }
+.mr-2 { margin-right: 0.5rem; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .license-status-view {
+    padding: 1rem;
+  }
+
+  .license-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .activation-button {
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .quota-section {
+    padding: 1rem;
+  }
+
+  .generated-code-input {
+    font-size: 1rem;
+    letter-spacing: 1px;
+  }
+
+  .dialog-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .dialog-footer .el-button {
+    width: 100%;
+  }
 }
 
 :deep(.el-input__wrapper) {
-  padding: 0.5rem;
+  padding: 0.75rem;
 }
 
 :deep(.el-input__prefix) {
   margin-right: 0.5rem;
 }
 
-@media (max-width: 640px) {
-  .license-status-view {
-    padding: 1rem;
-  }
-
-  .status-section {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-  }
-
-  .status-indicator {
-    width: 48px;
-    height: 48px;
-  }
-
-  .status-message {
-    font-size: 1.25rem;
-  }
-
-  .activation-section {
-    padding: 1rem;
-  }
-
-  .activate-button {
-    height: 40px;
-  }
+:deep(.el-progress-bar__outer) {
+  height: 12px;
 }
 </style> 
