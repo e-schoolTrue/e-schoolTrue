@@ -95,10 +95,6 @@ const handleLogin = async () => {
           />
         </el-form-item>
 
-        <div class="form-options">
-          <el-checkbox v-model="rememberMe">Se souvenir de moi</el-checkbox>
-        </div>
-
         <div class="form-actions">
           <el-button
             type="primary"

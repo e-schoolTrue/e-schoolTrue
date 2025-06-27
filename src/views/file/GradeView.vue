@@ -3,7 +3,7 @@
 import GradeTable from "@/components/grade/grade-table.vue";
 import {Icon} from "@iconify/vue";
 import GradeForm from "@/components/grade/grade-form.vue";
-import {onMounted, ref} from "vue";
+import {onMounted, ref, nextTick} from "vue";
 import {ElMessage, ElMessageBox, FormInstance} from "element-plus";
 import {GradeCommand, Grade, Branch, BranchCommand} from "@/types/grade";
 import {cloneDeep} from "lodash"
@@ -177,7 +177,14 @@ function deleteGrade(id:number){
       const result = await window.ipcRenderer.invoke('grade:delete', id)
       if(result.success){
         ElMessage.success(result.message || "Niveau supprimé avec succès")
-        grades.value = result.data
+        
+        // Forcer la réactivité en recréant le tableau au lieu de le réassigner
+        grades.value = [...(result.data || [])]
+        
+        // Attendre que Vue applique les changements
+        await nextTick()
+        
+        console.log('Grades après suppression:', grades.value)
       }else{
         throw new Error(result.message || "Échec de la suppression du niveau")
       }

@@ -34,8 +34,6 @@ export class PaymentEntity {
     @ManyToOne(() => StudentEntity, student => student.payments, { onDelete: "CASCADE" })
     student!: StudentEntity;
 
-    @Column({ type: "integer" })
-    studentId!: number;
 
     @Column({ type: "integer", default: 1 })
     installmentNumber!: number;
