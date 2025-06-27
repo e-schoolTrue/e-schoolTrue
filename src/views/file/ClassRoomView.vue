@@ -77,7 +77,7 @@ async function updateClassRoom(formRef:FormInstance|undefined , form:ClassRoomCo
   })
 }
 
-function deleteClassRoom(id:number){
+function deleteClassRoom(id:string|number){
   ElMessageBox.confirm(
       'voulez supprimer cette salle de classe?',
       "Suppression de salle de classe",
@@ -88,7 +88,7 @@ function deleteClassRoom(id:number){
       }
   ).then(async() => {
     Loader.showLoader("Suppression de la salle de classe en cours...")
-    const result = await window.ipcRenderer.invoke('classRoom:delete', id)
+    const result = await window.ipcRenderer.invoke('classRoom:delete', Number(id))
     if(result.success){
       ElMessage({
         type: 'success',

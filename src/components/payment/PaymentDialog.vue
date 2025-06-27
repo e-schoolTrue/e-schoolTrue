@@ -313,6 +313,14 @@ const handleSubmit = async () => {
 
     loading.value = true;
 
+    // Debug des valeurs du formulaire
+    console.log('=== DEBUG FORMULAIRE AVANT SOUMISSION ===');
+    console.log('form.value.hasScholarship:', form.value.hasScholarship);
+    console.log('form.value.scholarshipPercentage:', form.value.scholarshipPercentage);
+    console.log('Type de scholarshipPercentage:', typeof form.value.scholarshipPercentage);
+    console.log('Résultat de hasScholarship && !!scholarshipPercentage:', form.value.hasScholarship && !!form.value.scholarshipPercentage);
+    console.log('Résultat de scholarshipPercentage > 0:', form.value.scholarshipPercentage && form.value.scholarshipPercentage > 0);
+
     const paymentDataToSend: PaymentDataToSend = {
       studentId: props.student?.id ?? 0,
       amount: form.value.amount,
@@ -323,10 +331,10 @@ const handleSubmit = async () => {
       installmentNumber: 1,
       schoolYear: props.config?.classId.split('-')[1] || new Date().getFullYear().toString(),
       
-      scholarshipAppliedOnAnnual: form.value.hasScholarship && !!form.value.scholarshipPercentage,
-      annualScholarshipPercentage: form.value.hasScholarship ? form.value.scholarshipPercentage || 0 : 0,
-      annualScholarshipAmount: form.value.hasScholarship ? getScholarshipReductionAmountOnAnnual() : 0,
-      annualAmountAfterScholarship: form.value.hasScholarship ? getAdjustedAnnualAmount() : props.config?.annualAmount || 0,
+      scholarshipAppliedOnAnnual: form.value.hasScholarship && !!form.value.scholarshipPercentage && form.value.scholarshipPercentage > 0,
+      annualScholarshipPercentage: form.value.hasScholarship && form.value.scholarshipPercentage ? form.value.scholarshipPercentage : 0,
+      annualScholarshipAmount: form.value.hasScholarship && form.value.scholarshipPercentage ? getScholarshipReductionAmountOnAnnual() : 0,
+      annualAmountAfterScholarship: form.value.hasScholarship && form.value.scholarshipPercentage ? getAdjustedAnnualAmount() : props.config?.annualAmount || 0,
       baseAnnualAmount: props.config?.annualAmount || 0,
     };
 
@@ -370,12 +378,22 @@ const getMaxAmountToPay = computed(() => {
 });
 
 const handleScholarshipSwitchChange = (isActive: boolean) => {
+  console.log('=== BOURSE SWITCH CHANGÉ ===');
+  console.log('isActive:', isActive);
+  console.log('studentScholarshipPercentageFromLoad.value:', studentScholarshipPercentageFromLoad.value);
+  
   if (!isActive) {
     form.value.scholarshipPercentage = null;
+    console.log('Bourse désactivée, scholarshipPercentage mis à null');
   }
   else if (studentScholarshipPercentageFromLoad.value) {
      form.value.scholarshipPercentage = studentScholarshipPercentageFromLoad.value;
+     console.log('Bourse activée avec pourcentage existant:', studentScholarshipPercentageFromLoad.value);
   }
+  
+  console.log('Nouvel état form.value.hasScholarship:', form.value.hasScholarship);
+  console.log('Nouvel état form.value.scholarshipPercentage:', form.value.scholarshipPercentage);
+  
   recalculateMaxAmount();
 };
 

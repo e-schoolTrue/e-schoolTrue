@@ -2,7 +2,7 @@
 import {ElTable} from 'element-plus'
 import {Grade, Branch} from "@/types/grade";
 import {Icon} from "@iconify/vue";
-import {computed, reactive, ref} from "vue";
+import {computed, reactive, ref, watch} from "vue";
 import BranchTable from "@/components/grade/branch-table.vue";
 
 const props = defineProps<{grades: Grade[]}>()
@@ -16,15 +16,34 @@ const paginator = reactive<{
   pageSize:5,
   currentPage:1
 })
-const filteredGrades = computed(()=>{
-  const result = props.grades?.filter((grade: Grade)=>
-    Object.keys(grade).some((key:string)=>
+
+// Computed pour les grades filtrés (sans modification de paginator)
+const filteredGradesBase = computed(() => {
+  return props.grades?.filter((grade: Grade) =>
+    Object.keys(grade).some((key: string) =>
       String((grade as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase())
     )
   ) || []
-  paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
-  return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
 })
+
+// Computed pour la pagination
+const filteredGrades = computed(() => {
+  const start = (paginator.currentPage - 1) * paginator.pageSize
+  const end = paginator.currentPage * paginator.pageSize
+  return filteredGradesBase.value.slice(start, end)
+})
+
+// Watcher pour mettre à jour totalPage et ajuster currentPage
+watch(filteredGradesBase, (newGrades) => {
+  const newTotalPage = Math.ceil(newGrades.length / paginator.pageSize)
+  paginator.totalPage = newTotalPage
+  
+  // Si la page courante est plus grande que le total de pages, revenir à la dernière page
+  if (paginator.currentPage > newTotalPage && newTotalPage > 0) {
+    paginator.currentPage = newTotalPage
+  }
+}, { immediate: true })
+
 const emits=defineEmits<{
   (e:"openUpdateForm", grade: Grade): void,
   (e:"deleteAction", id: number): void,

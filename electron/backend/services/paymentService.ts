@@ -163,13 +163,24 @@ export class PaymentService {
 
             // Si une bourse est spécifiée, créer ou mettre à jour la bourse
             let activeScholarship = null;
-            if ((paymentData.scholarshipPercentage ?? 0) > 0) {
+            const scholarshipPercentage = Number(paymentData.annualScholarshipPercentage || paymentData.scholarshipPercentage || 0);
+            const scholarshipApplied = paymentData.scholarshipAppliedOnAnnual || scholarshipPercentage > 0;
+            
+            console.log('=== DEBUG BOURSE DANS addPayment ===');
+            console.log('paymentData.scholarshipAppliedOnAnnual:', paymentData.scholarshipAppliedOnAnnual);
+            console.log('paymentData.annualScholarshipPercentage:', paymentData.annualScholarshipPercentage);
+            console.log('scholarshipPercentage calculé:', scholarshipPercentage);
+            console.log('scholarshipApplied:', scholarshipApplied);
+            
+            if (scholarshipApplied && scholarshipPercentage > 0) {
+                console.log('Création de la bourse avec pourcentage:', scholarshipPercentage);
+                
                 // Désactiver les bourses existantes
                 await this.scholarshipRepository.update(
                     { 
                         studentId: student.id,
                         isActive: true,
-                        schoolYear: new Date().getFullYear().toString()
+                        schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
                     },
                     { isActive: false }
                 );
@@ -177,7 +188,7 @@ export class PaymentService {
                 // Créer la nouvelle bourse
                 const scholarship = this.scholarshipRepository.create({
                     studentId: student.id,
-                    percentage: paymentData.scholarshipPercentage,
+                    percentage: scholarshipPercentage,
                     schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
                     isActive: true,
                     created_at: new Date()
@@ -185,15 +196,18 @@ export class PaymentService {
 
                 activeScholarship = await this.scholarshipRepository.save(scholarship);
                 console.log('Nouvelle bourse créée:', activeScholarship);
+            } else {
+                console.log('Aucune bourse à créer (scholarshipApplied:', scholarshipApplied, ', scholarshipPercentage:', scholarshipPercentage, ')');
             }
 
             // Créer le paiement avec la bourse
             const payment = this.paymentRepository.create({
                 ...paymentData,
-                scholarshipPercentage: Number(paymentData.scholarshipPercentage) || 0,
-                scholarshipAmount: Number(paymentData.scholarshipAmount) || 0,
-                adjustedAmount: Number(paymentData.adjustedAmount) || Number(paymentData.baseAmount) || 0,
-                baseAmount: Number(paymentData.baseAmount) || 0,
+                student: student,
+                scholarshipPercentage: scholarshipPercentage,
+                scholarshipAmount: Number(paymentData.annualScholarshipAmount || paymentData.scholarshipAmount) || 0,
+                adjustedAmount: Number(paymentData.annualAmountAfterScholarship || paymentData.adjustedAmount || paymentData.baseAmount) || 0,
+                baseAmount: Number(paymentData.baseAnnualAmount || paymentData.baseAmount) || 0,
                 scholarshipId: activeScholarship?.id || null,
                 created_at: new Date()
             } as PaymentCreateData);
@@ -304,7 +318,7 @@ export class PaymentService {
             console.log(`=== Récupération des paiements pour l'étudiant ID: ${studentId} ===`);
             
             const payments = await this.paymentRepository.find({
-                where: { studentId },
+                where: { student: { id: studentId } },
                 relations: ['student', 'scholarship'],
                 order: { created_at: 'DESC' }
             });
@@ -444,7 +458,7 @@ export class PaymentService {
             }
 
             const payments = await this.paymentRepository.find({
-                where: { studentId }
+                where: { student: { id: studentId } }
             });
 
             const totalPaid = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);

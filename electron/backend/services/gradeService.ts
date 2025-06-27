@@ -120,7 +120,7 @@ export class GradeService {
         }
     }
 
-    async deleteGrade(id: number): Promise<{ success: boolean; message: string }> {
+    async deleteGrade(id: number): Promise<IGradeServiceResponse> {
         try {
             // Vérifier si le grade existe
             const grade = await this.gradeRepository.findOne({
@@ -131,7 +131,9 @@ export class GradeService {
             if (!grade) {
                 return {
                     success: false,
-                    message: "Grade non trouvé"
+                    message: "Grade non trouvé",
+                    data: null,
+                    error: "Grade not found"
                 };
             }
 
@@ -143,7 +145,7 @@ export class GradeService {
             });
 
             const cascadeDelete = CascadeDelete.getInstance();
-            return await cascadeDelete.delete({
+            const deleteResult = await cascadeDelete.delete({
                 entityName: 'grade',
                 id,
                 relations: [
@@ -155,11 +157,38 @@ export class GradeService {
                     { tableName: 'branch', foreignKey: 'gradeId', cascade: true }
                 ]
             });
+
+            if (!deleteResult.success) {
+                return {
+                    success: false,
+                    message: deleteResult.message || "Erreur lors de la suppression",
+                    data: null,
+                    error: deleteResult.message
+                };
+            }
+
+            // Récupérer la liste mise à jour des grades après suppression
+            const updatedGrades = await this.gradeRepository.find({
+                relations: {
+                    branches: true,
+                    students: true,
+                    classRooms: true
+                }
+            });
+
+            return {
+                success: true,
+                message: "Grade supprimé avec succès",
+                data: updatedGrades,
+                error: null
+            };
         } catch (error) {
             console.error("Erreur lors de la suppression du grade:", error);
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Erreur inconnue"
+                message: error instanceof Error ? error.message : "Erreur inconnue",
+                data: null,
+                error: error instanceof Error ? error.message : "Unknown error"
             };
         }
     }

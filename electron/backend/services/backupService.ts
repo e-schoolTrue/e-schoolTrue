@@ -27,7 +27,7 @@ import { TeachingAssignmentEntity } from '../entities/teaching';
 import { VacationEntity } from '../entities/vacation';
 import { PaymentEntity } from '../entities/payment';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
-import { getCurrentSupabaseUserId } from "../lib/session";
+import { getCurrentSupabaseUserId, setCurrentSupabaseUserId } from "../lib/session";
 
 
 // --- Définitions de types et interfaces ---
@@ -36,6 +36,7 @@ export abstract class BaseSyncEntity {
   id?: number;
   remote_id?: string | null;
   user_id?: string;
+  school_id?: string;
   created_at?: Date;
   updated_at?: Date;
   deleted_at?: Date | null;
@@ -69,8 +70,8 @@ interface EntitySyncMeta<T extends BaseSyncEntity> {
   dependsOn?: (new () => BaseSyncEntity)[]; // Pour l'ordre de synchro
   relationsToLoad?: string[]; // Pour charger les relations avant l'upload
   identifyingFields?: string[]; // Champs utilisés pour identifier l'entité (matricule, code, etc.)
-  transformToSupabase: (localEntity: T) => any;
-  transformFromSupabase: (supabaseData: any) => Partial<T>;
+  transformToSupabase: (localEntity: T & { school_id?: string }) => any;
+  transformFromSupabase: (supabaseData: any) => Partial<T & { school_id?: string }>;
 }
 
 const DEFAULT_SYNC_CONFIG: SyncConfig = {
@@ -94,6 +95,7 @@ export class CloudSyncService {
   private isSyncing = false;
   private syncHistoryDir: string;
   private syncTimerId: NodeJS.Timeout | null = null;
+  private activeSchoolId: string | null = null;
 
   constructor() {
     this.electronStore = new ElectronStore();
@@ -126,7 +128,7 @@ export class CloudSyncService {
         const config = await this.loadSyncConfig();
         if (config.autoSyncOnConnect && user?.id) {
           console.log("Auto-synchronisation à la connexion...");
-          this.checkForSyncOpportunity(user.id);
+          this.checkForSyncOpportunity(user.id, this.activeSchoolId || 'default');
         }
       } else {
         console.warn('Cloud Sync: Client Supabase initialisé, mais aucun utilisateur connecté.');
@@ -149,16 +151,17 @@ export class CloudSyncService {
         localRepository: this.appDataSourceInstance.getRepository(GradeEntity),
         supabaseTable: 'grade',
         identifyingFields: ['code'],
-        transformToSupabase: (e: GradeEntity) => ({
+        transformToSupabase: (e: GradeEntity & { school_id?: string }) => ({ // <- Accepte school_id
           ...(e.remote_id && { id: e.remote_id }),
           name: e.name,
           code: e.code,
-          updated_at: e.updated_at
+          school_id: e.school_id,
         }),
         transformFromSupabase: (d: any) => ({
           name: d.name,
           code: d.code,
-          user_id: d.user_id
+          user_id: d.user_id,
+          school_id: d.school_id
         }),
       },
       {
@@ -166,14 +169,18 @@ export class CloudSyncService {
         localRepository: this.appDataSourceInstance.getRepository(QualificationEntity),
         supabaseTable: 'qualification',
         identifyingFields: ['name'],
-        transformToSupabase: (e: QualificationEntity) => ({
+        transformToSupabase: (e: QualificationEntity & { school_id?: string }) => ({
           ...(e.remote_id && { id: e.remote_id }),
           name: e.name,
+          school_id: e.school_id,
           updated_at: e.updated_at
         }),
-        transformFromSupabase: (d: any) => ({ name: d.name }),
+        transformFromSupabase: (d: any) => ({
+          name: d.name,
+          school_id: d.school_id
+        }),
       },
-  
+
       // --- NIVEAU 1 ---
       {
         entity: BranchEntity,
@@ -182,18 +189,20 @@ export class CloudSyncService {
         dependsOn: [GradeEntity],
         relationsToLoad: ['grade'],
         identifyingFields: ['code'],
-        transformToSupabase: (e: BranchEntity) => ({
+        transformToSupabase: (e: BranchEntity & { school_id?: string }) => ({
           ...(e.remote_id && { id: e.remote_id }),
           user_id: e.user_id,
           name: e.name,
           code: e.code,
           grade_id: e.grade?.remote_id,
+          school_id: e.school_id,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
           name: d.name,
           code: d.code,
           user_id: d.user_id,
+          school_id: d.school_id,
           _grade_remote_id: d.grade_id
         }),
       },
@@ -204,7 +213,7 @@ export class CloudSyncService {
         dependsOn: [CourseEntity],
         relationsToLoad: ['groupement'],
         identifyingFields: ['code'],
-        transformToSupabase: (e: CourseEntity) => ({
+        transformToSupabase: (e: CourseEntity & { school_id?: string }) => ({
           ...(e.remote_id && { id: e.remote_id }),
           user_id: e.user_id,
           code: e.code,
@@ -212,6 +221,7 @@ export class CloudSyncService {
           coefficient: e.coefficient,
           isInGroupement: e.isInGroupement,
           groupement_id: e.groupement?.remote_id,
+          school_id: e.school_id,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
@@ -220,6 +230,7 @@ export class CloudSyncService {
           coefficient: d.coefficient,
           user_id: d.user_id,
           isInGroupement: d.isInGroupement,
+          school_id: d.school_id,
           _groupement_remote_id: d.groupement_id
         }),
       },
@@ -230,7 +241,7 @@ export class CloudSyncService {
         dependsOn: [DiplomaEntity, QualificationEntity],
         relationsToLoad: ['diploma', 'qualification'],
         identifyingFields: ['matricule'],
-        transformToSupabase: (e: ProfessorEntity) => ({
+        transformToSupabase: (e: ProfessorEntity & { school_id?: string }) => ({
           ...(e.remote_id && { id: e.remote_id }),
           user_id: this.resolveUserId(e.user_id),
           firstname: e.firstname,
@@ -238,6 +249,7 @@ export class CloudSyncService {
           matricule: e.matricule,
           diploma_id: e.diploma?.remote_id,
           qualification_id: e.qualification?.remote_id,
+          school_id: e.school_id,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
@@ -246,7 +258,8 @@ export class CloudSyncService {
           matricule: d.matricule,
           user_id: d.user_id,
           _diploma_remote_id: d.diploma_id,
-          _qualification_remote_id: d.qualification_id
+          _qualification_remote_id: d.qualification_id,
+          school_id: d.school_id
         }),
       },
       {
@@ -256,13 +269,14 @@ export class CloudSyncService {
         dependsOn: [GradeEntity],
         relationsToLoad: ['grade'],
         identifyingFields: ['matricule'],
-        transformToSupabase: (e: StudentEntity) => ({
+        transformToSupabase: (e: StudentEntity & { school_id?: string }) => ({
           ...(e.remote_id && { id: e.remote_id }),
           user_id: e.user_id,
           firstname: e.firstname,
           lastname: e.lastname,
           matricule: e.matricule,
           grade_id: e.grade?.remote_id,
+          school_id: e.school_id,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
@@ -270,10 +284,11 @@ export class CloudSyncService {
           lastname: d.lastname,
           matricule: d.matricule,
           user_id: d.user_id,
+          school_id: d.school_id,
           _grade_remote_id: d.grade_id
         }),
       },
-  
+
       // --- NIVEAU 2 ---
       {
         entity: ObservationEntity,
@@ -282,11 +297,12 @@ export class CloudSyncService {
         dependsOn: [CourseEntity],
         relationsToLoad: ['course'],
         identifyingFields: [],
-        transformToSupabase: (e: ObservationEntity) => ({
+        transformToSupabase: (e: ObservationEntity & { school_id?: string }) => ({
           ...(e.remote_id && { id: e.remote_id }),
           observation: e.observation,
           note: e.note,
           course_id: e.course?.remote_id,
+          school_id: e.school_id,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
@@ -377,10 +393,18 @@ export class CloudSyncService {
           ...(e.remote_id && { id: e.remote_id }),
           user_id: e.user_id,
           professor_id: e.professor?.remote_id,
+          startDate: e.startDate,
+          endDate: e.endDate,
+          reason: e.reason,
+          status: e.status,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
-          _professor_remote_id: d.professor_id
+          s_professor_remote_id: d.professor_id,
+          startDate: d.startDate,
+          endDate: d.endDate,
+          reason: d.reason,
+          status: d.status,
         }),
       },
       {
@@ -388,16 +412,49 @@ export class CloudSyncService {
         localRepository: this.appDataSourceInstance.getRepository(PaymentEntity),
         supabaseTable: 'payments',
         dependsOn: [StudentEntity],
-        relationsToLoad: ['student'],
+        relationsToLoad: ['student', 'scholarship'],
         identifyingFields: [],
-        transformToSupabase: (e: PaymentEntity) => ({
-          ...(e.remote_id && { id: e.remote_id }),
-          user_id: e.user_id,
-          student_id: e.student?.remote_id,
-          updated_at: e.updated_at
-        }),
+        transformToSupabase: (e: PaymentEntity) => {
+          // Protection robuste contre les relations nulles
+          if (!e.student || !e.student.remote_id) {
+            console.warn(`Paiement ID ${e.id} ignoré: étudiant inexistant ou sans remote_id`);
+            return null;
+          }
+          
+          return {
+            ...(e.remote_id && { id: e.remote_id }),
+            user_id: e.user_id,
+            student_id: e.student.remote_id,
+            amount: e.amount,
+            paymentType: e.paymentType,
+            paymentMethod: e.paymentMethod,
+            installmentNumber: e.installmentNumber,
+            schoolYear: e.schoolYear,
+            comment: e.comment,
+            scholarshipPercentage: e.scholarshipPercentage,
+            scholarshipAmount: e.scholarshipAmount,
+            baseAmount: e.baseAmount,
+            adjustedAmount: e.adjustedAmount,
+            scholarshipId: e.scholarship?.remote_id,
+            created_at: e.created_at,
+            updated_at: e.updated_at
+          };
+        },
         transformFromSupabase: (d: any) => ({
-          _student_remote_id: d.student_id
+          amount: d.amount,
+          paymentType: d.paymentType,
+          paymentMethod: d.paymentMethod,
+          user_id: d.user_id,
+          installmentNumber: d.installmentNumber,
+          schoolYear: d.schoolYear,
+          comment: d.comment,
+          scholarshipPercentage: d.scholarshipPercentage,
+          scholarshipAmount: d.scholarshipAmount,
+          baseAmount: d.baseAmount,
+          adjustedAmount: d.adjustedAmount,
+          created_at: d.created_at,
+          _student_remote_id: d.student_id,
+          _scholarship_remote_id: d.scholarshipId
         }),
       },
       {
@@ -411,15 +468,21 @@ export class CloudSyncService {
           ...(e.remote_id && { id: e.remote_id }),
           user_id: e.user_id,
           professor_id: e.professor?.remote_id,
+          amount: e.amount,
+          type: e.type,
+          paymentMethod: e.paymentMethod,
           updated_at: e.updated_at
         }),
         transformFromSupabase: (d: any) => ({
-          _professor_remote_id: d.professor_id
+          _professor_remote_id: d.professor_id,
+          amount: d.amount,
+          type: d.type,
+          paymentMethod: d.paymentMethod,
         }),
       },
     ];
   }
-  
+
 
 
 
@@ -500,7 +563,7 @@ export class CloudSyncService {
   }
 
 
-  async checkForSyncOpportunity(onlineAuthUserId: string): Promise<void> {
+  async checkForSyncOpportunity(onlineAuthUserId: string, schoolId: string): Promise<void> {
     if (!this.supabaseAvailable || this.isMockClient() || this.isSyncing) return;
     if (this.entitySyncMetas.length === 0) {
       console.warn("Cloud Sync: Aucune entité configurée pour la synchronisation. Vérifiez populateEntitySyncMetas.");
@@ -510,10 +573,10 @@ export class CloudSyncService {
     this.isSyncing = true; // Verrouiller avant les opérations asynchrones
     console.log("Vérification de la nécessité de synchronisation pour l'utilisateur:", onlineAuthUserId);
     const config = await this.loadSyncConfig();
-    const lastSyncTime = await this.getLastSyncTimestamp(onlineAuthUserId);
+    const lastSyncTime = await this.getLastSyncTimestamp(onlineAuthUserId, schoolId);
 
-    const hasLocal = await this.hasLocalChanges(onlineAuthUserId, lastSyncTime);
-    const hasRemote = await this.hasRemoteChanges(onlineAuthUserId, lastSyncTime);
+    const hasLocal = await this.hasLocalChanges(onlineAuthUserId, schoolId, lastSyncTime);
+    const hasRemote = await this.hasRemoteChanges(onlineAuthUserId, schoolId, lastSyncTime);
 
     if (!hasLocal && !hasRemote) {
       console.log("Aucun changement local ou distant détecté.");
@@ -535,7 +598,7 @@ export class CloudSyncService {
     return true; // Assume confirmation pour test
   }
 
-  private async getLastSyncTimestamp(userId: string): Promise<Date> {
+  private async getLastSyncTimestamp(userId: string, schoolId?: string): Promise<Date> {
     const localHistory = await this.getLocalSyncHistory(userId);
     const lastSuccess = localHistory
       .filter(h => h.status === 'success' || h.status === 'partial_success')
@@ -548,12 +611,12 @@ export class CloudSyncService {
     return new Date(0);
   }
 
-  async hasLocalChanges(userId: string, since: Date): Promise<boolean> {
+  async hasLocalChanges(userId: string, schoolId: string, since: Date): Promise<boolean> {
     for (const meta of this.entitySyncMetas) {
       const count = await meta.localRepository.count({
         where: [
-          { remote_id: IsNull(), user_id: userId, deleted_at: IsNull() },
-          { updated_at: MoreThan(since), user_id: userId, remote_id: Not(IsNull()) }, // Inclut soft-deleted
+          { remote_id: IsNull(), user_id: userId, school_id: schoolId, deleted_at: IsNull() },
+          { updated_at: MoreThan(since), user_id: userId, school_id: schoolId, remote_id: Not(IsNull()) }, // Inclut soft-deleted
         ] as FindOptionsWhere<BaseSyncEntity>[],
       });
       if (count > 0) return true;
@@ -561,12 +624,12 @@ export class CloudSyncService {
     return false;
   }
 
-  async hasRemoteChanges(userId: string, since: Date): Promise<boolean> {
+  async hasRemoteChanges(userId: string, schoolId: string, since: Date): Promise<boolean> {
     if (!this.supabaseAvailable || this.isMockClient()) return false;
     for (const meta of this.entitySyncMetas) {
       const { error, count } = await (this.supabase as SupabaseClient)
         .from(meta.supabaseTable).select('id', { count: 'exact', head: true })
-        .eq('user_id', userId).gt('updated_at', since.toISOString());
+        .eq('user_id', userId).eq('school_id', schoolId).gt('updated_at', since.toISOString());
       if (error) { console.error(`Erreur vérif remote ${meta.supabaseTable}:`, error); continue; }
       if (count && count > 0) return true;
     }
@@ -583,7 +646,7 @@ export class CloudSyncService {
       await this.createSyncHistoryEvent(errEvt);
       return errEvt;
     }
-  
+
     const historyId = randomUUID();
     let h: SyncHistory = {
       id: historyId, sync_started_at: new Date().toISOString(), direction: 'bidirectional',
@@ -591,16 +654,16 @@ export class CloudSyncService {
       records_synced_up: 0, records_synced_down: 0, conflict_count: 0,
     };
     await this.createSyncHistoryEvent(h);
-  
+
     try {
       const lastSyncTime = await this.getLastSyncTimestamp(onlineAuthUserId);
       const currentSyncStartTime = new Date(h.sync_started_at);
-  
+
       // ================================
       // PHASE 1: Local -> Cloud
       // ================================
       console.log("SYNC PHASE 1: Local -> Cloud");
-  
+
       for (const meta of this.getOrderedMetasForUpload()) {
         const localChanges = await meta.localRepository.find({
           where: [
@@ -609,68 +672,80 @@ export class CloudSyncService {
           ],
           relations: meta.relationsToLoad || [],
         });
-  
+
         if (localChanges.length === 0) continue;
-  
+
         const toUpsert: any[] = [];
         const toDeleteRemote: string[] = [];
         const recordsToUpdateLocally: BaseSyncEntity[] = [];
-  
+
         for (const lc of localChanges) {
           const userIdForSync = lc.user_id || onlineAuthUserId;
-  
+
           if (userIdForSync !== onlineAuthUserId) continue;
-  
+
           const payload = meta.transformToSupabase(lc);
+          
+          // Filtrer les payloads null ou avec des relations manquantes critiques
+          if (!payload) {
+            console.warn(`[L->C] ${meta.supabaseTable} ID ${lc.id} ignoré: transformation a retourné null`);
+            continue;
+          }
+          
+          if (meta.supabaseTable === 'payments' && !payload.student_id) {
+            console.warn(`[L->C] Paiement ID ${lc.id} ignoré: étudiant sans remote_id`);
+            continue;
+          }
+          
           payload.user_id = userIdForSync;
           delete payload.created_at;
-  
+
           if (lc.deleted_at && lc.remote_id) {
             toDeleteRemote.push(lc.remote_id);
           } else if (!lc.deleted_at) {
             toUpsert.push(payload);
           }
         }
-  
+
         if (toDeleteRemote.length > 0) {
           const { error } = await (this.supabase as SupabaseClient)
             .from(meta.supabaseTable)
             .delete()
             .in('id', toDeleteRemote)
             .eq('user_id', onlineAuthUserId);
-  
+
           if (error) throw new Error(`[L->C] Erreur suppression ${meta.supabaseTable}: ${error.message}`);
-  
+
           h.records_synced_up! += toDeleteRemote.length;
           await meta.localRepository.update(
             { remote_id: In(toDeleteRemote) } as FindOptionsWhere<BaseSyncEntity>,
             { updated_at: currentSyncStartTime }
           );
         }
-  
+
         if (toUpsert.length > 0) {
           // Construire dynamiquement les champs de sélection
           const selectFields = ['id', 'updated_at', ...(meta.identifyingFields || [])];
           const selectString = selectFields.join(', ');
-          
+
           const { data, error } = await (this.supabase as SupabaseClient)
             .from(meta.supabaseTable)
             .upsert(toUpsert, { onConflict: 'id' })
             .select(selectString);
-  
+
           if (error) throw new Error(`[L->C] Erreur upsert ${meta.supabaseTable}: ${error.message}`);
-  
+
           if (data) {
             for (const remoteResult of data) {
               // Typage explicite pour éviter les erreurs TypeScript
-              const result = remoteResult as any & { 
-                id: string; 
-                updated_at: string; 
-                matricule?: string; 
-                code?: string; 
-                name?: string; 
+              const result = remoteResult as any & {
+                id: string;
+                updated_at: string;
+                matricule?: string;
+                code?: string;
+                name?: string;
               };
-              
+
               const localRecord = localChanges.find(l => {
                 if (l.remote_id && l.remote_id === result.id) return true;
                 if (!l.remote_id) {
@@ -680,7 +755,7 @@ export class CloudSyncService {
                 }
                 return false;
               });
-  
+
               if (localRecord) {
                 localRecord.remote_id = result.id;
                 localRecord.updated_at = new Date(result.updated_at);
@@ -691,81 +766,92 @@ export class CloudSyncService {
               }
             }
           }
-  
+
           h.records_synced_up! += toUpsert.length;
         }
-  
+
         if (recordsToUpdateLocally.length > 0) {
           const uniqueRecords = [...new Map(recordsToUpdateLocally.map(item => [item.id, item])).values()];
           console.log(`  [L->C] Correction de ${uniqueRecords.length} enregistrements locaux pour la table ${meta.supabaseTable}.`);
           await meta.localRepository.save(uniqueRecords);
         }
-  
+
         h.tables_processed!.push(meta.supabaseTable);
       }
-  
+
       // ================================
       // PHASE 2: Cloud -> Local
       // ================================
       console.log("SYNC PHASE 2: Cloud -> Local");
-  
+
       for (const meta of this.getOrderedMetasForDownload()) {
         const { data: remoteChanges, error: fetchError } = await (this.supabase as SupabaseClient)
           .from(meta.supabaseTable)
           .select('*')
           .eq('user_id', onlineAuthUserId)
           .gt('updated_at', lastSyncTime.toISOString());
-  
+
         if (fetchError) throw new Error(`[C->L] Erreur fetch ${meta.supabaseTable}: ${fetchError.message}`);
         if (!remoteChanges || remoteChanges.length === 0) continue;
-  
+
         console.log(`  [C->L] ${meta.supabaseTable}: ${remoteChanges.length} changements distants.`);
-  
+
         const fkMaps = await this.buildForeignKeyMaps(meta, remoteChanges);
-  
+
         for (const remoteRecord of remoteChanges) {
+          // Dans la boucle `for (const remoteRecord of remoteChanges)` de la phase 2
+
           const transformed = meta.transformFromSupabase(remoteRecord);
-  
-          for (const key in fkMaps) {
-            const entityName = key.replace('_', '').replace('_remote_id', '');
-            const remoteId = (transformed as any)[key];
-            delete (transformed as any)[key];
-            if (remoteId && fkMaps[key].has(remoteId)) {
-              (transformed as any)[entityName] = { id: fkMaps[key].get(remoteId) };
-            }
-          }
-  
+          const studentRemoteId = (transformed as any)._student_remote_id;
+          delete (transformed as any)._student_remote_id; // Nettoyage de la propriété temporaire
+
+          const studentLocalId = fkMaps['_student_remote_id']?.get(studentRemoteId);
+
+          // Chercher un enregistrement local existant basé sur le remote_id
           let localRecord = await meta.localRepository.findOne({
             where: { remote_id: remoteRecord.id } as FindOptionsWhere<BaseSyncEntity>
           });
-  
+
           if (localRecord) {
-            if (remoteRecord.deleted_at && !localRecord.deleted_at) {
-              await meta.localRepository.softDelete({ id: localRecord.id } as any);
-            } else if (new Date(remoteRecord.updated_at) > localRecord.updated_at!) {
+            // C'est une mise à jour d'un paiement existant
+            if (new Date(remoteRecord.updated_at) > localRecord.updated_at!) {
               Object.assign(localRecord, transformed, { updated_at: new Date(remoteRecord.updated_at) });
+
+              // Mettre à jour la relation si nécessaire
+              if (studentLocalId) {
+                localRecord.student = { id: studentLocalId } as StudentEntity;
+              }
               await meta.localRepository.save(localRecord);
             }
-          } else if (!remoteRecord.deleted_at) {
-            const newLocal = meta.localRepository.create({
+          } else {
+            // C'est un nouveau paiement à créer en local
+            if (!studentLocalId) {
+              console.warn(`[C->L] Impossible de créer le paiement (remote_id: ${remoteRecord.id}) car l'étudiant local correspondant (remote_id: ${studentRemoteId}) n'a pas été trouvé.`);
+              h.conflict_count!++;
+              continue; // On saute cet enregistrement, on ne peut rien faire sans l'étudiant
+            }
+
+            const newPaymentData = {
               ...transformed,
               remote_id: remoteRecord.id,
               created_at: new Date(remoteRecord.created_at),
               updated_at: new Date(remoteRecord.updated_at),
-            } as any);
+              // C'est ici qu'on satisfait la contrainte NOT NULL en fournissant l'objet relationnel
+              student: { id: studentLocalId } as StudentEntity
+            };
+
+            const newLocal = meta.localRepository.create(newPaymentData as any);
             await meta.localRepository.save(newLocal);
           }
-  
-          h.records_synced_down!++;
         }
-  
+
         if (!h.tables_processed!.includes(meta.supabaseTable)) {
           h.tables_processed!.push(meta.supabaseTable);
         }
       }
-  
+
       h.status = h.conflict_count! > 0 ? 'partial_success' : 'success';
-  
+
     } catch (error: any) {
       console.error("Erreur durant performBidirectionalSync:", error);
       h.status = 'failed';
@@ -777,10 +863,10 @@ export class CloudSyncService {
       this.isSyncing = false;
       console.log("Synchronisation terminée. Statut:", h.status, "Conflits:", h.conflict_count);
     }
-  
+
     return h;
   }
-  
+
   private async buildForeignKeyMaps(meta: EntitySyncMeta<any>, remoteChanges: any[]): Promise<Record<string, Map<string, number>>> {
     const fkMaps: Record<string, Map<string, number>> = {};
     if (!meta.dependsOn || meta.dependsOn.length === 0) {
@@ -866,7 +952,7 @@ export class CloudSyncService {
         const currentUser = await this.getSupabaseAuthUser(); // Vérifier si toujours connecté
         if (currentUser?.id) {
           console.log("Cloud Sync: Exécution de la synchro périodique...");
-          await this.checkForSyncOpportunity(currentUser.id);
+          await this.checkForSyncOpportunity(currentUser.id, this.activeSchoolId || 'default');
         } else {
           console.log("Cloud Sync: Utilisateur non connecté, synchro périodique annulée.");
           this.stopPeriodicSyncTimer();
@@ -1092,6 +1178,17 @@ export class CloudSyncService {
    */
   private getCurrentSessionUserId(): string | null {
     return getCurrentSupabaseUserId();
+  }
+
+  public setActiveSchool(schoolId: string) {
+    this.activeSchoolId = schoolId;
+    console.log(`Cloud Sync: École active définie sur ${schoolId}`);
+
+    // déclencher une synchronisation pour cette école
+    const userId = this.getCurrentSessionUserId();
+    if (userId) {
+      this.checkForSyncOpportunity(userId, schoolId);
+    }
   }
 
   /**
