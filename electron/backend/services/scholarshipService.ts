@@ -1,4 +1,4 @@
-import { Scholarship, ScholarshipCreateInput } from '../types/scholarship';
+import { ScholarshipCreateInput } from '../types/scholarship';
 import { Repository } from 'typeorm';
 import { ScholarshipEntity } from '../entities/scholarship';
 import { AppDataSource } from '../../data-source';
@@ -14,13 +14,13 @@ export class ScholarshipService {
 
 
 
-  async getByStudent(studentId: number): Promise<ResultType<Scholarship[]>> {
+  async getByStudent(studentId: number): Promise<ResultType<ScholarshipEntity[]>> {
     try {
       console.log('=== Recherche des bourses pour étudiant', studentId, '===');
       
       const scholarships = await this.scholarshipRepository.find({
         where: { studentId },
-        order: { createdAt: 'DESC' }
+        order: { created_at: 'DESC' }
       });
 
       console.log('Bourses trouvées:', scholarships);
@@ -42,7 +42,7 @@ export class ScholarshipService {
     }
   }
 
-  async assignScholarship(data: ScholarshipCreateInput): Promise<ResultType<Scholarship>> {
+  async assignScholarship(data: ScholarshipCreateInput): Promise<ResultType<ScholarshipEntity>> {
     try {
       console.log('=== Tentative d\'attribution de bourse ===');
       console.log('Données reçues:', data);
@@ -60,7 +60,7 @@ export class ScholarshipService {
         reason: data.reason,
         schoolYear: new Date().getFullYear().toString(),
         isActive: true,
-        createdAt: new Date()
+        created_at: new Date()
       });
 
       const savedScholarship = await this.scholarshipRepository.save(scholarship);

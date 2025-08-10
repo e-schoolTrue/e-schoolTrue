@@ -68,6 +68,12 @@ public async activateLicense(licenseCode: string): Promise<{ success: boolean; m
             p_code: licenseCode,
             p_machine_id: machineId,
         });
+        console.log('[LicenseService] Appel RPC activate_license avec :', {
+            p_code: licenseCode,
+            p_machine_id: machineId,
+        });
+        
+        
 
         if (error) {
             console.error('[LicenseService] Erreur Supabase RPC:', error);

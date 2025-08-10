@@ -11,15 +11,28 @@ const isLoading = ref(false);
 async function activateLicense() {
   if (!licenseCode.value.trim()) {
     ElMessage.error('Veuillez entrer un code de licence.');
+    console.warn('[UI] Tentative d’activation sans code');
     return;
   }
+
   isLoading.value = true;
+
   try {
-    const result = await window.ipcRenderer.invoke('license:activate', licenseCode.value.trim());
+    // Nettoyage plus strict du code : enlève tout sauf lettres, chiffres et tirets
+    const trulyCleanedCode = licenseCode.value.replace(/[^\w-]/g, '');
+    console.log('[UI] Code brut saisi :', licenseCode.value);
+    console.log('[UI] Code nettoyé envoyé à ipcRenderer :', trulyCleanedCode);
+
+    const result = await window.ipcRenderer.invoke('license:activate', trulyCleanedCode);
+
+    console.log('[UI] Résultat de license:activate', result);
+
     if (result.success) {
+      console.log('[UI] Licence activée avec succès');
       ElMessage.success('Licence activée avec succès !');
       emit('license-activated');
     } else {
+      console.warn('[UI] Échec d’activation de licence :', result.message);
       ElMessageBox.alert(
         result.message || 'Échec de l\'activation de la licence. Veuillez vérifier le code et réessayer.',
         'Erreur d\'activation',
@@ -27,13 +40,14 @@ async function activateLicense() {
       );
     }
   } catch (error: any) {
-    console.error('Erreur lors de l\'activation de la licence:', error);
+    console.error('[UI] Erreur inattendue lors de l\'activation :', error);
     ElMessageBox.alert(
       error.message || 'Une erreur inattendue est survenue.',
       'Erreur critique',
       { confirmButtonText: 'OK', type: 'error' }
     );
   } finally {
+    console.log('[UI] Fin du processus d’activation, nettoyage des champs');
     isLoading.value = false;
     licenseCode.value = '';
   }
@@ -60,7 +74,6 @@ function handleInput(value: string) {
               v-model="licenseCode"
               placeholder="XXXX-XXXX-XXXX-XXXX"
               :disabled="isLoading"
-              maxlength="19"
               class="license-input"
               @input="handleInput"
             >
@@ -84,6 +97,7 @@ function handleInput(value: string) {
     </div>
   </div>
 </template>
+
 
 <style scoped>
 .license-view {
