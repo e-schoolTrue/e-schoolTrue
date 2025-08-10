@@ -67,4 +67,13 @@ export default defineConfig({
   // optimizeDeps: {
   //   include: ['@mdi/js'],
   // },
+  server: {
+    proxy: {
+      '/updates': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/updates/, '/updates')
+      }
+    }
+  }
 })

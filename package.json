@@ -1,10 +1,10 @@
 {
   "name": "eschool",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build && electron-builder",
+    "build": "vue-tsc --noEmit && vite build && electron-builder  --publish always",
     "preview": "vite preview",
     "test:unit": "vitest --environment jsdom",
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
@@ -12,10 +12,12 @@
   "dependencies": {
     "better-sqlite3": "^9.6.0",
     "electron-print-preview": "^2.2.0",
+    "electron-updater": "^6.6.2",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "@iconify-json/bi": "^1.1.23",
     "@iconify-json/carbon": "^1.1.31",
     "@iconify-json/ep": "^1.1.15",

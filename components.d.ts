@@ -29,6 +29,7 @@ declare module 'vue' {
     CourseTable: typeof import('./src/components/course/course-table.vue')['default']
     CurrencyDisplay: typeof import('./src/components/common/CurrencyDisplay.vue')['default']
     DashbordMenu: typeof import('./src/components/dashbord-menu.vue')['default']
+    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAside: typeof import('element-plus/es')['ElAside']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
@@ -113,6 +114,7 @@ declare module 'vue' {
     StudentTable: typeof import('./src/components/student/student-table.vue')['default']
     StudentUpdate: typeof import('./src/components/student/student-update.vue')['default']
     TeachingAssignment: typeof import('./src/components/professor/sections/TeachingAssignment.vue')['default']
+    UpdateNotifier: typeof import('./src/components/common/UpdateNotifier.vue')['default']
     YearRepartionForm: typeof import('./src/components/schoolYear/YearRepartionForm.vue')['default']
   }
   export interface ComponentCustomProperties {
