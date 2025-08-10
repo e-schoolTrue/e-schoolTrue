@@ -153,18 +153,50 @@ const isValidDataUrl = (url: string) => {
   height: 54mm;
   position: relative;
   perspective: 1000px;
-  background-color: var(--background-color);
-  border-radius: 12px;
+  transform-style: preserve-3d;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .card-front, .card-back {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-front {
+  background-color: var(--background-color);
+  z-index: 2;
+  transform: rotateY(0);
+}
+
+.card-back {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: white;
+  transform: rotateY(180deg);
+}
+
+/* Supprimer l'animation au survol */
+.card-template-two:hover .card-front,
+.card-template-two:hover .card-back {
+  transform: none;
+}
+
+/* Contrôle manuel du retournement */
+.is-flipped .card-front {
+  transform: rotateY(180deg);
+}
+
+.is-flipped .card-back {
+  transform: rotateY(0);
 }
 
 .banner {
@@ -267,12 +299,15 @@ const isValidDataUrl = (url: string) => {
 .card-footer {
   position: absolute;
   bottom: 0;
+  left: 0;
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   padding: 10px;
   background: linear-gradient(to top, rgba(0,0,0,0.05), transparent);
+  box-sizing: border-box;
+  z-index: 10;
 }
 
 .signature {
@@ -282,27 +317,24 @@ const isValidDataUrl = (url: string) => {
 }
 
 /* Styles pour le dos de la carte */
-.card-back {
-  transform: rotateY(180deg);
-  background-color: var(--background-color);
-}
-
 .back-content {
   padding: 15px;
-  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .rules-section {
-  background-color: rgba(0,0,0,0.03);
+  background-color: rgba(255, 255, 255, 0.1);
   padding: 10px;
   border-radius: 8px;
+  margin-bottom: 10px;
 }
 
 .rules-section h4 {
-  color: var(--primary-color);
+  color: white;
   margin: 0 0 5px 0;
   font-size: 12px;
 }
@@ -311,7 +343,7 @@ const isValidDataUrl = (url: string) => {
   margin: 0;
   padding-left: 15px;
   font-size: 9px;
-  color: var(--text-color);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .personal-info {
@@ -321,23 +353,25 @@ const isValidDataUrl = (url: string) => {
 .info-row {
   display: flex;
   font-size: 10px;
-  margin: 3px 0;
+  margin: 4px 0;
+  color: white;
 }
 
 .label {
-  width: 60px;
-  color: var(--primary-color);
+  width: 70px;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .value {
-  color: var(--text-color);
+  flex: 1;
 }
 
 .contact-info {
   font-size: 9px;
   text-align: center;
-  color: var(--text-color);
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: auto;
 }
 
 .contact-info p {
@@ -347,16 +381,119 @@ const isValidDataUrl = (url: string) => {
 .validity-info {
   text-align: right;
   font-size: 8px;
-  color: var(--text-color);
+  color: rgba(255, 255, 255, 0.8);
   font-style: italic;
+  margin-top: 10px;
 }
 
-/* Animation au survol */
-.card-template-two:hover .card-front {
-  transform: rotateY(180deg);
-}
+/* Optimisations pour l'impression et l'export PDF */
+@media print {
+  .card-template-two {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: none;
+    overflow: hidden;
+    width: 85.6mm !important;
+    height: 54mm !important;
+    transform: none !important;
+  }
 
-.card-template-two:hover .card-back {
-  transform: rotateY(0);
+  .card-front, .card-back {
+    position: relative !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    left: 0 !important;
+    top: 0 !important;
+  }
+
+  .card-back {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 5mm;
+  }
+
+  /* S'assurer que les couleurs et images sont correctement imprimées */
+  .student-photo img,
+  .school-logo,
+  .qr-code,
+  .qr-code canvas,
+  .qr-code img {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  /* Améliorer la lisibilité des textes en impression */
+  .student-name h3,
+  .student-info p,
+  .info-row .value,
+  .signature p {
+    color: black !important;
+  }
+  
+  /* Garantir que le QR code s'affiche correctement */
+  .qr-code {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    background-color: white !important;
+    padding: 2px !important;
+    border-radius: 4px !important;
+    border: 1px solid #000 !important;
+  }
+  
+  /* Garantir que le pied de page s'affiche correctement */
+  .card-footer {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: none !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
+  }
+
+  /* Optimiser les contrastes */
+  .banner {
+    background: #f0f0f0 !important;
+    color: black !important;
+  }
+
+  .card-back {
+    background: #f0f0f0 !important;
+    color: black !important;
+  }
+
+  .rules-section {
+    background-color: #f9f9f9 !important;
+    border: 1px solid #ddd;
+  }
+
+  .rules-section h4,
+  .rules-section ul,
+  .info-row,
+  .label,
+  .contact-info,
+  .validity-info {
+    color: black !important;
+  }
 }
-</style> 
+</style>

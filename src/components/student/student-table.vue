@@ -60,6 +60,14 @@
           >
             Actualiser
           </el-button>
+          <el-button
+            type="info"
+            @click="handlePrint"
+            :loading="loading"
+          >
+            <Icon icon="mdi:printer" />
+            Imprimer
+          </el-button>
         </div>
       </div>
 
@@ -203,24 +211,13 @@ import { Icon } from '@iconify/vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import * as XLSX from "xlsx";
 import { Refresh } from '@element-plus/icons-vue';
+import type { IStudentFile, IStudentData } from '@/types/student';
+import type { IGrade } from '@/types/shared';
 
-interface Student {
-  id?: number;
-  matricule: string;
-  lastname: string;
-  firstname: string;
-  schoolYear: string;
-  gradeId?: number;
-  famillyPhone?: string;
-  sex: "male" | "female";
-  birthDay?: string;
-  birthTown?: string;
-  address?: string;
-}
 
-interface Grade {
-  id: number;
-  name: string;
+interface Student extends Omit<IStudentData, 'documents' | 'photo'> {
+  documents?: IStudentFile[];
+  photo?: IStudentFile;
 }
 
 const props = defineProps({
@@ -230,7 +227,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["detail", "edit", "pageChange", "delete", "refresh"]);
+const emit = defineEmits(["detail", "edit", "pageChange", "delete", "refresh", "print"]);
 
 const currentPage = ref(1);
 const pageSize = ref(5);
@@ -247,21 +244,18 @@ const headerStyle = {
 };
 
 // Variables pour stocker les données des grades
-const grades = ref<Grade[]>([]);
+const grades = ref<IGrade[]>([]);
 
 // Charger les grades depuis l'IPC au montage
 onMounted(async () => {
   try {
     const result = await window.ipcRenderer.invoke("grade:all");
     console.log('Grades loaded:', result);
-    // Extract the data array from the result
     grades.value = result.data || [];
   } catch (error) {
     console.error("Erreur lors du chargement des grades :", error);
   }
 });
-
-
 
 // Computed
 const boysCount = computed(
@@ -282,11 +276,16 @@ const filteredStudents = computed(() => {
   if (!searchQuery.value) {
     return props.students;
   }
-  return props.students.filter(student => 
-    student.firstname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    student.lastname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    student.matricule.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
+  return props.students.filter(student => {
+    const firstname = student.firstname?.toLowerCase() || '';
+    const lastname = student.lastname?.toLowerCase() || '';
+    const matricule = student.matricule?.toLowerCase() || '';
+    const query = searchQuery.value.toLowerCase();
+    
+    return firstname.includes(query) || 
+           lastname.includes(query) || 
+           matricule.includes(query);
+  });
 });
 
 // Methods
@@ -320,14 +319,10 @@ const handlePageChange = (page: number) => {
   emit("pageChange", page);
 };
 
-
-
 const handleExport = () => {
   try {
-    // Créer un nouveau classeur
     const wb = XLSX.utils.book_new();
     
-    // Préparer les données pour l'export
     const exportData = filteredStudents.value.map(student => ({
       'Matricule': student.matricule,
       'Nom': student.lastname,
@@ -337,18 +332,16 @@ const handleExport = () => {
       'Classe': getGradeName(student.gradeId),
       'Contact Parents': student.famillyPhone,
       'Date de naissance': student.birthDay ? new Date(student.birthDay).toLocaleDateString() : '',
-      'Lieu de naissance': student.birthTown || '',
+      'Lieu de naissance': student.birthPlace || '',
       'Adresse': student.address || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     XLSX.utils.book_append_sheet(wb, ws, 'Élèves');
 
-    // Générer le nom du fichier avec la date
     const date = new Date().toISOString().split('T')[0];
     const fileName = `liste_eleves_${date}.xlsx`;
 
-    // Déclencher le téléchargement
     XLSX.writeFile(wb, fileName);
 
     ElMessage.success('Export réussi !');
@@ -358,26 +351,25 @@ const handleExport = () => {
   }
 };
 
-// Obtenir le nom du grade à partir de son ID
 const getGradeName = (gradeId: number | undefined): string => {
-  console.log('Current gradeId:', gradeId);
-  console.log('Grades type:', typeof grades.value);
-  console.log('Grades content:', grades.value);
-  
-  if (!gradeId) return "Non assigné";
-  
-  // Additional type checking
-  if (!Array.isArray(grades.value)) {
-    console.error('Grades is not an array');
+  // Si gradeId est 0, c'est une valeur valide mais considérée comme falsy en JavaScript
+  if (gradeId === undefined || gradeId === null) {
     return "Non assigné";
   }
   
-  const grade = grades.value.find((g) => g.id === gradeId);
+  // Si gradeId est 0, on pourrait avoir un cas particulier
+  if (gradeId === 0) {
+    // Vérifier s'il existe une définition spéciale pour le grade 0
+    const grade = grades.value.find((g) => g.id === 0);
+    return (grade && grade.name) ? grade.name : "Non assigné";
+  }
   
-  return grade ? grade.name : "Non assigné";
+  // Pour les valeurs positives de gradeId
+  const grade = grades.value.find((g) => g.id === gradeId);
+  return (grade && grade.name) ? grade.name : "Non assigné";
 };
-// Définir le type de tag pour les grades
-const getGradeTagType = (gradeId: number | undefined) => {
+
+const getGradeTagType = (gradeId: number | undefined): string => {
   if (!gradeId) return "info";
   if (gradeId <= 6) return "success";
   if (gradeId <= 10) return "warning";
@@ -393,6 +385,9 @@ const refreshData = () => {
   }
 };
 
+const handlePrint = () => {
+  emit("print", filteredStudents.value);
+};
 </script>
 
 <style scoped>
@@ -537,4 +532,11 @@ const refreshData = () => {
 :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb:hover) {
   background: #7c7c7c;
 }
+
+.table-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
 </style>
+

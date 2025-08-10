@@ -1,8 +1,39 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { FileEntity } from "./file";
 
 export type CountryCode = 'MAR' | 'SEN' | 'CAF' | 'GIN';
 export type CurrencyCode = 'MAD' | 'XOF' | 'XAF' | 'GNF';
+
+@Entity("school_settings")
+export class SchoolSettingsEntity {
+    @PrimaryGeneratedColumn()
+    id?: number;
+
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
+    @Column({ type: "varchar", length: 50 })
+    schoolCode: string = '';
+
+    @Column({ type: "varchar", length: 100 })
+    inspectionZone: string = '';
+
+    @Column({ type: "varchar", length: 50 })
+    departmentCode: string = '';
+
+    @OneToOne(() => SchoolEntity, school => school.settings)
+    @JoinColumn()
+    school?: SchoolEntity;
+
+    @DeleteDateColumn()
+    deleted_at?: Date;
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn()
+    updated_at?: Date;
+}
 
 @Entity("school")
 export class SchoolEntity {
@@ -52,6 +83,9 @@ export class SchoolEntity {
 
     @Column({ type: "int" })
     foundationYear: number = new Date().getFullYear();
+
+    @OneToOne(() => SchoolSettingsEntity, settings => settings.school)
+    settings?: SchoolSettingsEntity;
 
     // Getter virtuel pour la devise
     get currency(): CurrencyCode {

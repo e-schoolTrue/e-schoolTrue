@@ -130,6 +130,7 @@ const isValidDataUrl = (url: string) => {
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform-style: preserve-3d;
 }
 
 /* Header styles */
@@ -189,18 +190,17 @@ const isValidDataUrl = (url: string) => {
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
-  transition: transform 0.6s;
+  background-color: var(--background-color);
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card-front {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: 10px;
+  transform: rotateY(0);
+  z-index: 2;
 }
 
 .card-back {
   transform: rotateY(180deg);
-  padding: 15px;
 }
 
 .card-header {
@@ -248,7 +248,8 @@ const isValidDataUrl = (url: string) => {
 .card-body {
   display: flex;
   gap: 15px;
-  padding: 10px 0;
+  padding: 10px 15px;
+  margin: 0 5px;
 }
 
 .student-photo {
@@ -278,25 +279,31 @@ const isValidDataUrl = (url: string) => {
 
 .student-info {
   flex: 1;
+  padding: 0 10px;
+  box-sizing: border-box;
 }
 
 .student-info h3 {
   font-size: 16px;
   color: var(--text-color);
-  margin: 0 0 5px 0;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
 }
 
 .matricule {
   font-size: 14px;
   color: var(--primary-color);
   font-weight: 500;
-  margin: 3px 0;
+  margin: 5px 0;
+  padding-left: 2px;
 }
 
 .class, .year {
   font-size: 12px;
   color: var(--text-color);
-  margin: 2px 0;
+  margin: 5px 0;
+  padding-left: 2px;
+  line-height: 1.3;
 }
 
 .card-footer {
@@ -362,14 +369,106 @@ const isValidDataUrl = (url: string) => {
   color: var(--text-color);
 }
 
-/* Animation au survol */
-.card-template-one:hover .card-front {
+/* Supprimer les styles d'animation au survol */
+.card-template-one:hover .card-front,
+.card-template-one:hover .card-back {
+  transform: none;
+}
+
+/* Style pour quand la carte est retournée via le contrôle */
+.is-flipped .card-front {
   transform: rotateY(180deg);
 }
 
-.card-template-one:hover .card-back {
-  transform: rotateY(0deg);
+.is-flipped .card-back {
+  transform: rotateY(0);
 }
-</style> 
+
+/* Optimisations pour l'impression et l'export PDF */
+@media print {
+  .card-template-one {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: none;
+    overflow: hidden;
+    width: 85.6mm !important;
+    height: 54mm !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .card-front, .card-back {
+    position: relative !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    left: 0 !important;
+    top: 0 !important;
+  }
+
+  .card-body {
+    padding: 10px 15px !important;
+    margin: 0 5px !important;
+  }
+
+  .student-info {
+    padding: 0 10px !important;
+  }
+
+  .matricule, .class, .year {
+    padding-left: 2px !important;
+    margin: 5px 0 !important;
+  }
+
+  /* S'assurer que les couleurs et images sont correctement imprimées */
+  .student-photo img,
+  .school-logo,
+  .qr-code,
+  .qr-code canvas,
+  .qr-code img {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  /* Améliorer la lisibilité des textes en impression */
+  .student-info h3,
+  .matricule,
+  .class,
+  .year,
+  .back-header h3,
+  .back-content td,
+  .emergency-contact h4,
+  .emergency-contact p,
+  .validity p {
+    color: black !important;
+  }
+
+  /* Garantir que le QR code s'affiche correctement */
+  .qr-code {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    min-width: 50px !important;
+    min-height: 50px !important;
+    background-color: white !important;
+    padding: 2px !important;
+    border-radius: 4px !important;
+    border: 1px solid #000 !important;
+  }
+}
+</style>
 
 

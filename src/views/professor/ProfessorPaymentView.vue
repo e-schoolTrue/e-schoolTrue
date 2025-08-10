@@ -2,32 +2,27 @@
   <el-container class="professor-payment">
     <!-- En-tête avec statistiques -->
     <el-header class="payment-header">
-      <el-row :gutter="20">
-        <el-col :span="12">
+      <el-row :gutter="15">
+        <el-col :xs="24" :sm="12">
           <el-card shadow="hover" class="stat-card">
-            <template #header>
-              <div class="stat-header">
-                <el-icon><User /></el-icon>
-                <span>Total Professeurs</span>
+            <div class="compact-stat-content">
+              <div class="stat-info">
+                <el-icon size="18"><User /></el-icon>
+                <span class="stat-label">Total Professeurs</span>
               </div>
-            </template>
-            <div class="stat-content">
               <span class="stat-value">{{ totalProfessors }}</span>
-              <span class="stat-label">professeurs</span>
             </div>
           </el-card>
         </el-col>
         
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-card shadow="hover" class="stat-card primary">
-            <template #header>
-              <div class="stat-header">
-                <el-icon><Money /></el-icon>
-                <span>Total Payé</span>
+            <div class="compact-stat-content">
+              <div class="stat-info">
+                <el-icon size="18"><Money /></el-icon>
+                <span class="stat-label">Total Payé</span>
               </div>
-            </template>
-            <div class="stat-content">
-              <currency-display :amount="totalPaid" />
+              <currency-display class="stat-amount" :amount="totalPaid" />
             </div>
           </el-card>
         </el-col>
@@ -42,46 +37,57 @@
               <el-input
                 v-model="filters.professorName"
                 placeholder="Rechercher un professeur..."
-                prefix-icon="Search"
                 clearable
                 @input="handleFilter"
-              />
+                class="search-input"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
               
               <el-date-picker
                 v-model="filters.month"
                 type="month"
-                placeholder="Sélectionner le mois"
+                placeholder="Mois"
                 format="MMMM YYYY"
                 value-format="YYYY-MM"
                 @change="handleFilter"
+                class="filter-date"
               />
             </div>
 
             <div class="table-actions">
               <el-button-group>
-                <el-button
-                  type="success"
-                  :icon="Download"
-                  @click="exportToExcel"
-                  :loading="loading"
-                >
-                  Exporter Excel
-                </el-button>
-                <el-button
-                  type="primary"
-                  :icon="Plus"
-                  @click="showNewPaymentDialog"
-                >
-                  Nouveau Paiement
-                </el-button>
-                <el-button
-                  type="info"
-                  :icon="Refresh"
-                  @click="refreshData"
-                  :loading="loading"
-                >
-                  Actualiser
-                </el-button>
+                <el-tooltip content="Exporter vers Excel" placement="top">
+                  <el-button
+                    type="success"
+                    :icon="Download"
+                    @click="exportToExcel"
+                    :loading="loading"
+                  >
+                    Exporter
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="Nouveau paiement" placement="top">
+                  <el-button
+                    type="primary"
+                    :icon="Plus"
+                    @click="showNewPaymentDialog"
+                  >
+                    Paiement
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip content="Actualiser les données" placement="top">
+                  <el-button
+                    type="info"
+                    :icon="Refresh"
+                    @click="refreshData"
+                    :loading="loading"
+                  >
+                    Actualiser
+                  </el-button>
+                </el-tooltip>
               </el-button-group>
             </div>
           </div>
@@ -93,6 +99,8 @@
           :data="filteredPayments"
           border
           stripe
+          style="width: 100%"
+          :max-height="550"
         >
           <el-table-column 
             label="Professeur" 
@@ -196,12 +204,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Plus, Download, Printer, Edit, Money, User, Refresh } from '@element-plus/icons-vue';
+import { Plus, Download, Printer, Edit, Money, User, Refresh, Search } from '@element-plus/icons-vue';
 import ProfessorPaymentDialog from '@/components/professor/ProfessorPaymentDialog.vue';
 import * as XLSX from 'xlsx';
 import printJS from 'print-js';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
+import type { IProfessorPaymentData } from '@/types/payment';
 
 interface Teaching {
   class?: {
@@ -218,29 +227,13 @@ interface Professor {
   lastname: string;
   subject?: string;
   teaching?: Teaching[];
+  qualification?: { name: string };
 }
 
-interface Payment {
+interface Payment extends Omit<IProfessorPaymentData, 'professorId'> {
   id: number;
-  professor: {
-    id: number;
-    firstname: string;
-    lastname: string;
-    subject?: string;
-    teaching?: Array<{
-      class?: { name: string };
-      course?: { name: string };
-    }>;
-    qualification?: { name: string };
-  };
-  amount: number;
-  type: string;
-  paymentMethod: string;
-  month: string;
   createdAt: string;
-  isPaid: boolean;
-  reference?: string;
-  comment?: string;
+  professor: Professor;
   grossAmount: number;
   netAmount: number;
   deductions?: Array<{
@@ -327,7 +320,8 @@ const loadData = async () => {
     // Charger le nombre total de professeurs
     const professorCountResult = await window.ipcRenderer.invoke('professor:count');
     if (professorCountResult?.success) {
-      totalProfessors.value = Number(professorCountResult.data) || 0;
+      console.log('Résultat du comptage des professeurs:', professorCountResult);
+      totalProfessors.value = Number(professorCountResult.data?.nbr_child) || 0;
     }
 
     // Charger les paiements et les statistiques
@@ -339,23 +333,17 @@ const loadData = async () => {
       })
     ]);
 
-    if (statsResult?.success && statsResult.data) {
-      totalPaid.value = Number(statsResult.data.totalPaid) || 0;
-      totalPending.value = Number(statsResult.data.totalPending) || 0;
+    console.log('Résultat des statistiques de paiement:', statsResult);
+    if (statsResult?.success) {
+      totalPaid.value = Number(statsResult.data?.totalPaid) || 0;
+      totalPending.value = Number(statsResult.data?.totalPending) || 0;
     }
 
-    if (paymentsResult?.success && paymentsResult.data) {
-      payments.value = Array.isArray(paymentsResult.data) 
-        ? paymentsResult.data.map((p: { paymentType: any; type: any; }) => ({
-            ...p,
-            type: p.paymentType || p.type // Gère les deux cas possibles
-          }))
-        : [];
-      filteredPayments.value = [...payments.value];
-      handleFilter();
+    if (paymentsResult?.success) {
+      payments.value = paymentsResult.data || [];
     }
   } catch (error) {
-    console.error('Erreur détaillée lors du chargement des données:', error);
+    console.error('Erreur lors du chargement des données:', error);
     ElMessage.error('Erreur lors du chargement des données');
   } finally {
     loading.value = false;
@@ -424,7 +412,7 @@ const exportToExcel = async () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(exportData);
 
-    // Ajuster la largeur des colonnes
+    
     const colWidths = [
       { wch: 25 }, // Professeur
       { wch: 15 }, // Matière
@@ -450,7 +438,7 @@ const exportToExcel = async () => {
 };
 
 // Impression fiche de paie
-const printPayslip = async (paymentDetails: any) => {
+const printPayslip = async (paymentDetails: Payment) => {
   try {
     const schoolInfo = await window.ipcRenderer.invoke('school:get');
     if (!schoolInfo?.success) {
@@ -459,15 +447,19 @@ const printPayslip = async (paymentDetails: any) => {
 
     const schoolData = schoolInfo.data;
     const { currency } = useCurrency();
+    const grossAmount = paymentDetails.grossAmount ?? 0;
+    const netAmount = paymentDetails.netAmount ?? 0;
 
     const content = `
       <div class="payslip-container" style="padding: 20px;">
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <tr>
             <td style="width: 50%; border: 1px solid black; padding: 10px;">
-              KAYA<br>
+              <div style="text-align: center; margin-bottom: 10px;">
+                <h2 style="margin: 0; text-transform: uppercase;">${schoolData.name}</h2>
+              </div>
+              ${schoolData.address}<br>
               ${schoolData.town}<br>
-              Bangui<br>
               Tel: ${schoolData.phone}<br>
               Email: ${schoolData.email}
             </td>
@@ -481,7 +473,7 @@ const printPayslip = async (paymentDetails: any) => {
         </table>
 
         <div style="margin-bottom: 20px;">
-          ${paymentDetails.professor.firstname} ${paymentDetails.professor.lastname}
+          <strong>Professeur:</strong> ${paymentDetails.professor.firstname} ${paymentDetails.professor.lastname}
         </div>
 
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -493,9 +485,9 @@ const printPayslip = async (paymentDetails: any) => {
           </tr>
           <tr style="border: 1px solid black;">
             <td style="border: 1px solid black; padding: 5px;">Salaire de base</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.grossAmount)} ${currency.value}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(grossAmount)} ${currency.value}</td>
             <td style="border: 1px solid black; padding: 5px; text-align: right;">100%</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.grossAmount)} ${currency.value}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(grossAmount)} ${currency.value}</td>
           </tr>
           ${paymentDetails.deductions?.map((d: { name: string; amount: number; }) => `
             <tr style="border: 1px solid black;">
@@ -511,7 +503,7 @@ const printPayslip = async (paymentDetails: any) => {
           </tr>
           <tr style="border: 1px solid black;">
             <td colspan="3" style="border: 1px solid black; padding: 5px;">NET A PAYER</td>
-            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(paymentDetails.netAmount)} ${currency.value}</td>
+            <td style="border: 1px solid black; padding: 5px; text-align: right;">${new Intl.NumberFormat('fr-FR').format(netAmount)} ${currency.value}</td>
           </tr>
         </table>
 
@@ -520,8 +512,14 @@ const printPayslip = async (paymentDetails: any) => {
         </div>
 
         <div style="margin-top: 60px; display: flex; justify-content: space-between;">
-          <div>L'employé</div>
-          <div>L'employeur</div>
+          <div style="width: 45%;">
+            <p style="margin-bottom: 40px;">Signature du professeur:</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
+          </div>
+          <div style="width: 45%;">
+            <p style="margin-bottom: 40px;">Signature de l'employeur:</p>
+            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
+          </div>
         </div>
       </div>
     `;
@@ -553,9 +551,42 @@ onMounted(() => {
 }
 
 .payment-header {
-  padding: 20px;
+  padding: 10px 20px;
   height: auto;
-  flex-shrink: 0;
+  max-height: 120px;
+}
+
+.stat-card {
+  transition: transform 0.3s ease;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 5px;
+}
+
+.compact-stat-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+}
+
+.stat-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.stat-value, .stat-amount {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .payment-content {
@@ -564,57 +595,30 @@ onMounted(() => {
   padding: 0 20px 20px;
 }
 
-.stats-header {
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  transition: transform 0.3s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.stat-icon {
-  font-size: 24px;
-  padding: 15px;
-  border-radius: 8px;
-  background: var(--el-color-primary-light-9);
-}
-
-.stat-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.stat-label {
-  color: var(--el-text-color-secondary);
-}
-
-.toolbar {
+.table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  gap: 20px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .search-filters {
   display: flex;
   gap: 10px;
   flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search-input {
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.filter-date {
+  width: 180px;
 }
 
 .professor-info {
@@ -632,12 +636,6 @@ onMounted(() => {
   color: var(--el-text-color-secondary);
 }
 
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
 @media (max-width: 768px) {
   .toolbar {
     flex-direction: column;
@@ -645,19 +643,23 @@ onMounted(() => {
   
   .search-filters {
     flex-direction: column;
+    width: 100%;
   }
-}
-
-.payment-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.progress-details {
-  color: var(--el-text-color-secondary);
-  text-align: center;
-  font-size: 12px;
+  
+  .search-input, .filter-date {
+    width: 100%;
+  }
+  
+  .table-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .table-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
 }
 
 @media print {

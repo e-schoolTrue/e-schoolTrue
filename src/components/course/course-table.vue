@@ -1,43 +1,109 @@
 <script setup lang="ts">
 import {ElTable, FormInstance} from 'element-plus'
 import {Icon} from "@iconify/vue";
-import {computed, reactive, ref} from "vue";
-import {ClassRoomCommand, CourseCommand} from "#electron/command/settingsCommand.ts";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
+import {computed, ref} from "vue";
+import {Course, CourseCommand} from "@/types/course";
 import CourseDetails from "@/components/course/course-details.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-const props = defineProps<{courses:CourseEntity[]}>()
-const searchForm = ref("")
-const newCourseGroupFormRef = ref()
-const paginator = reactive<{
-  totalPage:number
-  pageSize:number
-  currentPage:number
-}>({
-  totalPage:0,
-  pageSize:5 ,
-  currentPage:1
-})
-const courseDetailsRef = ref()
-const filteredCourses = computed(()=>{
-  const result =  props.courses?.filter((course:CourseEntity)=>Object.keys(course).some((key:string)=>String((course as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
-  paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
-  return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
-})
-const emits=defineEmits<{
-  (e:"openUpdateForm" , classRoom:ClassRoomCommand):any,
-  (e:"addCourseGroup" , formRef:FormInstance|undefined , form:CourseCommand):any,
-  (e:"deleteAction" , id:number):any,
-}>()
+const props = defineProps<{
+  courses: Course[];
+  loading?: boolean;
+}>();
 
-function addCourseGroup(formRef: FormInstance|undefined, form: ClassRoomCommand){
-  emits("addCourseGroup" , formRef , form)
-  newCourseGroupFormRef.value.close()
+const emit = defineEmits<{
+  (e: 'update', course: Course): void;
+  (e: 'delete', course: Course): void;
+  (e: 'add-to-group', course: Course): void;
+}>();
+
+const searchQuery = ref('');
+const currentPage = ref(1);
+const pageSize = ref(10);
+
+const filteredCourses = computed(() => {
+  const query = searchQuery.value.toLowerCase();
+  return props.courses.filter(course => 
+    (course.name?.toLowerCase() ?? '').includes(query) ||
+    (course.code?.toLowerCase() ?? '').includes(query)
+  );
+});
+
+const paginatedCourses = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return filteredCourses.value.slice(start, end);
+});
+
+const totalPages = computed(() => 
+  Math.ceil(filteredCourses.value.length / pageSize.value)
+);
+
+const handleUpdate = (course: Course) => {
+  emit('update', course);
+};
+
+const handleDelete = async (course: Course) => {
+  try {
+    await ElMessageBox.confirm(
+      `Êtes-vous sûr de vouloir supprimer le cours "${course.name}" ?`,
+      'Attention',
+      {
+        confirmButtonText: 'Supprimer',
+        cancelButtonText: 'Annuler',
+        type: 'warning'
+      }
+    );
+    emit('delete', course);
+  } catch {
+    // L'utilisateur a annulé la suppression
+  }
+};
+
+const handleAddToGroup = (course: Course) => {
+  emit('add-to-group', course);
+};
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page;
+};
+
+const newCourseGroupFormRef = ref<{ open: (parentCourse?: Course) => void; close: () => void; }>();
+const courseDetailsRef = ref<{ open: (course: Course) => void; }>();
+const currentParentCourseForSubModule = ref<Course | null>(null);
+
+function openNewSubModuleForm(parentCourse: Course) {
+  currentParentCourseForSubModule.value = parentCourse;
+  newCourseGroupFormRef.value?.open();
 }
 
-function handleCurrentPage(pageNumber:number){
-  paginator.currentPage = pageNumber
+function addNewSubModule(subModuleFormRef: FormInstance | undefined, subModuleFormData: CourseCommand) {
+  if (!subModuleFormRef) return;
+  if (!currentParentCourseForSubModule.value || typeof currentParentCourseForSubModule.value.id !== 'number') {
+    ElMessage.error('Aucun cours parent sélectionné pour ajouter la sous-matière.');
+    return;
+  }
+
+  subModuleFormRef.validate((valid, _fields) => {
+      if (valid) {
+      const newCourseData: Course = {
+        name: subModuleFormData.name,
+        code: subModuleFormData.code,
+        coefficient: subModuleFormData.coefficient,
+          isInGroupement: true,
+        groupementId: currentParentCourseForSubModule.value!.id,
+      };
+      
+      console.log('Données de sous-matière à ajouter:', newCourseData);
+      emit('add-to-group', newCourseData);
+      
+      newCourseGroupFormRef.value?.close();
+      currentParentCourseForSubModule.value = null;
+    } else {
+      ElMessage.error('Veuillez corriger les erreurs du formulaire de sous-matière.');
+    }
+  });
 }
 </script>
 
@@ -48,30 +114,32 @@ function handleCurrentPage(pageNumber:number){
     />
     <course-group-form
         ref="newCourseGroupFormRef"
-        form-title="Nouvelle sous matière"
-        @submit-action="addCourseGroup"
+        form-title="Nouvelle sous-matière"
+        @submit-action="addNewSubModule"
     />
     <el-space direction="vertical" fill="fill" style=" width: 800px">
-      <el-input placeholder="tapez quelques chose!" v-model="searchForm">
+      <el-input placeholder="Rechercher par nom ou code..." v-model="searchQuery">
         <template #prepend>
           <Icon width="20" icon="akar-icons:search"/>
         </template>
       </el-input>
-      <el-table :data="filteredCourses"  style="max-width: 800px"  :border="false" empty-text="aucune matière trouvée">
-        <el-table-column type="index" />
-        <el-table-column label="Code"  prop="code"/>
+      <el-table :data="paginatedCourses"  style="max-width: 800px"  :border="false" empty-text="aucune matière trouvée" v-loading="loading">
+        <el-table-column type="index" width="50" />
+        <el-table-column label="Code"  prop="code" width="100"/>
         <el-table-column label="Nom" prop="name" />
-        <el-table-column label="Coefficient" prop="coefficient" />
-        <el-table-column label="Groupe de matière" >
+        <el-table-column label="Coeff." prop="coefficient" width="80" />
+        <el-table-column label="Groupe" width="80" align="center" >
           <template #default="scope">
-            <el-checkbox :checked="scope.row?.courses.length>0" :disabled="true" size="large" />
+            <el-tag v-if="scope.row?.isInGroupement" type="info" size="small">Sous-matière</el-tag>
+            <el-tag v-else-if="scope.row?.courses && scope.row.courses.length > 0" type="success" size="small">Groupement</el-tag>
+            <el-tag v-else type="plain" size="small">Simple</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="Actions" width="280">
           <template #default="scope">
             <el-space >
-              <el-dropdown placement="top-start">
-                <el-button size="small" type="danger" >
+              <el-dropdown placement="bottom-start">
+                <el-button size="small" type="info" >
                   <Icon icon="hugeicons:more-03"/>
                 </el-button>
                 <template #dropdown>
@@ -79,40 +147,64 @@ function handleCurrentPage(pageNumber:number){
                     <el-dropdown-item>
                       <el-space>
                         <Icon icon="twemoji:woman-teacher"/>
-                        <el-text>Ajout d'un enseignants de la matière</el-text>
+                        <el-text>Gérer enseignants</el-text>
                       </el-space>
                     </el-dropdown-item>
-                    <el-dropdown-item v-if="!scope.row?.isInGroupement" @click="newCourseGroupFormRef.open(scope.row)">
+                    <el-dropdown-item v-if="!scope.row?.isInGroupement" @click="openNewSubModuleForm(scope.row)">
                       <el-space>
                         <Icon icon="vscode-icons:folder-type-module"/>
-                        <el-text>Ajout d'une sous matière</el-text>
+                        <el-text>Ajouter une sous-matière</el-text>
                       </el-space>
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
               <el-tooltip
-                  class="box-item"
                   effect="dark"
                   content="Détails de la matière"
-                  placement="top-start"
+                  placement="top"
               >
-                <el-button size="small" type="warning" @click="courseDetailsRef.open(scope.row)" >
+                <el-button size="small" type="warning" @click="courseDetailsRef?.open(scope.row)" >
                   <Icon icon="ph:eye-fill"/>
                 </el-button>
               </el-tooltip>
-              <el-button size="small" type="primary" @click="emits('openUpdateForm', scope.row)" >Modifier</el-button>
-              <el-button size="small" type="danger" @click="emits('deleteAction' , scope.row?.id)">Supprimer</el-button>
+              <el-tooltip
+                  effect="dark"
+                  content="Modifier"
+                  placement="top"
+              >
+                <el-button size="small" type="primary" @click="handleUpdate(scope.row)" >
+                  <Icon icon="mdi:pencil" />
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                  effect="dark"
+                  content="Assigner à un groupement"
+                  placement="top"
+              >
+                <el-button size="small" type="success" @click="handleAddToGroup(scope.row)" :disabled="scope.row?.isInGroupement" >
+                  <Icon icon="mdi:folder-plus" />
+                </el-button>
+              </el-tooltip>
+              <el-tooltip
+                  effect="dark"
+                  content="Supprimer"
+                  placement="top"
+              >
+                <el-button size="small" type="danger" @click="handleDelete(scope.row)">
+                  <Icon icon="mdi:delete" />
+                </el-button>
+              </el-tooltip>
             </el-space>
           </template>
         </el-table-column>
       </el-table>
       <el-pagination
-          :page-count="paginator.totalPage"
-          :page-size="paginator.pageSize"
-          :current-page="paginator.currentPage"
-          @current-change="handleCurrentPage"
-          style=" display:flex ; justify-content: center; width: 600px" background layout="prev, pager, next" :total="1000"
+          :page-count="totalPages"
+          :page-size="pageSize"
+          :current-page="currentPage"
+          @current-change="handlePageChange"
+          style=" display:flex ; justify-content: center; width: 100%; margin-top: 10px;" background layout="prev, pager, next" :total="filteredCourses.length"
       />
     </el-space>
   </el-scrollbar>

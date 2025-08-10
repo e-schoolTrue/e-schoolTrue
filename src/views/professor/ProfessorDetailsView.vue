@@ -2,11 +2,13 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { CIVILITY, FAMILY_SITUATION, SCHOOL_TYPE } from "#electron/command";
 import { View, Download } from '@element-plus/icons-vue';
+import { CIVILITY, FAMILY_SITUATION, SCHOOL_TYPE, type CivilityType, type FamilySituationType, type SchoolType } from "@/types/shared";
+import type { IFile } from "@/types/shared";
 
 interface Teaching {
-  teachingType: 'CLASS_TEACHER' | 'SUBJECT_TEACHER';
+  id: number;
+  schoolType: SchoolType;
   class?: {
     id: number;
     name: string;
@@ -15,18 +17,19 @@ interface Teaching {
     id: number;
     name: string;
   };
-  gradeIds?: string;
-  gradeNames?: string;
-  schoolType: SCHOOL_TYPE;
+  grades?: Array<{
+    id: number;
+    name: string;
+  }>;
 }
 
 interface Professor {
   id?: number;
   firstname: string;
   lastname: string;
-  civility: CIVILITY;
+  civility: CivilityType;
   nbr_child: number;
-  family_situation: FAMILY_SITUATION;
+  family_situation: FamilySituationType;
   birth_date: Date | null;
   birth_town: string;
   address: string;
@@ -38,27 +41,17 @@ interface Professor {
   qualification?: {
     name: string;
   };
-  photo?: { id: number; name: string; type: string };
-  documents?: Array<{
-    id: number;
-    name: string;
-    type: string;
-  }>;
+  photo?: IFile;
+  documents?: IFile[];
   teaching?: Teaching[];
 }
 
-interface DocumentData {
-  id: number;
-  name: string;
-  type: string;
+interface DocumentData extends IFile {
   content?: string;
 }
 
-interface CurrentDocument {
-  id?: number;
+interface CurrentDocument extends IFile {
   content?: string;
-  type?: string;
-  name?: string;
 }
 
 const route = useRoute();
@@ -71,7 +64,7 @@ const currentDocument = ref<CurrentDocument | null>(null);
 
 const photoUrl = ref<string | null>(null);
 
-const loadPhoto = async (photo?: { id: number; name: string; type: string }) => {
+const loadPhoto = async (photo?: IFile) => {
   if (!photo) {
     photoUrl.value = null;
     return;
@@ -152,9 +145,10 @@ const loadProfessor = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('professor:getById', Number(route.params.id));
-    console.log("données :", result)
+    console.log("Données complètes du professeur:", result);
     if (result.success) {
-      professor.value = result.data; // Cette ligne manque
+      professor.value = result.data;
+      console.log("Détails de l'affectation:", professor.value?.teaching);
       await loadPhoto(professor.value?.photo);}
       else {
         ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
@@ -166,8 +160,8 @@ const loadProfessor = async () => {
   }
 };
 
-const getCivilityLabel = (civility: CIVILITY) => {
-  const labels = {
+const getCivilityLabel = (civility: CivilityType) => {
+  const labels: Record<CivilityType, string> = {
     [CIVILITY.MR]: 'Monsieur',
     [CIVILITY.MME]: 'Madame',
     [CIVILITY.MLLE]: 'Mademoiselle'
@@ -175,8 +169,8 @@ const getCivilityLabel = (civility: CIVILITY) => {
   return labels[civility] || civility;
 };
 
-const getFamilySituationLabel = (situation: FAMILY_SITUATION) => {
-  const labels = {
+const getFamilySituationLabel = (situation: FamilySituationType) => {
+  const labels: Record<FamilySituationType, string> = {
     [FAMILY_SITUATION.SINGLE]: 'Célibataire',
     [FAMILY_SITUATION.MARRIED]: 'Marié(e)',
     [FAMILY_SITUATION.DIVORCED]: 'Divorcé(e)',
@@ -193,13 +187,21 @@ const formatDate = (date: Date | null) => {
 const getTeachingInfo = (teachings: Teaching[]) => {
   if (!teachings || teachings.length === 0) return 'Non assigné';
   
-  return teachings.map(teaching => {
-    if (teaching.teachingType === 'CLASS_TEACHER') {
-      return `Instituteur - ${teaching.class?.name || 'N/A'}`;
-    } else {
-      return `Professeur de ${teaching.course?.name || 'N/A'}${teaching.gradeNames ? ` - Classes: ${teaching.gradeNames}` : ''}`;
-    }
-  }).join(', ');
+  const teaching = teachings[0];
+  console.log("Teaching data being processed:", teaching);
+
+  if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
+    return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
+  }
+  
+  // Pour les enseignants du secondaire
+  if (teaching.schoolType === SCHOOL_TYPE.SECONDARY) {
+    const courseName = teaching.course?.name || 'Matière non assignée';
+    const gradeNames = teaching.grades?.map(grade => grade.name).join(', ') || 'Classes non assignées';
+    return `Enseignant - ${courseName} (${gradeNames})`;
+  }
+  
+  return 'Type d\'enseignement non reconnu';
 };
 onMounted(loadProfessor);
 </script>

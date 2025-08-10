@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, OneToMany } from "typeorm";
+import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
 import { TeachingAssignmentEntity } from "./teaching";
 import { FileEntity } from "./file";
 
@@ -7,11 +7,20 @@ export class ProfessorEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
+
     @Column({ type: "text" })
     firstname!: string;
 
     @Column({ type: "text" })
     lastname!: string;
+
+    @Column({ type: "text", unique: true, nullable: true })
+    matricule!: string;
 
     @Column({ type: "text" })
     civility!: string;
@@ -44,7 +53,7 @@ export class ProfessorEntity {
     @OneToMany(() => FileEntity, file => file.professor)
     documents!: FileEntity[];
 
-    @OneToOne(() => DiplomaEntity, { nullable: true })
+    @ManyToOne(() => DiplomaEntity, { nullable: true })
     @JoinColumn()
     diploma?: DiplomaEntity;
 
@@ -54,6 +63,37 @@ export class ProfessorEntity {
 
     @OneToMany(() => TeachingAssignmentEntity, teaching => teaching.professor)
     teaching!: TeachingAssignmentEntity[];
+
+    /**
+     * Méthode statique pour générer un matricule
+     * Cette méthode sera appelée depuis le service, pas directement dans l'entité
+     */
+    static generateMatricule(schoolName?: string): string {
+        // Générer les initiales de l'école (2-3 lettres)
+        let schoolPrefix = "PRF";
+        if (schoolName) {
+            // Extraire les initiales (première lettre de chaque mot)
+            const words = schoolName.split(/\s+/);
+            schoolPrefix = words
+                .map((word: string) => word.charAt(0).toUpperCase())
+                .join('')
+                .substring(0, 3); // Limiter à 3 caractères maximum
+        }
+        
+        const currentYear = new Date().getFullYear().toString().substring(2); // Prendre seulement les 2 derniers chiffres
+        const randomPart = Math.floor(Math.random() * 10000)
+            .toString()
+            .padStart(4, "0");
+            
+        return `${schoolPrefix}-P${currentYear}${randomPart}`;
+    }
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn({ nullable: true })
+    updated_at?: Date;
+    @DeleteDateColumn({ nullable: true })
+    deleted_at?: Date;
 }
 
 @Entity("qualification")
@@ -61,8 +101,23 @@ export class QualificationEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
+
     @Column({ type: 'varchar', length: 255 })
     name: string = '';
+
+    @OneToMany(() => ProfessorEntity, professor => professor.qualification, { onDelete: "CASCADE" })
+    professors!: ProfessorEntity[];
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn({ nullable: true })
+    updated_at?: Date;
+    @DeleteDateColumn({ nullable: true })
+    deleted_at?: Date;
 }
 
 @Entity("diploma")
@@ -70,6 +125,21 @@ export class DiplomaEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
+
     @Column({ type: 'varchar', length: 255 })
     name: string = '';
+
+    @OneToMany(() => ProfessorEntity, professor => professor.diploma, { onDelete: "CASCADE" })
+    professors!: ProfessorEntity[];
+
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn({ nullable: true })
+    updated_at?: Date;
+    @DeleteDateColumn({ nullable: true })
+    deleted_at?: Date;
 }

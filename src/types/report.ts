@@ -1,59 +1,79 @@
-import { Component } from 'vue';
+import type { ISchoolData } from '@/types/school';
 
-export interface SchoolInfo {
-  name: string;
-  type?: string;
-  address?: string;
-  town?: string;
-  phone?: string;
-  email?: string;
-  bp?: string;
-  country?: 'MAR' | 'SEN' | 'CAF' | 'GIN';
-  logo?: {
-    url: string;
-  };
+
+export interface ReportCard {
+    id: number;
+    studentId: number;
+    courseId: number;
+    period: string;
+    assignmentGrades: number[];
+    examGrade: number | null;
+    finalGrade: number | null;
+    appreciation: string | null;
+    created_at: Date;
+    fileUrl?: string | null;
+
 }
 
-export interface StudentInfo {
-        firstname: string;
-        lastname: string;
-        matricule: string;
-  birthDay?: string;
-  birthPlace?: string;
-        grade: {
-            name: string;
-        };
-  photo?: {
-    url: string;
-  };
-}
-
-export interface GradeInfo {
-  courseId: number;
-  courseName: string;
-  courseGroup?: string;
-  coefficient: number;
-  assignments: number[];
-  exam: number;
-  average: number;
-  classAverage: number;
-  appreciation: string;
+export interface GradeData {
+    courseId: number;
+    courseName: string;
+    coefficient: number;
+    assignments: number[];
+    exam: number;
+    average: number;
+    appreciation: string;
+    courseGroup?: string;
+    classAverage?: number;
 }
 
 export interface ReportCardData {
-  student: StudentInfo;
-  schoolInfo: SchoolInfo;
-  period: string;
-  grades: GradeInfo[];
-  generalAverage: number;
-  classGeneralAverage?: number;
-  rank?: number;
-  totalStudents?: number;
-  observations?: string;
-  conduct?: {
-    discipline: string;
-    attendance: string;
-    workEthic: string;
+    schoolInfo?: ISchoolData | null;
+    student?: any | null;
+    grades: GradeData[];
+    period: string;
+    rank?: number | string | null;
+    totalStudents?: number | null;
+    observations?: string | null;
+    fileUrl?: string | null;
+    generalAverage: number;
+    conduct?: ConductData | null;
+}
+
+export interface GenerateReportCardsInput {
+    studentIds: number[];
+    period: string;
+    templateId: string;
+}
+
+export interface GenerateReportCardInput {
+    studentId: number;
+    period: string;
+}
+
+export interface SaveStudentGradesInput {
+    studentId: number;
+    gradeId: number;
+    period: string;
+    grades: Array<{
+        courseId: number;
+        assignments: number[];
+        exam: number;
+        average: number;
+        appreciation: string;
+    }>;
+}
+
+export interface SchoolInfo {
+    name: string;
+    type: string;
+    address: string;
+    town: string;
+    phone: string;
+    email: string;
+    country: 'MAR' | 'SEN' | 'CAF' | 'GIN';
+    logo?: {
+        url: string;
     };
 }
 
@@ -61,13 +81,12 @@ export interface ReportCardTemplate {
     id: string;
     name: string;
     description: string;
-    component: Component;
+    component: any; // This will be a Vue component type
 }
 
-export interface ResultType {
-  success: boolean;
-  data: any;
-  message: string;
-  error: string | null;
-  generalAverage: number;
-} 
+export interface ConductData {
+    discipline?: string;
+    attendance?: string;
+    workEthic?: string;
+   
+}

@@ -9,90 +9,149 @@ import { registerReportEvents } from './events';
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
-let win: BrowserWindow | null
-let dataSourceInitialized = false;
+import 'reflect-metadata';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import path from 'node:path';
+import dotenv from 'dotenv';
+import './config/env';
 
-// Configuration de l'auto-update
-autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = true
+// --- Services et Logique Métier ---
+import { AppDataSource } from "./data-source";
+import { ConfigService } from './backend/services/configService';
+import { AuthService } from './backend/services/authService';
+import { CloudSyncService } from './backend/services/backupService';
+import { GradeService } from "./backend/services/gradeService";
+import { CourseService } from "./backend/services/courseService";
+import { StudentService } from "./backend/services/studentService";
+import { FileService } from "./backend/services/fileService";
+import { YearRepartitionService } from "./backend/services/yearService";
+import { PaymentService } from "./backend/services/paymentService";
+import { AbsenceService } from "./backend/services/absenceService";
+import { SchoolService } from "./backend/services/schoolService";
+import { ProfessorService } from "./backend/services/professorService";
+import { DashboardService } from "./backend/services/dashboardService";
+import { HomeworkService } from "./backend/services/homeworkService";
+import { VacationService } from "./backend/services/vacationService";
+import { ScholarshipService } from "./backend/services/scholarshipService";
+import { ReportCardService } from "./backend/services/reportCardService";
+import { GradeConfigService } from "./backend/services/gradeConfigService";
+import { PreferenceService } from "./backend/services/preferenceService";
+import { LicenseService } from "./backend/services/licenseService";
 
-// Configuration pour le mode développement
-if (!app.isPackaged) {
-  autoUpdater.logger = {
-    info: (message: string) => console.log(message),
-    warn: (message: string) => console.warn(message),
-    error: (message: string, error?: Error) => {
-      console.error(message, error)
-    },
-    debug: (message: string) => console.debug(message)
+// --- Handlers IPC ---
+import { registerIpcHandlers } from './events';
+
+
+// =================================================================
+// INITIALISATION DE L'ENVIRONNEMENT
+// =================================================================
+dotenv.config();
+console.log('Démarrage de l\'application...');
+
+process.env.DIST = path.join(__dirname, '../dist');
+process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
+
+let win: BrowserWindow | null;
+
+// =================================================================
+// FONCTION PRINCIPALE DE DÉMARRAGE
+// =================================================================
+
+async function startApplication() {
+  console.log('--- DÉBUT DU FLUX DE DÉMARRAGE ---');
+
+  console.log('[1/4] Initialisation du ConfigService...');
+  const configService = ConfigService.getInstance();
+  const isFirstLaunch = configService.isFirstLaunch();
+  console.log(`[1/4] État détecté : Premier lancement = ${isFirstLaunch}`);
+
+  console.log('[2/4] Initialisation de la source de données...');
+  try {
+    await AppDataSource.initialize(isFirstLaunch);
+    console.log('[2/4] Source de données initialisée avec succès.');
+  } catch (error) {
+    console.error("Erreur fatale lors de l'initialisation de la source de données:", error);
+    throw error;
   }
-  
-  // Activer les logs détaillés en développement
-  autoUpdater.forceDevUpdateConfig = true
-  autoUpdater.logger.info('Mode développement: configuration de l\'auto-update')
-  
-  // Désactiver la vérification des certificats SSL en développement
-  app.commandLine.appendSwitch('ignore-certificate-errors')
-}
 
-async function initializeDataSource() {
-  if (!dataSourceInitialized) {
-    try {
-      console.log("Début de l'initialisation de la base de données");
-      const dataSource = await AppDataSource.initialize();
-      console.log("État de la connexion:", dataSource.isInitialized);
-      console.log("Base de données initialisée avec succès");
-      dataSourceInitialized = true;
-    } catch (error) {
-      console.error("Erreur lors de l'initialisation de la base de données:", error);
-      throw error;
+
+  console.log('[3/4] Initialisation des services métier et des handlers IPC...');
+  registerIpcHandlers();
+  console.log('[3/4] Services et handlers IPC initialisés avec succès.');
+
+  console.log('[4/4] Création de la fenêtre principale...');
+  await createWindow();
+  console.log('[4/4] Fenêtre créée.');
+
+  console.log('--- FLUX DE DÉMARRAGE TERMINÉ ---');
+}
+async function setupAutoUpdate(){
+    // Configuration de l'auto-update
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  // Configuration pour le mode développement
+  if (!app.isPackaged) {
+    autoUpdater.logger = {
+      info: (message: string) => console.log(message),
+      warn: (message: string) => console.warn(message),
+      error: (message: string, error?: Error) => {
+        console.error(message, error)
+      },
+      debug: (message: string) => console.debug(message)
     }
+    
+    // Activer les logs détaillés en développement
+    autoUpdater.forceDevUpdateConfig = true
+    autoUpdater.logger.info('Mode développement: configuration de l\'auto-update')
+    
+    // Désactiver la vérification des certificats SSL en développement
+    app.commandLine.appendSwitch('ignore-certificate-errors')
   }
 }
 
 async function createWindow() {
-  try {
-    await initializeDataSource();
-    win = new BrowserWindow({
-      icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
-      width: 1200,
-      height: 670,
-      autoHideMenuBar: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        sandbox: false
-      },
-    });
+  win = new BrowserWindow({
+    icon: path.join(process.env.VITE_PUBLIC, 'icon.ico'),
+    width: 1200,
+    height: 670,
+    autoHideMenuBar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      partition: 'persist:main',
+      contextIsolation: true,
+      webSecurity: true,
+    },
+  });
 
-    // Test active push message to Renderer-process.
-    win.webContents.on('did-finish-load', () => {
-      win?.webContents.send('main-process-message', (new Date).toLocaleString())
-    })
+  win.webContents.on('did-finish-load', () => {
+    console.log('Contenu de la fenêtre chargé.');
+    win?.webContents.send('main-process-message', `Bienvenue ! Heure du serveur: ${new Date().toLocaleString()}`);
+  });
 
-    win.on('ready-to-show', () => {
-      win?.show()
-    })
+  win.on('ready-to-show', () => {
+    console.log('Fenêtre prête à être affichée.');
+    win?.show();
+    win?.focus();
+  });
 
-    // Vérifiez si VITE_DEV_SERVER_URL est défini
-    if (process.env.VITE_DEV_SERVER_URL) {
-      await win.loadURL(process.env.VITE_DEV_SERVER_URL)
-      win.webContents.openDevTools()
-    } else {
-      // En production, chargez le fichier index.html
-      win.loadFile(path.join(process.env.DIST, 'index.html'))
-    }
-  } catch (error) {
-    console.error("Erreur critique lors de la création de la fenêtre:", error);
-    dialog.showErrorBox(
-      'Erreur de démarrage',
-      `Une erreur est survenue lors du démarrage de l'application: ${error.message}`
-    );
-    app.quit();
+  if (process.env.VITE_DEV_SERVER_URL) {
+    console.log('Chargement de l\'URL du serveur de développement VITE...');
+    await win.loadURL(process.env.VITE_DEV_SERVER_URL);
+    win.webContents.openDevTools();
+  } else {
+    console.log('Chargement du fichier de production...');
+    await win.loadFile(path.join(process.env.DIST, 'index.html'));
   }
 }
 
+// =================================================================
+// CYCLE DE VIE DE L'APPLICATION 
+// =================================================================
 // Gestion des événements de mise à jour
+setupAutoUpdate()
 autoUpdater.on('checking-for-update', () => {
   console.log('Recherche de mises à jour...')
   win?.webContents.send('checking_for_update')
@@ -135,8 +194,9 @@ autoUpdater.on('error', (error) => {
   })
 })
 
-// Gestion des événements IPC depuis le rendu
-ipcMain.handle('check_for_updates', async () => {
+
+// Gestion des événements de mise àjour automatique depuis le rendu
+ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) {
     console.log('Vérification des mises à jour demandée depuis le rendu (mode développement)')
     // Simuler une mise à jour en développement
@@ -158,7 +218,7 @@ ipcMain.handle('check_for_updates', async () => {
   }
 })
 
-ipcMain.handle('download_update', async () => {
+ipcMain.handle('download-update', async () => {
   console.log('Téléchargement de la mise à jour demandé')
   try {
     const result = await autoUpdater.downloadUpdate()
@@ -170,59 +230,37 @@ ipcMain.handle('download_update', async () => {
   }
 })
 
-ipcMain.handle('install_update', () => {
+ipcMain.handle('install-update', () => {
   console.log('Installation de la mise à jour demandée')
   setImmediate(() => autoUpdater.quitAndInstall())
   return Promise.resolve()
 })
 
 app.whenReady().then(async () => {
+   console.log('Événement "app.whenReady" déclenché.');
   try {
-    // Vérifier les mises à jour au démarrage
-    if (app.isPackaged) {
-      console.log('Vérification des mises à jour...')
-      autoUpdater.checkForUpdatesAndNotify()
-      
-      // Vérifier les mises à jour toutes les heures
-      setInterval(() => {
-        console.log('Vérification périodique des mises à jour...')
-        autoUpdater.checkForUpdatesAndNotify()
-      }, 60 * 60 * 1000)
-    } else {
-      // En développement, vérifier plus fréquemment
-      setInterval(() => {
-        console.log('Vérification des mises à jour (mode développement)...')
-        autoUpdater.checkForUpdatesAndNotify()
-      }, 5 * 60 * 1000) // Toutes les 5 minutes en développement
-    }
-    
-    await createWindow();
+    await startApplication();
   } catch (error) {
-    console.error("Erreur lors de l'initialisation:", error);
+    console.error("Échec critique du démarrage de l'application dans whenReady:", error);
+    dialog.showErrorBox('Échec du Démarrage', `Impossible de démarrer l'application. Erreur: ${error.message}`);
     app.quit();
   }
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
+    app.quit();
   }
-})
+});
+
+app.on('quit', () => {
+  win = null;
+});
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    startApplication();
   }
-})
+});
 
-ipcMain.on("app-quit", () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-    win = null;
-  }
-})
-
-registerReportEvents();
+export { ipcMain };

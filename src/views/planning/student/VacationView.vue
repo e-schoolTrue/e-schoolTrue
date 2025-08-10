@@ -197,6 +197,15 @@ interface Vacation {
   comment?: string;
 }
 
+interface VacationPayload {
+  id?: number;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  studentId: number;
+}
+
 // États
 const loading = ref(false);
 const saving = ref(false);
@@ -206,6 +215,7 @@ const vacations = ref<Vacation[]>([]);
 const selectedStatus = ref<string | null>(null);
 const dateRange = ref<[Date, Date] | null>(null);
 const students = ref<Student[]>([]);
+const selectedVacation = ref<Vacation | null>(null);
 
 const form = ref({
   dateRange: null as [Date, Date] | null,
@@ -278,6 +288,7 @@ const loadStudents = async () => {
 
 const showAddDialog = () => {
   isEditing.value = false;
+  selectedVacation.value = null;
   form.value = {
     dateRange: null,
     reason: '',
@@ -295,8 +306,8 @@ const saveVacation = async () => {
   saving.value = true;
   try {
     const [startDate, endDate] = form.value.dateRange;
-    const data = {
-      id: undefined,
+    
+    const dataToSend: VacationPayload = {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(), 
       reason: form.value.reason,
@@ -304,10 +315,14 @@ const saveVacation = async () => {
       studentId: form.value.studentId
     };
 
-    const result = await window.ipcRenderer.invoke(
-      isEditing.value ? 'vacation:update' : 'vacation:create',
-      data
-    );
+    if (isEditing.value && selectedVacation.value) {
+      dataToSend.id = selectedVacation.value.id;
+    }
+
+    const endpoint = isEditing.value ? 'vacation:update' : 'vacation:create';
+    console.log(`Appel IPC: ${endpoint}`, dataToSend);
+    
+    const result = await window.ipcRenderer.invoke(endpoint, dataToSend);
 
     if (result.success) {
       ElMessage.success(isEditing.value ? 'Demande modifiée' : 'Demande soumise');
@@ -369,6 +384,7 @@ const filterVacations = () => {
 
 const editVacation = (vacation: Vacation) => {
   isEditing.value = true;
+  selectedVacation.value = vacation;
   form.value = {
     dateRange: [new Date(vacation.startDate), new Date(vacation.endDate)],
     reason: vacation.reason,
@@ -389,7 +405,7 @@ const approveVacation = async (vacation: Vacation) => {
       }
     );
 
-    const result = await window.ipcRenderer.invoke('vacation:update', {
+    const result = await window.ipcRenderer.invoke('vacation:updateStatus', {
       id: vacation.id,
       status: 'approved'
     });
@@ -400,7 +416,7 @@ const approveVacation = async (vacation: Vacation) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('Erreur lors de la réjection');
+      ElMessage.error('Erreur lors de l\'approbation');
     }
   }
 };
@@ -417,7 +433,7 @@ const rejectVacation = async (vacation: Vacation) => {
       }
     );
 
-    const result = await window.ipcRenderer.invoke('vacation:update', {
+    const result = await window.ipcRenderer.invoke('vacation:updateStatus', {
       id: vacation.id,
       status: 'rejected'
     });

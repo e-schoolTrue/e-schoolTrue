@@ -7,7 +7,11 @@ import { ProfessorEntity } from "./professor";
 export class HomeworkEntity {
     @PrimaryGeneratedColumn()
     id!: number;
-
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @Column("text")
     description!: string;
 
@@ -20,7 +24,7 @@ export class HomeworkEntity {
     @ManyToOne(() => GradeEntity)
     grade!: GradeEntity;
 
-    @ManyToOne(() => ProfessorEntity)
+    @ManyToOne(() => ProfessorEntity, { onDelete: "CASCADE" })
     professor!: ProfessorEntity;
 
     @CreateDateColumn()

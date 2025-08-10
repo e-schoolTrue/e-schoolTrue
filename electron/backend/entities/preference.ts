@@ -4,7 +4,7 @@ import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 export class PreferenceEntity {
     @PrimaryGeneratedColumn()
     id!: number;
-
+    
     @Column({ type: 'varchar', unique: true })
     key!: string;
 

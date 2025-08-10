@@ -1,17 +1,18 @@
-import {  ipcMain } from "electron";
-import { GradeService } from "#electron/backend/services/gradeService.ts";
-import { BranchCommand, ClassRoomCommand, CourseCommand, GradeCommand } from "#electron/command/settingsCommand.ts";
-import { CourseService } from "#electron/backend/services/courseService.ts";
-import { StudentService } from "./backend/services/studentService";
-import { FileService } from "./backend/services/fileService";
-import { YearRepartitionService } from "#electron/backend/services/yearService";
-import { ResultType } from "#electron/command";
-import * as fs from 'fs/promises';
-import { app } from 'electron';
-import path from 'path';
+import { ipcMain, dialog, shell } from 'electron';
+import path from "path";
+import { ResultType } from "./command/index";
+import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "./command/settingsCommand";
+import { CloudSyncService, SyncConfig, SyncHistory } from './backend/services/backupService';
+import fs from 'fs/promises';
+import { AuthService } from './backend/services/authService';
+import { GradeService } from './backend/services/gradeService';
+import { CourseService } from './backend/services/courseService';
+import { StudentService } from './backend/services/studentService';
+import { FileService } from './backend/services/fileService';
 import { PaymentService } from './backend/services/paymentService';
 import { AbsenceService } from './backend/services/absenceService';
-import {SchoolService} from './backend/services/schoolService';
+import { SchoolService } from './backend/services/schoolService';
+import { YearRepartitionService } from './backend/services/yearService';
 import { ProfessorService } from './backend/services/professorService';
 import { DashboardService } from './backend/services/dashboardService';
 import { HomeworkService } from './backend/services/homeworkService';
@@ -20,244 +21,310 @@ import { ScholarshipService } from './backend/services/scholarshipService';
 import { ReportCardService } from './backend/services/reportCardService';
 import { GradeConfigService } from './backend/services/gradeConfigService';
 import { PreferenceService } from './backend/services/preferenceService';
+import { LicenseService } from './backend/services/licenseService';
+import { ConfigService } from './backend/services/configService';
 
 
-const global = {
-    gradeService: new GradeService(),
-    courseService: new CourseService(),
-    studentService: new StudentService(),
-    fileService: new FileService(),
-    paymentService: new PaymentService(),
-    absenceService: new AbsenceService(),
-    schoolService: new SchoolService(),
-    yearRepartitionService: new YearRepartitionService(),
-    professorService: new ProfessorService(),
-    dashboardService: new DashboardService(),
-    homeworkService: new HomeworkService(),
-    vacationService: new VacationService(),
-    scholarshipService: new ScholarshipService(),
-    reportCardService: new ReportCardService(),
-    gradeConfigService: new GradeConfigService(),
-    preferenceService: new PreferenceService()
+
+// ====================================================
+// FONCTIONS D'INITIALISATION
+// ====================================================
+  
+
+// =================================================================
+// FONCTIONS UTILITAIRES
+// =================================================================
+
+const handleError = (error: any, message: string): ResultType => {
+  console.error("Erreur IPC:", message, error);
+  return {
+    success: false,
+    message: `${message}: ${error.message}`,
+    error: error instanceof Error ? error.message : String(error),
+    data: null,
+  };
 };
 
-// Fonction utilitaire pour gérer les erreurs
-const handleError = (error: any): ResultType => {
-    console.error('Erreur:', error);
-    return { 
-        success: false, 
-        message: Buffer.from(`Une erreur est survenue: ${error.message}`).toString('base64'),
-        error: error instanceof Error ? error.message : String(error),
-        data: null
+// =================================================================
+// FONCTION D'ENREGISTREMENT DES HANDLERS
+// =================================================================
+
+export function registerIpcHandlers() {
+  const authService = new AuthService();
+  const backupService = new CloudSyncService();
+  const gradeService = new GradeService();
+  const courseService = new CourseService();
+  const studentService = new StudentService();
+  const fileService = new FileService();
+  const paymentService = new PaymentService();
+  const absenceService = new AbsenceService();
+  const schoolService = new SchoolService();
+  const yearRepartitionService = new YearRepartitionService();
+  const professorService = new ProfessorService();
+  const dashboardService = new DashboardService();
+  const homeworkService = new HomeworkService();
+  const vacationService = new VacationService();
+  const scholarshipService = new ScholarshipService();
+  const reportCardService = new ReportCardService();
+  const gradeConfigService = new GradeConfigService();
+  const preferenceService = new PreferenceService();
+  const licenseService = new LicenseService();
+
+  // --- Authentification ---
+  ipcMain.handle("auth:create", async (_, userData) => authService.createSupervisor(userData.username, userData.password, userData.securityQuestion, userData.securityAnswer));
+  ipcMain.handle("auth:validate", async (_, { username, password }) => authService.validateSupervisor(username, password));
+  ipcMain.handle("auth:getSecurityQuestion", async (_, { username }) => authService.getSecurityQuestion(username));
+  ipcMain.handle("auth:validateSecurityAnswer", async (_, { username, answer }) => authService.validateSecurityAnswer(username, answer));
+  ipcMain.handle("auth:resetPassword", async (_, { username, newPassword }) => authService.resetPassword(username, newPassword));
+  ipcMain.handle("auth:login", async (_, credentials) => authService.validateSupervisor(credentials.username, credentials.password));
+
+  // --- Authentification Supabase ---
+  ipcMain.handle("auth:createSupabaseAccount", async (_, { email, password }) => authService.createSupabaseAccount(email, password));
+  ipcMain.handle("auth:loginSupabase", async (_, { email, password }) => authService.signInWithSupabase(email, password));
+  ipcMain.handle("auth:signOut", async () => {
+    try {
+      await authService.signOutFromSupabase();
+      return {
+        success: true,
+        message: "Déconnexion réussie",
+        data: null,
+        error: null
+      };
+    } catch (error) {
+      return handleError(error, "Erreur lors de la déconnexion");
+    }
+  });
+  ipcMain.handle("auth:checkStatus", async () => {
+    const localUser = await authService.getCurrentUser();
+    const isCloudConnected = await authService.isSupabaseSessionValid();
+    const isSupabaseAvailable = await backupService.checkSupabaseAvailability();
+    return {
+      success: true,
+      data: {
+        isAuthenticated: !!localUser,
+        user: localUser,
+        supabaseStatus: { isAvailable: isSupabaseAvailable, isConnected: isCloudConnected }
+      },
+      message: "Statut vérifié", error: null
     };
-}
+  });
 
-// Exemple pour un gestionnaire d'événement
-ipcMain.handle("grade:all", async (_event: Electron.IpcMainInvokeEvent, _args: any): Promise<ResultType> => {
+  // --- Sauvegarde / Synchro (Backup) ---
+  ipcMain.handle('sync:now', async (): Promise<{ success: boolean; data?: SyncHistory; error?: string }> => {
     try {
-        return await global.gradeService.getGrades();
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("grade:new"  , async (_event: Electron.IpcMainInvokeEvent, command: GradeCommand): Promise<ResultType> => {
-    try {
-        return await global.gradeService.newGrade(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("grade:update"  , async (_event: Electron.IpcMainInvokeEvent, command: GradeCommand): Promise<ResultType> => {
-    try {
-        return await global.gradeService.updateGrade(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("grade:delete"  , async (_event: Electron.IpcMainInvokeEvent, id: number): Promise<ResultType> => {
-    try {
-        return await global.gradeService.deleteGrade(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("classRoom:new"  , async (_event: Electron.IpcMainInvokeEvent, command: ClassRoomCommand): Promise<ResultType> => {
-    try {
-        return await global.gradeService.newClassRoom(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("classRoom:delete"  , async (_event: Electron.IpcMainInvokeEvent, id: number): Promise<ResultType> => {
-    try {
-        return await global.gradeService.deleteClassRoom(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("classRoom:update"  , async (_event: Electron.IpcMainInvokeEvent, command: ClassRoomCommand): Promise<ResultType> => {
-    try {
-        return await global.gradeService.updateClassRoom(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("classRoom:all", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
-  try {
-    return await global.gradeService.getClassRooms();
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle("branch:new"  , async (_event: Electron.IpcMainInvokeEvent, command: BranchCommand): Promise<ResultType> => {
-    try {
-        return await global.gradeService.newBranch(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("branch:update"  , async (_event: Electron.IpcMainInvokeEvent, command: BranchCommand): Promise<ResultType> => {
-    try {
-        return await global.gradeService.updateBranch(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("branch:delete"  , async (_event: Electron.IpcMainInvokeEvent, id: number): Promise<ResultType> => {
-    try {
-        return await global.gradeService.deleteBranch(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("course:new"  , async (_event: Electron.IpcMainInvokeEvent, command: CourseCommand): Promise<ResultType> => {
-    try {
-        return await global.courseService.newCourse(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("courseGroup:add"  , async (_event: Electron.IpcMainInvokeEvent, command: CourseCommand): Promise<ResultType> => {
-    try {
-        return await global.courseService.addCourseToGroupement(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("course:update"  , async (_event: Electron.IpcMainInvokeEvent, command: CourseCommand): Promise<ResultType> => {
-    try {
-        return await global.courseService.updateCourse(command);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("course:delete"  , async (_event: Electron.IpcMainInvokeEvent, id: number): Promise<ResultType> => {
-    try {
-        return await global.courseService.deleteCourse(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("course:all"  , async (_event: Electron.IpcMainInvokeEvent, _args: any): Promise<ResultType> => {
-    try {
-        console.log('Récupération de tous les cours');
-        const result = await global.courseService.getAllCourse();
-        console.log('Cours récupérés:', result);
-        return result;
-    } catch (error) {
-        console.error('Erreur cours:', error);
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("save-student", async (_event: Electron.IpcMainInvokeEvent, studentData: any): Promise<ResultType> => {
-    try {
-        // Si l'étudiant a un ID, c'est une mise à jour
-        if (studentData.id) {
-            return await global.studentService.updateStudent(studentData.id, studentData);
-        }
-        // Sinon, c'est une création
-        else {
-            return await global.studentService.createStudent(studentData);
-        }
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("student:all", async (_event: Electron.IpcMainInvokeEvent, _args: any): Promise<ResultType> => {
-    console.log("Début de student:all", _event, _args);
-    try {
-        const students = await global.studentService.getAllStudents();
-        console.log("Données brutes reçues de la base de données:", JSON.stringify(students, null, 2));
-        console.log("Nombre d'étudiants récupérés:", students.length);
-        return { success: true, data: students, error: null, message: "Étudiants récupérés avec succès" };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("student:getDetails", async (_event: Electron.IpcMainInvokeEvent, studentId: number): Promise<ResultType> => {
-    console.log(`Début de student:getDetails pour l'étudiant ID: ${studentId}`);
-    try {
-        // Utilisez directement le résultat de getStudentDetails
-        return await global.studentService.getStudentDetails(studentId);
-    } catch (error) {
-        console.error("Erreur dans student:getDetails:", error);
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
-  try {
-      const document = await global.fileService.getFileById(documentId);
-      if (document && document.path) {
-          // Lire le contenu du fichier et le convertir en base64
-          const fileContent = await fs.readFile(document.path);
-          const base64Content = fileContent.toString('base64');
-
-          return { 
-              success: true, 
-              data: {
-                  content: base64Content, // Envoyer directement le contenu base64
-                  type: document.type,
-                  name: document.name
-              },
-              error: null,
-              message: "Document récupéré avec succès"
-          };
-      } else {
-          return {
-              success: false,
-              data: null,
-              error: "Document non trouvé",
-              message: "Le document n'a pas pu être récupéré"
-          };
+      const user = await backupService.getSupabaseAuthUser();
+      if (!user?.id) {
+        return { success: false, error: 'Utilisateur non authentifié. Veuillez vous connecter au cloud.' };
       }
-  } catch (error) {
-      return handleError(error);
-  }
-});
+      
+      const syncResult = await backupService.performBidirectionalSync(user.id);
 
+      if (syncResult.status === 'failed') {
+        return { success: false, data: syncResult, error: syncResult.error_message || 'La synchronisation a échoué.' };
+      }
+      
+      return { success: true, data: syncResult };
+    } catch (error) {
+      return handleError(error, "sync:now");
+    }
+  });
 
-ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
+  // [OK] Récupère l'historique des synchronisations
+  ipcMain.handle('sync:getHistory', async (): Promise<{ success: boolean; data?: SyncHistory[]; error?: string }> => {
     try {
-        const photo = await global.fileService.getFileById(photoId);
+      // Vérifier d'abord si l'utilisateur est connecté localement
+      const isConnected = await authService.isSupabaseSessionValid();
+      if (!isConnected) {
+        // Pas de session valide = pas d'historique, retourner un tableau vide
+        return { success: true, data: [] };
+      }
+
+      // Essayer de récupérer l'utilisateur avec un timeout
+      const user = await Promise.race([
+        backupService.getSupabaseAuthUser(),
+        new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        )
+      ]);
+
+      if (!user?.id) {
+        return { success: true, data: [] };
+      }
+      
+      const history = await backupService.getLocalSyncHistory(user.id);
+      return { success: true, data: history };
+    } catch (error) {
+      console.warn('Erreur lors de la récupération de l\'historique:', error);
+      // En cas d'erreur, retourner un tableau vide plutôt qu'une erreur
+      return { success: true, data: [] };
+    }
+  });
+
+  // [OK] Récupère la configuration de la synchronisation
+  ipcMain.handle('sync:getConfig', async (): Promise<{ success: boolean; data?: SyncConfig; error?: string }> => {
+    try {
+      const config = await backupService.loadSyncConfig();
+      return { success: true, data: config };
+    } catch (error) {
+      return handleError(error, "sync:getConfig");
+    }
+  });
+
+  // [OK] Met à jour la configuration de la synchronisation
+  ipcMain.handle('sync:updateConfig', async (_event, newConfig: Partial<SyncConfig>): Promise<{ success: boolean; error?: string }> => {
+    if (!newConfig) {
+      return { success: false, error: 'Aucune configuration fournie.' };
+    }
+    try {
+      await backupService.updateSyncConfig(newConfig);
+      return { success: true };
+    } catch (error) {
+      return handleError(error, "sync:updateConfig");
+    }
+  });
+
+  // --- Grades & Salles de classe ---
+  ipcMain.handle("grade:all", async () => gradeService.getGrades());
+  ipcMain.handle("grade:new", async (_, command: GradeCommand) => gradeService.newGrade(command));
+  ipcMain.handle("grade:update", async (_, command: GradeCommand) => gradeService.updateGrade(command));
+  ipcMain.handle("grade:delete", async (_, id: number) => gradeService.deleteGrade(id));
+  ipcMain.handle("classRoom:new", async (_, command: ClassRoomCommand) => gradeService.newClassRoom(command));
+  ipcMain.handle("classRoom:delete", async (_, id: number) => gradeService.deleteClassRoom(id));
+  ipcMain.handle("classRoom:update", async (_, command: ClassRoomCommand) => gradeService.updateClassRoom(command));
+  ipcMain.handle("classRoom:all", async () => gradeService.getClassRooms());
+  ipcMain.handle("branch:new", async (_, command: BranchCommand) => gradeService.newBranch(command));
+  ipcMain.handle("branch:update", async (_, command: BranchCommand) => gradeService.updateBranch(command));
+  ipcMain.handle("branch:delete", async (_, id: number) => gradeService.deleteBranch(id));
+
+  // --- Cours ---
+  ipcMain.handle("course:new", async (_, command: CourseCommand) => courseService.newCourse(command));
+  ipcMain.handle("courseGroup:add", async (_, command: CourseCommand) => courseService.addCourseToGroupement(command));
+  ipcMain.handle("course:update", async (_, command: CourseCommand) => courseService.updateCourse({ id: command.id!, data: { name: command.name!, coefficient: command.coefficient, code: command.code! } }));
+  ipcMain.handle("course:delete", async (_, id: number) => courseService.deleteCourse(id));
+  ipcMain.handle("course:all", async () => courseService.getAllCourse());
+
+  // --- Étudiants ---
+  ipcMain.handle("student:all", async () => ({ success: true, data: await studentService.getAllStudents(), message: "Étudiants récupérés" }));
+  ipcMain.handle("student:getDetails", async (_, studentId: number) => studentService.getStudentDetails(studentId));
+  ipcMain.handle("save-student", async (_, studentData) => studentData.id ? studentService.updateStudent(studentData.id, studentData) : studentService.createStudent(studentData));
+  ipcMain.handle("update-student", async (_, { studentId, studentData }) => studentService.updateStudent(studentId, studentData));
+  ipcMain.handle("delete-student", async (_, studentId: number) => studentService.deleteStudent(studentId));
+  ipcMain.handle("student:getByGrade", async (_, gradeId: number) => studentService.getStudentsByGrade(gradeId));
+  ipcMain.handle("student:getById", async (_, studentId: number) => studentService.getStudentById(studentId));
+  ipcMain.handle("student:search", async (_, query: string) => studentService.searchStudents(query));
+
+  // --- Professeurs ---
+  ipcMain.handle("professor:all", async () => professorService.getAllProfessors());
+  ipcMain.handle("professor:create", async (_, professorData) => professorService.createProfessor(professorData));
+  ipcMain.handle("professor:update", async (_, { id, data }) => professorService.updateProfessor(id, data));
+  ipcMain.handle("professor:delete", async (_, professorId: number) => professorService.deleteProfessor(professorId));
+  ipcMain.handle("professor:getById", async (_, professorId: number) => professorService.getProfessorById(professorId));
+  ipcMain.handle("professor:search", async (_, query: string) => professorService.searchProfessors(query));
+  ipcMain.handle("professor:count", async () => professorService.getTotalProfessors());
+
+  // --- Fichiers ---
+
+  ipcMain.handle('file:upload', async (_event, fileData: { name: string; type: string; content: string }) => {
+    try {
+      const result = await fileService.saveFile({
+        name: fileData.name,
+        type: fileData.type,
+        content: fileData.content // Le contenu base64 doit être sauvegardé en base
+      });
+  
+      return {
+        success: true,
+        data: result,
+        message: 'Fichier uploadé avec succès',
+        error: null
+      };
+    } catch (error) {
+      return handleError(error, "Erreur lors de l'upload du fichier");
+    }
+  });
+  ipcMain.handle('file:getUrl', async (_event, filePath) => {
+    try {
+      // Récupérer le fichier depuis le service
+      const fileId = typeof filePath === 'number' ? filePath : (filePath?.id || null);
+      if (!fileId) {
+        return {
+          success: false,
+          data: null,
+          error: "ID du fichier manquant",
+          message: "L'ID du fichier est requis"
+        };
+      }
+  
+      const file = await fileService.getFileById({ fileId });
+      if (!file) {
+        return {
+          success: false,
+          data: null,
+          error: "Fichier non trouvé",
+          message: "Le fichier n'a pas pu être récupéré"
+        };
+      }
+  
+      const content = Buffer.isBuffer(file.content) 
+        ? file.content.toString('base64')
+        : Buffer.from(file.content).toString('base64');
+  
+      return {
+        success: true,
+        data: {
+          content: content,
+          type: file.type,
+          name: file.name,
+          path: file.path
+        },
+        error: null,
+        message: "Fichier récupéré avec succès"
+      };
+    } catch (error) {
+      console.error('Erreur lors de la récupération du fichier:', error);
+      return handleError(error, 'Erreur lors de la récupération du fichier');
+    }
+  });
+  ipcMain.handle('file:download', async (_event, params) => {
+    try {
+      if (!params.path) {
+        return {
+          success: false,
+          data: null,
+          error: "Chemin du fichier manquant",
+          message: "Le chemin du fichier est requis"
+        };
+      }
+  
+      const fileExists = await fs.access(params.path).then(() => true).catch(() => false);
+      if (!fileExists) {
+        return {
+          success: false,
+          data: null,
+          error: "Fichier introuvable",
+          message: "Le fichier demandé n'existe pas"
+        };
+      }
+  
+      // Le téléchargement sera géré côté client
+      return {
+        success: true,
+        data: {
+          path: params.path,
+          name: params.name
+        },
+        error: null,
+        message: "Fichier prêt pour le téléchargement"
+      };
+    } catch (error) {
+      console.error('Erreur lors du téléchargement du fichier:', error);
+      return handleError(error, 'Erreur lors du téléchargement du fichier');
+    }
+  });
+  
+  ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
+    try {
+        const photo = await fileService.getFileById({ fileId: photoId });
         if (!photo) {
             return {
                 success: false,
@@ -282,742 +349,79 @@ ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, ph
             message: "Photo récupérée avec succès"
         };
     } catch (error) {
-        return handleError(error);
+        return handleError(error, 'Erreur lors de la récupération de la photo de l\'étudiant');
     }
 });
-
-ipcMain.handle("getProfessorPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
-  try {
-      const photo = await global.fileService.getFileById(photoId);
-      if (!photo) {
-          return {
-              success: false,
-              data: null,
-              error: "Photo non trouvée",
-              message: "La photo n'a pas pu être récupérée"
-          };
+  ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
+    try {
+      const document = await fileService.getFileById({ fileId: documentId });
+      if (!document) {
+        return {
+          success: false,
+          data: null,
+          error: "Document non trouvé",
+          message: "Le document n'a pas pu être récupéré"
+        };
       }
-
-      // Convertir le Buffer en base64
-      const base64Content = photo.content.toString('base64');
-      console.log("Taille du contenu base64:", base64Content.length);
-
+  
+      // S'assurer que le contenu est un Buffer avant de le convertir en base64
+      const content = Buffer.isBuffer(document.content) 
+        ? document.content.toString('base64')
+        : Buffer.from(document.content).toString('base64');
+  
+      console.log('Type du document:', document.type);
+      console.log('Nom du document:', document.name);
+      console.log('Taille du contenu encodé:', content.length);
+  
       return {
-          success: true,
-          data: {
-              content: base64Content,
-              type: photo.type,
-              name: photo.name
-          },
-          error: null,
-          message: "Photo récupérée avec succès"
+        success: true,
+        data: {
+          content: content,
+          type: document.type,
+          name: document.name
+        },
+        error: null,
+        message: "Document récupéré avec succès"
       };
-  } catch (error) {
-      return handleError(error);
-  }
-});
-
-
-// Ajoutez ces nouvelles constantes
-const CONFIG_FILE_PATH = path.join(app.getPath('userData'), 'class-config.json');
-
-// Ajoutez ces nouveaux gestionnaires d'événements
-ipcMain.handle('get-class-config', async () => {
-    try {
-      const configExists = await fs.access(CONFIG_FILE_PATH).then(() => true).catch(() => false);
-      if (configExists) {
-        const configData = await fs.readFile(CONFIG_FILE_PATH, 'utf-8');
-        return { success: true, data: JSON.parse(configData) };
-      } else {
-        return { success: true, data: null };
-      }
     } catch (error) {
-      console.error('Erreur lors de la récupération de la configuration des classes:', error);
-      if (error instanceof Error) {
-        return { success: false, error: error.message };
-      } else {
-        return { success: false, error: 'Une erreur inconnue est survenue' };
-      }
+      console.error('Erreur lors de la récupération du document:', error);
+      return handleError(error, 'Erreur lors de la récupération du document');
     }
   });
-ipcMain.handle('save-class-config', async (_event, config) => {
-  try {
-    await fs.writeFile(CONFIG_FILE_PATH, JSON.stringify(config), 'utf-8');
-    return { success: true };
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde de la configuration des classes:', error);
-    if (error instanceof Error) {
-      return { success: false, error: error.message };
-    } else {
-      return { success: false, error: 'Une erreur inconnue est survenue' };
-    }
-  }
-});
-
-ipcMain.handle("update-student", async (_event: Electron.IpcMainInvokeEvent, { studentId, studentData }: { studentId: number, studentData: any }): Promise<ResultType> => {
-    console.log("Début de update-student avec les données:", JSON.stringify(studentData));
+  ipcMain.handle("getProfessorPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
     try {
-        if (studentData.photo && studentData.photo.content) {
-            const savedPhoto = await global.fileService.saveFile(studentData.photo.content, studentData.photo.name, studentData.photo.type);
-            studentData.photoId = savedPhoto.id;
+        const photo = await fileService.getFileById({ fileId: photoId });
+        if (!photo) {
+            return {
+                success: false,
+                data: null,
+                error: "Photo non trouvée",
+                message: "La photo n'a pas pu être récupérée"
+            };
         }
-
-        if (studentData.document && studentData.document.length > 0) {
-            const savedDocuments = await Promise.all(studentData.document.map(async (doc: any) => {
-                if (doc.content) {
-                    return await global.fileService.saveFile(doc.content, doc.name, doc.type);
-                }
-                return doc;
-            }));
-            studentData.documents = savedDocuments;
-        }
-
-        delete studentData.photo;
-        delete studentData.document;
-
-        const result = await global.studentService.updateStudent(studentId, studentData);
-        return result;
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('delete-student', async (_event, studentId: number) => {
-    try {
-      await global.studentService.deleteStudent(studentId); // Appel sans affecter le résultat à une variable
-      return { success: true, message: "Étudiant supprimé avec succès" };
-    } catch (error) {
-      console.error("Erreur lors de la suppression de l'étudiant:", error);
-      return { success: false, message: "Une erreur est survenue lors de la suppression de l'étudiant" };
-    }
-  });
-
-// Garder uniquement ces handlers pour les absences
-ipcMain.handle('absence:allStudent', async () => {
-  try {
-    return await global.absenceService.getAllAbsences('STUDENT');
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:allProfessor', async () => {
-  try {
-    console.log('=== Events - Début absence:allProfessor ===');
-    const result = await global.absenceService.getAllAbsences('PROFESSOR');
-    console.log('=== Events - Résultat ===', {
-      success: result.success,
-      dataLength: result.data?.length,
-      message: result.message,
-      error: result.error
-    });
-    return result;
-  } catch (error) {
-    console.error('=== Events - Erreur dans absence:allProfessor ===', error);
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:add', async (_event, absenceData) => {
-  try {
-    console.log('=== IPC - Réception absence:add ===', absenceData);
-    const result = await global.absenceService.addAbsence(absenceData);
-    console.log('=== IPC - Résultat absence:add ===', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout de l\'absence via IPC:', error);
-    return handleError(error);
-  }
-});
-
-// Ajouter un handler spécifique pour les absences étudiants
-ipcMain.handle('absence:addStudent', async (_event, absenceData) => {
-  try {
-    return await global.absenceService.addAbsence(absenceData);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Ajouter un handler spécifique pour les absences professeurs
-ipcMain.handle('absence:addProfessor', async (_event, absenceData) => {
-  try {
-    return await global.absenceService.createProfessorAbsence(absenceData);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:delete', async (_event, id) => {
-  try {
-    return await global.absenceService.deleteAbsence(id);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:getByStudent', async (_event, studentId) => {
-  try {
-    return await global.absenceService.getAbsencesByStudent(studentId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:getStatistics', async (_event, studentId) => {
-  try {
-    return await global.absenceService.getAbsenceStatistics(studentId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-
-ipcMain.handle("school:save", async (_event: Electron.IpcMainInvokeEvent, payload: any): Promise<ResultType> => {
-    try {
-        const { data, logo } = payload
-
-        // Si un nouveau logo est fourni
-        if (logo) {
-            const savedFile = await global.fileService.saveFile(
-                logo.content,
-                logo.name,
-                logo.type
-            )
-            // Assigner l'ID du fichier sauvegardé
-            data.logo = savedFile.id
-        }
-
-        const result = await global.schoolService.saveOrUpdateSchool(data)
-        
-        // Si la sauvegarde est réussie, charger à nouveau les données complètes
-        if (result.success) {
-            const updatedSchool = await global.schoolService.getSchool()
-            return updatedSchool
-        }
-
-        return result
-    } catch (error) {
-        return handleError(error)
-    }
-})
-
-
-
-ipcMain.handle("school:get", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
-    try {
-        const result = await global.schoolService.getSchool();
-        
-        // Si la récupération a réussi et qu'il y a un logo
-        if (result.success && result.data && result.data.logo) {
-            // Convertir le contenu du logo en base64 s'il existe
-            const logo = await global.fileService.getFileById(result.data.logo.id);
-            if (logo) {
-                result.data.logo = {
-                    id: logo.id,
-                    content: logo.content.toString('base64'),
-                    type: logo.type,
-                    name: logo.name
-                };
-            }
-        }
-        
-        return result;
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-//Repartition Année Scolaire 
-
-ipcMain.handle("yearRepartition:create", async (_event, data) => {
-    try {
-        return await global.yearRepartitionService.createYearRepartition(data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Mettre à jour une répartition d'année scolaire
-ipcMain.handle("yearRepartition:update", async (_event, { id, data }) => {
-    try {
-        return await global.yearRepartitionService.updateYearRepartition(id, data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Récupérer toutes les répartitions d'années scolaires
-ipcMain.handle("yearRepartition:getAll", async () => {
-    try {
-        return await global.yearRepartitionService.getAllYearRepartitions();
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Supprimer une répartition d'année scolaire
-ipcMain.handle("yearRepartition:delete", async (_event, id: number) => {
-    try {
-        return await global.yearRepartitionService.deleteYearRepartition(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Modifier le handler pour utiliser la fonction existante
-ipcMain.handle("yearRepartition:getCurrent", async () => {
-    try {
-        return await global.yearRepartitionService.getCurrentYearRepartition();
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Handlers pour les professeurs
-ipcMain.handle('professor:all', async () => {
-    try {
-        return await global.professorService.getAllProfessors();
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-
-ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
-  try {
-      const document = await global.fileService.getFileById(documentId);
-      if (document && document.path) {
-          // Lire le contenu du fichier et le convertir en base64
-          const fileContent = await fs.readFile(document.path);
-          const base64Content = fileContent.toString('base64');
-
-          return { 
-              success: true, 
-              data: {
-                  content: base64Content, // Envoyer directement le contenu base64
-                  type: document.type,
-                  name: document.name
-              },
-              error: null,
-              message: "Document récupéré avec succès"
-          };
-      } else {
-          return {
-              success: false,
-              data: null,
-              error: "Document non trouvé",
-              message: "Le document n'a pas pu être récupéré"
-          };
-      }
-  } catch (error) {
-      return handleError(error);
-  }
-});
-
-ipcMain.handle('professor:create', async (_, data: any) => {
-    try {
-        return await global.professorService.createProfessor(data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('professor:update', async (_, id: number, data: any) => {
-    try {
-        return await global.professorService.updateProfessor(id, data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('professor:delete', async (_, id: number) => {
-    try {
-        return await global.professorService.deleteProfessor(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('professor:getById', async (_, id: number) => {
-  try {
-      const professor = await global.professorService.getProfessorById(id);
-      console.log("Professor data retrieved:", professor); 
-      return professor;
-  } catch (error) {
-      return handleError(error);
-  }
-});
-
-
-// Gestion des affectations d'enseignement
-ipcMain.handle("professor:assign-teaching", async (_event, { professorId, assignment }) => {
-    try {
-        return await global.professorService.assignTeaching(professorId, assignment);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("professor:get-teaching-assignments", async (_event, professorId) => {
-    try {
-        return await global.professorService.getTeachingAssignments(professorId);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Handlers pour le dashboard
-ipcMain.handle("dashboard:stats", async () => {
-    try {
-        const totalStudents = await global.studentService.getTotalStudents();
-        const totalProfessors = await global.professorService.getTotalProfessors();
-        const totalClasses = await global.gradeService.getTotalClasses();
-        const recentPayments = await global.paymentService.getRecentPayments(5);
-        const recentAbsences = await global.absenceService.getRecentAbsences(5);
-
+  
+        // Convertir le Buffer en base64
+        const base64Content = photo.content.toString('base64');
+        console.log("Taille du contenu base64:", base64Content.length);
+  
         return {
             success: true,
             data: {
-                stats: {
-                    totalStudents: totalStudents.data,
-                    totalProfessors: totalProfessors.data,
-                    totalClasses: totalClasses.data,
-                    recentPayments: recentPayments.data,
-                    recentAbsences: recentAbsences.data
-                }
+                content: base64Content,
+                type: photo.type,
+                name: photo.name
             },
-            message: "Statistiques récupérées avec succès",
-            error: null
+            error: null,
+            message: "Photo récupérée avec succès"
         };
     } catch (error) {
-        return handleError(error);
+        return handleError(error, 'Erreur lors de la récupération de la photo du professeur');
     }
-});
-
-ipcMain.handle("dashboard:paymentStats", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
+  });
+  
+  ipcMain.handle("school:getLogo", async (_event: Electron.IpcMainInvokeEvent, logoId: number): Promise<ResultType> => {
     try {
-        return await global.dashboardService.getPaymentStats();
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle("dashboard:absenceStats", async (_event: Electron.IpcMainInvokeEvent): Promise<ResultType> => {
-    try {
-        return await global.dashboardService.getAbsenceStats();
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-
-ipcMain.handle('student:search', async (_event, query: string) => {
-    try {
-        return await global.studentService.searchStudents(query);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-
-// Handlers pour les paiements étudiants
-ipcMain.handle('payment:create', async (_, paymentData) => {
-  try {
-    return await global.paymentService.addPayment(paymentData);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('payment:getByStudent', async (_, studentId) => {
-  try {
-    return await global.paymentService.getPaymentsByStudent(studentId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('payment:getConfig', async (_, classId) => {
-  try {
-    return await global.paymentService.getConfigByClass(classId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('payment:getConfigs', async () => {
-  try {
-    console.log("Récupération des configurations de paiement");
-    const result = await global.paymentService.getConfigs();
-    console.log("Configurations récupérées:", result);
-    return result;
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('payment:getRemainingAmount', async (_, studentId) => {
-  try {
-    return await global.paymentService.getRemainingAmount(studentId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handlers pour les paiements professeurs
-ipcMain.handle('professor:payment:create', async (_, paymentData) => {
-  try {
-    console.log('Données de paiement reçues:', paymentData);
-    const result = await global.paymentService.addProfessorPayment(paymentData);
-    console.log('Résultat de la création:', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur dans le handler professor:payment:create:', error);
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('professor:payment:update', async (_, paymentData) => {
-  try {
-    console.log('Données de mise à jour reçues:', paymentData);
-    const result = await global.paymentService.updateProfessorPayment(paymentData);
-    console.log('Résultat de la mise à jour:', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur dans le handler professor:payment:update:', error);
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('professor:payments:list', async (_, filters) => {
-  try {
-    console.log('Filtres reçus:', filters);
-    const result = await global.paymentService.getProfessorPayments(filters);
-    console.log('Résultat des paiements:', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur dans le handler professor:payments:list:', error);
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('professor:payments:stats', async () => {
-  try {
-    const result = await global.paymentService.getProfessorPaymentStats();
-    console.log('Résultat des statistiques:', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur dans le handler professor:payments:stats:', error);
-    return handleError(error);
-  }
-});
-
-// Handlers pour les paiements des professeurs
-ipcMain.handle('professor:count', async () => {
-  try {
-    const result = await global.professorService.getTotalProfessors();
-    console.log('Résultat du comptage des professeurs:', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur dans le handler professor:count:', error);
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('professor:search', async (_, query) => {
-  try {
-    return await global.professorService.searchProfessors(query);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('file:getUrl', async (_, filePath) => {
-  try {
-    const result = await global.fileService.getFileUrl(filePath);
-    return {
-      success: true,
-      data: result,
-      message: "URL du fichier récupérée avec succès",
-      error: null
-    };
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-
-// Ajouter avec les autres handlers de paiement
-ipcMain.handle('professor:payment:getById', async (_, paymentId: number) => {
-  try {
-    console.log('Récupération du paiement:', paymentId);
-    const result = await global.paymentService.getProfessorPaymentById(paymentId);
-    console.log('Résultat:', result);
-    return result;
-  } catch (error) {
-    console.error('Erreur dans le handler professor:payment:getById:', error);
-    return handleError(error);
-  }
-});
-
-// Ajouter ou modifier ces handlers pour la configuration des paiements
-ipcMain.handle("payment:saveConfig", async (_, configData) => {
-  try {
-    console.log("Données de configuration reçues:", configData);
-    const result = await global.paymentService.saveConfig(configData);
-    console.log("Résultat de la sauvegarde:", result);
-    return result;
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handlers pour les devoirs
-ipcMain.handle('homework:create', async (_, data) => {
-    try {
-        return await global.homeworkService.createHomework(data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('homework:getByGrade', async (_, gradeId) => {
-    try {
-        return await global.homeworkService.getHomeworkByGrade(gradeId);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Handlers pour les congés
-ipcMain.handle('vacation:create', async (_event, data) => {
-  try {
-    console.log('=== Events - Début vacation:create ===', data);
-    const result = await global.vacationService.createVacation(data);
-    console.log('=== Events - Résultat vacation:create ===', result);
-    return result;
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('vacation:update', async (_event, { id, status, comment }) => {
-  try {
-    return await global.vacationService.updateVacationStatus(id, status, comment);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('vacation:delete', async (_event, id) => {
-  try {
-    return await global.vacationService.deleteVacation(id);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('vacation:getByStudent', async (_event, studentId) => {
-  try {
-    return await global.vacationService.getVacationsByStudent(studentId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('vacation:getAll', async () => {
-  try {
-    return await global.vacationService.getAllVacations();
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handlers pour les absences des professeurs
-ipcMain.handle('absence:createProfessor', async (_, data) => {
-  try {
-    return await global.absenceService.createProfessorAbsence(data);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:updateProfessor', async (_, data) => {
-  try {
-    return await global.absenceService.updateProfessorAbsence(data);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:getAllProfessors', async () => {
-  try {
-    return await global.absenceService.getAllProfessorAbsences();
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-ipcMain.handle('absence:deleteProfessor', async (_, id) => {
-  try {
-    return await global.absenceService.deleteProfessorAbsence(id);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handler pour récupérer les étudiants d'une classe
-ipcMain.handle('student:getByGrade', async (_event: Electron.IpcMainInvokeEvent, gradeId: number): Promise<ResultType> => {
-  try {
-    return await global.studentService.getStudentsByGrade(gradeId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handler pour supprimer un devoir
-ipcMain.handle('homework:delete', async (_, id: number) => {
-  try {
-    return await global.homeworkService.deleteHomework(id);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handler pour mettre à jour un devoir
-ipcMain.handle('homework:update', async (_, data: any) => {
-  try {
-    const { id, ...updateData } = data;
-    return await global.homeworkService.updateHomework(id, updateData);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Handler pour notifier les étudiants
-ipcMain.handle('homework:notify', async (_, data: any) => {
-  try {
-    // Ici vous pouvez implémenter la logique de notification
-    // Par exemple, envoyer des SMS ou des emails
-    console.log("Notification à envoyer:", data);
-    
-    // Pour l'instant, on simule un succès
-    return {
-      success: true,
-      message: "Notifications envoyées avec succès",
-      error: null,
-      data: null
-    };
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Ajouter cet événement s'il n'existe pas déjà
-ipcMain.handle("school:getLogo", async (_event: Electron.IpcMainInvokeEvent, logoId: number): Promise<ResultType> => {
-    try {
-        const logo = await global.fileService.getFileById(logoId);
+        const logo = await fileService.getFileById({ fileId: logoId });
         if (!logo) {
             return {
                 success: false,
@@ -1038,218 +442,210 @@ ipcMain.handle("school:getLogo", async (_event: Electron.IpcMainInvokeEvent, log
             message: "Logo récupéré avec succès"
         };
     } catch (error) {
-        return handleError(error);
+        return handleError(error, "Erreur lors de la récupération du logo");
     }
 });
-
-
-// Événements de sauvegarde
-ipcMain.handle('scholarship:getByStudent', async (_, studentId: number) => {
+ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
   try {
-    const scholarships = await global.scholarshipService.getByStudent(studentId);
-    console.log('=== Bourses récupérées pour étudiant', studentId, '===');
-    console.log('Résultat:', scholarships);
-    return scholarships;
-  } catch (error) {
-    return handleError(error);
-  }
-});
+      const document = await fileService.getFileById({ fileId: documentId });
+      if (!document) {
+          return {
+              success: false,
+              data: null,
+              error: "Document non trouvé",
+              message: "Le document n'a pas pu être récupéré"
+          };
+      }
 
-ipcMain.handle('scholarship:getActiveByStudent', async (_, studentId: number) => {
-    return await global.paymentService.getActiveByStudent(studentId);
-});
+      // ✅ CORRECTION : Utiliser le contenu stocké en base de données
+      let base64Content: string;
+      
+      if (document.content) {
+          // Si le contenu est déjà en base de données (Buffer ou string)
+          base64Content = Buffer.isBuffer(document.content) 
+              ? document.content.toString('base64')
+              : Buffer.from(document.content).toString('base64');
+      } else if (document.path) {
+          // Fallback : si le fichier physique existe encore
+          try {
+              const fileContent = await fs.readFile(document.path);
+              base64Content = fileContent.toString('base64');
+          } catch (fsError) {
+              console.error('Fichier physique introuvable:', document.path);
+              return {
+                  success: false,
+                  data: null,
+                  error: "Fichier physique introuvable",
+                  message: "Le document n'a pas pu être récupéré depuis le stockage"
+              };
+          }
+      } else {
+          return {
+              success: false,
+              data: null,
+              error: "Aucune source de contenu disponible",
+              message: "Le document ne contient ni contenu ni chemin valide"
+          };
+      }
 
-ipcMain.handle("yearRepartition:setCurrent", async (_event, id: number) => {
-    try {
-        return await global.yearRepartitionService.setCurrentYearRepartition(id);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Ajouter ce handler pour les congés des professeurs
-ipcMain.handle('vacation:getByProfessor', async (_event, professorId?: number) => {
-  try {
-    return await global.vacationService.getVacationsByProfessor(professorId);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Ajouter ce handler pour la mise à jour du statut des congés
-ipcMain.handle('vacation:updateStatus', async (_event, { id, status, comment }) => {
-  try {
-    return await global.vacationService.updateVacationStatus(id, status, comment);
-  } catch (error) {
-    return handleError(error);
-  }
-});
-
-// Ajouter les handlers pour les bulletins
-ipcMain.handle('report:generateMultiple', async (_event, data) => {
-    try {
-        return await global.reportCardService.generateReportCards(data);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('report:preview', async (_event, data) => {
-    try {
-        const result = await global.reportCardService.generateReportCards({
-            studentIds: [data.studentId],
-            period: data.period,
-            templateId: 'preview'
-        });
-        return result;
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Handler pour la configuration des notes
-ipcMain.handle('gradeConfig:save', async (_event, config) => {
-    try {
-        console.log('=== Events - Début gradeConfig:save ===', config);
-        const result = await global.gradeConfigService.saveConfiguration(config);
-        console.log('=== Events - Résultat gradeConfig:save ===', result);
-        return result;
-    } catch (error) {
-        console.error('=== Events - Erreur dans gradeConfig:save ===', error);
-        return handleError(error);
-    }
-});
-
-
-// Sauvegarder les notes d'un étudiant
-ipcMain.handle('grades:save', async (_event, data: {
-    studentId: number;
-    gradeId: number;
-    period: string;
-    grades: Array<{
-        courseId: number;
-        assignments: number[];
-        exam: number;
-        average: number;
-        appreciation: string;
-    }>;
-}) => {
-    try {
-        console.log('Handler grades:save appelé avec:', data);
-        return await global.reportCardService.saveStudentGrades(data);
-    } catch (error) {
-        console.error('Erreur dans le handler grades:save:', error);
-        return {
-            success: false,
-            data: null,
-            message: "Erreur lors de la sauvegarde des notes",
-            error: error instanceof Error ? error.message : "Erreur inconnue"
-        };
-    }
-});
-
-// Handler pour récupérer un étudiant par son ID
-ipcMain.handle('student:getById', async (_event, studentId: number) => {
-    try {
-        return await global.studentService.getStudentById(studentId);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('gradeConfig:saveGeneral', async (_event, config) => {
-    try {
-        // Implémenter la sauvegarde de la configuration générale
-        return {
-            success: true,
-            data: config,
-            message: "Configuration générale sauvegardée",
-            error: null
-        };
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-// Handler pour récupérer la configuration des notes
-
-
-ipcMain.handle('grades:get', async (_event, { studentId, period }) => {
-    try {
-        return await global.reportCardService.getStudentGrades(studentId, period);
-    } catch (error) {
-        return handleError(error);
-    }
-});
-
-ipcMain.handle('preference:saveTemplate', async (_, templateId: string) => {
-    return await global.preferenceService.saveTemplatePreference(templateId);
-});
-
-ipcMain.handle('preference:getTemplate', async () => {
-    return await global.preferenceService.getTemplatePreference();
-});
-
-// Handler pour récupérer la configuration des notes
-ipcMain.handle('gradeConfig:get', async (_event, { gradeId }) => {
-    try {
-        console.log('=== Events - Début gradeConfig:get ===', gradeId);
-        const gradeConfigService = new GradeConfigService();
-        const result = await gradeConfigService.getConfigurationByGrade(gradeId);
-        console.log('=== Events - Résultat gradeConfig:get ===', result);
-        return result;
-    } catch (error) {
-        console.error('=== Events - Erreur dans gradeConfig:get ===', error);
-        return handleError(error);
-    }
-});
-
-export function registerReportEvents() {
-  const reportService = new ReportCardService();
-
-  // Génération du bulletin
-  ipcMain.handle('report:generate', async (_, data: { studentId: number; period: string }) => {
-    console.log('Demande de génération de bulletin:', data);
-    try {
-      const result = await reportService.generateReportCard(data);
-      console.log('Résultat de la génération:', result);
-      return result;
-    } catch (error) {
-      console.error('Erreur génération bulletin:', error);
-      return {
-        success: false,
-        data: null,
-        message: "Erreur lors de la génération du bulletin",
-        error: error instanceof Error ? error.message : "Erreur inconnue",
-        generalAverage: 0
+      return { 
+          success: true, 
+          data: {
+              content: base64Content,
+              type: document.type,
+              name: document.name
+          },
+          error: null,
+          message: "Document récupéré avec succès"
       };
+  } catch (error) {
+      return handleError(error, 'Erreur lors de la récupération du document');
+  }
+});
+
+
+  ipcMain.handle("file:showInFolder", async (_, filePath: string) => shell.showItemInFolder(path.normalize(filePath)));
+
+  // --- Paiements ---
+  ipcMain.handle("payment:getConfigs", async () => paymentService.getConfigs());
+  ipcMain.handle("payment:saveConfig", async (_, configData) => paymentService.saveConfig(configData));
+  ipcMain.handle("payment:getByStudent", async (_, studentId) => paymentService.getPaymentsByStudent(studentId));
+  ipcMain.handle("payment:getConfig", async (_, classId) => paymentService.getConfigByClass(String(classId)));
+  ipcMain.handle("payment:create", async (_, paymentData) => paymentService.addPayment(paymentData));
+  ipcMain.handle("payment:getRemainingAmount", async (_, studentId) => paymentService.getRemainingAmount(studentId));
+  ipcMain.handle("professor:payments:list", async (_, filters) => paymentService.getProfessorPayments(filters));
+  ipcMain.handle("professor:payments:stats", async () => paymentService.getProfessorPaymentStats());
+  ipcMain.handle("professor:payment:create", async (_, paymentData) => paymentService.addProfessorPayment(paymentData));
+  ipcMain.handle("professor:payment:update", async (_, paymentData) => paymentService.updateProfessorPayment(paymentData));
+  ipcMain.handle("professor:payment:getById", async (_, paymentId) => paymentService.getProfessorPaymentById(paymentId));
+  
+  // --- Absences ---
+  ipcMain.handle("absence:allStudent", async () => absenceService.getAllAbsences("STUDENT"));
+  ipcMain.handle("absence:allProfessor", async () => absenceService.getAllAbsences("PROFESSOR"));
+  ipcMain.handle("absence:add", async (_, absenceData) => absenceService.addAbsence(absenceData));
+  ipcMain.handle("absence:addProfessor", async (_, data) => absenceService.createProfessorAbsence(data));
+  ipcMain.handle("absence:updateProfessor", async (_, data) => absenceService.updateProfessorAbsence(data));
+  ipcMain.handle("absence:getAllProfessor", async () => absenceService.getAllProfessorAbsences());
+  ipcMain.handle("absence:deleteProfessor", async (_, id) => absenceService.deleteProfessorAbsence(id));
+  
+  // --- Devoirs (Homework) ---
+  ipcMain.handle("homework:create", async (_, data) => homeworkService.createHomework(data));
+  ipcMain.handle("homework:getByGrade", async (_, gradeId) => homeworkService.getHomeworkByGrade(gradeId));
+  ipcMain.handle("homework:delete", async (_, id) => homeworkService.deleteHomework(id));
+  ipcMain.handle("homework:update", async (_, data) => homeworkService.updateHomework(data.id, data));
+  ipcMain.handle("homework:notify", async (_, data) => ({ success: true, message: "Notifications simulées envoyées." }));
+  
+  // --- Congés (Vacation) ---
+  ipcMain.handle("vacation:getByStudent", async (_, studentId) => vacationService.getVacationsByStudent(studentId));
+  ipcMain.handle("vacation:getByProfessor", async (_, professorId) => vacationService.getVacationsByProfessor(professorId));
+  ipcMain.handle("vacation:create", async (_, data) => vacationService.createVacation(data));
+  ipcMain.handle("vacation:update", async (_, data) => data.id && data.status ? vacationService.updateVacationStatus(data.id, data.status, data.comment) : { success: false, error: "INVALID_DATA" });
+  ipcMain.handle("vacation:updateStatus", async (_, { id, status, comment }) => vacationService.updateVacationStatus(id, status, comment));
+  ipcMain.handle("vacation:delete", async (_, id) => vacationService.deleteVacation(id));
+  
+  // --- Bulletins (Report Card) ---
+  ipcMain.handle("report:generateMultiple", async (_, data) => reportCardService.generateReportCards(data));
+  ipcMain.handle("report:preview", async (_, data) => reportCardService.generateReportCards({ studentIds: [data.studentId], period: data.period, templateId: "preview" }));
+  ipcMain.handle("grades:save", async (_, data) => reportCardService.saveStudentGrades(data));
+  ipcMain.handle("grades:get", async (_, { studentId, period }) => reportCardService.getStudentGrades(studentId, period));
+  
+  // --- Configuration ---
+  ipcMain.handle("gradeConfig:save", async (_, config) => gradeConfigService.saveConfiguration(config));
+  ipcMain.handle("gradeConfig:get", async (_, { gradeId }) => gradeConfigService.getConfigurationByGrade(gradeId));
+  ipcMain.handle("preference:saveTemplate", async (_, templateId) => preferenceService.saveTemplatePreference(templateId));
+  ipcMain.handle("preference:getTemplate", async () => preferenceService.getTemplatePreference());
+  ipcMain.handle('is-first-launch', () => {
+    const isFirst = ConfigService.getInstance().isFirstLaunch();
+    console.log(`[IPC] Réponse à 'is-first-launch': ${isFirst}`);
+    return { data: isFirst };
+  });
+  ipcMain.handle("set-first-launch-complete", () => {
+    ConfigService.getInstance().setFirstLaunchComplete();
+    return { success: true };
+  });
+  // Gestionnaire pour ouvrir le dialogue de sélection de dossier
+ipcMain.handle('open-file-dialog', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Sélectionner un dossier de stockage'
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+    return null;
+  } catch (error) {
+    console.error('Erreur lors de l\'ouverture du dialogue de fichier:', error);
+    throw error;
+  }
+});
+  
+  // --- École ---
+  ipcMain.handle("school:get", async () => schoolService.getSchool());
+  ipcMain.handle("school:save", async (_, schoolData) => schoolService.saveOrUpdateSchool(schoolData));
+  ipcMain.handle("school:saveSettings", async (_, settings) => schoolService.saveOrUpdateSettings(settings));
+
+  // --- Dashboard ---
+  ipcMain.handle("dashboard:stats", async () => dashboardService.getStats());
+  ipcMain.handle("dashboard:paymentStats", async () => dashboardService.getPaymentStats());
+  ipcMain.handle("dashboard:absenceStats", async () => dashboardService.getAbsenceStats());
+
+  // --- Année Scolaire ---
+  ipcMain.handle("yearRepartition:getAll", async () => yearRepartitionService.getAllYearRepartitions());
+  ipcMain.handle("yearRepartition:getCurrent", async () => yearRepartitionService.getCurrentYearRepartition());
+  ipcMain.handle("yearRepartition:create", async (_, data) => yearRepartitionService.createYearRepartition(data));
+  ipcMain.handle("yearRepartition:update", async (_, { id, data }) => yearRepartitionService.updateYearRepartition(id, data));
+  ipcMain.handle("yearRepartition:delete", async (_, id) => yearRepartitionService.deleteYearRepartition(id));
+  ipcMain.handle("yearRepartition:setCurrent", async (_, id) => yearRepartitionService.setCurrentYearRepartition(id));
+  
+  // --- Bourses ---
+  ipcMain.handle("scholarship:getByStudent", async (_, studentId) => scholarshipService.getByStudent(studentId));
+  ipcMain.handle("scholarship:getActiveByStudent", async (_, studentId) => paymentService.getActiveByStudent(studentId));
+
+  // --- Licence ---
+  ipcMain.handle("license:generateMachineId", async () => ({ success: true, data: licenseService.generateMachineId() }));
+  ipcMain.handle("license:activate", async (_, licenseCode) => licenseService.activateLicense(licenseCode));
+  ipcMain.handle("license:isValid", async () => ({ success: true, data: await licenseService.getLicenseStatus() }));
+  
+  // Correction pour getLicenseDetails - ne prend aucun paramètre
+  ipcMain.handle("license:getDetails", async () => {
+    try {
+      const details = await licenseService.getLicenseDetails();
+      return { 
+        success: true, 
+        data: {
+          maxActivations: details.maxActivations,
+          usedActivations: details.currentActivations
+        }
+      };
+    } catch (error) {
+      return handleError(error, "Erreur lors de la récupération des détails de licence");
     }
   });
-
-  // Récupération des notes
-  ipcMain.handle('report:getGrades', async (_, data: { studentId: number; period: string }) => {
-    console.log('Demande de récupération des notes:', data);
+  
+  // Correction pour generateSub - ne prend aucun paramètre
+  ipcMain.handle("license:generateSub", async () => {
     try {
-      const result = await reportService.getStudentGrades(data.studentId, data.period);
-      console.log('Notes récupérées:', result);
-      return result;
+      const result = await licenseService.generateSubLicense();
+      if (result.success) {
+        return { 
+          success: true, 
+          data: { 
+            subLicenseCode: result.newCode 
+          },
+          message: result.message
+        };
+      } else {
+        return { 
+          success: false, 
+          error: result.message 
+        };
+      }
     } catch (error) {
-      console.error('Erreur récupération notes:', error);
-      return {
-        success: false,
-        data: [],
-        message: "Erreur lors de la récupération des notes",
-        error: error instanceof Error ? error.message : "Erreur inconnue",
-        generalAverage: 0
-      };
+      return handleError(error, "Erreur lors de la génération de sous-licence");
     }
   });
+  
+  console.log('Tous les handlers IPC ont été enregistrés.');
 }
-
-
-
-
-
-
-
-

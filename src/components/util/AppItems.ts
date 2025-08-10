@@ -136,57 +136,90 @@ export const AppItems: MenuItem[] = [
                 title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
+            },
+            {
+                id: "submenu-5-3",
+                title: "Sauvegarde et Restauration",
+                icon: "mdi:database-sync",
+                route: "/tools/sync",
+                description: "Gérer les sauvegardes et restaurations de données"
             }
         ]
     },
     {
         id: "submenu-6",
-        title: "Fichier",
-        icon: "fluent-emoji:file-folder",
+        title: "Paramètres",
+        icon: "mdi:settings",
         subItems: [
             {
                 id: "submenu-6-1",
-                title: "Info école",
+                title: "Configuration École",
                 icon: "fluent-emoji:school",
-                route: "/info-school",
+                subItems: [
+                    {
+                        id: "submenu-6-1-1",
+                        title: "Info école",
+                        icon: "fluent-emoji:school",
+                        route: "/info-school",
+                    },
+                    {
+                        id: "submenu-6-1-2",
+                        title: "Niveau scolaire",
+                        icon: "fluent-emoji:star",
+                        route: "/grade",
+                    },
+                    {
+                        id: "submenu-6-1-3",
+                        title: "Salles de classe",
+                        icon: "mdi:school",
+                        route: "/classroom",
+                    },
+                    {
+                        id: "submenu-6-1-4",
+                        title: "Matières",
+                        icon: "fluent-emoji:open-book",
+                        route: "/course",
+                    }
+                ]
             },
             {
                 id: "submenu-6-2",
-                title: "Niveau scolaire",
-                icon: "fluent-emoji:star",
-                route: "/grade",
+                title: "Configuration Année",
+                icon: "fluent-emoji:calendar",
+                subItems: [
+                    {
+                        id: "submenu-6-2-1",
+                        title: "Répartition année scolaire",
+                        icon: "fluent-emoji:calendar",
+                        route: "/school-repartition",
+                    },
+                    {
+                        id: "submenu-6-2-2",
+                        title: "Configuration des paiements",
+                        icon: "mdi:cash-register",
+                        route: "/payment-config",
+                    }
+                ]
             },
             {
                 id: "submenu-6-3",
-                title: "Salles de classe",
-                icon: "fluent-emoji:school",
-                route: "/classroom",
-            },
-            {
-                id: "submenu-6-4",
-                title: "Matières",
-                icon: "fluent-emoji:open-book",
-                route: "/course",
-            },
-            {
-                id: "submenu-6-5",
-                title: "Configuration des notes",
-                icon: "fluent-emoji:pencil",
-                route: "/school-notes",
-            },
-            {
-                id: "submenu-6-6",
-                title: "Configuration des paiements",
-                icon: "fluent-emoji:cash-register",
-                route: "/payment-config",
-            },
-            {
-                id: "submenu-6-7",
-                title: "Répartition année scolaire",
-                icon: "fluent-emoji:calendar",
-                route: "/school-repartition",
-            },
+                title: "Sécurité",
+                icon: "mdi:security",
+                subItems: [
+                    {
+                        id: "submenu-6-3-1",
+                        title: "Changement de mot de passe",
+                        icon: "mdi:key",
+                        route: "/change-password",
+                    },
+                    {
+                        id: "submenu-6-3-2",
+                        title: "Statut de la licence et activation",
+                        icon: "mdi:license",
+                        route: "/license-status",
+                    }
+                ]
+            }
         ]
-        
     }
 ]

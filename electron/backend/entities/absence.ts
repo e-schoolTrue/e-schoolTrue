@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn, DeleteDateColumn, UpdateDateColumn } from "typeorm";
 import { StudentEntity } from "./students";
 import { ProfessorEntity } from "./professor";
 import { CourseEntity } from "./course";
@@ -9,6 +9,13 @@ import { FileEntity } from "./file";
 export class AbsenceEntity {
     @PrimaryGeneratedColumn()
     id!: number;
+
+    // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
 
     @Column("date")
     date!: Date;
@@ -40,10 +47,12 @@ export class AbsenceEntity {
     @Column({ type: "text", nullable: true })
     comments?: string;
 
-    @ManyToOne(() => StudentEntity, { nullable: true })
+    @ManyToOne(() => StudentEntity, { nullable: true, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'studentId' }) 
     student?: StudentEntity;
 
-    @ManyToOne(() => ProfessorEntity, { nullable: true })
+    @ManyToOne(() => ProfessorEntity, { nullable: true, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'professorId' })
     professor?: ProfessorEntity;
 
     @ManyToOne(() => GradeEntity)
@@ -57,7 +66,11 @@ export class AbsenceEntity {
     document?: FileEntity;
 
     @CreateDateColumn()
-    createdAt!: Date;
+    created_at?: Date;
+    @DeleteDateColumn()
+    deleted_at?: Date;
+    @UpdateDateColumn()
+    updated_at?: Date;
 
     @Column({ type: "boolean", default: false })
     parentNotified!: boolean;
@@ -68,4 +81,4 @@ export class AbsenceEntity {
         default: "STUDENT"
     })
     type!: string;
-}
+    }

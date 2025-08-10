@@ -14,7 +14,7 @@
         <el-table-column prop="className" label="Classe" />
         <el-table-column label="Frais de Scolarité">
           <template #default="{ row }">
-            {{ formatAmount(row.annualAmount) }} FCFA
+            <currency-display :amount="row.annualAmount" />
           </template>
         </el-table-column>
         <el-table-column label="Actions" width="150">
@@ -56,7 +56,7 @@
               class="full-width"
               controls-position="right"
             >
-              <template #suffix>FCFA</template>
+              <template #suffix>{{ currency }}</template>
             </el-input-number>
           </el-form-item>
 
@@ -116,16 +116,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
+import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
+import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { useCurrency } from '@/composables/useCurrency';
 
-interface PaymentConfig {
-  classId: string;
-  className: string;
-  annualAmount: number;
-  allowScholarship: boolean;
-  scholarshipPercentages?: number[];
-  scholarshipCriteria?: string;
-}
-
+const { currency } = useCurrency();
 const configurations = ref<PaymentConfig[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -143,11 +138,14 @@ const modalTitle = computed(() =>
   `Configuration des frais - ${currentConfig.value.className}`
 );
 
-const formatAmount = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR').format(amount);
-};
-
 const openCreateModal = () => {
+  if (configurations.value.length === 0) {
+    ElMessage.warning("Aucune classe n'est disponible pour configuration");
+    return;
+  }
+  
+  const nonConfigured = configurations.value.find(c => c.annualAmount === 0);
+  currentConfig.value = nonConfigured ? { ...nonConfigured } : { ...configurations.value[0] };
   showModal.value = true;
 };
 
@@ -160,11 +158,26 @@ const saveConfiguration = async () => {
   try {
     isSaving.value = true;
     
-    if (!currentConfig.value.classId || !currentConfig.value.annualAmount) {
-      throw new Error('Veuillez remplir tous les champs obligatoires');
+    if (!currentConfig.value.classId) {
+      ElMessage.error('Veuillez sélectionner une classe');
+      return;
+    }
+    
+    if (currentConfig.value.annualAmount <= 0) {
+      ElMessage.error('Le montant des frais de scolarité doit être supérieur à 0');
+      return;
     }
 
-    const configData = {
+    // Validation des bourses si l'option est activée
+    if (currentConfig.value.allowScholarship && 
+        (!currentConfig.value.scholarshipPercentages || 
+         !Array.isArray(currentConfig.value.scholarshipPercentages) || 
+         currentConfig.value.scholarshipPercentages.length === 0)) {
+      ElMessage.error('Veuillez sélectionner au moins un pourcentage de bourse');
+      return;
+    }
+
+    const configData: PaymentConfigCreateInput = {
       classId: String(currentConfig.value.classId),
       annualAmount: Number(currentConfig.value.annualAmount),
       allowScholarship: Boolean(currentConfig.value.allowScholarship),
@@ -174,9 +187,7 @@ const saveConfiguration = async () => {
       scholarshipCriteria: String(currentConfig.value.scholarshipCriteria || '')
     };
 
-    const serializedData = JSON.parse(JSON.stringify(configData));
-
-    const result = await window.ipcRenderer.invoke('payment:saveConfig', serializedData);
+    const result = await window.ipcRenderer.invoke('payment:saveConfig', configData);
 
     if (result.success) {
       ElMessage.success('Configuration sauvegardée avec succès');
@@ -208,8 +219,8 @@ const loadConfigurations = async () => {
     const grades = gradesResult.data;
     const configs = configsResult.success ? configsResult.data : [];
 
-    configurations.value = grades.map((grade: { id: any; name: any; }) => {
-      const config = configs.find((c: { classId: any; }) => String(c.classId) === String(grade.id));
+    configurations.value = grades.map((grade: { id: string; name: string; }) => {
+      const config = configs.find((c: PaymentConfig) => String(c.classId) === String(grade.id));
       return {
         classId: String(grade.id),
         className: grade.name,
