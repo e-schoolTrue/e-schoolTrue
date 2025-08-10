@@ -1,22 +1,42 @@
-import { Between, Repository, Not, IsNull } from 'typeorm';
+import { Between, Repository, Not, IsNull, DeepPartial } from 'typeorm';
 import { AbsenceEntity } from '../entities/absence';
 import { AppDataSource } from '../../data-source';
-import { ResultType } from '#electron/command';
 import { StudentEntity } from '../entities/students';
 import { GradeEntity } from '../entities/grade';
 import { FileService } from "./fileService";
 import { CourseEntity } from '../entities/course';
+import { 
+    IAbsenceData, 
+    IAbsenceStatistics, 
+    IAbsenceServiceParams, 
+    IAbsenceServiceResponse 
+} from '../types/absence';
+import { getCurrentSupabaseUserId } from '../lib/session';
+
+interface FileUpload {
+    content: string;
+    name: string;
+    type: string;
+}
 
 export class AbsenceService {
     private absenceRepository: Repository<AbsenceEntity>;
     private fileService: FileService;
+
+    private mapToIAbsenceData(entity: AbsenceEntity): IAbsenceData {
+        return {
+            ...entity,
+            type: entity.type as 'STUDENT' | 'PROFESSOR'
+        };
+    }
 
     constructor() {
         this.absenceRepository = AppDataSource.getInstance().getRepository(AbsenceEntity);
         this.fileService = new FileService();
     }
 
-    async addAbsence(absenceData: any): Promise<ResultType> {
+    async addAbsence(absenceData: IAbsenceServiceParams['addAbsence']): Promise<IAbsenceServiceResponse> {
+        const UserId = getCurrentSupabaseUserId();
         try {
             console.log('=== Service - Début addAbsence ===');
             console.log('Données reçues:', absenceData);
@@ -56,13 +76,25 @@ export class AbsenceService {
                 };
             }
 
-            // Créer l'absence avec les relations
+            // Gérer d'abord le document justificatif si présent
+            let documentEntity = null;
+            if (absenceData.document) {
+                const documentData = absenceData.document as unknown as FileUpload;
+                const savedDocument = await this.fileService.saveFile({
+                    content: documentData.content,
+                    name: documentData.name,
+                    type: documentData.type
+                });
+                documentEntity = savedDocument;
+            }
+
+            // Créer l'absence avec le document
             const newAbsence = absenceRepo.create({
                 date: new Date(absenceData.date),
                 reason: absenceData.reason,
                 reasonType: absenceData.reasonType,
                 absenceType: absenceData.absenceType,
-                justified: absenceData.justified,
+                justified: absenceData.justified || (documentEntity !== null),
                 startTime: absenceData.startTime || null,
                 endTime: absenceData.endTime || null,
                 comments: absenceData.comments || '',
@@ -70,22 +102,29 @@ export class AbsenceService {
                 student: student,
                 grade: grade,
                 course: absenceData.courseId ? { id: absenceData.courseId } as CourseEntity : undefined,
-                parentNotified: false
-            });
+                parentNotified: false,
+                document: documentEntity
+            } as DeepPartial<AbsenceEntity>);
 
             console.log('Nouvelle absence à sauvegarder:', newAbsence);
             const savedAbsence = await absenceRepo.save(newAbsence);
 
             // Recharger l'absence avec toutes les relations
-            const completeAbsence = await absenceRepo.findOneBy({
-                id: savedAbsence.id
+            const completeAbsence = await absenceRepo.findOne({
+                where: { id: savedAbsence.id },
+                relations: [
+                    'student',
+                    'grade',
+                    'course',
+                    'document'
+                ]
             });
 
             console.log('Absence sauvegardée avec relations:', completeAbsence);
 
             return {
                 success: true,
-                data: completeAbsence,
+                data: completeAbsence ? this.mapToIAbsenceData(completeAbsence) : null,
                 message: "Absence ajoutée avec succès",
                 error: null
             };
@@ -148,11 +187,7 @@ export class AbsenceService {
         });
     }
 
-    async getAbsenceStatistics(studentId: number): Promise<{
-        total: number;
-        justified: number;
-        unjustified: number;
-    }> {
+    async getAbsenceStatistics(studentId: number): Promise<IAbsenceStatistics> {
         const absences = await this.getAbsencesByStudent(studentId);
         const justified = absences.filter(a => a.justified).length;
 
@@ -163,7 +198,7 @@ export class AbsenceService {
         };
     }
 
-    async getRecentAbsences(limit: number = 5): Promise<ResultType> {
+    async getRecentAbsences(limit: number = 5): Promise<IAbsenceServiceResponse> {
         try {
             const absences = await this.absenceRepository.find({
                 relations: ['student'],
@@ -171,17 +206,9 @@ export class AbsenceService {
                 take: limit
             });
 
-            const formattedAbsences = absences.map((absence:any) => ({
-                id: absence.id,
-                studentName: absence.student ? `${absence.student.firstname} ${absence.student.lastname}` : 'N/A',
-                date: absence.date,
-                reason: absence.reason,
-                justified: absence.justified
-            }));
-
             return {
                 success: true,
-                data: formattedAbsences,
+                data: absences.map(absence => this.mapToIAbsenceData(absence)),
                 message: "Absences récentes récupérées avec succès",
                 error: null
             };
@@ -195,35 +222,48 @@ export class AbsenceService {
         }
     }
 
-    async getAllAbsences(type: 'STUDENT' | 'PROFESSOR' = 'STUDENT'): Promise<ResultType> {
+    async getAllAbsences(type: 'STUDENT' | 'PROFESSOR' = 'STUDENT'): Promise<IAbsenceServiceResponse> {
         try {
-            console.log('=== Service - getAllAbsences - Type demandé ===', type);
-            
-            const queryBuilder = this.absenceRepository.createQueryBuilder('absence')
+            const absences = await this.absenceRepository.createQueryBuilder('absence')
                 .leftJoinAndSelect('absence.student', 'student')
                 .leftJoinAndSelect('absence.grade', 'grade')
                 .leftJoinAndSelect('absence.course', 'course')
                 .leftJoinAndSelect('absence.professor', 'professor')
+                .leftJoinAndSelect('absence.document', 'document')
+                .leftJoinAndSelect('professor.teaching', 'teaching')
+                .leftJoinAndSelect('teaching.course', 'teachingCourse')
+                .leftJoinAndSelect('teaching.class', 'teachingClass')
+                .leftJoinAndSelect('teaching.grades', 'teachingGrades')
                 .where('absence.type = :type', { type })
                 .orderBy('absence.date', 'DESC')
-                .addOrderBy('absence.createdAt', 'DESC');
+                .addOrderBy('absence.created_at', 'DESC')
+                .getMany();
 
-            const absences = await queryBuilder.getMany();
-
-            console.log('=== Service - getAllAbsences - Requête effectuée ===');
-            console.log('Query SQL:', queryBuilder.getSql());
-            console.log('Paramètres:', queryBuilder.getParameters());
-            console.log('Nombre d\'absences trouvées:', absences.length);
-            console.log('Types des absences:', absences.map((a:any) => a.type));
+            console.log(`Absences de type ${type} récupérées: ${absences.length}`);
+            if (type === 'PROFESSOR' && absences.length > 0) {
+                const sample = absences[0];
+                console.log('Exemple d\'absence professeur:', {
+                    id: sample.id,
+                    professorId: sample.professor?.id,
+                    hasTeaching: !!sample.professor?.teaching && sample.professor.teaching.length > 0,
+                    teachingCount: sample.professor?.teaching?.length ?? 0,
+                    firstTeaching: sample.professor?.teaching?.[0] ? {
+                        id: sample.professor.teaching[0].id,
+                        hasCourse: !!sample.professor.teaching[0].course,
+                        hasClass: !!sample.professor.teaching[0].class,
+                        hasGrades: !!sample.professor.teaching[0].grades?.length
+                    } : null
+                });
+            }
 
             return {
                 success: true,
-                data: absences,
+                data: absences.map(absence => this.mapToIAbsenceData(absence)),
                 message: `Absences de type ${type} récupérées avec succès (${absences.length} trouvées)`,
                 error: null
             };
         } catch (error) {
-            console.error('=== Service - getAllAbsences - Erreur ===', error);
+            console.error(`Erreur lors de la récupération des absences de type ${type}:`, error);
             return {
                 success: false,
                 data: null,
@@ -233,19 +273,17 @@ export class AbsenceService {
         }
     }
 
-    async createProfessorAbsence(data: any): Promise<ResultType> {
+    async createProfessorAbsence(data: IAbsenceServiceParams['createProfessorAbsence']): Promise<IAbsenceServiceResponse> {
         try {
             let documentEntity = null;
 
-            // Gérer le document si présent
-            if (data.document) {
-                const savedDocument = await this.fileService.saveDocuments(
-                    [data.document],
-                    data.professorId
-                );
-                if (savedDocument.length > 0) {
-                    documentEntity = savedDocument[0];
-                }
+            if (data.document && data.professorId) {
+                const savedDocument = await this.fileService.saveFile({
+                    content: data.document.content,
+                    name: data.document.name,
+                    type: data.document.type
+                });
+                documentEntity = savedDocument;
             }
 
             const absence = this.absenceRepository.create({
@@ -259,12 +297,9 @@ export class AbsenceService {
                 professor: { id: data.professorId },
                 document: documentEntity || undefined,
                 type: 'PROFESSOR'
-            });
+            } as DeepPartial<AbsenceEntity>);
 
-            console.log('=== Service - createProfessorAbsence - Nouvelle absence ===', absence);
             const saved = await this.absenceRepository.save(absence);
-
-            // Charger l'absence avec toutes les relations
             const result = await this.absenceRepository.findOne({
                 where: { id: saved.id },
                 relations: ['professor', 'document']
@@ -272,12 +307,11 @@ export class AbsenceService {
 
             return {
                 success: true,
-                data: result,
+                data: result ? this.mapToIAbsenceData(result) : null,
                 message: "Absence enregistrée avec succès",
                 error: null
             };
         } catch (error) {
-            console.error("Erreur détaillée:", error);
             return {
                 success: false,
                 data: null,
@@ -287,8 +321,7 @@ export class AbsenceService {
         }
     }
 
-
-    async updateProfessorAbsence(data: any): Promise<ResultType> {
+    async updateProfessorAbsence(data: IAbsenceServiceParams['updateProfessorAbsence']): Promise<IAbsenceServiceResponse> {
         try {
             const absence = await this.absenceRepository.findOne({
                 where: { id: data.id },
@@ -306,18 +339,17 @@ export class AbsenceService {
 
             // Mise à jour des champs
             Object.assign(absence, {
-                startDate: data.startDate,
-                endDate: data.endDate,
+                startTime: data.startTime,
+                endTime: data.endTime,
                 reason: data.reason
             });
 
-            // Gérer le nouveau document si présent
             if (data.document) {
-                const savedDocument = await this.fileService.saveFile(
-                    data.document.content,
-                    data.document.name,
-                    data.document.type
-                );
+                const savedDocument = await this.fileService.saveFile({
+                    content: data.document.content,
+                    name: data.document.name,
+                    type: data.document.type
+                });
                 absence.document = savedDocument;
             }
 
@@ -325,7 +357,7 @@ export class AbsenceService {
 
             return {
                 success: true,
-                data: updated,
+                data: this.mapToIAbsenceData(updated),
                 message: "Absence mise à jour avec succès",
                 error: null
             };
@@ -339,7 +371,7 @@ export class AbsenceService {
         }
     }
 
-    async getAllProfessorAbsences(): Promise<ResultType> {
+    async getAllProfessorAbsences(): Promise<IAbsenceServiceResponse> {
         try {
             const absences = await this.absenceRepository.find({
                 where: { professor: { id: Not(IsNull()) } },
@@ -349,7 +381,7 @@ export class AbsenceService {
 
             return {
                 success: true,
-                data: absences,
+                data: absences.map(absence => this.mapToIAbsenceData(absence)),
                 message: "Absences récupérées avec succès",
                 error: null
             };
@@ -363,7 +395,7 @@ export class AbsenceService {
         }
     }
 
-    async deleteProfessorAbsence(id: number): Promise<ResultType> {
+    async deleteProfessorAbsence(id: number): Promise<IAbsenceServiceResponse> {
         try {
             const result = await this.absenceRepository.delete(id);
 

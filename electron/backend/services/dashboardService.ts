@@ -1,30 +1,29 @@
 import { AppDataSource } from "#electron/data-source";
 import { ResultType } from "#electron/command";
-import { StudentEntity } from "../entities/students";
 import { ProfessorEntity } from "../entities/professor";
 import { GradeEntity } from "../entities/grade";
 import { PaymentEntity } from "../entities/payment";
 import { AbsenceEntity } from "../entities/absence";
+import { IDashboardServiceResponse, IRecentPayment } from "../types/dashboard";
+import { StudentService } from "./studentService";
 
 export class DashboardService {
     async getTotalStudents(): Promise<ResultType> {
         try {
-            const dataSource = AppDataSource.getInstance();
-            const studentRepo = dataSource.getRepository(StudentEntity);
-            const count = await studentRepo.count();
-
+            const studentService = new StudentService();
+            const result = await studentService.getTotalStudents();
             return {
-                success: true,
-                data: count,
-                message: "Nombre total d'étudiants récupéré avec succès",
-                error: null
+                success: result.success,
+                data: result.data,
+                message: result.message ?? "",
+                error: result.error
             };
         } catch (error) {
             return {
                 success: false,
                 data: null,
-                message: "Erreur lors de la récupération du nombre d'étudiants",
-                error: error instanceof Error ? error.message : "Unknown error"
+                message: "Erreur lors de la récupération du nombre total d'étudiants",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
@@ -79,15 +78,15 @@ export class DashboardService {
             const paymentRepo = dataSource.getRepository(PaymentEntity);
             const payments = await paymentRepo.find({
                 relations: ['student'],
-                order: { createdAt: 'DESC' },
+                order: { created_at: 'DESC' },
                 take: limit
             });
 
-            const formattedPayments = payments.map((payment:any) => ({
+            const formattedPayments: IRecentPayment[] = payments.map(payment => ({
                 id: payment.id,
                 studentName: `${payment.student.firstname} ${payment.student.lastname}`,
                 amount: payment.amount,
-                date: payment.createdAt
+                date: payment.created_at
             }));
 
             return {
@@ -106,8 +105,6 @@ export class DashboardService {
         }
     }
 
-
-
     async getPaymentStats(): Promise<ResultType> {
         try {
             const dataSource = AppDataSource.getInstance();
@@ -118,13 +115,13 @@ export class DashboardService {
 
             const payments = await paymentRepo
                 .createQueryBuilder('payment')
-                .where('payment.createdAt >= :startDate', { startDate: lastSixMonths })
-                .andWhere('payment.createdAt <= :endDate', { endDate: new Date() })
-                .orderBy('payment.createdAt', 'ASC')
+                .where('payment.created_at >= :startDate', { startDate: lastSixMonths })
+                .andWhere('payment.created_at <= :endDate', { endDate: new Date() })
+                .orderBy('payment.created_at', 'ASC')
                 .getMany();
 
             const monthlyPayments = payments.reduce((acc: { [key: string]: number }, payment:any) => {
-                const month = new Date(payment.createdAt).toLocaleString('fr-FR', { month: 'long' });
+                    const month = new Date(payment.created_at).toLocaleString('fr-FR', { month: 'long' });
                 acc[month] = (acc[month] || 0) + payment.amount;
                 return acc;
             }, {});
@@ -160,8 +157,8 @@ export class DashboardService {
                 .leftJoinAndSelect('absence.grade', 'grade')
                 .leftJoinAndSelect('absence.student', 'student')
                 .leftJoinAndSelect('absence.professor', 'professor')
-                .where('absence.createdAt >= :startDate', { startDate: lastThreeMonths })
-                .andWhere('absence.createdAt <= :endDate', { endDate: new Date() })
+                .where('absence.created_at >= :startDate', { startDate: lastThreeMonths })
+                .andWhere('absence.created_at <= :endDate', { endDate: new Date() })
                 .getMany();
 
             console.log('Types des absences trouvées:', absences.map((a:any) => a.type));
@@ -195,7 +192,7 @@ export class DashboardService {
         }
     }
 
-    async getStats(): Promise<ResultType> {
+    async getStats(): Promise<IDashboardServiceResponse> {
         try {
             const [totalStudents, totalProfessors, totalClasses, recentPayments, recentAbsences] = 
                 await Promise.all([
@@ -214,7 +211,7 @@ export class DashboardService {
                         totalProfessors: totalProfessors.data || 0,
                         totalClasses: totalClasses.data || 0,
                         recentPayments: recentPayments.data || [],
-                        recentAbsences: recentAbsences.data || []
+                        recentAbsences: recentAbsences.data || {}
                     }
                 },
                 message: "Statistiques récupérées avec succès",
@@ -230,7 +227,7 @@ export class DashboardService {
                         totalProfessors: 0,
                         totalClasses: 0,
                         recentPayments: [],
-                        recentAbsences: []
+                        recentAbsences: {}
                     }
                 },
                 message: "Erreur lors de la récupération des statistiques",

@@ -16,29 +16,6 @@ interface DownloadProgress {
   transferred: number;
 }
 
-// Définir l'interface pour l'objet window.electron
-declare global {
-  interface Window {
-    electron: {
-      ipcRenderer: {
-        send(channel: string, ...args: any[]): void;
-        on(channel: string, listener: (...args: any[]) => void): () => void;
-        removeListener(channel: string, listener: (...args: any[]) => void): void;
-      };
-      autoUpdater: {
-        checkForUpdates(): Promise<{updateInfo: UpdateInfo}>;
-        downloadUpdate(): Promise<void>;
-        installUpdate(): Promise<void>;
-        onUpdateAvailable(callback: (info: UpdateInfo) => void): () => void;
-        onUpdateDownloaded(callback: (info: UpdateInfo) => void): () => void;
-        onDownloadProgress(callback: (progress: DownloadProgress) => void): () => void;
-        onError(callback: (error: Error) => void): () => void;
-      };
-    };
-  }
-}
-
-// Utiliser un objet d'état réactif pour regrouper toutes les propriétés
 const state = reactive({
   showUpdateAvailable: false,
   isDownloading: false,
@@ -120,7 +97,7 @@ const restartApp = async () => {
   if (isUpdateDownloaded.value) {
     state.isRestarting = true
     try {
-      await window.electron.autoUpdater.installUpdate()
+      await window.electronAPI.autoUpdater.installUpdate()
     } catch (_error) {
       console.error('Erreur lors de l\'installation de la mise à jour:', _error)
       const errorMessage = _error instanceof Error ? _error.message : 'Erreur inconnue'
@@ -132,7 +109,7 @@ const restartApp = async () => {
     // Si la mise à jour n'est pas encore téléchargée, la télécharger
     state.isDownloading = true
     try {
-      await window.electron.autoUpdater.downloadUpdate()
+      await window.electronAPI.autoUpdater.downloadUpdate()
     } catch (error) {
       console.error('Erreur lors du téléchargement de la mise à jour:', error)
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -149,7 +126,7 @@ const dismissUpdate = () => {
 
 onMounted(() => {
   // Écouter les événements de mise à jour
-  const { autoUpdater } = window.electron
+  const { autoUpdater } = window.electronAPI
   
   // Configurer les écouteurs d'événements
   const cleanupCallbacks = [

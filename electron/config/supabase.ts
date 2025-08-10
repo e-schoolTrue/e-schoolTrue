@@ -1,11 +1,29 @@
-// Créer un fichier de configuration pour Supabase
+import { ENV } from './env';
+
+// Configuration pour Supabase
 export const supabaseConfig = {
-    url: process.env.VITE_SUPABASE_URL || 'https://zycgkwzhikvdmcfcawfm.supabase.cohttps://zycgkwzhikvdmcfcawfm.supabase.co',
-    key: process.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5Y2drd3poaWt2ZG1jZmNhd2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUxMzA0MTUsImV4cCI6MjA1MDcwNjQxNX0.JzAeeNDnfk-gY1sHWPqaYHP6fIPOk6X8i4wQ9pxPSsU',
-    bucket: 'backups', // Le nom de votre bucket pour les sauvegardes
+    url: ENV.SUPABASE_URL,
+    key: ENV.SUPABASE_KEY,
+    bucket: 'school', // Le nom de votre bucket pour les sauvegardes
+    options: {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+        },
+        db: {
+            schema: 'public' as const
+        },
+        global: {
+            headers: {
+                'x-application-name': 'e-school'
+            }
+        }
+    }
 }; 
 
 // Validation de la configuration
 if (!supabaseConfig.url || !supabaseConfig.key) {
-    console.error('Erreur configuration');
+    console.error('Erreur: Configuration Supabase manquante');
+    throw new Error('Configuration Supabase invalide - Veuillez configurer les variables d\'environnement SUPABASE_URL et SUPABASE_KEY');
 }

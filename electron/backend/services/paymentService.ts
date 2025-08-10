@@ -1,17 +1,27 @@
 import { Repository } from 'typeorm';
 import { PaymentEntity } from '../entities/payment';
-import { PaymentConfigEntity} from '../entities/paymentConfig';
+import { PaymentConfigEntity } from '../entities/paymentConfig';
 import { AppDataSource } from '../../data-source';
 import { StudentEntity } from '../entities/students';
 import { ProfessorEntity } from '../entities/professor';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
 import { ScholarshipEntity } from '../entities/scholarship';
+import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse, IPaymentServiceParams } from '../types/payment';
 
-export interface ResultType {
+export interface ResultType<T = any> {
     success: boolean;
-    data: any;
+    data: T | null;
     message: string;
     error: string | null;
+}
+
+// Interface pour les données de paiement d'un étudiant
+export interface StudentPaymentResponse {
+    payments: PaymentEntity[];
+    baseAmount: number;
+    scholarshipPercentage: number;
+    scholarshipAmount: number;
+    adjustedAmount: number;
 }
 
 // Créer un type pour les données de paiement
@@ -23,7 +33,6 @@ type PaymentCreateData = Omit<PaymentEntity, 'id'> & {
 };
 
 export class PaymentService {
-    [x: string]: any;
     private paymentRepository: Repository<PaymentEntity>;
     private configRepository: Repository<PaymentConfigEntity>;
     private studentRepository: Repository<StudentEntity>;
@@ -45,7 +54,7 @@ export class PaymentService {
         if (!this.initialized) {
             const dataSource = AppDataSource.getInstance();
             if (!dataSource.isInitialized) {
-                await AppDataSource.initialize();
+                await AppDataSource.initialize(false);
             }
             this.paymentRepository = dataSource.getRepository(PaymentEntity);
             this.configRepository = dataSource.getRepository(PaymentConfigEntity);
@@ -57,7 +66,7 @@ export class PaymentService {
         }
     }
 
-    async saveConfig(configData: any): Promise<ResultType> {
+    async saveConfig(configData: IPaymentConfigData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
@@ -106,7 +115,7 @@ export class PaymentService {
         }
     }
 
-    async getConfigs(): Promise<ResultType> {
+    async getConfigs(): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             const configs = await this.configRepository.find();
@@ -135,7 +144,7 @@ export class PaymentService {
         }
     }
 
-    async addPayment(paymentData: Partial<PaymentEntity>): Promise<ResultType> {
+    async addPayment(paymentData: IPaymentData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
@@ -154,13 +163,24 @@ export class PaymentService {
 
             // Si une bourse est spécifiée, créer ou mettre à jour la bourse
             let activeScholarship = null;
-            if ((paymentData.scholarshipPercentage ?? 0) > 0) {
+            const scholarshipPercentage = Number(paymentData.annualScholarshipPercentage || paymentData.scholarshipPercentage || 0);
+            const scholarshipApplied = paymentData.scholarshipAppliedOnAnnual || scholarshipPercentage > 0;
+            
+            console.log('=== DEBUG BOURSE DANS addPayment ===');
+            console.log('paymentData.scholarshipAppliedOnAnnual:', paymentData.scholarshipAppliedOnAnnual);
+            console.log('paymentData.annualScholarshipPercentage:', paymentData.annualScholarshipPercentage);
+            console.log('scholarshipPercentage calculé:', scholarshipPercentage);
+            console.log('scholarshipApplied:', scholarshipApplied);
+            
+            if (scholarshipApplied && scholarshipPercentage > 0) {
+                console.log('Création de la bourse avec pourcentage:', scholarshipPercentage);
+                
                 // Désactiver les bourses existantes
                 await this.scholarshipRepository.update(
                     { 
                         studentId: student.id,
                         isActive: true,
-                        schoolYear: new Date().getFullYear().toString()
+                        schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
                     },
                     { isActive: false }
                 );
@@ -168,25 +188,28 @@ export class PaymentService {
                 // Créer la nouvelle bourse
                 const scholarship = this.scholarshipRepository.create({
                     studentId: student.id,
-                    percentage: paymentData.scholarshipPercentage,
+                    percentage: scholarshipPercentage,
                     schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
                     isActive: true,
-                    createdAt: new Date()
+                    created_at: new Date()
                 });
 
                 activeScholarship = await this.scholarshipRepository.save(scholarship);
                 console.log('Nouvelle bourse créée:', activeScholarship);
+            } else {
+                console.log('Aucune bourse à créer (scholarshipApplied:', scholarshipApplied, ', scholarshipPercentage:', scholarshipPercentage, ')');
             }
 
             // Créer le paiement avec la bourse
             const payment = this.paymentRepository.create({
                 ...paymentData,
-                scholarshipPercentage: Number(paymentData.scholarshipPercentage) || 0,
-                scholarshipAmount: Number(paymentData.scholarshipAmount) || 0,
-                adjustedAmount: Number(paymentData.adjustedAmount) || Number(paymentData.baseAmount) || 0,
-                baseAmount: Number(paymentData.baseAmount) || 0,
+                student: student,
+                scholarshipPercentage: scholarshipPercentage,
+                scholarshipAmount: Number(paymentData.annualScholarshipAmount || paymentData.scholarshipAmount) || 0,
+                adjustedAmount: Number(paymentData.annualAmountAfterScholarship || paymentData.adjustedAmount || paymentData.baseAmount) || 0,
+                baseAmount: Number(paymentData.baseAnnualAmount || paymentData.baseAmount) || 0,
                 scholarshipId: activeScholarship?.id || null,
-                createdAt: new Date()
+                created_at: new Date()
             } as PaymentCreateData);
 
             console.log('Paiement à sauvegarder:', payment);
@@ -211,13 +234,13 @@ export class PaymentService {
         }
     }
 
-    async getPayments(page: number = 1, limit: number = 10): Promise<ResultType> {
+    async getPayments(page: number = 1, limit: number = 10): Promise<IPaymentServiceResponse> {
         try {
             const [payments, total] = await this.paymentRepository.findAndCount({
                 relations: ['student', 'scholarship'],
                 skip: (page - 1) * limit,
                 take: limit,
-                order: { createdAt: 'DESC' }
+                order: { created_at: 'DESC' }
             });
 
             return {
@@ -236,185 +259,7 @@ export class PaymentService {
         }
     }
 
-    async getPaymentsByStudent(studentId: number): Promise<ResultType> {
-        try {
-            const payments = await this.paymentRepository.find({
-                where: { studentId },
-                relations: ['student', 'scholarship'],
-                order: { createdAt: 'DESC' }
-            });
-
-            // Récupérer la configuration de paiement
-            const student = await this.studentRepository.findOne({
-                where: { id: studentId },
-                relations: ['grade']
-            });
-
-            if (!student?.grade) {
-                throw new Error("Grade de l'étudiant non trouvé");
-            }
-
-            const config = await this.configRepository.findOne({
-                where: { classId: student.grade?.id?.toString() }
-            });
-
-            // Récupérer la bourse active
-            const activeScholarship = await this.scholarshipRepository.findOne({
-                where: {
-                    studentId,
-                    isActive: true,
-                    schoolYear: new Date().getFullYear().toString()
-                }
-            });
-
-            // Calculer les montants avec la bourse
-            const baseAmount = config?.annualAmount || 0;
-            const scholarshipPercentage = activeScholarship?.percentage || 0;
-            const scholarshipAmount = (baseAmount * scholarshipPercentage) / 100;
-            const adjustedAmount = baseAmount - scholarshipAmount;
-
-            return {
-                success: true,
-                data: {
-                    payments,
-                    baseAmount,
-                    scholarshipPercentage,
-                    scholarshipAmount,
-                    adjustedAmount
-                },
-                message: "Paiements récupérés avec succès",
-                error: null
-            };
-        } catch (error) {
-            console.error("Erreur dans getPaymentsByStudent:", error);
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération des paiements",
-                error: error instanceof Error ? error.message : "Unknown error"
-            };
-        }
-    }
-
-    async getConfigByClass(classId: number): Promise<ResultType> {
-        try {
-            await this.ensureRepositoriesInitialized();
-            
-            const config = await this.configRepository.findOne({
-                where: { classId: String(classId) }
-            });
-
-            if (!config) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Configuration non trouvée pour cette classe",
-                    error: "Configuration non trouvée"
-                };
-            }
-
-            return {
-                success: true,
-                data: config,
-                message: "Configuration récupérée avec succès",
-                error: null
-            };
-        } catch (error) {
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération de la configuration",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async getRemainingAmount(studentId: number): Promise<ResultType> {
-        try {
-            const student = await this.studentRepository.findOne({
-                where: { id: studentId },
-                relations: ['payments']
-            });
-    
-            if (!student) {
-                throw new Error("Étudiant non trouvé");
-            }
-    
-            if (!student.classId) {
-                throw new Error("L'étudiant n'est associé à aucune classe");
-            }
-    
-            // Maintenant TypeScript sait que classId est un number
-            const config = await this.configRepository.findOne({
-                where: { classId: String(student.classId) }
-            });
-    
-            if (!config) {
-                throw new Error("Configuration de paiement non trouvée");
-            }
-    
-            // Ajout d'une vérification pour s'assurer que payments existe
-            const payments = student.payments || [];
-            const totalPaid = payments.reduce((sum: any, payment: { amount: any; }) => {
-                return sum + (payment.amount || 0);
-            }, 0);
-    
-            const remaining = config.annualAmount - totalPaid;
-    
-            return {
-                success: true,
-                data: {
-                    totalAmount: config.annualAmount,
-                    totalPaid,
-                    remaining
-                },
-                message: "Montant restant calculé avec succès", 
-                error: null
-            };
-        } catch (error) {
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors du calcul du montant restant",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async getRecentPayments(limit: number = 5): Promise<ResultType> {
-        try {
-            const payments = await this.paymentRepository.find({
-                relations: ['student', 'scholarship'],
-                order: { createdAt: 'DESC' },
-                take: limit
-            });
-
-            const formattedPayments = payments.map(payment => ({
-                id: payment.id,
-                studentName: `${payment.student.firstname} ${payment.student.lastname}`,
-                amount: payment.amount,
-                scholarshipPercentage: payment.scholarshipPercentage,
-                scholarshipAmount: payment.scholarshipAmount,
-                date: payment.createdAt
-            }));
-
-            return {
-                success: true,
-                data: formattedPayments,
-                message: "Paiements récents récupérés avec succès",
-                error: null
-            };
-        } catch (error) {
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération des paiements récents",
-                error: error instanceof Error ? error.message : "Unknown error"
-            };
-        }
-    }
-
-    async addProfessorPayment(paymentData: any): Promise<ResultType> {
+    async addProfessorPayment(paymentData: IProfessorPaymentData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             
@@ -467,70 +312,267 @@ export class PaymentService {
         }
     }
 
-    async getProfessorPayments(filters: any): Promise<ResultType> {
+    async getPaymentsByStudent(studentId: number): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
+            console.log(`=== Récupération des paiements pour l'étudiant ID: ${studentId} ===`);
             
-            const queryBuilder = this.professorPaymentRepository
-                .createQueryBuilder('payment')
-                .leftJoinAndSelect('payment.professor', 'professor');
+            const payments = await this.paymentRepository.find({
+                where: { student: { id: studentId } },
+                relations: ['student', 'scholarship'],
+                order: { created_at: 'DESC' }
+            });
+            
+            console.log(`Paiements trouvés: ${payments.length}`);
 
-            // Appliquer les filtres
-            if (filters?.month) {
-                queryBuilder.andWhere('payment.month = :month', { month: filters.month });
-            }
-
-            if (filters?.status) {
-                queryBuilder.andWhere('payment.isPaid = :isPaid', { 
-                    isPaid: filters.status === 'paid' 
+            // Récupérer les informations de bourse active et configuration de paiement
+            const student = await this.studentRepository.findOne({
+                where: { id: studentId },
+                relations: ['grade', 'scholarship']
+            });
+            
+            let baseAmount = 0;
+            let scholarshipPercentage = 0;
+            let scholarshipAmount = 0;
+            let adjustedAmount = 0;
+            
+            if (student?.grade?.id) {
+                console.log(`Étudiant trouvé avec grade ID: ${student.grade.id}`);
+                
+                // Récupérer la configuration de paiement
+                const config = await this.configRepository.findOne({
+                    where: { classId: student.grade.id.toString() }
                 });
+                
+                if (config) {
+                    console.log(`Configuration trouvée avec montant annuel: ${config.annualAmount}`);
+                    baseAmount = Number(config.annualAmount) || 0;
+                    
+                    // Récupérer la bourse active
+                    const activeScholarship = await this.scholarshipRepository.findOne({
+                        where: { 
+                            studentId,
+                            isActive: true,
+                            schoolYear: new Date().getFullYear().toString()
+                        }
+                    });
+                    
+                    if (activeScholarship) {
+                        console.log(`Bourse active trouvée avec pourcentage: ${activeScholarship.percentage}%`);
+                        scholarshipPercentage = Number(activeScholarship.percentage) || 0;
+                        scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
+                        adjustedAmount = baseAmount - scholarshipAmount;
+                    } else {
+                        console.log('Aucune bourse active trouvée');
+                        adjustedAmount = baseAmount;
+                    }
+                } else {
+                    console.log('Aucune configuration trouvée pour cette classe');
+                }
+            } else {
+                console.log('Étudiant sans grade ou non trouvé');
             }
-
-            const payments = await queryBuilder
-                .orderBy('payment.createdAt', 'DESC')
-                .getMany();
+            
+            console.log('Données de réponse préparées:', {
+                baseAmount,
+                scholarshipPercentage,
+                scholarshipAmount,
+                adjustedAmount,
+                paymentsCount: payments.length
+            });
 
             return {
                 success: true,
-                data: payments,
-                message: "Liste des paiements récupérée avec succès",
+                data: {
+                    payments,
+                    baseAmount,
+                    scholarshipPercentage,
+                    scholarshipAmount,
+                    adjustedAmount
+                },
+                message: "Paiements récupérés avec succès",
                 error: null
             };
         } catch (error) {
-            console.error('Erreur lors de la récupération des paiements:', error);
+            console.error(`Erreur lors de la récupération des paiements pour l'étudiant ${studentId}:`, error);
             return {
                 success: false,
-                data: [],
+                data: null,
                 message: "Erreur lors de la récupération des paiements",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
 
-    async getProfessorPaymentStats(): Promise<ResultType> {
+    async getConfigByClass(classId: string): Promise<IPaymentServiceResponse> {
         try {
-            const totalPaid = await this.professorPaymentRepository
-                .createQueryBuilder("payment")
-                .where("payment.isPaid = :isPaid", { isPaid: true })
-                .select("SUM(payment.amount)", "total")
-                .getRawOne();
-
-            const totalPending = await this.professorPaymentRepository
-                .createQueryBuilder("payment")
-                .where("payment.isPaid = :isPaid", { isPaid: false })
-                .select("SUM(payment.amount)", "total")
-                .getRawOne();
+            await this.ensureRepositoriesInitialized();
+            const config = await this.configRepository.findOne({
+                where: { classId }
+            });
 
             return {
                 success: true,
-                data: {
-                    totalPaid: totalPaid?.total || 0,
-                    totalPending: totalPending?.total || 0
-                },
+                data: config,
+                message: "Configuration récupérée avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération de la configuration",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getRemainingAmount(studentId: number): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            const student = await this.studentRepository.findOne({
+                where: { id: studentId },
+                relations: ['grade']
+            });
+
+            if (!student || !student.grade) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Étudiant ou classe non trouvé",
+                    error: "STUDENT_OR_GRADE_NOT_FOUND"
+                };
+            }
+
+            const config = await this.configRepository.findOne({
+                where: { classId: student.grade.id?.toString() || '0' }
+            });
+
+            if (!config) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Configuration de paiement non trouvée",
+                    error: "PAYMENT_CONFIG_NOT_FOUND"
+                };
+            }
+
+            const payments = await this.paymentRepository.find({
+                where: { student: { id: studentId } }
+            });
+
+            const totalPaid = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+            const remaining = Number(config.annualAmount) - totalPaid;
+
+            return {
+                success: true,
+                data: { remaining },
+                message: "Montant restant calculé avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors du calcul du montant restant",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async updateProfessorPayment(paymentData: IPaymentServiceParams['updateProfessorPayment']): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            const payment = await this.professorPaymentRepository.findOne({
+                where: { id: paymentData.id }
+            });
+
+            if (!payment) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Paiement non trouvé",
+                    error: "PAYMENT_NOT_FOUND"
+                };
+            }
+
+            Object.assign(payment, paymentData);
+            const updatedPayment = await this.professorPaymentRepository.save(payment);
+
+            return {
+                success: true,
+                data: updatedPayment,
+                message: "Paiement mis à jour avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la mise à jour du paiement",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getProfessorPayments(filters: any): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            const payments = await this.professorPaymentRepository.find({
+                where: filters,
+                relations: ['professor'],
+                order: { month: 'DESC' }
+            });
+
+            return {
+                success: true,
+                data: payments,
+                message: "Paiements récupérés avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des paiements",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getProfessorPaymentStats(): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            // Calculer le total des paiements
+            const totalPaidResult = await this.professorPaymentRepository
+                .createQueryBuilder('payment')
+                .select('SUM(payment.amount)', 'totalPaid')
+                .where('payment.isPaid = :isPaid', { isPaid: true })
+                .getRawOne();
+
+            // Calculer le total en attente
+            const totalPendingResult = await this.professorPaymentRepository
+                .createQueryBuilder('payment')
+                .select('SUM(payment.amount)', 'totalPending')
+                .where('payment.isPaid = :isPaid', { isPaid: false })
+                .getRawOne();
+
+            const stats = {
+                totalPaid: Number(totalPaidResult?.totalPaid || 0),
+                totalPending: Number(totalPendingResult?.totalPending || 0)
+            };
+
+            console.log('Statistiques des paiements calculées:', stats);
+
+            return {
+                success: true,
+                data: stats,
                 message: "Statistiques récupérées avec succès",
                 error: null
             };
         } catch (error) {
+            console.error('Erreur lors du calcul des statistiques:', error);
             return {
                 success: false,
                 data: null,
@@ -540,37 +582,9 @@ export class PaymentService {
         }
     }
 
-    async getTotalProfessors(): Promise<ResultType> {
+    async getProfessorPaymentById(paymentId: number): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            
-            const count = await this.professorRepository
-                .createQueryBuilder('professor')
-                .getCount();
-
-            console.log('Nombre total de professeurs:', count);
-
-            return {
-                success: true,
-                data: count,
-                message: "Nombre total de professeurs récupéré avec succès",
-                error: null
-            };
-        } catch (error) {
-            console.error('Erreur lors du comptage des professeurs:', error);
-            return {
-                success: false,
-                data: 0,
-                message: "Erreur lors du comptage des professeurs",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async getProfessorPaymentById(paymentId: number): Promise<ResultType> {
-        try {
-            await this.ensureRepositoriesInitialized();
-            
             const payment = await this.professorPaymentRepository.findOne({
                 where: { id: paymentId },
                 relations: ['professor']
@@ -581,7 +595,7 @@ export class PaymentService {
                     success: false,
                     data: null,
                     message: "Paiement non trouvé",
-                    error: "Payment not found"
+                    error: "PAYMENT_NOT_FOUND"
                 };
             }
 
@@ -596,108 +610,16 @@ export class PaymentService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la récupération du paiement",
-                error: error instanceof Error ? error.message : "Unknown error"
+                error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
     }
 
-    async updateProfessorPayment(paymentData: any): Promise<ResultType> {
+    async getActiveByStudent(studentId: number): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-
-            const payment = await this.professorPaymentRepository.findOne({
-                where: { id: paymentData.id },
-                relations: ['professor']
-            });
-
-            if (!payment) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Paiement non trouvé",
-                    error: "PAYMENT_NOT_FOUND"
-                };
-            }
-
-            // Mettre à jour les champs modifiables
-            Object.assign(payment, {
-                isPaid: paymentData.isPaid,
-                amount: paymentData.amount,
-                type: paymentData.type,
-                paymentMethod: paymentData.paymentMethod,
-                month: paymentData.month,
-                reference: paymentData.reference,
-                comment: paymentData.comment,
-                // Ajout des champs manquants
-                grossAmount: paymentData.grossAmount,
-                netAmount: paymentData.netAmount,
-                deductions: paymentData.deductions || [],
-                additions: paymentData.additions || []
-            });
-
-            const savedPayment = await this.professorPaymentRepository.save(payment);
-
-            return {
-                success: true,
-                data: savedPayment,
-                message: "Paiement mis à jour avec succès",
-                error: null
-            };
-        } catch (error) {
-            console.error('Erreur détaillée:', error);
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la mise à jour du paiement",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    calculateAmountWithScholarship(amount: number, scholarshipPercentage: number): number {
-        if (scholarshipPercentage <= 0 || scholarshipPercentage > 100) {
-            return amount;
-        }
-        return amount * (1 - scholarshipPercentage / 100);
-    }
-
-    async assignScholarship(data: {
-        studentId: number;
-        configId: number;
-        percentage: number;
-        reason?: string;
-    }): Promise<ResultType> {
-        try {
-            const scholarship = this.scholarshipRepository.create({
-                studentId: data.studentId,
-                percentage: data.percentage,
-                reason: data.reason,
-                schoolYear: new Date().getFullYear().toString(),
-                isActive: true
-            });
-
-            await this.scholarshipRepository.save(scholarship);
-
-            return {
-                success: true,
-                data: scholarship,
-                message: "Bourse attribuée avec succès",
-                error: null
-            };
-        } catch (error) {
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de l'attribution de la bourse",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async getActiveScholarship(studentId: number): Promise<ResultType> {
-        try {
             const scholarship = await this.scholarshipRepository.findOne({
-                where: {
+                where: { 
                     studentId,
                     isActive: true,
                     schoolYear: new Date().getFullYear().toString()
@@ -707,104 +629,39 @@ export class PaymentService {
             return {
                 success: true,
                 data: scholarship,
-                message: "Bourse récupérée avec succès",
+                message: "Bourse active récupérée avec succès",
                 error: null
             };
         } catch (error) {
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération de la bourse",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async getByStudent(studentId: number): Promise<ResultType> {
-        try {
-            const student = await this.studentRepository.findOne({
-                where: { id: studentId },
-                relations: ['grade', 'scholarship']
-            });
-
-            if (!student) {
-                throw new Error('Étudiant non trouvé');
-            }
-
-            const payments = await this.paymentRepository.find({
-                where: { studentId },
-                relations: ['scholarship'],
-                order: { createdAt: 'DESC' }
-            });
-
-            const config = await this.configRepository.findOne({
-                where: { classId: student.grade?.id?.toString() }
-            });
-
-            if (!config) {
-                throw new Error('Configuration de paiement non trouvée');
-            }
-
-            const activeScholarship = student.scholarship?.find(s => 
-                s.isActive && s.schoolYear === new Date().getFullYear().toString()
-            );
-
-            const baseAmount = config.annualAmount;
-            const scholarshipPercentage = activeScholarship?.percentage || 0;
-            const scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
-            const adjustedAmount = baseAmount - scholarshipAmount;
-
-            return {
-                success: true,
-                data: {
-                    payments,
-                    baseAmount,
-                    scholarshipPercentage,
-                    scholarshipAmount,
-                    adjustedAmount,
-                    config
-                },
-                message: "Paiements récupérés avec succès",
-                error: null
-            };
-        } catch (error) {
-            console.error("Erreur lors de la récupération des paiements:", error);
-            return {
-                success: false,
-                data: null,
-                message: "Erreur lors de la récupération des paiements",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
-            };
-        }
-    }
-
-    async getActiveByStudent(studentId: number): Promise<ResultType> {
-        try {
-            await this.ensureRepositoriesInitialized();
-            
-            const scholarship = await this.scholarshipRepository.findOne({
-                where: {
-                    studentId,
-                    isActive: true,
-                    schoolYear: new Date().getFullYear().toString()
-                }
-            });
-
-            console.log(`=== Bourse active pour l'étudiant ${studentId} ===`);
-            console.log('Bourse trouvée:', scholarship);
-
-            return {
-                success: true,
-                data: scholarship,
-                message: scholarship ? "Bourse active trouvée" : "Aucune bourse active",
-                error: null
-            };
-        } catch (error) {
-            console.error("Erreur lors de la récupération de la bourse active:", error);
             return {
                 success: false,
                 data: null,
                 message: "Erreur lors de la récupération de la bourse active",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getRecentPayments(limit: number): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            const payments = await this.paymentRepository.find({
+                relations: ['student'],
+                order: { created_at: 'DESC' },
+                take: limit
+            });
+
+            return {
+                success: true,
+                data: payments,
+                message: "Paiements récents récupérés avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des paiements récents",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }

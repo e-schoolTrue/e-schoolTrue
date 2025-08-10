@@ -256,8 +256,6 @@ const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('fr-FR');
 };
 
-
-
 const loadHomework = async () => {
   if (!selectedGrade.value) return;
   
@@ -369,7 +367,6 @@ const handleSelectionChange = (selection: any[]) => {
   notifyForm.value.selectedStudents = selection;
 };
 
-
 // Computed pour filtrer les devoirs
 const filteredHomework = computed(() => {
   let filtered = [...homework.value];
@@ -459,14 +456,24 @@ const notifyStudents = async () => {
     notifyDialogVisible.value = false;
     
     // Pour la démo, on peut quand même simuler un succès
+    // Créer une version simplifiée des objets à envoyer pour éviter l'erreur de clonage
+    const simplifiedStudents = notifyForm.value.selectedStudents.map(student => ({
+      id: student.id,
+      firstname: student.firstname,
+      lastname: student.lastname,
+      phone: student.phone,
+      // Inclure uniquement les propriétés nécessaires
+    }));
+    
     await window.ipcRenderer.invoke('homework:notify', {
       homeworkId: selectedHomework.value?.id,
-      students: notifyForm.value.selectedStudents
+      students: simplifiedStudents,
+      message: notifyForm.value.message
     });
     
   } catch (error) {
     console.error('Erreur:', error);
-    ElMessage.error('Une erreur est survenue');
+    ElMessage.error('Une erreur est survenue: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
   }
 };
 </script>

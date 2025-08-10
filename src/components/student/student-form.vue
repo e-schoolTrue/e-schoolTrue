@@ -1,42 +1,22 @@
-export interface StudentFormInstance {
-  resetForm: () => void;
-}
-
 <script lang="ts">
-// Définir l'interface avant le setup
+
 export interface StudentFormInstance {
   resetForm: () => void;
 }
 </script>
 
 <script setup lang="ts">
-import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted} from 'vue';
+import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted, watch} from 'vue';
 import { ElMessage } from 'element-plus';
+import type { IStudentData } from '@/types/student';
 
+export interface StudentFormInstance {
+  resetForm: () => void;
+}
 
 interface ClassItem {
   id: number;
   name: string;
-}
-
-// Définition de l'interface StudentData
-interface StudentData {
-  firstname: string;
-  lastname: string;
-  birthDay: Date | null;
-  birthPlace: string;
-  address: string;
-  gradeId: number | null; 
-  fatherFirstname: string;
-  fatherLastname: string;
-  motherFirstname: string;
-  motherLastname: string;
-  famillyPhone: string;
-  personalPhone: string;
-  photo: StudentFile | null;
-  documents: StudentFile[];
-  sex: 'male' | 'female';
-  schoolYear: string;
 }
 
 const props = defineProps({
@@ -45,7 +25,7 @@ const props = defineProps({
     required: true
   },
   studentData: {
-    type: Object as PropType<Partial<StudentData>>,
+    type: Object as PropType<Partial<IStudentData>>,
     default: () => ({})
   },
   disabled: {
@@ -54,24 +34,17 @@ const props = defineProps({
   }
 });
 
-interface StudentFile {
-  name: string;
-  type: string;
-  size: number;
-  content: string;  // Changé pour string (base64)
-}
-
 // État de l'étape actuelle
 const currentStep = ref(0);
 
 // État des données de formulaire
-const formData = reactive<StudentData>({
+const formData = reactive<IStudentData>({
   firstname: '',
   lastname: '',
   birthDay: null,
   birthPlace: '',
   address: '',
-  gradeId: null, 
+  gradeId: undefined,
   fatherFirstname: '',
   fatherLastname: '',
   motherFirstname: '',
@@ -82,11 +55,33 @@ const formData = reactive<StudentData>({
   documents: [],
   sex: 'male',
   schoolYear: '',
-  ...props.studentData, // Fusionner avec les données existantes, si fournies
 });
 
+// Observer les changements de props.studentData et mettre à jour formData en conséquence
+watch(
+  () => props.studentData,
+  (newData) => {
+    if (newData && Object.keys(newData).length > 0) {
+      console.log('Mise à jour formData avec:', newData);
+      // Mettre à jour formData avec les nouvelles données
+      Object.keys(newData).forEach(key => {
+        if (key in formData) {
+          if (key === 'grade' && newData.grade?.id) {
+            formData.gradeId = newData.grade.id;
+          } else {
+            // @ts-ignore - Ignorer les erreurs de type ici car nous vérifions que la clé existe
+            formData[key] = newData[key] || ''; // Utiliser une chaîne vide comme valeur par défaut pour les champs optionnels
+          }
+        }
+      });
+      console.log('formData après mise à jour:', formData);
+    }
+  },
+  { immediate: true, deep: true }
+);
+
 const emit = defineEmits<{
-  (e: 'save', data: StudentData): void
+  (e: 'save', data: IStudentData): void
 }>();
 
 // Gérer les étapes "Suivant" et "Précédent"
@@ -102,8 +97,30 @@ const previousStep = () => {
   }
 };
 
+// Validation des champs obligatoires uniquement
+const validateRequiredFields = () => {
+  if (!formData.firstname?.trim()) {
+    ElMessage.error('Le prénom est obligatoire');
+    return false;
+  }
+  if (!formData.lastname?.trim()) {
+    ElMessage.error('Le nom est obligatoire');
+    return false;
+  }
+  if (!formData.gradeId) {
+    ElMessage.error('La classe est obligatoire');
+    return false;
+  }
+  return true;
+};
+
+// Mise à jour de la fonction saveData pour utiliser la nouvelle validation
 const saveData = () => {
   console.log("Données brutes à sauvegarder:", formData);
+  
+  if (!validateRequiredFields()) {
+    return;
+  }
   
   // Fonction pour nettoyer l'objet
   const cleanObject = (obj: any) => {
@@ -112,7 +129,6 @@ const saveData = () => {
       if (value instanceof Date) {
         cleanedObj[key] = value.toISOString();
       } else if (Array.isArray(value)) {
-        // Traiter spécifiquement les tableaux
         cleanedObj[key] = value.map(item => {
           if (typeof item === 'object' && item !== null) {
             return cleanObject(item);
@@ -175,7 +191,7 @@ const resetForm = () => {
     birthDay: null,
     birthPlace: '',
     address: '',
-    gradeId: null,
+    gradeId: undefined,
     fatherFirstname: '',
     fatherLastname: '',
     motherFirstname: '',

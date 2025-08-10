@@ -4,11 +4,12 @@ import {
   Entity,
   OneToOne,
   PrimaryGeneratedColumn,
-  BeforeInsert,
   JoinColumn,
   OneToMany,
   UpdateDateColumn,
   ManyToOne,
+  Index,
+  DeleteDateColumn,
 } from "typeorm";
 
 import { FileEntity } from "./file";
@@ -18,18 +19,24 @@ import { PaymentEntity } from "./payment";
 import { ScholarshipEntity } from "./scholarship";
 
 @Entity("T_student")
+@Index(["firstname", "lastname", "birthDay"], { unique: true })
 export class StudentEntity {
   [x: string]: any;
   @PrimaryGeneratedColumn()
   id!: number;
 
+   // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+   @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+   remote_id?: string;
+   @Column({ type: "varchar", length: 36, nullable: true })
+   user_id?: string;
   @Column({ type: "text" })
   firstname?: string;
 
   @Column({ type: "text" })
   lastname?: string;
 
-  @Column({ type: "text" })
+  @Column({ type: "text", unique: true })
   matricule?: string;
 
   @Column({ type: "text" })
@@ -45,7 +52,10 @@ export class StudentEntity {
   motherLastname?: string;
 
   @CreateDateColumn()
-  createdAt?: Date;
+  created_at?: Date;
+
+  @DeleteDateColumn()
+  deleted_at?: Date;
 
   // Relation avec FileEntity pour le document
   @OneToOne(() => FileEntity)
@@ -78,14 +88,28 @@ export class StudentEntity {
   @Column({ type: "text" })
   personalPhone?: string;
  
-
-  @BeforeInsert()
-  generateMatricule() {
-    const currentYear = new Date().getFullYear();
+  /**
+   * Méthode statique pour générer un matricule
+   * Cette méthode sera appelée depuis le service, pas directement dans l'entité
+   */
+  static generateMatricule(schoolName?: string): string {
+    // Générer les initiales de l'école (2-3 lettres)
+    let schoolPrefix = "STD";
+    if (schoolName) {
+      // Extraire les initiales (première lettre de chaque mot)
+      const words = schoolName.split(/\s+/);
+      schoolPrefix = words
+        .map((word: string) => word.charAt(0).toUpperCase())
+        .join('')
+        .substring(0, 3); // Limiter à 3 caractères maximum
+    }
+    
+    const currentYear = new Date().getFullYear().toString().substring(2); // Prendre seulement les 2 derniers chiffres
     const randomPart = Math.floor(Math.random() * 10000)
       .toString()
       .padStart(4, "0");
-    this.matricule = `${currentYear}${randomPart}`;
+      
+    return `${schoolPrefix}-S${currentYear}${randomPart}`;
   }
 
   @Column({ type: "text", nullable: true })
@@ -112,7 +136,7 @@ export class StudentEntity {
   payments!: PaymentEntity[];
 
   @UpdateDateColumn()
-  updatedAt?: Date;
+  updated_at?: Date;
 
   @OneToMany(() => ScholarshipEntity, scholarship => scholarship.student)
   scholarship!: ScholarshipEntity[];

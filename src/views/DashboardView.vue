@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { Chart, registerables } from 'chart.js';
@@ -29,11 +29,18 @@ const paymentChartRef = ref<HTMLCanvasElement | null>(null);
 const absenceChartRef = ref<HTMLCanvasElement | null>(null);
 const { currency } = useCurrency();
 
+const recentAbsencesDisplay = computed(() => {
+  const absences = stats.value?.stats?.recentAbsences;
+  return Array.isArray(absences) ? absences.slice(0, 5) : [];
+});
+
 const loadDashboardStats = async () => {
   try {
     const statsResult = await window.ipcRenderer.invoke('dashboard:stats');
+    console.log('Résultat stats:', statsResult);
     
     if (statsResult?.success && statsResult.data) {
+      console.log('Stats data structure:', JSON.stringify(statsResult.data));
       stats.value = {
         school: statsResult.data.school || {},
         stats: {
@@ -44,14 +51,19 @@ const loadDashboardStats = async () => {
           recentAbsences: statsResult.data.stats.recentAbsences || []
         }
       };
+      console.log('Stats après traitement:', stats.value);
     }
 
     const [paymentStats, absenceStats] = await Promise.all([
       window.ipcRenderer.invoke('dashboard:paymentStats'),
       window.ipcRenderer.invoke('dashboard:absenceStats')
     ]);
+    
+    console.log('Résultat paymentStats:', paymentStats);
+    console.log('Résultat absenceStats:', absenceStats);
 
     if (paymentStats.success && paymentChartRef.value) {
+      console.log('Construction du graphique de paiement avec:', paymentStats.data);
       new Chart(paymentChartRef.value, {
         type: 'line',
         data: {
@@ -188,6 +200,61 @@ onMounted(() => {
           </el-card>
         </el-col>
       </el-row>
+      <!-- Activités récentes -->
+<el-row :gutter="20" style="margin-bottom: 32px">
+  <el-col :span="12">
+    <el-card class="activity-card">
+      <template #header>
+        <div class="card-header">
+          <h3>
+            <Icon icon="mdi:cash" />
+            Paiements récents
+          </h3>
+        </div>
+      </template>
+      <div class="activity-list">
+        <div
+          class="activity-item"
+          v-for="(payment, index) in stats?.stats.recentPayments.slice(0, 5)"
+          :key="index"
+        >
+          <div class="activity-details">
+            <strong>{{ payment.studentName }}</strong>
+            <span>{{ new Intl.NumberFormat('fr-FR').format(payment.amount) }} {{ currency }}</span>
+            <span>{{ new Date(payment.date).toLocaleDateString() }}</span>
+          </div>
+        </div>
+      </div>
+    </el-card>
+  </el-col>
+
+  <el-col :span="12">
+    <el-card class="activity-card">
+      <template #header>
+        <div class="card-header">
+          <h3>
+            <Icon icon="mdi:alert-octagon" />
+            Absences récentes
+          </h3>
+        </div>
+      </template>
+      <div class="activity-list">
+        <div
+          class="activity-item"
+          v-for="(absence, index) in recentAbsencesDisplay"
+          :key="index"
+        >
+          <div class="activity-details">
+            <strong>{{ absence.studentName }}</strong>
+            <span>Classe : {{ absence.className }}</span>
+            <span>{{ new Date(absence.date).toLocaleDateString() }}</span>
+          </div>
+        </div>
+      </div>
+    </el-card>
+  </el-col>
+</el-row>
+
     </div>
   </div>
 </template>

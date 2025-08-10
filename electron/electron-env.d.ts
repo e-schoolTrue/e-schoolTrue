@@ -21,12 +21,49 @@ declare namespace NodeJS {
   }
 }
 
-// Used in Renderer process, expose in `preload.ts`
-interface Window {
-  ipcRenderer: {
-    on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void): void;
-    off(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void): void;
-    send(channel: string, ...args: any[]): Promise<void>;
-    invoke(channel: string, ...args: any[]): Promise<any>;
+// Définir les interfaces pour les événements de mise à jour
+interface UpdateInfo {
+  version: string;
+  releaseNotes?: string;
+  releaseDate?: string;
+  downloaded?: boolean;
+}
+
+interface DownloadProgress {
+  percent: number;
+  bytesPerSecond: number;
+  total: number;
+  transferred: number;
+}
+
+
+interface IpcRenderer {
+  on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void): void;
+  off(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void): void;
+  send(channel: string, ...args: any[]): Promise<void>;
+  invoke(channel: string, ...args: any[]): Promise<any>;
+}
+
+interface ElectronAPI {
+  isElectron: boolean;
+  print: (options: any) => Promise<boolean>;
+  printStudentCards: (data: any) => Promise<any>;
+  showItemInFolder: (filePath: string) => Promise<boolean>;
+  autoUpdater: {
+    checkForUpdates(): Promise<{updateInfo: UpdateInfo}>;
+    downloadUpdate(): Promise<void>;
+    installUpdate(): Promise<void>;
+    onUpdateAvailable(callback: (info: UpdateInfo) => void): () => void;
+    onUpdateDownloaded(callback: (info: UpdateInfo) => void): () => void;
+    onDownloadProgress(callback: (progress: DownloadProgress) => void): () => void;
+    onError(callback: (error: Error) => void): () => void;
+  };
+}
+
+declare global {
+  interface Window {
+    ipcRenderer: IpcRenderer;
+    electronAPI: ElectronAPI;
   }
 }
+export {}; 

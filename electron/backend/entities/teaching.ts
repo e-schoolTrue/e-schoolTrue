@@ -1,16 +1,21 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, JoinColumn, DeleteDateColumn, UpdateDateColumn, CreateDateColumn } from "typeorm";
 import { ProfessorEntity } from "./professor";
 import { GradeEntity } from "./grade";
 import { CourseEntity } from "./course";
-import { TEACHING_TYPE } from "#electron/command";
+import { TEACHING_TYPE } from "../../command";
 
 @Entity("teaching_assignment")
 export class TeachingAssignmentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
+     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+     remote_id?: string;
+     @Column({ type: "varchar", length: 36, nullable: true })
+     user_id?: string;
     @ManyToOne(() => ProfessorEntity, { onDelete: 'CASCADE' })
-    @JoinColumn()
+    @JoinColumn({ name: "professorId" })
     professor!: ProfessorEntity;
 
     @Column({ type: 'varchar' })
@@ -40,4 +45,11 @@ export class TeachingAssignmentEntity {
 
     @Column({ type: 'varchar', nullable: true })
     gradeNames?: string;
+
+    @DeleteDateColumn()
+    deleted_at?: Date;
+    @CreateDateColumn()
+    created_at?: Date;
+    @UpdateDateColumn()
+    updated_at?: Date;
 } 

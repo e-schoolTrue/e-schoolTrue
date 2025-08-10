@@ -73,6 +73,11 @@ interface AbsenceSubmitData {
   courseId: number | null;
   comments: string;
   justificationDocument?: string;
+  document?: {
+    content: string;
+    name: string;
+    type: string;
+  };
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -269,11 +274,9 @@ const handleSubmit = async () => {
 
     const student = students.value.find(s => s.id === form.value.studentId);
     if (!student || !student.grade) {
-      ElMessage.error("Informations de l'étudiant incomplètes");
-      return;
+      throw new Error("Informations de l'étudiant incomplètes");
     }
 
-    // Créer un objet simple sans méthodes ou références circulaires
     const submitData: AbsenceSubmitData = {
       studentId: student.id,
       gradeId: student.grade.id,
@@ -288,20 +291,21 @@ const handleSubmit = async () => {
       comments: form.value.comments.trim()
     };
 
-    // Gérer le fichier justificatif si présent
+    // Gestion du document en une seule fois
     if (selectedFile.value?.raw) {
-      const fileResult = await window.ipcRenderer.invoke('file:upload', {
-        file: selectedFile.value.raw,
+      const fileBuffer = await selectedFile.value.raw.arrayBuffer();
+      submitData.document = {
+        content: btoa(
+          new Uint8Array(fileBuffer)
+            .reduce((data, byte) => data + String.fromCharCode(byte), '')
+        ),
+        name: selectedFile.value.raw.name,
         type: 'JUSTIFICATION'
-      });
-
-      if (fileResult?.success) {
-        submitData.justificationDocument = fileResult.data.path;
-      }
+      };
     }
 
     const result = await window.ipcRenderer.invoke('absence:add', submitData);
-    
+    console.log(result);
     if (result?.success) {
       ElMessage.success("Absence ajoutée avec succès");
       dialogVisible.value = false;
@@ -317,6 +321,7 @@ const handleSubmit = async () => {
     saving.value = false;
   }
 };
+
 // Initialisation en mode édition
 watch(() => props.absence, (newAbsence) => {
   if (newAbsence) {

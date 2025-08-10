@@ -1,52 +1,88 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {ClassRoomCommand, CourseCommand, SubCourseCommand} from "#electron/command/settingsCommand.ts";
+import {CourseGroupCommand, Course} from "@/types/course";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
-import {CourseEntity} from "#electron/backend/entities/course.ts";
-import {Mapper} from "#electron/command";
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
-const form = reactive<CourseCommand>({
+
+const form = reactive<CourseGroupCommand>({
+  id: undefined,
   name:"",
   code:"",
-  isInGroupement:true
+  coefficient: 1,
+  isInGroupement: true,
+  groupementId: undefined,
+  groupement: undefined
 })
-const formRule = reactive<FormRules<CourseCommand>>({
+
+const formRule = reactive<FormRules<CourseGroupCommand>>({
   code:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"},
+    {required:true , message:"Ce champ est requis" , trigger:"blur"},
   ],
   name:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"}
+    {required:true , message:"Ce champ est requis" , trigger:"blur"}
   ],
   coefficient:[
-    {required:true , message:"ce champ est requis" , trigger:"blur"},
-    {validator :(rule:any, value:any, callback:any)=>{
-      if(value>10){
-        throw("le coefficient ne peut depasser 10"+String(rule));
-      }else{
-        callback()
+    {required:true , message:"Ce champ est requis" , trigger:"change"},
+    {type: 'number', message: 'Le coefficient doit être un nombre', trigger: 'change' },
+    {validator :(_rule:any, value:any, callback:any)=>{
+      const numValue = Number(value);
+      if (isNaN(numValue)) {
+        callback(new Error("Veuillez entrer un nombre valide."));
+      } else if(numValue > 10){
+        callback(new Error("Le coefficient ne peut dépasser 10."));
+      } else if (numValue <= 0) {
+        callback(new Error("Le coefficient doit être supérieur à 0."));
       }
-    }, trigger:"blur"}
+      else{
+        callback();
+      }
+    }, trigger:"change"}
   ],
 })
-function open(groupement:CourseEntity,  course?:CourseCommand){
+
+function open(groupementParent: Course, courseToEdit?: CourseGroupCommand){
   dialogVisible.value = true
-  form.groupement = Mapper.mapTo<CourseEntity, SubCourseCommand>(groupement, SubCourseCommand);
-  if(course){
-    form.name=course?.name
-    form.code=course?.code
-    form.coefficient=course?.coefficient
+  
+  form.id = undefined;
+  form.name = "";
+  form.code = "";
+  form.coefficient = 1;
+  form.isInGroupement = true;
+  form.groupementId = groupementParent.id;
+
+  if (groupementParent.id !== undefined) {
+    form.groupement = { 
+      id: groupementParent.id,
+      name: groupementParent.name,
+      code: groupementParent.code,
+      coefficient: groupementParent.coefficient,
+    };
+  } else {
+    form.groupement = undefined;
+  }
+
+  if(courseToEdit){
+    form.id = courseToEdit.id;
+    form.name = courseToEdit.name || "";
+    form.code = courseToEdit.code || "";
+    form.coefficient = courseToEdit.coefficient === undefined ? 1 : courseToEdit.coefficient;
+    form.isInGroupement = courseToEdit.isInGroupement === undefined ? true : courseToEdit.isInGroupement;
   }
 }
+
 function close(){
+  formRef.value?.resetFields();
   dialogVisible.value = false
 }
+
 const emits = defineEmits<{
-  (e:"submit-action" , formRef:FormInstance|undefined , form:ClassRoomCommand):void
+  (e:"submit-action" , formRef:FormInstance|undefined , form:CourseGroupCommand):void
 }>()
+
 defineExpose({
   open,
   close
@@ -55,7 +91,7 @@ defineExpose({
 
 
 <template>
-  <el-dialog v-model="dialogVisible" width="500">
+  <el-dialog v-model="dialogVisible" :title="props.formTitle" width="500" @close="close">
     <template #header>
       <el-space direction="horizontal">
         <Icon icon="ei:plus" color="#32CD32" width="20"/>
@@ -65,23 +101,27 @@ defineExpose({
     <el-form
         ref="formRef"
         size="default"
-        label-position="left"
+        label-position="top"
         :model="form"
         :rules="formRule"
+        @submit.prevent="emits('submit-action' , formRef , form)"
     >
-      <el-form-item label="Code" prop="code">
-        <el-input v-model="form.code" />
+      <el-form-item label="Code de la sous-matière" prop="code">
+        <el-input v-model="form.code" placeholder="Ex: MATH-01A" />
       </el-form-item>
-      <el-form-item label="Nom" prop="name">
-        <el-input v-model="form.name" />
+      <el-form-item label="Nom de la sous-matière" prop="name">
+        <el-input v-model="form.name" placeholder="Ex: Algèbre Linéaire" />
       </el-form-item>
-      <el-form-item label="Coefficient" prop="coefficient">
-        <el-input v-model="form.coefficient" type="number" />
+      <el-form-item label="Coefficient de la sous-matière" prop="coefficient">
+        <el-input-number v-model="form.coefficient" :min="1" :max="10" controls-position="right" style="width: 100%;" />
+      </el-form-item>
+      <el-form-item label="Fait partie du groupement">
+        <el-input :model-value="form.groupement?.name || 'N/A'" disabled />
       </el-form-item>
     </el-form>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="dialogVisible = false">Annuler</el-button>
+        <el-button @click="close">Annuler</el-button>
         <el-button type="primary" @click="emits('submit-action' , formRef , form)">
           Valider
         </el-button>

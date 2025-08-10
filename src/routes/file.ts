@@ -1,49 +1,42 @@
-import GradeView from "@/views/file/GradeView.vue";
-import ClassRoomView from "@/views/file/ClassRoomView.vue";
-import CourseView from "@/views/file/CourseView.vue";
-import PayementConfigurationView from "@/views/file/PayementConfigurationView.vue";
-import SchoolInfoView from "@/views/file/SchoolInfoView.vue";
- import NotesConfigurationView from "@/views/file/NotesConfigurationView.vue";
-import YearRepartitionView from "@/views/file/YearRepartitionView.vue";
-
-
 export const fileRoutes = [
-
     {
         path : '/grade' ,
         name : "Niveau scolaire" ,
-        component : GradeView
+        component : () => import('@/views/file/GradeView.vue')
     },
     {
         path : '/classroom' ,
         name : "Salles de classe" ,
-        component : ClassRoomView
+        component : () => import('@/views/file/ClassRoomView.vue')
     },
     {
         path : '/course' ,
         name : "Matières" ,
-        component : CourseView
+        component : () => import('@/views/file/CourseView.vue')
     },
     {
         path: '/payment-config',
         name: "Configuration des paiements",
-        component: PayementConfigurationView
+        component: () => import('@/views/file/PayementConfigurationView.vue')
     },
     {
         path: '/info-school',
         name: "Info école",
-        component: SchoolInfoView
-
-    },
-    {
-        path: '/school-notes',
-        name: "Configuration des notes",
-        component: NotesConfigurationView
+        component: () => import('@/views/file/SchoolInfoView.vue')
     },
     {
         path: '/school-repartition',
         name: "Répartition année scolaire",
-        component: YearRepartitionView
+        component: () => import('@/views/file/YearRepartitionView.vue')
     },
+    {
+        path: '/change-password',
+        name: "Changement de mot de passe",
+        component: () => import('@/views/auth/ForgotPasswordView.vue')
+    },
+    {
+        path: '/license-status',
+        name: "Statut de la licence",
+        component: () => import('@/views/file/LicenseStatusView.vue')
+    }
 ]
- 

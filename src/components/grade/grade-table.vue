@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import {ElTable} from 'element-plus'
-import {BranchEntity, GradeEntity} from "#electron/backend/entities/grade.ts";
+import {Grade, Branch} from "@/types/grade";
 import {Icon} from "@iconify/vue";
-import {computed, reactive, ref} from "vue";
+import {computed, reactive, ref, watch} from "vue";
 import BranchTable from "@/components/grade/branch-table.vue";
 
-const props = defineProps<{grades:GradeEntity[]}>()
+const props = defineProps<{grades: Grade[]}>()
 const searchForm = ref("")
 const paginator = reactive<{
   totalPage:number
@@ -13,20 +13,43 @@ const paginator = reactive<{
   currentPage:number
 }>({
   totalPage:0,
-  pageSize:2 ,
+  pageSize:5,
   currentPage:1
 })
-const filteredGrades = computed(()=>{
-  const result =  props.grades?.filter((grade:GradeEntity)=>Object.keys(grade).some((key:string)=>String((grade as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase()))) || []
-  paginator.totalPage = Math.ceil(result.length / paginator.pageSize)
-  return result.slice((paginator.currentPage - 1) * paginator.pageSize, paginator.currentPage * paginator.pageSize)
+
+// Computed pour les grades filtrés (sans modification de paginator)
+const filteredGradesBase = computed(() => {
+  return props.grades?.filter((grade: Grade) =>
+    Object.keys(grade).some((key: string) =>
+      String((grade as any)[key]).toLowerCase().includes(searchForm.value.toLowerCase())
+    )
+  ) || []
 })
+
+// Computed pour la pagination
+const filteredGrades = computed(() => {
+  const start = (paginator.currentPage - 1) * paginator.pageSize
+  const end = paginator.currentPage * paginator.pageSize
+  return filteredGradesBase.value.slice(start, end)
+})
+
+// Watcher pour mettre à jour totalPage et ajuster currentPage
+watch(filteredGradesBase, (newGrades) => {
+  const newTotalPage = Math.ceil(newGrades.length / paginator.pageSize)
+  paginator.totalPage = newTotalPage
+  
+  // Si la page courante est plus grande que le total de pages, revenir à la dernière page
+  if (paginator.currentPage > newTotalPage && newTotalPage > 0) {
+    paginator.currentPage = newTotalPage
+  }
+}, { immediate: true })
+
 const emits=defineEmits<{
-  (e:"openUpdateForm" , grade:GradeEntity):void,
-  (e:"deleteAction" , id:number):void,
-  (e:"openNestedNewForm" , grade:GradeEntity):void,
-  (e:"openNestedUpdateForm" , branch:BranchEntity , grade:GradeEntity):void,
-  (e:"deleteNestedAction" , id:number):void,
+  (e:"openUpdateForm", grade: Grade): void,
+  (e:"deleteAction", id: number): void,
+  (e:"openNestedNewForm", grade: Grade): void,
+  (e:"openNestedUpdateForm", branch: Branch, grade: Grade): void,
+  (e:"deleteNestedAction", id: number): void,
 }>()
 
 function handleCurrentPage(pageNumber:number){
@@ -50,9 +73,9 @@ function handleCurrentPage(pageNumber:number){
         <el-table-column type="expand" >
           <template #default="scope">
             <branch-table
-                :brnaches="scope.row?.branches"
-                @open-update-form="(branch:BranchEntity)=>emits('openNestedUpdateForm' , branch , scope.row)"
-                @delete-action="(id:number)=>emits('deleteNestedAction' , id)"
+                :branches="scope.row?.branches"
+                @open-update-form="(branch: Branch)=>emits('openNestedUpdateForm', branch, scope.row)"
+                @delete-action="(id: number)=>emits('deleteNestedAction', id)"
             />
           </template>
         </el-table-column>

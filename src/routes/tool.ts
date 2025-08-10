@@ -9,5 +9,9 @@ export const toolRoutes = [
       name: "ReportCard",
       component: () => import("@/views/tools/ReportCardView.vue"),
     },
-    
+    {
+      path: "/tools/sync",
+      name: "Sync",
+      component: () => import("@/views/tools/SyncView.vue"),
+    },
   ]; 

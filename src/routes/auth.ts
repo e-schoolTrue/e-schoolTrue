@@ -1,27 +1,28 @@
-import LoginView from "@/views/auth/LoginView.vue";
-import ValidateAccountView from "@/views/auth/ValidateAccountView.vue";
-import ForgotPasswordView from "@/views/auth/ForgotPasswordView.vue";
+import { RouteRecordRaw } from 'vue-router';
 
-
-export const authRoutes = [
+export const authRoutes: RouteRecordRaw[] = [
     {
         path : "/login" ,
         name : "login" ,
-        component : LoginView ,
+        component : () => import('@/views/auth/LoginView.vue'),
+        meta: {
+            requiresAuth: false
+        }
     },
     {
         path : "/validate-account" ,
         name : "validate-account" ,
-        component : ValidateAccountView ,
+        component : () => import('@/views/auth/ValidateAccountView.vue'),
+        meta: {
+            requiresAuth: false
+        }
     },
     {
         path : "/forgot-password" ,
         name : "forgot-password" ,
-        component : ForgotPasswordView ,
-    },
-    {
-        path : "/forgot-password" ,
-        name : "forgot-password" ,
-        component : ForgotPasswordView ,
-    },
+        component : () => import('@/views/auth/ForgotPasswordView.vue'),
+        meta: {
+            requiresAuth: false
+        }
+    }
 ]

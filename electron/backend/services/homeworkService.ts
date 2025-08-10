@@ -1,54 +1,79 @@
 import { Repository } from "typeorm";
 import { HomeworkEntity } from "../entities/homework";
+import { CourseEntity } from "../entities/course";
+import { GradeEntity } from "../entities/grade";
+import { ProfessorEntity } from "../entities/professor";
 import { AppDataSource } from "../../data-source";
-import { ResultType } from "#electron/command";
+import { ResultType } from "./paymentService";
+import { Homework, HomeworkCreateInput, HomeworkUpdateInput } from "../types/homework";
 
 export class HomeworkService {
     private homeworkRepository: Repository<HomeworkEntity>;
+    private courseRepository: Repository<CourseEntity>;
+    private gradeRepository: Repository<GradeEntity>;
+    private professorRepository: Repository<ProfessorEntity>;
 
     constructor() {
-        this.homeworkRepository = AppDataSource.getInstance().getRepository(HomeworkEntity);
+        const dataSource = AppDataSource.getInstance();
+        this.homeworkRepository = dataSource.getRepository(HomeworkEntity);
+        this.courseRepository = dataSource.getRepository(CourseEntity);
+        this.gradeRepository = dataSource.getRepository(GradeEntity);
+        this.professorRepository = dataSource.getRepository(ProfessorEntity);
     }
 
-    async createHomework(data: any): Promise<ResultType> {
+    async createHomework(data: HomeworkCreateInput): Promise<ResultType<Homework>> {
         try {
             console.log("Données reçues dans le service:", data);
 
-            // Vérification des données requises
-            if (!data.gradeId || !data.courseId || !data.professorId || !data.description || !data.dueDate) {
-                console.error("Données manquantes:", { 
-                    gradeId: !!data.gradeId,
-                    courseId: !!data.courseId,
-                    professorId: !!data.professorId,
-                    description: !!data.description,
-                    dueDate: !!data.dueDate
-                });
-                throw new Error("Données manquantes pour la création du devoir");
+            // Vérifier que les entités liées existent
+            const course = await this.courseRepository.findOne({ where: { id: data.courseId } });
+            if (!course) {
+                return {
+                    success: false,
+                    data: null,
+                    message: `Cours avec l'ID ${data.courseId} non trouvé`,
+                    error: "COURSE_NOT_FOUND"
+                };
             }
 
+            const grade = await this.gradeRepository.findOne({ where: { id: data.gradeId } });
+            if (!grade) {
+                return {
+                    success: false,
+                    data: null,
+                    message: `Classe avec l'ID ${data.gradeId} non trouvée`,
+                    error: "GRADE_NOT_FOUND"
+                };
+            }
+
+            const professor = await this.professorRepository.findOne({ where: { id: data.professorId } });
+            if (!professor) {
+                return {
+                    success: false,
+                    data: null,
+                    message: `Professeur avec l'ID ${data.professorId} non trouvé`,
+                    error: "PROFESSOR_NOT_FOUND"
+                };
+            }
+
+            // Créer le devoir avec les entités vérifiées
             const homework = this.homeworkRepository.create({
                 description: data.description,
                 dueDate: new Date(data.dueDate),
-                course: { id: data.courseId },
-                grade: { id: data.gradeId },
-                professor: { id: data.professorId }
+                course: course,
+                grade: grade,
+                professor: professor
             });
 
-            console.log("Objet homework créé:", homework);
-
             const saved = await this.homeworkRepository.save(homework);
-            console.log("Devoir sauvegardé:", saved);
-
             const result = await this.homeworkRepository.findOne({
                 where: { id: saved.id },
                 relations: ['course', 'grade', 'professor']
             });
 
-            console.log("Résultat final avec relations:", result);
-
             return {
                 success: true,
-                data: result,
+                data: result as unknown as Homework,
                 message: "Devoir créé avec succès",
                 error: null
             };
@@ -63,7 +88,7 @@ export class HomeworkService {
         }
     }
 
-    async getHomeworkByGrade(gradeId: number): Promise<ResultType> {
+    async getHomeworkByGrade(gradeId: number): Promise<ResultType<Homework[]>> {
         try {
             const homework = await this.homeworkRepository.find({
                 where: { grade: { id: gradeId } },
@@ -72,7 +97,7 @@ export class HomeworkService {
 
             return {
                 success: true,
-                data: homework,
+                data: homework as unknown as Homework[],
                 message: "Devoirs récupérés avec succès",
                 error: null
             };
@@ -86,7 +111,7 @@ export class HomeworkService {
         }
     }
 
-    async deleteHomework(id: number): Promise<ResultType> {
+    async deleteHomework(id: number): Promise<ResultType<void>> {
         try {
             const result = await this.homeworkRepository.delete(id);
             
@@ -116,22 +141,69 @@ export class HomeworkService {
         }
     }
 
-    async updateHomework(id: number, data: any): Promise<ResultType> {
+    async updateHomework(id: number, data: HomeworkUpdateInput): Promise<ResultType<Homework>> {
         try {
-            // Supprimer l'ancien devoir
-            await this.homeworkRepository.delete(id);
-            
-            // Créer le nouveau devoir
-            const homework = this.homeworkRepository.create({
-                description: data.description,
-                dueDate: new Date(data.dueDate),
-                course: { id: data.courseId },
-                grade: { id: data.gradeId },
-                professor: { id: data.professorId }
+            const existingHomework = await this.homeworkRepository.findOne({
+                where: { id }
             });
 
-            const saved = await this.homeworkRepository.save(homework);
+            if (!existingHomework) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Devoir non trouvé",
+                    error: "NOT_FOUND"
+                };
+            }
+
+            // Vérifier les entités liées si elles sont fournies
+            let course, grade, professor;
             
+            if (data.courseId !== undefined) {
+                course = await this.courseRepository.findOne({ where: { id: data.courseId } });
+                if (!course) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: `Cours avec l'ID ${data.courseId} non trouvé`,
+                        error: "COURSE_NOT_FOUND"
+                    };
+                }
+            }
+
+            if (data.gradeId !== undefined) {
+                grade = await this.gradeRepository.findOne({ where: { id: data.gradeId } });
+                if (!grade) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: `Classe avec l'ID ${data.gradeId} non trouvée`,
+                        error: "GRADE_NOT_FOUND"
+                    };
+                }
+            }
+
+            if (data.professorId !== undefined) {
+                professor = await this.professorRepository.findOne({ where: { id: data.professorId } });
+                if (!professor) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: `Professeur avec l'ID ${data.professorId} non trouvé`,
+                        error: "PROFESSOR_NOT_FOUND"
+                    };
+                }
+            }
+
+            // Mettre à jour le devoir avec les entités vérifiées
+            const updatedHomework = this.homeworkRepository.merge(existingHomework, {
+                ...data,
+                course: course || existingHomework.course,
+                grade: grade || existingHomework.grade,
+                professor: professor || existingHomework.professor
+            });
+
+            const saved = await this.homeworkRepository.save(updatedHomework);
             const result = await this.homeworkRepository.findOne({
                 where: { id: saved.id },
                 relations: ['course', 'grade', 'professor']
@@ -139,7 +211,7 @@ export class HomeworkService {
 
             return {
                 success: true,
-                data: result,
+                data: result as unknown as Homework,
                 message: "Devoir mis à jour avec succès",
                 error: null
             };

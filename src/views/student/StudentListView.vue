@@ -1,60 +1,56 @@
 <script setup lang="ts">
-import { ref, onMounted, Ref, nextTick } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import type { ComponentPublicInstance } from 'vue';
-import printJS from 'print-js'; 
 import StudentFilter from "@/components/student/student-filter.vue";
 import StudentTable from "@/components/student/student-table.vue";
+import SchoolPrintTemplate from "@/components/student/school-print-template.vue";
 import { ElMessage } from 'element-plus';
+import type { IStudentDetails, IStudentFile } from '@/types/student';
+import type { IFilterCriteria } from '@/types/shared';
+import { Icon } from '@iconify/vue';
 
-
-interface Student {
-  id?: number;
+// Interface pour student-table
+interface StudentTableItem {
+  id: number;
   firstname: string;
   lastname: string;
-  matricule: string;
-  schoolYear: string;
-  gradeId: number;
-  famillyPhone?: string;
-  sex: "male" | "female";
-  birthDay?: string;
+  matricule?: string;
+  birthDay?: Date | null;
   birthPlace?: string;
   address?: string;
   fatherFirstname?: string;
   fatherLastname?: string;
   motherFirstname?: string;
   motherLastname?: string;
+  famillyPhone?: string;
   personalPhone?: string;
-  photo?: {
+  sex?: "male" | "female";
+  schoolYear?: string;
+  gradeId?: number;
+  photo?: IStudentFile;
+  documents: IStudentFile[];
+  grade: {
     id: number;
     name: string;
-    path: string;
-    type: string;
-  };
-  documents?: Array<{
-    id: number;
-    name: string;
-    path: string;
-    type: string;
-  }>;
+    code: string;
+  } | undefined;
 }
 
-interface FilterCriteria {
-  studentFullName?: string;
-  schoolGrade?: string;
-  schoolYear?: string;
-}
+// Interface pour les composants d'impression
+type PrintStudent = IStudentDetails;
 
 const router = useRouter();
-const students = ref<Student[]>([]);
-const filteredStudents = ref<Student[]>([]);
-const printData: Ref<Student[]> = ref([]);
+const students = ref<StudentTableItem[]>([]);
+const filteredStudents = ref<StudentTableItem[]>([]);
+const printData = ref<PrintStudent[]>([]);
 const schoolPrintRef = ref<ComponentPublicInstance | null>(null);
 const previewPrintRef = ref<ComponentPublicInstance | null>(null);
 const printDialogVisible = ref(false);
 const isDetailActive = ref(false);
 const isEditActive = ref(false);
 const previewDialogVisible = ref(false);
+const loading = ref(false);
 
 onMounted(async () => {
   await loadStudents();
@@ -63,20 +59,25 @@ onMounted(async () => {
 const loadStudents = async () => {
   try {
     const result = await window.ipcRenderer.invoke('student:all');
-    console.log('Raw student data:', result.data); // Log raw data
+    console.log('Raw student data:', result.data);
 
     if (result.success) {
-      students.value = result.data.map((student: any) => {
-        const mappedStudent = {
+      students.value = result.data.map((student: IStudentDetails) => {
+        const mappedStudent: StudentTableItem = {
           id: student.id,
-          matricule: student.matricule,
+          matricule: student.matricule || '',
           lastname: student.lastname,
           firstname: student.firstname,
-          schoolYear: student.schoolYear,
-          gradeId: student.grade ? student.grade.id : null,
+          schoolYear: student.schoolYear || '',
+          gradeId: student.grade?.id || 0,
+          grade: student.grade ? {
+            id: student.grade.id,
+            name: student.grade.name || '',
+            code: student.grade.code || ''
+          } : undefined,
           famillyPhone: student.famillyPhone || '',
-          sex: student.sex || null,
-          birthDay: student.birthDay,
+          sex: student.sex || 'male',
+          birthDay: student.birthDay ? new Date(student.birthDay) : null,
           birthPlace: student.birthPlace,
           address: student.address,
           fatherFirstname: student.fatherFirstname,
@@ -87,17 +88,20 @@ const loadStudents = async () => {
           photo: student.photo ? {
             id: student.photo.id,
             name: student.photo.name,
-            path: student.photo.path,
             type: student.photo.type
           } : undefined,
-          documents: student.documents,
+          documents: student.documents.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            type: doc.type
+          }))
         };
 
-        console.log('Mapped student:', mappedStudent); // Log mapped student
+        console.log('Mapped student:', mappedStudent);
         return mappedStudent;
       });
       
-      console.log('Students after mapping:', students.value); // Log students array
+      console.log('Students after mapping:', students.value);
       filteredStudents.value = students.value;
     } else {
       ElMessage.error("Erreur lors du chargement des étudiants");
@@ -109,22 +113,18 @@ const loadStudents = async () => {
 };
 
 const resetFilter = () => {
-  // Réinitialiser les étudiants filtrés avec la liste complète
   filteredStudents.value = students.value;
-  
-  // Réinitialiser les critères de filtrage si nécessaire
   filterCriteria.value = {};
 };
 
-const filterCriteria = ref<FilterCriteria>({});
+const filterCriteria = ref<IFilterCriteria>({});
 
-const handlePrint = async (data: Student[]) => {
+const handlePrint = async (data: StudentTableItem[]) => {
   if (!data || data.length === 0) {
     ElMessage.error("Aucune donnée à imprimer");
     return;
   }
 
-  // Vérifier si les données sont filtrées par classe
   const allSameGrade = data.every((student, _i, arr) => 
     student.gradeId === arr[0].gradeId
   );
@@ -134,9 +134,24 @@ const handlePrint = async (data: Student[]) => {
     return;
   }
 
-  printData.value = data;
+  // Convertir les données pour l'impression
+  printData.value = data.map(student => ({
+    ...student,
+    photo: student.photo ? {
+      id: student.photo.id,
+      name: student.photo.name,
+      type: student.photo.type,
+      path: '',
+      createdAt: new Date()
+    } : null,
+    grade: student.grade ? {
+      id: student.grade.id,
+      name: student.grade.name,
+      code: student.grade.code,
+      description: ''
+    } : null
+  })) as IStudentDetails[];
   
-  // Mettre à jour les critères de filtrage
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
       ? (document.querySelector('.student-filter input[placeholder="Nom ou prénom"]') as HTMLInputElement)?.value
@@ -147,41 +162,7 @@ const handlePrint = async (data: Student[]) => {
     schoolYear: data[0]?.schoolYear || ''
   };
   
-  printDialogVisible.value = true;
-
-  await nextTick();
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  const printElement = schoolPrintRef.value?.$el;
-  
-  if (!printElement) {
-    ElMessage.error("Le template d'impression n'est pas prêt");
-    return;
-  }
-
-  try {
-    printJS({
-      printable: printElement.id || 'school-print-template',
-      type: 'html',
-      documentTitle: 'Liste des étudiants',
-      targetStyles: ['*'],
-      scanStyles: true,
-      css: [],
-      onPrintDialogClose: () => {
-        printDialogVisible.value = false;
-        ElMessage.success("Impression terminée");
-      },
-      onError: (error) => {
-        console.error("Erreur d'impression:", error);
-        ElMessage.error("Erreur lors de l'impression");
-        printDialogVisible.value = false;
-      }
-    });
-  } catch (error) {
-    console.error("Erreur lors de l'impression:", error);
-    ElMessage.error("Erreur lors de l'impression");
-    printDialogVisible.value = false;
-  }
+  proceedWithPrint();
 };
 
 const getGradeName = async (gradeId: number): Promise<string> => {
@@ -198,7 +179,7 @@ const getGradeName = async (gradeId: number): Promise<string> => {
   }
 };
 
-const handleDetail = (student: Student) => {
+const handleDetail = (student: StudentTableItem) => {
   if (student && student.id) {
     isDetailActive.value = true;
     router.push({ name: 'StudentDetails', params: { id: student.id.toString() } });
@@ -207,7 +188,7 @@ const handleDetail = (student: Student) => {
   }
 };
 
-const handleEdit = (studentOrId: Student | number) => {
+const handleEdit = (studentOrId: StudentTableItem | number) => {
   let studentId: number | undefined;
 
   if (typeof studentOrId === 'object' && studentOrId !== null) {
@@ -226,16 +207,27 @@ const handleEdit = (studentOrId: Student | number) => {
 
 const handleDeleteStudent = async (studentId: number) => {
   try {
+    // Afficher un indicateur de chargement
+    loading.value = true;
+    
     const result = await window.ipcRenderer.invoke("delete-student", studentId);
     if (result.success) {
       ElMessage.success("L'étudiant a été supprimé avec succès");
       await loadStudents();
     } else {
-      ElMessage.error(`Échec de la suppression de l'étudiant : ${result.message}`);
+      ElMessage.error({
+        message: `Échec de la suppression de l'étudiant : ${result.message}`,
+        duration: 5000
+      });
     }
   } catch (error) {
     console.error("Erreur lors de la suppression de l'étudiant:", error);
-    ElMessage.error("Une erreur est survenue lors de la suppression de l'étudiant");
+    ElMessage.error({
+      message: "Une erreur est survenue lors de la suppression de l'étudiant",
+      duration: 5000
+    });
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -246,24 +238,39 @@ const handleFilter = (filterCriteria: {
 }) => {
   console.log('Critères de filtrage reçus:', filterCriteria);
   
-  filteredStudents.value = students.value.filter(student => {
-    const nameMatch = filterCriteria.studentFullName
-      ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
-         student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
-      : true;
-    
-    const gradeMatch = filterCriteria.classId 
-      ? student.gradeId === Number(filterCriteria.classId)
-      : true;
-    
-    const yearMatch = filterCriteria.schoolYear
-      ? student.schoolYear === filterCriteria.schoolYear
-      : true;
+  // Si le filtre est basé sur l'ID de la classe, utiliser directement ce filtre
+  if (filterCriteria.classId) {
+    filteredStudents.value = students.value.filter(student => {
+      const nameMatch = filterCriteria.studentFullName
+        ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
+           student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+        : true;
+      
+      const gradeMatch = student.gradeId === Number(filterCriteria.classId);
+      
+      const yearMatch = filterCriteria.schoolYear
+        ? student.schoolYear === filterCriteria.schoolYear
+        : true;
 
-    const match = nameMatch && gradeMatch && yearMatch;
-    console.log('Étudiant:', student, 'Match:', match);
-    return match;
-  });
+      const match = nameMatch && gradeMatch && yearMatch;
+      console.log('Étudiant:', student, 'Match:', match);
+      return match;
+    });
+  } else {
+    // Filtrage standard sans filtre par classe
+    filteredStudents.value = students.value.filter(student => {
+      const nameMatch = filterCriteria.studentFullName
+        ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
+           student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+        : true;
+      
+      const yearMatch = filterCriteria.schoolYear
+        ? student.schoolYear === filterCriteria.schoolYear
+        : true;
+
+      return nameMatch && yearMatch;
+    });
+  }
 
   console.log('Étudiants filtrés:', filteredStudents.value);
 };
@@ -272,15 +279,29 @@ const handlePageChange = (page: number) => {
   console.log('Page changée:', page);
 };
 
-const handlePreview = async (data: Student[]) => {
+const handlePreview = async (data: StudentTableItem[]) => {
   if (!data || data.length === 0) {
     ElMessage.error("Aucune donnée à afficher");
     return;
   }
 
-  printData.value = data;
+  printData.value = data.map(student => ({
+    ...student,
+    photo: student.photo ? {
+      id: student.photo.id,
+      name: student.photo.name,
+      type: student.photo.type,
+      path: '',
+      createdAt: new Date()
+    } : null,
+    grade: student.grade ? {
+      id: student.grade.id,
+      name: student.grade.name,
+      code: student.grade.code,
+      description: ''
+    } : null
+  })) as IStudentDetails[];
   
-  // Mettre à jour les critères de filtrage
   filterCriteria.value = {
     studentFullName: filteredStudents.value.length < students.value.length
       ? (document.querySelector('.student-filter input[placeholder="Nom ou prénom"]') as HTMLInputElement)?.value
@@ -296,49 +317,145 @@ const handlePreview = async (data: Student[]) => {
 
 const proceedWithPrint = () => {
   previewDialogVisible.value = false;
-  // Attendre que la dialog soit fermée avant d'imprimer
-  setTimeout(async () => {
-    printDialogVisible.value = true;
-    await nextTick();
-    
-    const printElement = schoolPrintRef.value?.$el;
-    if (!printElement) {
-      ElMessage.error("Le template d'impression n'est pas prêt");
-      return;
-    }
-
+  printDialogVisible.value = true;
+  
+  nextTick(async () => {
     try {
-      printJS({
-        printable: printElement.id || 'school-print-template',
-        type: 'html',
-        documentTitle: 'Liste des étudiants',
-        targetStyles: ['*'],
-        scanStyles: true,
-        css: [],
-        onPrintDialogClose: () => {
-          printDialogVisible.value = false;
-          ElMessage.success("Impression terminée");
-        },
-        onError: (error) => {
-          console.error("Erreur d'impression:", error);
-          ElMessage.error("Erreur lors de l'impression");
-          printDialogVisible.value = false;
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const printElement = document.getElementById('school-print-template');
+      if (!printElement) {
+        ElMessage.error("Le template d'impression n'est pas prêt");
+        printDialogVisible.value = false;
+        return;
+      }
+
+      // Créer une copie de l'élément pour l'impression
+      const printContent = printElement.cloneNode(true) as HTMLElement;
+      
+      // Créer un conteneur pour l'impression
+      const printContainer = document.createElement('div');
+      printContainer.id = 'print-container';
+      printContainer.style.position = 'absolute';
+      printContainer.style.left = '-9999px';
+      printContainer.appendChild(printContent);
+      document.body.appendChild(printContainer);
+
+      // Configurer les styles d'impression
+      const style = document.createElement('style');
+      style.textContent = `
+        @media print {
+          @page {
+            margin: 20mm;
+            size: portrait;
+          }
+          body > *:not(#print-container) {
+            display: none !important;
+          }
+          #print-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            display: block !important;
+            transform: none !important;
+          }
+          #print-container * {
+            visibility: visible !important;
+            transform: none !important;
+          }
+          .print-header {
+            display: block !important;
+            page-break-inside: avoid;
+            transform: none !important;
+          }
+          .school-info {
+            display: flex !important;
+            page-break-inside: avoid;
+            transform: none !important;
+          }
+          .logo-container {
+            display: flex !important;
+            transform: none !important;
+          }
+          .school-logo {
+            display: block !important;
+            max-width: 100%;
+            height: auto;
+            transform: none !important;
+          }
+          .school-details {
+            display: block !important;
+            transform: none !important;
+          }
+          .document-title {
+            display: block !important;
+            page-break-inside: avoid;
+            transform: none !important;
+          }
+          .print-table {
+            display: table !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 20px !important;
+            transform: none !important;
+          }
+          .print-table thead {
+            display: table-header-group !important;
+            transform: none !important;
+          }
+          .print-table tbody {
+            display: table-row-group !important;
+            transform: none !important;
+          }
+          .print-table tr {
+            display: table-row !important;
+            page-break-inside: avoid !important;
+            transform: none !important;
+          }
+          .print-table th,
+          .print-table td {
+            display: table-cell !important;
+            padding: 8px !important;
+            border: 1px solid #000 !important;
+            text-align: left !important;
+            font-size: 12px !important;
+            transform: none !important;
+          }
+          .print-table th {
+            background-color: #f5f5f5 !important;
+            font-weight: bold !important;
+          }
+          .print-table tr:nth-child(even) {
+            background-color: #f9f9f9 !important;
+          }
         }
-      });
+      `;
+      document.head.appendChild(style);
+
+      // Lancer l'impression
+      window.print();
+
+      // Nettoyer après l'impression
+      document.body.removeChild(printContainer);
+      document.head.removeChild(style);
+      printDialogVisible.value = false;
+
+      ElMessage.success("Impression terminée");
     } catch (error) {
       console.error("Erreur lors de l'impression:", error);
       ElMessage.error("Erreur lors de l'impression");
       printDialogVisible.value = false;
     }
-  }, 300);
+  });
 };
 </script>
 
 <template>
   <div class="student-list-container">
     <student-filter 
-    @filter="handleFilter"
-    @reset="resetFilter"
+      @filter="handleFilter"
+      @reset="resetFilter"
     />
     <student-table 
       :students="filteredStudents"
@@ -349,6 +466,17 @@ const proceedWithPrint = () => {
       @print="handlePrint"
       @preview="handlePreview"
     />
+    
+    <el-button 
+      type="primary" 
+      class="floating-add-btn" 
+      circle
+      size="large"
+      @click="router.push({ name: 'AddStudent' })"
+      title="Ajouter un étudiant"
+    >
+      <Icon icon="mdi:account-plus" width="24" height="24" />
+    </el-button>
     
     <!-- Dialog pour l'aperçu -->
     <el-dialog
@@ -382,6 +510,7 @@ const proceedWithPrint = () => {
         ref="schoolPrintRef"
         :students="printData"
         :filter-criteria="filterCriteria"
+        id="school-print-template"
       />
     </div>
   </div>
@@ -415,5 +544,13 @@ const proceedWithPrint = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.floating-add-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 </style>
