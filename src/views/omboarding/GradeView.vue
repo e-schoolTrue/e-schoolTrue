@@ -7,9 +7,10 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Loader } from "@/components/util/AppLoader.ts";
 import type { Grade } from '@/types/grade';
 
-// Étendre l'interface Grade pour inclure la propriété order
+// Étendre l'interface Grade pour inclure la propriété order et id
 interface ExtendedGrade extends Grade {
   order: number;
+  id?: number; // Ajouter l'ID optionnel
 }
 
 const emit = defineEmits(['configuration-saved', 'go-back']);
@@ -19,7 +20,7 @@ const isSaving = ref(false);
 const formData = ref({
   grades: [
     { name: '', code: '', order: 1 }
-  ]
+  ] as ExtendedGrade[]
 });
 
 const rules: FormRules = {
@@ -58,11 +59,33 @@ const removeGrade = async (index: number) => {
       }
     );
 
+    const gradeToRemove = formData.value.grades[index];
+    
+    // Si le grade a un ID, le supprimer de la base de données
+    if (gradeToRemove.id) {
+      try {
+        Loader.showLoader("Suppression en cours...");
+        const result = await window.ipcRenderer.invoke('grade:delete', gradeToRemove.id);
+        if (!result.success) {
+          throw new Error(result.message || 'Erreur lors de la suppression');
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la suppression');
+        return;
+      } finally {
+        Loader.hideLoader();
+      }
+    }
+
+    // Supprimer localement
     formData.value.grades.splice(index, 1);
+    
     // Réorganiser les ordres
     formData.value.grades.forEach((grade, idx) => {
       grade.order = idx + 1;
     });
+    
     ElMessage.success('Niveau supprimé');
   } catch (error) {
     if (error !== 'cancel') {
@@ -164,19 +187,26 @@ const goNext = async () => {
     console.log('Validation du formulaire réussie');
     
     // Vérifier que tous les niveaux ont un nom et un code
-    const invalidGrades = formData.value.grades.filter(grade => !grade.name.trim() || !grade.code.trim());
+    const invalidGrades = formData.value.grades.filter(
+      grade =>
+        !grade ||
+        typeof grade.name !== 'string' ||
+        typeof grade.code !== 'string' ||
+        !grade.name.trim() ||
+        !grade.code.trim()
+    );
     if (invalidGrades.length > 0) {
-      console.error('Grades invalides trouvés:', invalidGrades);
+      console.error('Grades invalides trouvés :', invalidGrades);
       ElMessage.error('Veuillez remplir le nom et le code pour tous les niveaux');
       return;
     }
-
     console.log('Tentative de sauvegarde des grades...');
     const saved = await saveGrades();
     if (saved) {
       console.log('Sauvegarde réussie, émission des données:', formData.value);
       emit('configuration-saved', formData.value);
     }
+      
   } catch (error) {
     console.error('Erreur de validation détaillée:', error);
     ElMessage.error('Veuillez corriger les erreurs dans le formulaire.');
@@ -195,6 +225,7 @@ onMounted(async () => {
     const result = await window.ipcRenderer.invoke("grade:all");
     if (result.success) {
       formData.value.grades = result.data.map((grade: ExtendedGrade) => ({
+        id: grade.id, // Inclure l'ID
         name: grade.name,
         code: grade.code,
         order: grade.order

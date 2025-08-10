@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
-import type { SyncHistory } from '@/types/sync'; // On utilise le type SyncHistory
+import type { SyncHistoryType as SyncHistory } from '@/types/sync'; // On utilise le type SyncHistory
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 

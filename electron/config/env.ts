@@ -13,8 +13,8 @@ if (app.isPackaged) {
     // Si le fichier n'existe pas, le créer avec un template
     if (!fs.existsSync(envPath)) {
         const template = `# Configuration Supabase
-SUPABASE_URL=votre_url_supabase
-SUPABASE_KEY=votre_clé_supabase
+SUPABASE_URL=https://xebukndcynlvjpguwrcb.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlYnVrbmRjeW5sdmpwZ3V3cmNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Njc0NDk4NywiZXhwIjoyMDYyMzIwOTg3fQ.0zfw4ZM_5SdqNgLzh9PnA4fTqA9IyKdZJRnKUDpyFTQ
 `;
         fs.writeFileSync(envPath, template);
         console.log(`[ENV] Fichier .env créé à : ${envPath}`);
@@ -41,7 +41,6 @@ export const ENV = {
     SUPABASE_URL: process.env.SUPABASE_URL || '',
     SUPABASE_KEY: process.env.SUPABASE_KEY || '',
 };
-
 // Valider les variables requises
 if (!ENV.SUPABASE_URL || !ENV.SUPABASE_KEY) {
     const errorMessage = `Variables d'environnement manquantes. Veuillez configurer le fichier .env à l'emplacement : ${envPath}`;
@@ -49,3 +48,4 @@ if (!ENV.SUPABASE_URL || !ENV.SUPABASE_KEY) {
     console.error('Variables requises : SUPABASE_URL, SUPABASE_KEY');
     throw new Error(errorMessage);
 }
+

@@ -31,6 +31,9 @@ import CourseView from './omboarding/CourseView.vue';
 import LanguageSettingView from './omboarding/LanguageSettingView.vue';
 import PayementConfigurationView from './omboarding/PayementConfigurationView.vue';
 import SupervisorInfoView from './omboarding/SupervisorInfoView.vue';
+
+
+
 const router = useRouter();
 const currentStep = ref(0);
 
