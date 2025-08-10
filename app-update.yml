@@ -1,0 +1,34 @@
+# Configuration de production pour electron-updater
+# Ce fichier est utilisé uniquement en production
+
+# URL de base pour les mises à jour
+provider: github
+
+# Configuration du dépôt GitHub
+owner: e-schoolTrue
+repo: e-schoolTrue
+
+# Configuration spécifique à la plateforme
+win: 
+  publisherName: "eSchool"
+  signingHashAlgorithms: ['sha256']
+
+# Paramètres généraux
+autoDownload: true
+autoInstallOnAppQuit: true
+allowDowngrade: false
+
+# Configuration du logger
+logger:
+  level: "info"
+  file: "updater.log"
+
+# Configuration du cache
+requestHeaders:
+  "Cache-Control": "no-cache"
+
+# Configuration de la mise à jour
+updaterCacheDirName: "eSchool-updater"
+
+# Configuration pour les versions bêta/préversion
+# channel: "latest"  # ou "beta" pour les versions de test

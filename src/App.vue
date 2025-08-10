@@ -1,10 +1,10 @@
 <script setup lang="ts">
-
+import UpdateNotifier from '@/components/common/UpdateNotifier.vue'
 </script>
 
-
 <template>
-    <RouterView/>
+  <RouterView/>
+  <UpdateNotifier />
 </template>
 
 <style>
