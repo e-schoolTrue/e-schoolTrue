@@ -28,15 +28,15 @@ const getSupabaseClient = () => {
  */
 export class LicenseService {
     public async initializeLicenseTable(): Promise<void> {
-    try {
-        const connection = AppDataSource.getInstance();
-        await connection.synchronize(false); // false pour ne pas supprimer les tables existantes
-        console.log('[LicenseService] Table de licence initialisée avec succès');
-    } catch (error) {
-        console.error('[LicenseService] Erreur lors de l\'initialisation de la table:', error);
-        throw new Error('Impossible d\'initialiser la table de licence');
-    }
-};
+        try {
+            const connection = AppDataSource.getInstance();
+            await connection.synchronize(false); // false pour ne pas supprimer les tables existantes
+            console.log('[LicenseService] Table de licence initialisée avec succès');
+        } catch (error) {
+            console.error('[LicenseService] Erreur lors de l\'initialisation de la table:', error);
+            throw new Error('Impossible d\'initialiser la table de licence');
+        }
+    };
 
 /**
  * Génère un identifiant unique pour la machine

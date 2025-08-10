@@ -40,7 +40,7 @@ export default defineConfig({
           },
           build:{
             rollupOptions:{
-              external:["typeorm", "electron-print-preview", "typeorm"]
+              external:["typeorm", "electron-print-preview"]
             }
           }
         }
@@ -58,6 +58,14 @@ export default defineConfig({
 
   worker: {
     format: 'es', // ou 'esm'
-  
+  },
+  server: {
+    proxy: {
+      '/updates': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/updates/, '/updates')
+      }
+    }
   }
 })

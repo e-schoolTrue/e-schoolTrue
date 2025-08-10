@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { ipcRenderer, contextBridge } from 'electron'
 
+
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
@@ -19,10 +20,14 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     const [channel, ...omit] = args
     return await ipcRenderer.invoke(channel, ...omit)
   },
+  removeListener(channel: string, listener: (...args: any[]) => void): void {
+    ipcRenderer.removeListener(channel, listener)
+  },
   
   // You can expose other APTs you need here.
   // ...
 })
+
 
 // Exposer l'API Electron pour l'impression
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -62,6 +67,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
     } catch (error) {
       console.error('Erreur lors de l\'affichage du fichier dans l\'explorateur:', error);
       return false;
+    }
+  },
+  autoUpdater: {
+    checkForUpdates() {
+      return ipcRenderer.invoke('check-for-updates')
+    },
+    downloadUpdate() {
+      return ipcRenderer.invoke('download-update')
+    },
+    installUpdate() {
+      return ipcRenderer.invoke('install-update')
+    },
+    onUpdateAvailable(callback: (info: any) => void) {
+      const subscription = (_event: any, info: any) => callback(info)
+      ipcRenderer.on('update_available', subscription)
+      return () => {
+        ipcRenderer.removeListener('update_available', subscription)
+      }
+    },
+    onUpdateDownloaded(callback: (info: any) => void) {
+      const subscription = (_event: any, info: any) => callback(info)
+      ipcRenderer.on('update_downloaded', subscription)
+      return () => {
+        ipcRenderer.removeListener('update_downloaded', subscription)
+      }
+    },
+    onDownloadProgress(callback: (progress: any) => void) {
+      const subscription = (_event: any, progress: any) => callback(progress)
+      ipcRenderer.on('download_progress', subscription)
+      return () => {
+        ipcRenderer.removeListener('download_progress', subscription)
+      }
+    },
+    onError(callback: (error: Error) => void) {
+      const subscription = (_event: any, error: Error) => callback(error)
+      ipcRenderer.on('update_error', subscription)
+      return () => {
+        ipcRenderer.removeListener('update_error', subscription)
+      }
     }
   }
 })

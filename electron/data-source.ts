@@ -76,7 +76,7 @@ export class AppDataSource {
             synchronize: true,
             dropSchema: isFirstLaunch,
             database: dbPath,
-            logging: true,
+            logging: false,
             entities: entities,
             migrationsRun: true,
             subscribers: [],
