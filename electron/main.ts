@@ -1,3 +1,13 @@
+// @ts-nocheck
+import "reflect-metadata";
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { autoUpdater } from 'electron-updater'
+import path from 'node:path'
+import { AppDataSource } from "#electron/data-source.ts";
+import './events'
+import { registerReportEvents } from './events';
+process.env.DIST = path.join(__dirname, '../dist')
+process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
 import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
@@ -31,31 +41,6 @@ import { LicenseService } from "./backend/services/licenseService";
 // --- Handlers IPC ---
 import { registerIpcHandlers } from './events';
 
-// =================================================================
-// DÉCLARATION GLOBALE
-// =================================================================
-declare global {
-  var authService: AuthService;
-  var backupService: CloudSyncService;
-  var gradeService: GradeService;
-  var courseService: CourseService;
-  var studentService: StudentService;
-  var fileService: FileService;
-  var paymentService: PaymentService;
-  var absenceService: AbsenceService;
-  var schoolService: SchoolService;
-  var yearRepartitionService: YearRepartitionService;
-  var professorService: ProfessorService;
-  var dashboardService: DashboardService;
-  var homeworkService: HomeworkService;
-  var vacationService: VacationService;
-  var scholarshipService: ScholarshipService;
-  var reportCardService: ReportCardService;
-  var gradeConfigService: GradeConfigService;
-  var preferenceService: PreferenceService;
-  var configService: ConfigService;
-  var licenseService: LicenseService;
-}
 
 // =================================================================
 // INITIALISATION DE L'ENVIRONNEMENT
@@ -89,35 +74,40 @@ async function startApplication() {
     throw error;
   }
 
-  console.log('[3/4] Initialisation des services métier et des handlers IPC...');
-  global.configService = configService;
-  global.authService = new AuthService();
-  global.backupService = new CloudSyncService();
-  global.gradeService = new GradeService();
-  global.courseService = new CourseService();
-  global.studentService = new StudentService();
-  global.fileService = new FileService();
-  global.paymentService = new PaymentService();
-  global.absenceService = new AbsenceService();
-  global.schoolService = new SchoolService();
-  global.yearRepartitionService = new YearRepartitionService();
-  global.professorService = new ProfessorService();
-  global.dashboardService = new DashboardService();
-  global.homeworkService = new HomeworkService();
-  global.vacationService = new VacationService();
-  global.scholarshipService = new ScholarshipService();
-  global.reportCardService = new ReportCardService();
-  global.gradeConfigService = new GradeConfigService();
-  global.preferenceService = new PreferenceService();
-  global.licenseService = new LicenseService(); // correction ici : instanciation
 
+  console.log('[3/4] Initialisation des services métier et des handlers IPC...');
   registerIpcHandlers();
   console.log('[3/4] Services et handlers IPC initialisés avec succès.');
 
   console.log('[4/4] Création de la fenêtre principale...');
   await createWindow();
   console.log('[4/4] Fenêtre créée.');
+
   console.log('--- FLUX DE DÉMARRAGE TERMINÉ ---');
+}
+async function setupAutoUpdate(){
+    // Configuration de l'auto-update
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  // Configuration pour le mode développement
+  if (!app.isPackaged) {
+    autoUpdater.logger = {
+      info: (message: string) => console.log(message),
+      warn: (message: string) => console.warn(message),
+      error: (message: string, error?: Error) => {
+        console.error(message, error)
+      },
+      debug: (message: string) => console.debug(message)
+    }
+    
+    // Activer les logs détaillés en développement
+    autoUpdater.forceDevUpdateConfig = true
+    autoUpdater.logger.info('Mode développement: configuration de l\'auto-update')
+    
+    // Désactiver la vérification des certificats SSL en développement
+    app.commandLine.appendSwitch('ignore-certificate-errors')
+  }
 }
 
 async function createWindow() {
@@ -160,9 +150,94 @@ async function createWindow() {
 // =================================================================
 // CYCLE DE VIE DE L'APPLICATION 
 // =================================================================
+// Gestion des événements de mise à jour
+setupAutoUpdate()
+autoUpdater.on('checking-for-update', () => {
+  console.log('Recherche de mises à jour...')
+  win?.webContents.send('checking_for_update')
+})
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Mise à jour disponible', info)
+  win?.webContents.send('update_available', {
+    version: info.version,
+    releaseDate: info.releaseDate,
+    releaseNotes: info.releaseNotes
+  })
+})
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Aucune mise à jour disponible', info)
+  win?.webContents.send('update_not_available')
+})
+
+autoUpdater.on('download-progress', (progressObj) => {
+  console.log('Progression du téléchargement:', progressObj.percent)
+  win?.webContents.send('download_progress', progressObj)
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Mise à jour téléchargée', info)
+  win?.webContents.send('update_downloaded', {
+    version: info.version,
+    releaseDate: info.releaseDate,
+    releaseNotes: info.releaseNotes
+  })
+})
+
+// Gestion des erreurs
+autoUpdater.on('error', (error) => {
+  console.error('Erreur lors de la mise à jour:', error)
+  win?.webContents.send('update_error', {
+    message: error.message,
+    stack: error.stack
+  })
+})
+
+
+// Gestion des événements de mise àjour automatique depuis le rendu
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    console.log('Vérification des mises à jour demandée depuis le rendu (mode développement)')
+    // Simuler une mise à jour en développement
+    const updateInfo = {
+      version: '1.0.1',
+      releaseDate: new Date().toISOString(),
+      releaseNotes: ['Corrections de bugs', 'Amélioration des performances']
+    }
+    win?.webContents.send('update_available', updateInfo)
+    return { updateInfo }
+  } else {
+    try {
+      const updateCheckResult = await autoUpdater.checkForUpdates()
+      return { updateInfo: updateCheckResult?.updateInfo }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des mises à jour:', error)
+      throw error
+    }
+  }
+})
+
+ipcMain.handle('download-update', async () => {
+  console.log('Téléchargement de la mise à jour demandé')
+  try {
+    const result = await autoUpdater.downloadUpdate()
+    console.log('Téléchargement de la mise à jour démarré: ', result)
+    return result
+  } catch (error) {
+    console.log('Erreur lors du téléchargement:', error)
+    throw error
+  }
+})
+
+ipcMain.handle('install-update', () => {
+  console.log('Installation de la mise à jour demandée')
+  setImmediate(() => autoUpdater.quitAndInstall())
+  return Promise.resolve()
+})
 
 app.whenReady().then(async () => {
-  console.log('Événement "app.whenReady" déclenché.');
+   console.log('Événement "app.whenReady" déclenché.');
   try {
     await startApplication();
   } catch (error) {

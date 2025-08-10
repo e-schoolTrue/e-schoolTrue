@@ -103,6 +103,7 @@ declare module 'vue' {
     SyncHistory: typeof import('./src/components/sync/SyncHistory.vue')['default']
     SyncSettings: typeof import('./src/components/sync/SyncSettings.vue')['default']
     TeachingAssignment: typeof import('./src/components/professor/sections/TeachingAssignment.vue')['default']
+    UpdateNotifier: typeof import('./src/components/common/UpdateNotifier.vue')['default']
     YearRepartionForm: typeof import('./src/components/schoolYear/YearRepartionForm.vue')['default']
   }
   export interface ComponentCustomProperties {

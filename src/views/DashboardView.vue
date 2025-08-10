@@ -136,7 +136,7 @@ onMounted(() => {
         <div class="stat-content">
           <h3>Élèves</h3>
           <div class="stat-value">{{ stats?.stats.totalStudents || 0 }}</div>
-          <p>Inscrits</p>
+          <p>Inscrits (pour la demo)</p>
         </div>
       </el-card>
 

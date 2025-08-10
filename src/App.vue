@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import LicenseChecker from './components/LicenseChecker.vue'
+import UpdateNotifier from '@/components/common/UpdateNotifier.vue'
 </script>
-
 
 <template>
     <RouterView/>
     <LicenseChecker />
+    <UpdateNotifier />
 </template>
 
 <style>

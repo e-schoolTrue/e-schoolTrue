@@ -1,12 +1,10 @@
 {
   "name": "e-school",
   "private": true,
-  "version": "1.0.0",
-  "description": "Application de gestion d'école",
-  "author": "",
+  "version": "1.0.1",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build && electron-builder",
+    "build": "vue-tsc --noEmit && vite build && electron-builder  --publish always",
     "preview": "vite preview",
     "test:unit": "vitest --environment jsdom",
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
@@ -19,12 +17,12 @@
     "dotenv": "^16.5.0",
     "electron-print-preview": "^2.2.0",
     "electron-store": "^10.1.0",
+    "electron-updater": "^6.6.2",
     "node-machine-id": "^1.1.12",
-    "reflect-metadata": "^0.1.13",
+    "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.1",
     "@iconify-json/bi": "^1.1.23",
     "@iconify-json/carbon": "^1.1.31",
     "@iconify-json/ep": "^1.1.15",
@@ -39,6 +37,7 @@
     "@vue/devtools": "^6.6.4",
     "@vue/test-utils": "^2.4.6",
     "chart.js": "^4.4.7",
+    "cross-env": "^7.0.3",
     "csv-parser": "^3.0.0",
     "date-fns": "^4.1.0",
     "electron": "^29.4.6",

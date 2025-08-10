@@ -1,0 +1,62 @@
+/**
+ * @see https://www.electron.build/configuration/configuration
+ */
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "eschool",
+  "asar": true,
+  "productName": "Eschool",
+
+  "directories": {
+    "output": "release/${version}" ,
+  },
+  "files": [
+    "dist",
+    "dist-electron"
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "artifactName": "${productName}-${version}-.${ext}"
+  },
+  "win": {
+    icon: "dist/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "artifactName": "${productName}-${version}.${ext}"
+  },
+  // Configuration de publication pour les mises à jour automatiques
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "e-schoolTrue",
+      "repo": "e-schoolTrue",
+      "private": false,
+      "releaseType": "draft"
+    }
+  ],
+
+  // Configuration NSIS pour l'installateur Windows
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "eSchool"
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ],
+    "artifactName": "${productName}-Linux-${version}.${ext}"
+  }
+}

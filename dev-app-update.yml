@@ -1,0 +1,27 @@
+# Configuration pour le mode développement de electron-updater
+# Ce fichier est utilisé uniquement en mode développement
+
+# Activer les mises à jour en mode développement
+forceDevUpdateConfig: true
+
+# URL de base pour les mises à jour en développement
+url: "http://localhost:3000/updates"
+
+# En-têtes personnalisés pour les requêtes de mise à jour
+headers:
+  "Cache-Control": "no-cache"
+  "X-Dev-Mode": "true"
+
+# Configuration supplémentaire
+autoInstallOnAppQuit: true
+allowDowngrade: false
+
+# Configuration spécifique à la plateforme
+win: 
+  publisherName: "eSchool"
+  signingHashAlgorithms: ['sha256']
+
+# Paramètres de débogage
+logger:
+  level: "debug"
+  file: "updater.log"
