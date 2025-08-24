@@ -3,7 +3,8 @@
     <el-container>
       <!-- Sidebar avec les filtres -->
       <el-aside width="320px" class="filters-sidebar">
-        <el-card class="filter-card">
+        <el-scrollbar>
+          <el-card class="filter-card">
           <template #header>
             <div class="filter-header">
               <h3><Icon icon="mdi:filter" class="mr-2" /> Filtres</h3>
@@ -71,28 +72,31 @@
 
         <!-- Statistiques -->
         <el-card class="statistics-card">
-          <template #header>
-            <h3>Statistiques</h3>
-          </template>
-          <div class="statistics">
-            <div class="stat-item">
-              <span class="stat-label">Total</span>
-              <span class="stat-value">{{ statistics.total }}</span>
+          <el-scrollbar>
+            <template #header>
+              <h3>Statistiques</h3>
+            </template>
+            <div class="statistics">
+              <div class="stat-item">
+                <span class="stat-label">Total</span>
+                <span class="stat-value">{{ statistics.total }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Justifiées</span>
+                <span class="stat-value success">
+                  {{ statistics.justified }} ({{ statistics.justifiedPercentage }}%)
+                </span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Non justifiées</span>
+                <span class="stat-value danger">
+                  {{ statistics.unjustified }} ({{ statistics.unjustifiedPercentage }}%)
+                </span>
+              </div>
             </div>
-            <div class="stat-item">
-              <span class="stat-label">Justifiées</span>
-              <span class="stat-value success">
-                {{ statistics.justified }} ({{ statistics.justifiedPercentage }}%)
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Non justifiées</span>
-              <span class="stat-value danger">
-                {{ statistics.unjustified }} ({{ statistics.unjustifiedPercentage }}%)
-              </span>
-            </div>
-          </div>
+          </el-scrollbar>
         </el-card>
+        </el-scrollbar>
       </el-aside>
 
       <!-- Contenu principal -->
@@ -129,7 +133,7 @@
           <el-table
             :data="paginatedAbsences"
             style="width: 100%"
-            :height="300"
+            height="40vh"
             v-loading="loading"
             border
             stripe

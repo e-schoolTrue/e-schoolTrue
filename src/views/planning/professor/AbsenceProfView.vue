@@ -53,6 +53,7 @@
           :data="filteredProfessorsSchedule" 
           border 
           style="width: 100%" 
+          height="35vh"
           size="large"
           :row-style="{ height: '60px' }"
         >
