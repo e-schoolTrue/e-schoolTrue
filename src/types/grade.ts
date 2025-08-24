@@ -1,12 +1,20 @@
+export enum GradeType {
+  PRIMARY = "PRIMARY",
+  SECONDARY = "SECONDARY"
+}
+
+
 export interface IGradeData {
     id?: number;
     name: string;
     code: string;
+    type: GradeType;   // ✅ ajouté
     students?: any[];
     branches?: IBranchData[];
     created_at?: Date;
     updated_at?: Date;
 }
+
 
 export interface IClassRoomData {
     id?: number;
@@ -29,14 +37,16 @@ export interface IBranchData {
 }
 
 export interface IGradeServiceParams {
-    newGrade: {
+   newGrade: {
         name: string;
         code: string;
+        type: GradeType;   // ✅ ajouté
     };
     updateGrade: {
         id: number;
         name: string;
         code: string;
+        type: GradeType;   // ✅ ajouté
     };
     newClassRoom: {
         name: string;
@@ -78,7 +88,9 @@ export interface GradeCommand {
     id?: number;
     name: string;
     code: string;
+    type: GradeType;   // ✅ ajouté
 }
+
 
 export interface BranchCommand {
     id?: number;
@@ -101,10 +113,12 @@ export interface GradeEntity {
     id?: number;
     name: string;
     code: string;
+    type: GradeType;   // ✅ ajouté
     branches?: BranchEntity[];
     created_at?: Date;
     updated_at?: Date;
 }
+
 
 export interface BranchEntity {
     id?: number;
@@ -119,7 +133,9 @@ export interface BranchEntity {
 export interface GradeFormData {
     name: string;
     code: string;
+    type: GradeType;   // ✅ ajouté
 }
+
 
 export interface BranchFormData {
     name: string;
@@ -142,17 +158,21 @@ export interface BranchResponse {
     error: string | null;
 }
 
+
+
 // Types pour les entités frontend
 export interface Grade {
     id?: number;
     name?: string;
     code?: string;
-    students?: any[]; // Référence aux étudiants (à définir dans student.ts)
+    type?: GradeType;   // ✅ ajouté
+    students?: any[];
     branches?: Branch[];
     classRooms?: ClassRoom[];
     created_at?: Date;
     updated_at?: Date;
 }
+
 
 export interface ClassRoom {
     id?: number;

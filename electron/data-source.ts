@@ -25,6 +25,7 @@ import { PreferenceEntity } from "./backend/entities/preference";
 import { GradeConfigEntity } from "./backend/entities/gradeConfig";
 import { License } from "./backend/entities/licence";
 import { BackupEntity } from "./backend/entities/backup";
+import { ScheduleEntity } from "./backend/entities/schedule";
 
 // --- ENSEMBLE DES ENTITÉS ---
 const entities = [
@@ -54,7 +55,8 @@ const entities = [
     GradeConfigEntity,
     SchoolSettingsEntity,
     License,
-    BackupEntity
+    BackupEntity,
+    ScheduleEntity
 ];
 
 export class AppDataSource {

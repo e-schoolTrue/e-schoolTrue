@@ -115,6 +115,12 @@ export const AppItems: MenuItem[] = [
                         title: "Congés",
                         icon: "fluent-emoji:beach-with-umbrella",
                         route: "/planning/professors/vacation",
+                    },
+                     {
+                        id: "submenu-4-2-2",
+                        title: "Emploi du temps",
+                        icon: "fluent-emoji:calendar",
+                        route: "/planning/professors/planning",
                     }
                 ]
             }

@@ -9,33 +9,59 @@ import {
     UpdateDateColumn
 } from "typeorm";
 import { StudentEntity } from "./students";
+import {ScheduleEntity} from "./schedule";
 
+
+export enum GradeType {
+    PRIMARY = "PRIMARY",
+    SECONDARY = "SECONDARY"
+}
 
 @Entity('grade')
 export class GradeEntity {
     @PrimaryGeneratedColumn()
     id?: number;
-     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
-     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
-     remote_id?: string;
-     @Column({ type: "varchar", length: 36, nullable: true })
-     user_id?: string;
-    @Column({type: 'text'})
+
+    // ✅ UUID de Supabase (ajouté pour synchronisation distante)
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
+
+    @Column({ type: 'text' })
     name!: string;
-    @Column({type: 'text'})
+
+    @Column({ type: 'text' })
     code!: string;
+
+    // ✅ Ajout du type (primaire ou secondaire)
+    @Column({
+        type: "varchar",
+        default: GradeType.PRIMARY
+    })
+    type!: GradeType;
+
     @OneToMany(() => StudentEntity, (student) => student.grade)
     students?: StudentEntity[];
-    @OneToMany(() => BranchEntity , branch => branch.grade)
+
+    @OneToMany(() => BranchEntity, branch => branch.grade)
     branches?: BranchEntity[];
+
     @OneToMany(() => ClassRoomEntity, classRoom => classRoom.grade)
     classRooms?: ClassRoomEntity[];
+
     @CreateDateColumn()
     created_at?: Date;
+
     @UpdateDateColumn()
     updated_at?: Date;
+
     @DeleteDateColumn()
     deleted_at?: Date;
+
+    @OneToMany(() => ScheduleEntity, schedule => schedule.class)
+    schedules!: ScheduleEntity[];
 }
 
 @Entity('class_room')
