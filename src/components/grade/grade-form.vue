@@ -1,15 +1,18 @@
 <script lang="ts" setup>
 import {reactive, ref} from 'vue'
-import {GradeCommand, Grade} from "@/types/grade";
+import {GradeCommand} from "@/types/grade";
 import {FormInstance, FormRules} from "element-plus";
 import {Icon} from "@iconify/vue";
+import { GradeType } from "@/types/grade"; //  import de l'enum
 
 const props = defineProps<{formTitle:string}>()
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
+
 const form = reactive<GradeCommand>({
   name:"",
-  code:""
+  code:"",
+  type: GradeType.PRIMARY // valeur par défaut
 })
 
 const formRule = reactive<FormRules<GradeCommand>>({
@@ -20,19 +23,24 @@ const formRule = reactive<FormRules<GradeCommand>>({
   name:[
     {required:true, message:"Le nom est requis", trigger:"blur"},
     {min: 3, max: 50, message: "Le nom doit contenir entre 3 et 50 caractères", trigger: "blur"}
+  ],
+  type:[
+    {required:true, message:"Le type est requis", trigger:"change"}
   ]
 })
 
-function open(grade?: Grade){
+function open(grade?: GradeCommand){
   dialogVisible.value = true
   if (grade) {
     form.id = grade.id
     form.name = grade.name || ""
     form.code = grade.code || ""
+    form.type = grade.type || GradeType.PRIMARY
   } else {
     form.id = undefined
     form.name = ""
     form.code = ""
+    form.type = GradeType.PRIMARY
   }
 }
 
@@ -78,6 +86,13 @@ defineExpose({
       <el-form-item label="Nom" prop="name">
         <el-input v-model="form.name" placeholder="Ex: Sixième A, Cinquième B, etc." />
       </el-form-item>
+      <!-- ⚡ Ajout du champ Type -->
+      <el-form-item label="Type" prop="type">
+        <el-select v-model="form.type" placeholder="Choisissez le type">
+          <el-option :value="GradeType.PRIMARY" label="Primaire" />
+          <el-option :value="GradeType.SECONDARY" label="Secondaire" />
+        </el-select>
+      </el-form-item>
     </el-form>
     <template #footer>
       <div class="dialog-footer">
@@ -89,11 +104,3 @@ defineExpose({
     </template>
   </el-dialog>
 </template>
-
-<style scoped>
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-</style>

@@ -27,6 +27,10 @@ import { ReportCardService } from "./backend/services/reportCardService";
 import { GradeConfigService } from "./backend/services/gradeConfigService";
 import { PreferenceService } from "./backend/services/preferenceService";
 import { LicenseService } from "./backend/services/licenseService";
+import { ScheduleService } from './backend/services/scheduleService';
+
+
+
 
 // --- Handlers IPC ---
 import { registerIpcHandlers } from './events';
@@ -55,6 +59,7 @@ declare global {
   var preferenceService: PreferenceService;
   var configService: ConfigService;
   var licenseService: LicenseService;
+  var scheduleService: ScheduleService;
 }
 
 // =================================================================
@@ -110,6 +115,7 @@ async function startApplication() {
   global.gradeConfigService = new GradeConfigService();
   global.preferenceService = new PreferenceService();
   global.licenseService = new LicenseService(); // correction ici : instanciation
+  global.scheduleService = new ScheduleService();
 
   registerIpcHandlers();
   console.log('[3/4] Services et handlers IPC initialisés avec succès.');

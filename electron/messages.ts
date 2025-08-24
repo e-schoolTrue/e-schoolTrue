@@ -31,5 +31,12 @@ export const messages = {
     course_update_successfully:"matière mise à jour avec succès",
     course_update_failed:"échec lors de la mise à jour de la matière",
     course_group_save_successfully:"sous matière ajoutée avec susscès",
-    course_group_save_failed:"échec de l'ajout de la sous matière"
+    course_group_save_failed:"échec de l'ajout de la sous matière",
+    schedule_save_successfully: "Emploi du temps créé avec succès",
+    schedule_save_failed: "Erreur lors de la création de l'emploi du temps",
+    schedule_update_successfully: "Emploi du temps mis à jour avec succès", 
+    schedule_update_failed: "Erreur lors de la mise à jour de l'emploi du temps",
+    schedule_delete_successfully: "Créneau supprimé avec succès",
+    schedule_delete_failed: "Erreur lors de la suppression du créneau",
+    schedule_retrieve_failed: "Erreur lors de la récupération des emplois du temps"
 }

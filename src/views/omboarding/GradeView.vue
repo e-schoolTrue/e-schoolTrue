@@ -6,12 +6,15 @@ import WizardViewBase from './WizardViewBase.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Loader } from "@/components/util/AppLoader.ts";
 import type { Grade } from '@/types/grade';
+import { GradeType } from '@/types/grade';
 
 // Étendre l'interface Grade pour inclure la propriété order et id
 interface ExtendedGrade extends Grade {
   order: number;
-  id?: number; // Ajouter l'ID optionnel
+  id?: number;
+  type: GradeType; // ajouté
 }
+
 
 const emit = defineEmits(['configuration-saved', 'go-back']);
 const formRef = ref<FormInstance>();
@@ -19,9 +22,10 @@ const isSaving = ref(false);
 
 const formData = ref({
   grades: [
-    { name: '', code: '', order: 1 }
+    { name: '', code: '', order: 1, type: GradeType.PRIMARY }
   ] as ExtendedGrade[]
 });
+
 
 const rules: FormRules = {
   'grades.*.name': [
@@ -34,12 +38,19 @@ const rules: FormRules = {
   ],
   'grades.*.order': [
     { required: true, message: 'L\'ordre est requis', trigger: ['blur', 'change'] }
+  ],
+  'grades.*.type': [
+    { required: true, message: 'Le type est requis', trigger: ['change'] }
   ]
 };
 
+
 const addGrade = () => {
   const newOrder = formData.value.grades.length + 1;
-  formData.value.grades.push({ name: '', code: '', order: newOrder });
+  formData.value.grades.push({
+    name: '', code: '', order: newOrder,
+    type: GradeType.PRIMARY
+  });
 };
 
 const removeGrade = async (index: number) => {
@@ -112,10 +123,12 @@ const saveGrades = async () => {
       }
 
       return {
-        name,
-        code,
-        order
-      };
+  name,
+  code,
+  order,
+  type: grade.type
+};
+
     });
 
     console.log('Données à sauvegarder:', gradesToSave);
@@ -225,11 +238,13 @@ onMounted(async () => {
     const result = await window.ipcRenderer.invoke("grade:all");
     if (result.success) {
       formData.value.grades = result.data.map((grade: ExtendedGrade) => ({
-        id: grade.id, // Inclure l'ID
-        name: grade.name,
-        code: grade.code,
-        order: grade.order
-      }));
+  id: grade.id,
+  name: grade.name,
+  code: grade.code,
+  order: grade.order,
+  type: grade.type ?? GradeType.PRIMARY // ✅ fallback si ancien data
+}));
+
     } else {
       throw new Error(result.message || "Échec du chargement des niveaux");
     }
