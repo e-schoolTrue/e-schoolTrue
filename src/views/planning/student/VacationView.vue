@@ -29,7 +29,7 @@
       </div>
 
       <!-- Liste des congés -->
-      <el-table :data="filteredVacations" v-loading="loading" height="300">
+      <el-table :data="filteredVacations" v-loading="loading" height="45vh">
         <el-table-column label="Élève">
           <template #default="{ row }">
             <div class="student-info">

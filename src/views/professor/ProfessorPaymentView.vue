@@ -97,7 +97,7 @@
         <el-table
           v-loading="loading"
           :data="filteredPayments"
-          height="150"
+          height="35vh"
           border
           stripe
           style="width: 100%"

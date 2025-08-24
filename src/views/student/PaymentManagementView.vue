@@ -137,8 +137,7 @@
           :data="filteredStudents"
           border
           stripe
-          height="100"
-          max-height="550"
+          height="35vh"
           highlight-current-row
           empty-text="Aucun étudiant trouvé"
           class="payment-table"

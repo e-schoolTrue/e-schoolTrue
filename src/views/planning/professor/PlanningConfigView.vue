@@ -37,7 +37,8 @@
       </div>
     </el-card>
 
-    <div class="main-content" v-loading="loading">
+    <el-scrollbar height="65vh">
+      <div class="main-content" v-loading="loading">
       <!-- Sidebar - Professeurs/Matières -->
       <div class="sidebar">
         <el-card class="teachers-card" shadow="never">
@@ -250,6 +251,7 @@
         </div>
       </div>
     </el-card>
+    </el-scrollbar>
   </div>
 </template>
 

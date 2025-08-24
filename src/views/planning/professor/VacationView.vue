@@ -44,7 +44,7 @@
       </div>
 
       <!-- Liste des congés -->
-      <el-table height="250" :data="filteredVacations" v-loading="loading" border>
+      <el-table height="35vh" :data="filteredVacations" v-loading="loading" border>
         <el-table-column label="Professeur" min-width="200">
           <template #default="{ row }">
             <div class="professor-info" v-if="row.professor">
