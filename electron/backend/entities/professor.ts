@@ -1,5 +1,6 @@
 import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
 import { TeachingAssignmentEntity } from "./teaching";
+import {ScheduleEntity} from "./schedule"
 import { FileEntity } from "./file";
 
 @Entity("professors")
@@ -63,6 +64,9 @@ export class ProfessorEntity {
 
     @OneToMany(() => TeachingAssignmentEntity, teaching => teaching.professor)
     teaching!: TeachingAssignmentEntity[];
+    @OneToMany(() => ScheduleEntity, schedule => schedule.professor)
+    schedules: ScheduleEntity[];
+
 
     /**
      * Méthode statique pour générer un matricule

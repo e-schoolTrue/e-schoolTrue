@@ -1,4 +1,5 @@
 import {Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn} from "typeorm";
+import {ScheduleEntity} from "./schedule"
 
 @Entity("course")
 export class CourseEntity{
@@ -29,6 +30,8 @@ export class CourseEntity{
     created_at?: Date;
     @UpdateDateColumn()
     updated_at?: Date;
+    @OneToMany(() => ScheduleEntity, schedule => schedule.course)
+    schedules: ScheduleEntity[];
 }
 
 @Entity("observation")

@@ -15,7 +15,7 @@ export const planningRoutes = [
     name: "StudentVacation",
     component: () => import("@/views/planning/student/VacationView.vue"),
   },
-
+  
   
   // Routes pour les professeurs
   {
@@ -27,6 +27,11 @@ export const planningRoutes = [
     path: "/planning/professors/vacation",
     name: "ProfessorVacation",
     component: () => import("@/views/planning/professor/VacationView.vue"),
+  },
+    {
+    path: "/planning/professors/planning",
+    name: "ProfessorPlanning",
+    component: () => import("@/views/planning/professor/PlanningConfigView.vue"),
   },
 
 ];

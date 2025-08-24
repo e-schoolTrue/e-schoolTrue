@@ -3,6 +3,7 @@ import path from "path";
 import { ResultType } from "./command/index";
 import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "./command/settingsCommand";
 import { CloudSyncService, SyncConfig, SyncHistory } from './backend/services/backupService';
+import { ScheduleCommand } from "#electron/command/scheduleCommand";
 import fs from 'fs/promises';
 import { AuthService } from './backend/services/authService';
 import { GradeService } from './backend/services/gradeService';
@@ -23,6 +24,7 @@ import { GradeConfigService } from './backend/services/gradeConfigService';
 import { PreferenceService } from './backend/services/preferenceService';
 import { LicenseService } from './backend/services/licenseService';
 import { ConfigService } from './backend/services/configService';
+import { ScheduleService } from './backend/services/scheduleService';
 
 
 
@@ -69,6 +71,7 @@ export function registerIpcHandlers() {
   const gradeConfigService = new GradeConfigService();
   const preferenceService = new PreferenceService();
   const licenseService = new LicenseService();
+  const scheduleService = new ScheduleService();
 
   // --- Authentification ---
   ipcMain.handle("auth:create", async (_, userData) => authService.createSupervisor(userData.username, userData.password, userData.securityQuestion, userData.securityAnswer));
@@ -520,13 +523,21 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("professor:payment:getById", async (_, paymentId) => paymentService.getProfessorPaymentById(paymentId));
   
   // --- Absences ---
-  ipcMain.handle("absence:allStudent", async () => absenceService.getAllAbsences("STUDENT"));
-  ipcMain.handle("absence:allProfessor", async () => absenceService.getAllAbsences("PROFESSOR"));
-  ipcMain.handle("absence:add", async (_, absenceData) => absenceService.addAbsence(absenceData));
-  ipcMain.handle("absence:addProfessor", async (_, data) => absenceService.createProfessorAbsence(data));
-  ipcMain.handle("absence:updateProfessor", async (_, data) => absenceService.updateProfessorAbsence(data));
-  ipcMain.handle("absence:getAllProfessor", async () => absenceService.getAllProfessorAbsences());
-  ipcMain.handle("absence:deleteProfessor", async (_, id) => absenceService.deleteProfessorAbsence(id));
+  ipcMain.handle("absence:allStudent", async () => global.absenceService.getAllAbsences("STUDENT"));
+  ipcMain.handle("absence:allProfessor", async () => global.absenceService.getAllAbsences("PROFESSOR"));
+  ipcMain.handle("absence:add", async (_, absenceData) => global.absenceService.addAbsence(absenceData));
+  ipcMain.handle("absence:addProfessor", async (_, data) => global.absenceService.createProfessorAbsence(data));
+  ipcMain.handle("absence:updateProfessor", async (_, data) => global.absenceService.updateProfessorAbsence(data));
+  ipcMain.handle("absence:getAllProfessor", async () => global.absenceService.getAllProfessorAbsences());
+  ipcMain.handle("absence:deleteProfessor", async (_, id) => global.absenceService.deleteProfessorAbsence(id));
+  ipcMain.handle("absence:createBatch", async (_, absencesData) => {
+    try {
+      const result = await global.absenceService.createProfessorAbsencesBatch(absencesData);
+      return result;
+    } catch (error) {
+      return handleError(error, "Erreur lors de la création des absences en lot");
+    }
+  });
   
   // --- Devoirs (Homework) ---
   ipcMain.handle("homework:create", async (_, data) => homeworkService.createHomework(data));
@@ -645,6 +656,127 @@ ipcMain.handle('open-file-dialog', async () => {
     } catch (error) {
       return handleError(error, "Erreur lors de la génération de sous-licence");
     }
+  });
+  
+  //shedule
+  // Handler pour créer un emploi du temps
+  ipcMain.handle('schedule:create', async (event, command: ScheduleCommand) => {
+    try {
+        return await global.scheduleService.createSchedule(command);
+    } catch (error) {
+        console.error('Error in schedule:create handler:', error);
+        return {
+            success: false,
+            message: 'Erreur serveur lors de la création du créneau',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
+  });
+
+  // Handler pour récupérer l'emploi du temps par date
+  ipcMain.handle('schedule:getByDate', async (event, { date }) => {
+    try {
+        return await global.scheduleService.getScheduleByDate(date);
+    } catch (error) {
+        console.error('Error in schedule:getByDate handler:', error);
+        return {
+            success: false,
+            message: 'Erreur lors de la récupération de l\'emploi du temps',
+            data: null,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
+  });
+
+  // Handler pour récupérer tous les emplois du temps
+  ipcMain.handle('schedule:all', async () => {
+      try {
+          return await global.scheduleService.getAllSchedules();
+      } catch (error) {
+          console.error('Error in schedule:all handler:', error);
+          return {
+              success: false,
+              message: 'Erreur serveur lors de la récupération des emplois du temps',
+              data: null,
+              error: error instanceof Error ? error.message : 'Unknown error'
+          };
+      }
+  });
+
+  // Handler pour récupérer l'emploi du temps par classe
+  ipcMain.handle('schedule:by-class', async (event, classId: number) => {
+      try {
+          return await global.scheduleService.getScheduleByClass(classId);
+      } catch (error) {
+          console.error('Error in schedule:by-class handler:', error);
+          return {
+              success: false,
+              message: 'Erreur serveur lors de la récupération de l\'emploi du temps de la classe',
+              data: null,
+              error: error instanceof Error ? error.message : 'Unknown error'
+          };
+      }
+  });
+
+  // Handler pour récupérer l'emploi du temps par professeur
+  ipcMain.handle('schedule:by-professor', async (event, professorId: number) => {
+      try {
+          return await global.scheduleService.getScheduleByProfessor(professorId);
+      } catch (error) {
+          console.error('Error in schedule:by-professor handler:', error);
+          return {
+              success: false,
+              message: 'Erreur serveur lors de la récupération de l\'emploi du temps du professeur',
+              data: null,
+              error: error instanceof Error ? error.message : 'Unknown error'
+          };
+      }
+  });
+
+  // Handler pour supprimer un créneau
+  ipcMain.handle('schedule:delete', async (event, scheduleId: number) => {
+      try {
+          return await global.scheduleService.deleteSchedule(scheduleId);
+      } catch (error) {
+          console.error('Error in schedule:delete handler:', error);
+          return {
+              success: false,
+              message: 'Erreur serveur lors de la suppression du créneau',
+              data: null,
+              error: error instanceof Error ? error.message : 'Unknown error'
+          };
+      }
+  });
+
+  // Handler pour mettre à jour un créneau
+  ipcMain.handle('schedule:update', async (event, scheduleId: number, command: Partial<ScheduleCommand>) => {
+      try {
+          return await global.scheduleService.updateSchedule(scheduleId, command);
+      } catch (error) {
+          console.error('Error in schedule:update handler:', error);
+          return {
+              success: false,
+              message: 'Erreur serveur lors de la mise à jour du créneau',
+              data: null,
+              error: error instanceof Error ? error.message : 'Unknown error'
+          };
+      }
+  });
+
+  // Handler pour vérifier les conflits
+  ipcMain.handle('schedule:check-conflicts', async (event, professorId: number, day: string, timeSlot: string, excludeScheduleId?: number) => {
+      try {
+          return await global.scheduleService.checkConflicts(professorId, day, timeSlot, excludeScheduleId);
+      } catch (error) {
+          console.error('Error in schedule:check-conflicts handler:', error);
+          return {
+              success: false,
+              message: 'Erreur serveur lors de la vérification des conflits',
+              data: null,
+              error: error instanceof Error ? error.message : 'Unknown error'
+          };
+      }
   });
   
   console.log('Tous les handlers IPC ont été enregistrés.');
