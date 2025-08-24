@@ -1,4 +1,5 @@
-import {GradeEntity} from "#electron/backend/entities/grade";
+import {GradeEntity, GradeType} from "#electron/backend/entities/grade";
+
 
 class SettingCommand {
     id?: number;
@@ -10,6 +11,7 @@ export class GradeCommand extends SettingCommand {
     declare id?: number;
     declare name: string;
     declare code: string;
+    declare type?: GradeType;  // ✅ type basé sur l'enum
 }
 
 export class BranchCommand extends SettingCommand {

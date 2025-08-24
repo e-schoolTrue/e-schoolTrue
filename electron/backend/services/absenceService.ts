@@ -423,4 +423,41 @@ export class AbsenceService {
             };
         }
     }
+
+    async createProfessorAbsencesBatch(absencesData: any[]): Promise<IAbsenceServiceResponse> {
+        try {
+            const absencesToSave = absencesData.map(data => {
+                const [start, end] = data.timeSlot.split('-');
+                const startTime = `${start.padStart(2, '0')}:00`;
+                const endTime = `${end.padStart(2, '0')}:00`;
+
+                return this.absenceRepository.create({
+                    date: new Date(data.date),
+                    absenceType: data.absenceType,
+                    startTime: startTime,
+                    endTime: endTime,
+                    reason: data.reason,
+                    justified: !!data.reason,
+                    professor: { id: data.professorId },
+                    type: 'PROFESSOR'
+                } as DeepPartial<AbsenceEntity>);
+            });
+
+            const savedAbsences = await this.absenceRepository.save(absencesToSave);
+
+            return {
+                success: true,
+                data: savedAbsences.map(absence => this.mapToIAbsenceData(absence)),
+                message: "Absences enregistrées avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de l'enregistrement des absences",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
 }

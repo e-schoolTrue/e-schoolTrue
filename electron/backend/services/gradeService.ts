@@ -1,5 +1,5 @@
 import {Repository} from "typeorm";
-import {BranchEntity, ClassRoomEntity, GradeEntity} from "#electron/backend/entities/grade";
+import {BranchEntity, ClassRoomEntity, GradeEntity, GradeType} from "#electron/backend/entities/grade";
 import {AppDataSource} from "#electron/data-source";
 import {messages} from "#electron/messages";
 import {
@@ -8,6 +8,7 @@ import {
     ClassRoomCommand} from "#electron/command/settingsCommand";
 import { IGradeServiceResponse,  IClassRoomData } from "#electron/backend/types/grade";
 import { CascadeDelete } from "#electron/backend/utils/cascadeDelete";
+
 
 export class GradeService {
     private gradeRepository: Repository<GradeEntity>;
@@ -20,37 +21,42 @@ export class GradeService {
         this.branchRepository = AppDataSource.getInstance().getRepository(BranchEntity);
     }
 
-    async newGrade(command: GradeCommand): Promise<IGradeServiceResponse> {
-        try {
-            if (!command.name || !command.code) {
-                return {
-                    success: false,
-                    message: "Le nom et le code sont requis",
-                    data: null,
-                    error: "Missing required fields"
-                };
-            }
-
-            const newGrade = new GradeEntity();
-            newGrade.name = command.name;
-            newGrade.code = command.code;
-            await this.gradeRepository.save(newGrade);
-            const grades = await this.gradeRepository.find();
-            return {
-                success: true,
-                message: messages.grade_save_successfully,
-                data: grades,
-                error: null
-            };
-        } catch (e: any) {
+async newGrade(command: GradeCommand): Promise<IGradeServiceResponse> {
+    try {
+        if (!command.name || !command.code) {
             return {
                 success: false,
-                message: messages.grade_save_failed,
+                message: "Le nom et le code sont requis",
                 data: null,
-                error: e.message
+                error: "Missing required fields"
             };
         }
+
+        const newGrade = new GradeEntity();
+        newGrade.name = command.name;
+        newGrade.code = command.code;
+        newGrade.type = command.type ?? GradeType.PRIMARY; // ✅ utilisation de l'enum
+
+        await this.gradeRepository.save(newGrade);
+
+        const grades = await this.gradeRepository.find();
+        return {
+            success: true,
+            message: messages.grade_save_successfully,
+            data: grades,
+            error: null
+        };
+    } catch (e: any) {
+        return {
+            success: false,
+            message: messages.grade_save_failed,
+            data: null,
+            error: e.message
+        };
     }
+}
+
+
 
     async getGrades(): Promise<IGradeServiceResponse> {
         try {
@@ -75,50 +81,52 @@ export class GradeService {
         }
     }
 
-    async updateGrade(command: GradeCommand): Promise<IGradeServiceResponse> {
-        try {
-            if (!command.id || !command.name || !command.code) {
-                return {
-                    success: false,
-                    message: "L'ID, le nom et le code sont requis",
-                    data: null,
-                    error: "Missing required fields"
-                };
-            }
-
-            const grade = await this.gradeRepository.findOneBy({id: command.id});
-            if (!grade) {
-                return {
-                    success: false,
-                    message: messages.grade_not_found,
-                    data: null,
-                    error: null
-                };
-            }
-
-            grade.name = command.name;
-            grade.code = command.code;
-            await this.gradeRepository.save(grade);
-            const grades = await this.gradeRepository.find({
-                relations: {
-                    branches: true
-                }
-            });
-            return {
-                success: true,
-                message: messages.grade_update_successfully,
-                data: grades,
-                error: null
-            };
-        } catch (e: any) {
+   async updateGrade(command: GradeCommand): Promise<IGradeServiceResponse> {
+    try {
+        if (!command.id || !command.name || !command.code) {
             return {
                 success: false,
-                message: messages.grade_update_failed,
+                message: "L'ID, le nom et le code sont requis",
                 data: null,
-                error: e.message
+                error: "Missing required fields"
             };
         }
+
+        const grade = await this.gradeRepository.findOneBy({ id: command.id });
+        if (!grade) {
+            return {
+                success: false,
+                message: messages.grade_not_found,
+                data: null,
+                error: null
+            };
+        }
+
+        grade.name = command.name;
+        grade.code = command.code;
+        if (command.type) grade.type = command.type; // <-- ajout
+
+        await this.gradeRepository.save(grade);
+
+        const grades = await this.gradeRepository.find({
+            relations: { branches: true }
+        });
+        return {
+            success: true,
+            message: messages.grade_update_successfully,
+            data: grades,
+            error: null
+        };
+    } catch (e: any) {
+        return {
+            success: false,
+            message: messages.grade_update_failed,
+            data: null,
+            error: e.message
+        };
     }
+}
+
 
     async deleteGrade(id: number): Promise<IGradeServiceResponse> {
         try {
