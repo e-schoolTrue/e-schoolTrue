@@ -22,7 +22,6 @@ export class GradeEntity {
     @PrimaryGeneratedColumn()
     id?: number;
 
-    // ✅ UUID de Supabase (ajouté pour synchronisation distante)
     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
     remote_id?: string;
 
@@ -35,7 +34,6 @@ export class GradeEntity {
     @Column({ type: 'text' })
     code!: string;
 
-    // ✅ Ajout du type (primaire ou secondaire)
     @Column({
         type: "varchar",
         default: GradeType.PRIMARY

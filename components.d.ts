@@ -95,6 +95,8 @@ declare module 'vue' {
     MessageCustomizer: typeof import('./src/components/message/message-customizer.vue')['default']
     ParentInfo: typeof import('./src/components/student/sections/ParentInfo.vue')['default']
     PaymentDialog: typeof import('./src/components/payment/PaymentDialog.vue')['default']
+    PaymentFeeDetails: typeof import('./src/components/payment/PaymentFeeDetails.vue')['default']
+    PaymentFeeTable: typeof import('./src/components/payment/PaymentFeeTable.vue')['default']
     PaymentForm: typeof import('./src/components/payment/PaymentForm.vue')['default']
     PaymentHistory: typeof import('./src/components/payment/PaymentHistory.vue')['default']
     PaymentHistoryMini: typeof import('./src/components/payment/PaymentHistoryMini.vue')['default']

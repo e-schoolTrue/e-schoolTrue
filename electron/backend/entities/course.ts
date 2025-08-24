@@ -5,11 +5,10 @@ import {ScheduleEntity} from "./schedule"
 export class CourseEntity{
     @PrimaryGeneratedColumn()
     id?:number
-     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
-     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
-     remote_id?: string;
-     @Column({ type: "varchar", length: 36, nullable: true })
-     user_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
     @Column({type:"text"})
     code?:string
     @Column({type:"text"})

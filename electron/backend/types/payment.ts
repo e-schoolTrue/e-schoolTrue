@@ -117,3 +117,31 @@ export interface IPaymentServiceResponse {
     message: string;
     error: string | null;
 }
+
+export interface IInscriptionFee {
+    id?: number;
+    inscriptionFeeAmount?: number;
+    grade?: {
+        id: number;
+        name: string;
+    };
+}
+
+export interface IPaymentFee {
+    id?: number;
+    mensualityAmount?: number;
+    grade: {
+        id: number;
+        name: string;
+    };
+}
+
+export interface ITranchConfig {
+    id?: number;
+    tranchName?: string;
+    tranchMonthCount?: number;
+    grade: {
+        id: number;
+        name: string;
+    };
+}
