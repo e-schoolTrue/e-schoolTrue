@@ -7,6 +7,7 @@ import { useCurrency } from '@/composables/useCurrency';
 
 Chart.register(...registerables);
 
+
 interface DashboardStats {
   school: {
     name: string;
@@ -126,7 +127,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="dashboard">
+  <el-scrollbar height="90vh">
+    <div class="dashboard">
     <!-- Cartes de statistiques -->
     <div class="stats-grid">
       <el-card class="stat-card students">
@@ -257,6 +259,7 @@ onMounted(() => {
 
     </div>
   </div>
+  </el-scrollbar>
 </template>
 
 <style scoped>

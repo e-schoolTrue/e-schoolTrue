@@ -15,7 +15,6 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 import './config/env';
 
-// --- Services et Logique Métier ---
 import { AppDataSource } from "./data-source";
 import { ConfigService } from './backend/services/configService';
 import { AuthService } from './backend/services/authService';
@@ -237,8 +236,25 @@ ipcMain.handle('install-update', () => {
 })
 
 app.whenReady().then(async () => {
-   console.log('Événement "app.whenReady" déclenché.');
+  console.log('Événement "app.whenReady" déclenché.');
   try {
+    // Vérifier les mises à jour au démarrage
+    if (app.isPackaged) {
+      console.log('Vérification des mises à jour...')
+      autoUpdater.checkForUpdatesAndNotify()
+      
+      // Vérifier les mises à jour toutes les heures
+      setInterval(() => {
+        console.log('Vérification périodique des mises à jour...')
+        autoUpdater.checkForUpdatesAndNotify()
+      }, 60 * 60 * 1000)
+    } else {
+      // En développement, vérifier plus fréquemment
+      setInterval(() => {
+        console.log('Vérification des mises à jour (mode développement)...')
+        autoUpdater.checkForUpdatesAndNotify()
+      }, 5 * 60 * 1000) 
+    }
     await startApplication();
   } catch (error) {
     console.error("Échec critique du démarrage de l'application dans whenReady:", error);

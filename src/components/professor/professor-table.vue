@@ -208,6 +208,7 @@ const handleSizeChange = (val: number) => {
       <el-table 
         :data="paginatedData" 
         style="width: 100%"
+        height="250"
         :max-height="500"
         v-loading="loading"
         stripe

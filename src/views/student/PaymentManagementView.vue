@@ -41,7 +41,7 @@
     </el-header>
 
     <el-main class="payment-content">
-      <el-card class="payment-table-card" shadow="hover">
+        <el-card class="payment-table-card" shadow="hover">
         <template #header>
           <div class="table-header">
             <div class="search-filters">
@@ -132,19 +132,19 @@
           </div>
         </template>
 
-        <el-table
+          <el-table
           v-loading="loading"
           :data="filteredStudents"
           border
           stripe
-          :height="tableHeight"
+          height="100"
+          max-height="550"
           highlight-current-row
           empty-text="Aucun étudiant trouvé"
           class="payment-table"
           style="width: 100%"
-          :max-height="550"
         >
-          <el-table-column type="expand">
+          <el-table-column fixed type="expand">
             <template #default="props">
               <payment-history-mini :student="props.row" />
             </template>
@@ -390,7 +390,6 @@ interface Filters {
 
 const filteredStudents = ref<Student[]>([]);
 const grades = ref<Grade[]>([]);
-const tableHeight = "calc(100vh - 350px)";
 
 const students = ref<Student[]>([]);
 const loading = ref(false);
@@ -1292,7 +1291,6 @@ const getTotalScholarshipAmount = () => {
 .payment-table-card {
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
 }
 
 .table-header {
@@ -1463,7 +1461,6 @@ const getTotalScholarshipAmount = () => {
   --el-table-header-bg-color: var(--el-color-primary-light-9);
   --el-table-row-hover-bg-color: var(--el-color-primary-light-9);
   width: 100%;
-  overflow-x: auto;
 }
 
 .el-table {
