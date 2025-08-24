@@ -140,7 +140,6 @@ export interface PaymentConfigResponse {
   error: string | null;
 }
 
-// Nouvelle interface pour représenter les données de paiement d'un étudiant
 export interface StudentPaymentData {
   payments: IPaymentData[];
   baseAmount: number;
@@ -149,7 +148,6 @@ export interface StudentPaymentData {
   adjustedAmount: number;
 }
 
-// Interface pour le stockage local des montants de paiement
 export interface PaymentAmounts {
   paid: number;
   remaining: number;

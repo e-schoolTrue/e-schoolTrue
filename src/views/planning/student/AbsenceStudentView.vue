@@ -625,11 +625,6 @@ onMounted(async () => {
   }
 });
 
-// Calcul dynamique de la hauteur du tableau
-const tableHeight = computed(() => {
-  return 'calc(100vh - 280px)';
-});
-
 // Méthodes utilitaires
 const formatDate = (date: Date) => {
   return new Date(date).toLocaleDateString('fr-FR', {

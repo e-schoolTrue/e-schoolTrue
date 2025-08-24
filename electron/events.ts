@@ -25,6 +25,12 @@ import { PreferenceService } from './backend/services/preferenceService';
 import { LicenseService } from './backend/services/licenseService';
 import { ConfigService } from './backend/services/configService';
 import { ScheduleService } from './backend/services/scheduleService';
+import { PaymentFeeService } from './backend/services/payment-fee.service';
+import { InscriptionFeeService } from './backend/services/inscription-fee.service';
+import { TranchConfigService } from './backend/services/tranch-config.service';
+import { PaymentFeeEntity } from './backend/entities/paymentConfig';
+import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
+import { TranchConfigEntity } from './backend/entities/paymentConfig';
 
 
 
@@ -72,6 +78,9 @@ export function registerIpcHandlers() {
   const preferenceService = new PreferenceService();
   const licenseService = new LicenseService();
   const scheduleService = new ScheduleService();
+  const paymentFeeService = new PaymentFeeService();
+  const inscriptionFeeService = new InscriptionFeeService();
+  const tranchConfigService = new TranchConfigService();
 
   // --- Authentification ---
   ipcMain.handle("auth:create", async (_, userData) => authService.createSupervisor(userData.username, userData.password, userData.securityQuestion, userData.securityAnswer));
@@ -521,6 +530,147 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("professor:payment:create", async (_, paymentData) => paymentService.addProfessorPayment(paymentData));
   ipcMain.handle("professor:payment:update", async (_, paymentData) => paymentService.updateProfessorPayment(paymentData));
   ipcMain.handle("professor:payment:getById", async (_, paymentId) => paymentService.getProfessorPaymentById(paymentId));
+  
+  // --- Payment Fees ---
+  ipcMain.handle("payment-fee:all", async () => {
+    try {
+      const fees = await paymentFeeService.findAll();
+      return { success: true, data: fees };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("payment-fee:get", async (_, id: number) => {
+    try {
+      const fee = await paymentFeeService.findOne(id);
+      if (!fee) return { success: false, error: 'Payment fee not found' };
+      return { success: true, data: fee };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("payment-fee:create", async (_, data: PaymentFeeEntity) => {
+    try {
+      const result = await paymentFeeService.create(data);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("payment-fee:update", async (_, data: PaymentFeeEntity) => {
+    try {
+      const result = await paymentFeeService.update(data);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("payment-fee:delete", async (_, id: number) => {
+    try {
+      const result = await paymentFeeService.delete(id);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // --- Inscription Fees ---
+  ipcMain.handle("inscription-fee:all", async () => {
+    try {
+      const fees = await inscriptionFeeService.findAll();
+      return { success: true, data: fees };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("inscription-fee:get", async (_, id: number) => {
+    try {
+      const fee = await inscriptionFeeService.findOne(id);
+      if (!fee) return { success: false, error: 'Inscription fee not found' };
+      return { success: true, data: fee };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("inscription-fee:create", async (_, data: InscriptionFeeEntity) => {
+    try {
+      const result = await inscriptionFeeService.create(data);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("inscription-fee:update", async (_, data: InscriptionFeeEntity) => {
+    try {
+      const result = await inscriptionFeeService.update(data);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("inscription-fee:delete", async (_, id: number) => {
+    try {
+      const result = await inscriptionFeeService.delete(id);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // --- Tranch Configurations ---
+  ipcMain.handle("tranch-config:all", async () => {
+    try {
+      const configs = await tranchConfigService.findAll();
+      return { success: true, data: configs };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("tranch-config:get", async (_, id: number) => {
+    try {
+      const config = await tranchConfigService.findOne(id);
+      if (!config) return { success: false, error: 'Tranch config not found' };
+      return { success: true, data: config };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("tranch-config:create", async (_, data: TranchConfigEntity) => {
+    try {
+      const result = await tranchConfigService.create(data);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("tranch-config:update", async (_, data: TranchConfigEntity) => {
+    try {
+      const result = await tranchConfigService.update(data);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("tranch-config:delete", async (_, id: number) => {
+    try {
+      const result = await tranchConfigService.delete(id);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
   
   // --- Absences ---
   ipcMain.handle("absence:allStudent", async () => global.absenceService.getAllAbsences("STUDENT"));

@@ -26,6 +26,9 @@ import { GradeConfigEntity } from "./backend/entities/gradeConfig";
 import { License } from "./backend/entities/licence";
 import { BackupEntity } from "./backend/entities/backup";
 import { ScheduleEntity } from "./backend/entities/schedule";
+import { PaymentFeeEntity } from "./backend/entities/paymentConfig";
+import { TranchConfigEntity } from "./backend/entities/paymentConfig";
+import { InscriptionFeeEntity } from "./backend/entities/paymentConfig";
 
 // --- ENSEMBLE DES ENTITÉS ---
 const entities = [
@@ -56,7 +59,10 @@ const entities = [
     SchoolSettingsEntity,
     License,
     BackupEntity,
-    ScheduleEntity
+    ScheduleEntity,
+    PaymentFeeEntity,
+    TranchConfigEntity,
+    InscriptionFeeEntity
 ];
 
 export class AppDataSource {
