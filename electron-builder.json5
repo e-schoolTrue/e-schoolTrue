@@ -38,7 +38,7 @@
       "provider": "github",
       "owner": "e-schoolTrue",
       "repo": "e-schoolTrue",
-      "private": true,
+      "private": false,
       "releaseType": "draft"
     }
   ],
