@@ -97,10 +97,11 @@
         <el-table
           v-loading="loading"
           :data="filteredPayments"
+          height="150"
           border
           stripe
           style="width: 100%"
-          :max-height="550"
+          :max-height="350"
         >
           <el-table-column 
             label="Professeur" 

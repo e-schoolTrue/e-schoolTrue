@@ -1,7 +1,7 @@
 {
   "name": "e-school",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.1",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder  --publish always",
@@ -66,45 +66,5 @@
     "vue-tsc": "^2.2.10",
     "xlsx": "^0.18.5"
   },
-  "main": "dist-electron/main.js",
-  "build": {
-    "appId": "com.exemple.eschool",
-    "productName": "e-school",
-    "copyright": "Copyright © 2025 NovaTech",
-    "directories": {
-      "output": "release/",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist-electron/**/*",
-      "dist/**/*",
-      "node_modules/**/*",
-      "package.json",
-      ".env"
-    ],
-    "win": {
-      "icon": "public/icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
-  }
+  "main": "dist-electron/main.js"
 }

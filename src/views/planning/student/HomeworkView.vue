@@ -55,6 +55,7 @@
         :data="filteredHomework" 
         v-loading="loading"
         style="width: 100%"
+        :height="300"
       >
         <el-table-column prop="course.name" label="Matière">
           <template #default="{ row }">

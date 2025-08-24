@@ -129,7 +129,7 @@
           <el-table
             :data="paginatedAbsences"
             style="width: 100%"
-            :height="tableHeight"
+            :height="300"
             v-loading="loading"
             border
             stripe

@@ -40,7 +40,8 @@
     </div>
 
     <!-- Student Table -->
-    <el-card class="table-card">
+    <el-scrollbar height="230">
+      <el-card class="table-card">
       <div class="table-header">
         <h3 class="table-title">Liste des élèves</h3>
         <div class="table-actions">
@@ -74,6 +75,7 @@
       <el-table
         :data="paginatedData"
         style="width: 100%"
+        height="300"
         :max-height="tableHeight"
         :header-cell-style="headerStyle"
         row-class-name="student-table-row"
@@ -202,6 +204,7 @@
         />
       </div>
     </el-card>
+    </el-scrollbar>
   </div>
 </template>
 

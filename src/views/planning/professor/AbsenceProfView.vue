@@ -35,7 +35,7 @@
       </div>
 
       <!-- Liste des absences -->
-      <el-table :data="filteredAbsences" v-loading="loading">
+      <el-table :data="filteredAbsences" height="200" v-loading="loading">
         <el-table-column label="Professeur" min-width="200">
           <template #default="{ row }">
             <div class="professor-info">
