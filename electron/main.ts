@@ -56,9 +56,38 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 let win: BrowserWindow | null;
 
+
+// =================================================================
+// INITIALISATION DES SERVICES
+// =================================================================
+
+function initializeServices() {
+  global.authService = new AuthService();
+  global.backupService = new CloudSyncService();
+  global.gradeService = new GradeService();
+  global.courseService = new CourseService();
+  global.studentService = new StudentService();
+  global.fileService = new FileService();
+  global.paymentService = new PaymentService();
+  global.absenceService = new AbsenceService();
+  global.schoolService = new SchoolService();
+  global.yearRepartitionService = new YearRepartitionService();
+  global.professorService = new ProfessorService();
+  global.dashboardService = new DashboardService();
+  global.homeworkService = new HomeworkService();
+  global.vacationService = new VacationService();
+  global.scholarshipService = new ScholarshipService();
+  global.reportCardService = new ReportCardService();
+  global.gradeConfigService = new GradeConfigService();
+  global.preferenceService = new PreferenceService();
+  global.licenseService = new LicenseService();
+  global.scheduleService = new ScheduleService();
+}
+
 // =================================================================
 // FONCTION PRINCIPALE DE DÉMARRAGE
 // =================================================================
+
 
 async function startApplication() {
   console.log('--- DÉBUT DU FLUX DE DÉMARRAGE ---');
@@ -78,9 +107,13 @@ async function startApplication() {
   }
 
 
-  console.log('[3/4] Initialisation des services métier et des handlers IPC...');
+  console.log('[3/4] Initialisation des services métier...');
+  initializeServices();
+  console.log('[3/4] Services métier initialisés avec succès.');
+
+  console.log('[3/5] Initialisation des handlers IPC...');
   registerIpcHandlers();
-  console.log('[3/4] Services et handlers IPC initialisés avec succès.');
+  console.log('[3/5] Handlers IPC initialisés avec succès.');
 
   console.log('[4/4] Création de la fenêtre principale...');
   await createWindow();
