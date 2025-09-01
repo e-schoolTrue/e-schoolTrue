@@ -17,6 +17,7 @@
             <currency-display :amount="row.annualAmount" />
           </template>
         </el-table-column>
+
         <el-table-column label="Actions" width="150">
           <template #default="scope">
             <el-button 

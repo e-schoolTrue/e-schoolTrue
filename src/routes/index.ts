@@ -41,7 +41,6 @@ const routes = [
         path: "/onboarding",
         children: omboardingRoutes
     },
-    // Redirection par défaut vers le dashboard
     {
         path: "/:pathMatch(.*)*",
         redirect: "/"
