@@ -157,3 +157,33 @@ export interface PaymentAmounts {
   scholarshipAmount: number;
   adjustedAmount: number;
 }
+
+export interface TranchConfig {
+  id: string;
+  
+}
+
+
+
+export interface IPaymentAnnualConfig{
+  id?: number;
+  trancheCount?: number;
+  gradeId?:number
+  tranches?:ITranchConfig[]
+}
+
+
+export interface ITranchConfig {
+  id?: number;
+  tranchName?: string;
+  tranchMonthCount?: number;
+  entries?:ITrancheEntry[]
+}
+
+export interface ITrancheEntry {
+  id?: number;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+
