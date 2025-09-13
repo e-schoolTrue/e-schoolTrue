@@ -480,6 +480,9 @@ const saveAbsences = async () => {
     for (const profSchedule of professorsSchedule.value) {
       for (const [timeSlot, absenceInfo] of Object.entries(profSchedule.absences) as [string, AbsenceInfo][]) {
         if (absenceInfo.checked && hasSchedule(profSchedule.professor, timeSlot)) {
+          const schedule = profSchedule.schedules.find((s: any) => s.timeSlot === timeSlot);
+          const gradeId = schedule ? schedule.classId : null;
+
           absencesToSave.push({
             professorId: profSchedule.professor.id,
             date: selectedDate.value?.toISOString().split('T')[0],
@@ -487,7 +490,8 @@ const saveAbsences = async () => {
             reason: absenceInfo.reason || 'Non précisé',
             reasonType: absenceInfo.reasonType || 'UNAUTHORIZED',
             justified: absenceInfo.justified || false,
-            absenceType: 'COURSE'
+            absenceType: 'COURSE',
+            gradeId: gradeId
           });
         }
       }

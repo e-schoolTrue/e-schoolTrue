@@ -1,4 +1,9 @@
-import { Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { 
+  BeforeInsert, Column, CreateDateColumn, DeleteDateColumn, 
+  Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, 
+  UpdateDateColumn 
+} from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 import { FileEntity } from "./file";
 
 export type CountryCode = 'MAR' | 'SEN' | 'CAF' | 'GIN';
@@ -9,11 +14,10 @@ export class SchoolSettingsEntity {
     @PrimaryGeneratedColumn()
     id?: number;
 
-     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
-     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
-     remote_id?: string;
-     @Column({ type: "varchar", length: 36, nullable: true })
-     user_id?: string;
+    // ID de l'utilisateur Supabase
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
+
     @Column({ type: "varchar", length: 50 })
     schoolCode: string = '';
 
@@ -29,8 +33,10 @@ export class SchoolSettingsEntity {
 
     @DeleteDateColumn()
     deleted_at?: Date;
+
     @CreateDateColumn()
     created_at?: Date;
+
     @UpdateDateColumn()
     updated_at?: Date;
 }
@@ -39,6 +45,10 @@ export class SchoolSettingsEntity {
 export class SchoolEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+
+    // ID de l'utilisateur Supabase
+    @Column({ type: "varchar", length: 36, nullable: true })
+    user_id?: string;
 
     @Column({ type: "varchar", length: 255 })
     name: string = '';
@@ -49,14 +59,10 @@ export class SchoolEntity {
     @Column({ type: "varchar", length: 255, nullable: true })
     town: string = '';
 
-    @Column({ 
-        type: "varchar", 
+    @Column({
+        type: "varchar",
         length: 3,
-        default: 'SEN',
-        transformer: {
-            to: (value: string) => value,
-            from: (value: string) => value as CountryCode
-        }
+        default: 'SEN'
     })
     country: CountryCode = 'SEN';
 
@@ -69,14 +75,12 @@ export class SchoolEntity {
 
     @Column({ type: "varchar", length: 255 })
     email: string = '';
+       @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+         remote_id?: string;
 
-    @Column({ 
-        type: "varchar", 
+    @Column({
+        type: "varchar",
         length: 10,
-        transformer: {
-            to: (value: string) => value,
-            from: (value: string) => value as 'publique' | 'privée'
-        },
         default: 'publique'
     })
     type: 'publique' | 'privée' = 'publique';
@@ -86,6 +90,15 @@ export class SchoolEntity {
 
     @OneToOne(() => SchoolSettingsEntity, settings => settings.school)
     settings?: SchoolSettingsEntity;
+
+    @CreateDateColumn()
+    created_at?: Date;
+
+    @UpdateDateColumn()
+    updated_at?: Date;
+
+    @DeleteDateColumn()
+    deleted_at?: Date;
 
     // Getter virtuel pour la devise
     get currency(): CurrencyCode {

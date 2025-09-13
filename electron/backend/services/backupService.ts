@@ -8,7 +8,7 @@ import {
   Not,
   In,
 } from 'typeorm';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient, PostgrestResponse } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import * as fs from 'fs';
@@ -27,6 +27,7 @@ import { TeachingAssignmentEntity } from '../entities/teaching';
 import { VacationEntity } from '../entities/vacation';
 import { PaymentEntity } from '../entities/payment';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
+import { SchoolEntity } from "../entities/school";
 import { getCurrentSupabaseUserId, setCurrentSupabaseUserId } from "../lib/session";
 
 
@@ -146,6 +147,64 @@ export class CloudSyncService {
   private populateEntitySyncMetas() {
     this.entitySyncMetas = [
       // --- NIVEAU 0 ---
+      {
+        entity: SchoolEntity,
+        localRepository: this.appDataSourceInstance.getRepository(SchoolEntity),
+        supabaseTable: 'schools',
+        identifyingFields: ['name'],
+        transformToSupabase: (e: SchoolEntity & { school_id?: string }) => {
+          // Utiliser uniquement l'ID de session Supabase
+          const sessionUserId = this.getCurrentSessionUserId();
+          console.log('[SYNC] 🔍 Transformation école pour Supabase:', {
+            schoolName: e.name,
+            entityUserId: e.user_id,
+            sessionUserId: sessionUserId,
+            hasRemoteId: !!e.remote_id,
+            remoteId: e.remote_id
+          });
+
+          if (!sessionUserId) {
+            console.warn(`[SYNC] ❌ Sync école impossible - pas de session Supabase pour: ${e.name}`);
+            return null;
+          }
+          
+          const payload = {
+            ...(e.remote_id && { id: e.remote_id }),
+            name: e.name,
+            address: e.address,
+            town: e.town,
+            country: e.country,
+            phone: e.phone,
+            email: e.email,
+            type: e.type,
+            foundationYear: e.foundationYear,
+            user_id: sessionUserId,
+            admin_id: sessionUserId,
+            updated_at: e.updated_at,
+          };
+
+          console.log('[SYNC] 📤 Payload école pour Supabase:', {
+            id: payload.id,
+            name: payload.name,
+            user_id: payload.user_id,
+            admin_id: payload.admin_id
+          });
+
+          return payload;
+        },
+        transformFromSupabase: (d: any) => ({
+          name: d.name,
+          address: d.address,
+          town: d.town,
+          country: d.country,
+          phone: d.phone,
+          email: d.email,
+          type: d.type,
+          foundationYear: d.foundationYear,
+          user_id: d.user_id,
+          school_id: d.school_id,
+        }),
+      },
       {
         entity: GradeEntity,
         localRepository: this.appDataSourceInstance.getRepository(GradeEntity),
@@ -637,7 +696,11 @@ export class CloudSyncService {
   }
 
   async performBidirectionalSync(onlineAuthUserId: string): Promise<SyncHistory> {
+    console.log('[SYNC] 🚀 Début de la synchronisation bidirectionnelle');
+    console.log('[SYNC] 👤 ID utilisateur Supabase:', onlineAuthUserId);
+
     if (!this.supabaseAvailable || this.isMockClient()) {
+      console.log('[SYNC] ❌ Supabase non disponible');
       const errEvt = {
         id: randomUUID(), user_id: onlineAuthUserId, direction: 'bidirectional',
         status: 'failed', error_message: 'Supabase not available',
@@ -645,6 +708,17 @@ export class CloudSyncService {
       } as SyncHistory;
       await this.createSyncHistoryEvent(errEvt);
       return errEvt;
+    }
+
+    // Mettre à jour l'école avec l'ID utilisateur courant si nécessaire
+    const schoolRepo = this.appDataSourceInstance.getRepository(SchoolEntity);
+    const schools = await schoolRepo.find({ where: { user_id: IsNull() } });
+    
+    if (schools.length > 0) {
+      console.log(`[SYNC] 🔄 Mise à jour de ${schools.length} école(s) avec l'ID utilisateur`);
+      for (const school of schools) {
+        await this.updateSchoolWithCurrentUserId(school.id!, onlineAuthUserId);
+      }
     }
   
     const historyId = randomUUID();
@@ -697,7 +771,7 @@ export class CloudSyncService {
             continue;
           }
           
-          payload.user_id = userIdForSync;
+          payload.user_id = payload.user_id || userIdForSync;
           delete payload.created_at;
   
           if (lc.deleted_at && lc.remote_id) {
@@ -724,21 +798,75 @@ export class CloudSyncService {
         }
   
         if (toUpsert.length > 0) {
-          // Construire dynamiquement les champs de sélection
-          const selectFields = ['id', 'updated_at', ...(meta.identifyingFields || [])];
-          const selectString = selectFields.join(', ');
-          
-          const { data, error } = await (this.supabase as SupabaseClient)
-            .from(meta.supabaseTable)
-            .upsert(toUpsert, { onConflict: 'id' })
-            .select(selectString);
+          console.log(`[SYNC] 🔄 Tentative d'upsert pour ${meta.supabaseTable}:`, {
+            recordCount: toUpsert.length,
+            firstRecord: toUpsert[0],
+            table: meta.supabaseTable,
+            currentUserId: this.getCurrentSessionUserId()
+          });
+
+          try {
+            // Vérifier l'état de l'authentification
+            const authState = await this.supabase.auth.getSession();
+            console.log('[SYNC] 🔐 État de la session Supabase:', {
+              hasSession: !!authState.data.session,
+              accessToken: authState.data.session ? 'présent' : 'absent',
+              userId: authState.data.session?.user?.id
+            });
+
+            // Construire dynamiquement les champs de sélection
+            const selectFields = ['id', 'updated_at', ...(meta.identifyingFields || [])];
+            const selectString = selectFields.join(', ');
+            
+            const supabaseResponse: PostgrestResponse<any> = await (this.supabase as SupabaseClient)
+              .from(meta.supabaseTable)
+              .upsert(toUpsert, { onConflict: 'id' })
+              .select(selectString);
+    
+            if (supabaseResponse.error) {
+              console.error(`[SYNC] ❌ Échec upsert ${meta.supabaseTable}:`, {
+                error: supabaseResponse.error.message,
+                code: supabaseResponse.error.code,
+                details: supabaseResponse.error.details,
+                hint: supabaseResponse.error.hint
+              });
+              throw new Error(`[L->C] Erreur upsert ${meta.supabaseTable}: ${supabaseResponse.error.message}`);
+            }
+
+            const upsertResults = supabaseResponse.data;
+            if (upsertResults && Array.isArray(upsertResults)) {
+              // Traitement des données en cas de succès
+              console.log(`[SYNC] ✅ Upsert réussi pour ${meta.supabaseTable}:`, {
+                recordsProcessed: upsertResults.length
+              });
+
+              // Traiter les données retournées
+              for (const record of upsertResults) {
+                if (record && typeof record === 'object') {
+                  console.log(`[SYNC] ℹ️ Enregistrement traité:`, {
+                    table: meta.supabaseTable,
+                    recordId: record.id || 'ID non défini',
+                    fields: Object.keys(record)
+                  });
+                }
+              }
+            } else {
+              console.warn(`[SYNC] ⚠️ Pas de données retournées pour ${meta.supabaseTable}`);
+            }
+          } catch (error: any) {
+            console.error(`[SYNC] 🚨 Exception lors de l'upsert ${meta.supabaseTable}:`, {
+              message: error.message,
+              stack: error.stack
+            });
+            throw error;
+          }
   
-          if (error) throw new Error(`[L->C] Erreur upsert ${meta.supabaseTable}: ${error.message}`);
-  
-          if (data) {
-            for (const remoteResult of data) {
+          // Traiter les résultats de l'upsert qui ont été sauvegardés
+          if (supabaseResponse && supabaseResponse.data && Array.isArray(supabaseResponse.data)) {
+            const upsertResults = supabaseResponse.data;
+            for (const remoteResult of upsertResults) {
               // Typage explicite pour éviter les erreurs TypeScript
-              const result = remoteResult as any & { 
+              const parsedResult = remoteResult as any & { 
                 id: string; 
                 updated_at: string; 
                 matricule?: string; 
@@ -747,22 +875,22 @@ export class CloudSyncService {
               };
               
               const localRecord = localChanges.find(l => {
-                if (l.remote_id && l.remote_id === result.id) return true;
+                if (l.remote_id && l.remote_id === parsedResult.id) return true;
                 if (!l.remote_id) {
-                  if (result.matricule && (l as any).matricule === result.matricule) return true;
-                  if (result.code && (l as any).code === result.code) return true;
-                  if (result.name && (l as any).name === result.name) return true;
+                  if (parsedResult.matricule && (l as any).matricule === parsedResult.matricule) return true;
+                  if (parsedResult.code && (l as any).code === parsedResult.code) return true;
+                  if (parsedResult.name && (l as any).name === parsedResult.name) return true;
                 }
                 return false;
               });
   
               if (localRecord) {
-                localRecord.remote_id = result.id;
-                localRecord.updated_at = new Date(result.updated_at);
+                localRecord.remote_id = parsedResult.id;
+                localRecord.updated_at = new Date(parsedResult.updated_at);
                 localRecord.user_id = onlineAuthUserId;
                 recordsToUpdateLocally.push(localRecord);
               } else {
-                console.warn(`[L->C] Aucune correspondance locale trouvée pour le résultat Supabase (id: ${result.id})`);
+                console.warn(`[L->C] Aucune correspondance locale trouvée pour le résultat Supabase (id: ${parsedResult.id})`);
               }
             }
           }
@@ -1149,9 +1277,34 @@ export class CloudSyncService {
     }
   }
 
+  private async updateSchoolWithCurrentUserId(schoolId: number, userId: string): Promise<void> {
+    try {
+      const schoolRepo = this.appDataSourceInstance.getRepository(SchoolEntity);
+      const school = await schoolRepo.findOne({ where: { id: schoolId } });
+      
+      if (school) {
+        console.log(`[SYNC] 🔄 Mise à jour de l'école ${school.name} avec l'userId:`, userId);
+        school.user_id = userId;
+        await schoolRepo.save(school);
+        console.log(`[SYNC] ✅ École mise à jour avec succès`);
+      }
+    } catch (error) {
+      console.error(`[SYNC] ❌ Erreur lors de la mise à jour de l'école:`, error);
+    }
+  }
+
   private getOrderedMetasForUpload(): EntitySyncMeta<any>[] {
+    console.log('[SYNC] 🔍 Début de l\'ordonnancement des entités pour l\'upload');
     const sorted: EntitySyncMeta<any>[] = [];
     const metas = new Set(this.entitySyncMetas);
+
+    // Assurons-nous que SchoolEntity est traitée en premier
+    const schoolMeta = [...metas].find(m => m.entity.name === 'SchoolEntity');
+    if (schoolMeta) {
+      sorted.push(schoolMeta);
+      metas.delete(schoolMeta);
+      console.log('[SYNC] ✅ SchoolEntity placée en première position pour la synchronisation');
+    }
 
     while (metas.size > 0) {
       let hasChanged = false;
@@ -1165,10 +1318,15 @@ export class CloudSyncService {
         }
       });
       if (!hasChanged) {
-        console.error("Dépendance circulaire ou manquante détectée dans entitySyncMetas!", [...metas].map(m => m.supabaseTable));
+        const remaining = [...metas].map(m => m.supabaseTable);
+        console.error("[SYNC] ⚠️ Dépendances non résolues:", remaining);
+        // Au lieu de break, on continue avec ce qu'on a
+        sorted.push(...metas);
         break;
       }
     }
+
+    console.log('[SYNC] 📋 Ordre de synchronisation:', sorted.map(m => m.entity.name));
     return sorted;
   }
 
@@ -1194,11 +1352,16 @@ export class CloudSyncService {
   /**
    * Résout le user_id en priorité depuis l'entité, sinon depuis la session
    */
-  private resolveUserId(entityUserId?: string | null): string {
-    const userId = entityUserId || this.getCurrentSessionUserId();
-    if (!userId) {
-      throw new Error("Impossible de déterminer l'ID utilisateur - session invalide");
+  private resolveUserId(entityUserId?: string | null): string | null {
+    const sessionUserId = this.getCurrentSessionUserId();
+    const resolvedUserId = entityUserId || sessionUserId;
+    
+    console.log(`[SYNC resolveUserId] entityUserId: ${entityUserId}, sessionUserId: ${sessionUserId}, resolvedUserId: ${resolvedUserId}`);
+
+    if (!resolvedUserId) {
+      console.warn(`[SYNC resolveUserId] WARNING: User ID could not be determined. entityUserId: ${entityUserId}, sessionUserId: ${sessionUserId}`);
+      return null;
     }
-    return userId;
+    return resolvedUserId;
   }
 }
