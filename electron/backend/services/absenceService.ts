@@ -437,8 +437,10 @@ export class AbsenceService {
                     startTime: startTime,
                     endTime: endTime,
                     reason: data.reason,
-                    justified: !!data.reason,
+                    justified: data.justified,
+                    reasonType: data.reasonType,
                     professor: { id: data.professorId },
+                    grade: { id: data.gradeId },
                     type: 'PROFESSOR'
                 } as DeepPartial<AbsenceEntity>);
             });
