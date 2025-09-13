@@ -805,6 +805,7 @@ export class CloudSyncService {
             currentUserId: this.getCurrentSessionUserId()
           });
 
+          let supabaseResponse: PostgrestResponse<any> | undefined;
           try {
             // Vérifier l'état de l'authentification
             const authState = await this.supabase.auth.getSession();
@@ -818,7 +819,7 @@ export class CloudSyncService {
             const selectFields = ['id', 'updated_at', ...(meta.identifyingFields || [])];
             const selectString = selectFields.join(', ');
             
-            const supabaseResponse: PostgrestResponse<any> = await (this.supabase as SupabaseClient)
+            supabaseResponse = await (this.supabase as SupabaseClient)
               .from(meta.supabaseTable)
               .upsert(toUpsert, { onConflict: 'id' })
               .select(selectString);
