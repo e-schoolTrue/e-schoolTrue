@@ -37,6 +37,7 @@ import { GradeConfigService } from "./backend/services/gradeConfigService";
 import { PreferenceService } from "./backend/services/preferenceService";
 import { LicenseService } from "./backend/services/licenseService";
 import { ScheduleService } from './backend/services/scheduleService';
+import { PdfService } from './backend/services/pdfService';
 
 
 
@@ -82,6 +83,7 @@ function initializeServices() {
   global.preferenceService = new PreferenceService();
   global.licenseService = new LicenseService();
   global.scheduleService = new ScheduleService();
+  global.pdfService = new PdfService();
 }
 
 // =================================================================

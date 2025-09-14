@@ -23,4 +23,7 @@ export class GradeConfigEntity {
 
     @Column({ type: 'real', default: 0.6 })
     examWeight!: number;
+
+    @Column({ type: 'text', nullable: true })
+    formula?: string;
 } 
