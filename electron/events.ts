@@ -25,10 +25,8 @@ import { PreferenceService } from './backend/services/preferenceService';
 import { LicenseService } from './backend/services/licenseService';
 import { ConfigService } from './backend/services/configService';
 import { ScheduleService } from './backend/services/scheduleService';
-import { PaymentFeeService } from './backend/services/payment-fee.service';
 import { InscriptionFeeService } from './backend/services/inscription-fee.service';
 import { TranchConfigService } from './backend/services/tranch-config.service';
-import { PaymentFeeEntity } from './backend/entities/paymentConfig';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 import { TranchConfigEntity } from './backend/entities/paymentConfig';
 
@@ -498,6 +496,8 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
 
   // --- Paiements ---
   ipcMain.handle("payment:getConfigs", async () => global.paymentService.getConfigs());
+  ipcMain.handle("payment:getAnnualConfigs", async () => global.paymentService.getPaymentAnnualConfigs());
+  ipcMain.handle("payment:saveAnnualConfig", async (_, configData) => global.paymentService.savePaymentAnnualConfig(configData));
   ipcMain.handle("payment:saveConfig", async (_, configData) => global.paymentService.saveConfig(configData));
   ipcMain.handle("payment:getByStudent", async (_, studentId) => global.paymentService.getPaymentsByStudent(studentId));
   ipcMain.handle("payment:getConfig", async (_, classId) => global.paymentService.getConfigByClass(String(classId)));
@@ -524,24 +524,6 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
       const fee = await global.paymentFeeService.findOne(id);
       if (!fee) return { success: false, error: 'Payment fee not found' };
       return { success: true, data: fee };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("payment-fee:create", async (_, data: PaymentFeeEntity) => {
-    try {
-      const result = await global.paymentFeeService.create(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("payment-fee:update", async (_, data: PaymentFeeEntity) => {
-    try {
-      const result = await global.paymentFeeService.update(data);
-      return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
     }

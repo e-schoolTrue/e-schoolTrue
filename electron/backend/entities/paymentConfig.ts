@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn, ManyToOne } from "typeorm";
 import { ScholarshipEntity } from "./scholarship";
 import { GradeEntity } from "./grade";
 
@@ -19,6 +19,12 @@ export class PaymentConfigEntity {
     @Column("decimal", { precision: 10, scale: 2, default: 0 })
     annualAmount!: number;
 
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    inscriptionFee!: number;
+
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    reInscriptionFee!: number;
+
     @Column("boolean", { default: false })
     allowScholarship!: boolean;
 
@@ -32,16 +38,6 @@ export class PaymentConfigEntity {
     scholarships!: ScholarshipEntity[];
 } 
 
-@Entity("payment_fee")
-export class PaymentFeeEntity {
-    @PrimaryGeneratedColumn()
-    id?: number;
-    @Column({ type: "decimal", precision: 10, scale: 2 })
-    mensualityAmount?: number;
-    @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
-    @JoinColumn()
-    grade:GradeEntity
-}
 
 @Entity("inscription_fee")
 export class InscriptionFeeEntity {
@@ -54,16 +50,44 @@ export class InscriptionFeeEntity {
     grade:GradeEntity
 }
 
+
+@Entity("payment_annual_config")
+export class PaymentAnnualConfigEntity{
+    @PrimaryGeneratedColumn()
+    id?: number;
+    @Column({ type: "numeric"})
+    trancheCount?: number;
+    @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
+    @JoinColumn()
+    grade?:GradeEntity
+    @OneToMany(() => TranchConfigEntity, tranch => tranch.paymentAnnualConfig)
+    tranches?: TranchConfigEntity[]
+}
+
+
 @Entity("tranch_config")
 export class TranchConfigEntity {
     @PrimaryGeneratedColumn()
     id?: number;
-    @Column({ type: "varchar", length: 255 })
+    @Column({ type: "varchar"})
     tranchName?: string;
     @Column({ type: "integer" })
     tranchMonthCount?: number;
-    @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
-    @JoinColumn()
-    grade:GradeEntity
+    @ManyToOne(() => PaymentAnnualConfigEntity, {onDelete: 'CASCADE'})
+    paymentAnnualConfig?:PaymentAnnualConfigEntity
+    @OneToMany(() => TrancheEntryEntity, tranch => tranch.tranchConfig)
+    entries?: TrancheEntryEntity[];
+}
+
+@Entity("mensuality_tranch")
+export class TrancheEntryEntity {
+    @PrimaryGeneratedColumn()
+    id?: number;
+    @Column({ type: "date"})
+    startDate?: Date;
+    @Column({ type: "date"})
+    endDate?: Date;
+    @ManyToOne(() => TranchConfigEntity, {onDelete: 'CASCADE'})
+    tranchConfig?:TranchConfigEntity
 }
 

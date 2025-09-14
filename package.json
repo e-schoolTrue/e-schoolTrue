@@ -1,7 +1,7 @@
 {
   "name": "e-school",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder  --publish always",

@@ -8,5 +8,10 @@ export const paymentRoutes = [
     path: "/payment/professors",
     name: "ProfessorPayments",
     component: () => import("@/views/professor/ProfessorPaymentView.vue"),
+  },
+  {
+    path: "/payment/mensuality",
+    name: "Mensuality",
+    component: () => import("@/views/student/MensualityView.vue"),
   }
 ];

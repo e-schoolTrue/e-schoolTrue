@@ -91,6 +91,7 @@ export interface IStudentFile {
 
 // Types pour les détails complets de l'étudiant
 export interface IStudentDetails extends IStudentData {
+    isNew?: boolean;
     photo: IStudentFile | null;
     documents: IStudentFile[];
     grade: {
@@ -120,6 +121,7 @@ export interface IStudentServiceParams {
         gradeId?: number;
         photo?: IStudentFile;
         documents?: IStudentFile[];
+        isNew?: boolean;
     };
     updateStudent: {
         id: number;

@@ -21,10 +21,32 @@ export interface IPaymentData {
     baseAnnualAmount?: number;
 }
 
+export interface IPaymentAnnualConfigData {
+    id?: number;
+    trancheCount: number;
+    tranches: ITranchConfigData[];
+    grade_id: number;
+    
+}
+
+export interface ITranchConfigData {
+    id?: number;
+    tranchMonthCount: number;
+    entries: ITrancheEntryData[];
+}
+
+export interface ITrancheEntryData {
+    id?: number;
+    startDate: string;
+    endDate: string;
+}
+
 export interface IPaymentConfigData {
     id?: number;
     classId: string;
     annualAmount: number;
+    inscriptionFee: number;
+    reInscriptionFee: number;
     allowScholarship: boolean;
     scholarshipPercentages: number[];
     scholarshipCriteria: string;

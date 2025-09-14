@@ -116,6 +116,8 @@ export interface PaymentConfig {
   classId: string;
   className: string;
   annualAmount: number;
+  inscriptionFee: number;
+  reInscriptionFee: number;
   allowScholarship: boolean;
   scholarshipPercentages?: number[];
   scholarshipCriteria?: string;
@@ -124,6 +126,8 @@ export interface PaymentConfig {
 export interface PaymentConfigCreateInput {
   classId: string;
   annualAmount: number;
+  inscriptionFee: number;
+  reInscriptionFee: number;
   allowScholarship: boolean;
   scholarshipPercentages?: number[];
   scholarshipCriteria?: string;
@@ -157,3 +161,33 @@ export interface PaymentAmounts {
   scholarshipAmount: number;
   adjustedAmount: number;
 }
+
+export interface TranchConfig {
+  id: string;
+  
+}
+
+
+
+export interface IPaymentAnnualConfig{
+  id?: number;
+  trancheCount?: number;
+  gradeId?:number
+  tranches?:ITranchConfig[]
+}
+
+
+export interface ITranchConfig {
+  id?: number;
+  tranchName?: string;
+  tranchMonthCount?: number;
+  entries?:ITrancheEntry[]
+}
+
+export interface ITrancheEntry {
+  id?: number;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+

@@ -55,6 +55,7 @@ const formData = reactive<IStudentData>({
   documents: [],
   sex: 'male',
   schoolYear: '',
+  isNew: true,
 });
 
 // Observer les changements de props.studentData et mettre à jour formData en conséquence
@@ -201,7 +202,8 @@ const resetForm = () => {
     photo: null,
     documents: [],
     sex: 'male',
-    schoolYear: formData.schoolYear // Garder l'année scolaire actuelle
+    schoolYear: formData.schoolYear, // Garder l'année scolaire actuelle
+    isNew: true
   });
   
   // Réinitialiser l'étape courante

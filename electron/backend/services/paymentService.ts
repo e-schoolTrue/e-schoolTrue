@@ -1,12 +1,12 @@
 import { Repository } from 'typeorm';
 import { PaymentEntity } from '../entities/payment';
-import { PaymentConfigEntity } from '../entities/paymentConfig';
+import { PaymentAnnualConfigEntity, PaymentConfigEntity, TranchConfigEntity, TrancheEntryEntity } from '../entities/paymentConfig';
 import { AppDataSource } from '../../data-source';
 import { StudentEntity } from '../entities/students';
 import { ProfessorEntity } from '../entities/professor';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
 import { ScholarshipEntity } from '../entities/scholarship';
-import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse, IPaymentServiceParams } from '../types/payment';
+import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse, IPaymentServiceParams, IPaymentAnnualConfigData } from '../types/payment';
 
 export interface ResultType<T = any> {
     success: boolean;
@@ -39,6 +39,9 @@ export class PaymentService {
     private professorRepository: Repository<ProfessorEntity>;
     private professorPaymentRepository: Repository<ProfessorPaymentEntity>;
     private scholarshipRepository: Repository<ScholarshipEntity>;
+    private annualConfigRepository: Repository<PaymentAnnualConfigEntity>;
+    private tranchConfigRepository: Repository<TranchConfigEntity>;
+    private tranchEntryRepository: Repository<TrancheEntryEntity>;
     private initialized: boolean = false;
 
     constructor() {
@@ -48,6 +51,9 @@ export class PaymentService {
         this.professorRepository = AppDataSource.getInstance().getRepository(ProfessorEntity);
         this.professorPaymentRepository = AppDataSource.getInstance().getRepository(ProfessorPaymentEntity);
         this.scholarshipRepository = AppDataSource.getInstance().getRepository(ScholarshipEntity);
+        this.annualConfigRepository = AppDataSource.getInstance().getRepository(PaymentAnnualConfigEntity);
+        this.tranchConfigRepository = AppDataSource.getInstance().getRepository(TranchConfigEntity);
+        this.tranchEntryRepository = AppDataSource.getInstance().getRepository(TrancheEntryEntity);
     }
 
     private async ensureRepositoriesInitialized(): Promise<void> {
@@ -62,8 +68,85 @@ export class PaymentService {
             this.professorRepository = dataSource.getRepository(ProfessorEntity);
             this.professorPaymentRepository = dataSource.getRepository(ProfessorPaymentEntity);
             this.scholarshipRepository = dataSource.getRepository(ScholarshipEntity);
+            this.annualConfigRepository = dataSource.getRepository(PaymentAnnualConfigEntity);
+            this.tranchConfigRepository = dataSource.getRepository(TranchConfigEntity);
+            this.tranchEntryRepository = dataSource.getRepository(TrancheEntryEntity);
             this.initialized = true;
         }
+    }
+
+    async savePaymentAnnualConfig(configData: IPaymentAnnualConfigData){
+        AppDataSource.getInstance().transaction(async (entityManager) => {
+            try {
+                const newConfig = entityManager.create(PaymentAnnualConfigEntity, {
+                    id: configData.id,
+                    trancheCount: configData.trancheCount,
+                    grade_id: configData.grade_id
+                });
+                const savedConfig = await entityManager.save(newConfig);
+                await Promise.all(configData.tranches.map(async tranch => {
+                    const newTranchConfig = entityManager.create(TranchConfigEntity, {
+                        id: tranch.id,
+                        tranchMonthCount: tranch.tranchMonthCount,
+                        paymentAnnualConfig: savedConfig,
+                    });
+                    const savedTranchConfig = await entityManager.save(newTranchConfig);
+                    await Promise.all(tranch.entries.map(async entry => {
+                        const newTranchEntry = entityManager.create(TrancheEntryEntity, {
+                            id: entry.id,
+                            startDate: entry.startDate,
+                            endDate: entry.endDate,
+                            tranchConfig: savedTranchConfig
+                        });
+                        const savedTranchEntry = await entityManager.save(newTranchEntry);
+                    }))
+                }))
+                return {
+                    success: true,
+                    data: savedConfig,
+                    message: "Configuration des tranches effectuées avec succès",
+                    error: null
+                };
+            }
+            catch (error) {
+                console.error("Erreur lors de la sauvegarde:", error);
+                return {
+                    success: false,
+                    data: null,
+                    message: "Erreur lors de la sauvegarde de la configuration",
+                    error: error instanceof Error ? error.message : "Erreur inconnue"
+                };
+            }
+        });
+    }
+
+    async getPaymentAnnualConfigs(){
+        AppDataSource.getInstance().transaction(async (entityManager) => {
+            try {
+                const configs = await entityManager.find(PaymentAnnualConfigEntity, {
+                    relations: {
+                        tranches: {
+                            entries: true
+                        }
+                    }
+                });
+                return {
+                    success: true,
+                    data: configs,
+                    message: "Configuration des tranches récupérées avec succès",
+                    error: null
+                };
+            }
+            catch (error) {
+                console.error("Erreur lors de la récupération:", error);
+                return {
+                    success: false,
+                    data: null,
+                    message: "Erreur lors de la récupération de la configuration",
+                    error: error instanceof Error ? error.message : "Erreur inconnue"
+                };
+            }
+        });
     }
 
     async saveConfig(configData: IPaymentConfigData): Promise<IPaymentServiceResponse> {
@@ -76,10 +159,7 @@ export class PaymentService {
 
             if (existingConfig) {
                 Object.assign(existingConfig, {
-                    annualAmount: configData.annualAmount,
-                    allowScholarship: configData.allowScholarship,
-                    scholarshipPercentages: configData.scholarshipPercentages,
-                    scholarshipCriteria: configData.scholarshipCriteria
+                    ...configData
                 });
                 
                 const savedConfig = await this.configRepository.save(existingConfig);
@@ -316,80 +396,87 @@ export class PaymentService {
         try {
             await this.ensureRepositoriesInitialized();
             console.log(`=== Récupération des paiements pour l'étudiant ID: ${studentId} ===`);
-            
+    
             const payments = await this.paymentRepository.find({
                 where: { student: { id: studentId } },
                 relations: ['student', 'scholarship'],
                 order: { created_at: 'DESC' }
             });
-            
+    
             console.log(`Paiements trouvés: ${payments.length}`);
-
-            // Récupérer les informations de bourse active et configuration de paiement
+    
             const student = await this.studentRepository.findOne({
                 where: { id: studentId },
                 relations: ['grade', 'scholarship']
             });
-            
+    
             let baseAmount = 0;
             let scholarshipPercentage = 0;
             let scholarshipAmount = 0;
             let adjustedAmount = 0;
-            
+            let inscriptionFee = 0;
+            let reInscriptionFee = 0;
+    
             if (student?.grade?.id) {
-                console.log(`Étudiant trouvé avec grade ID: ${student.grade.id}`);
-                
-                // Récupérer la configuration de paiement
+                console.log(`Étudiant trouvé: ${student.firstname} ${student.lastname}, Classe ID: ${student.grade.id}, est nouveau: ${student.isNew}`);
+    
                 const config = await this.configRepository.findOne({
                     where: { classId: student.grade.id.toString() }
                 });
-                
+    
                 if (config) {
-                    console.log(`Configuration trouvée avec montant annuel: ${config.annualAmount}`);
+                    console.log(`Configuration trouvée pour la classe:`, config);
                     baseAmount = Number(config.annualAmount) || 0;
-                    
-                    // Récupérer la bourse active
+                    inscriptionFee = Number(config.inscriptionFee) || 0;
+                    reInscriptionFee = Number(config.reInscriptionFee) || 0;
+    
+                    if (student.isNew) {
+                        console.log(`Ajout des frais d'inscription: ${inscriptionFee}`);
+                        baseAmount += inscriptionFee;
+                    } else {
+                        console.log(`Ajout des frais de réinscription: ${reInscriptionFee}`);
+                        baseAmount += reInscriptionFee;
+                    }
+    
                     const activeScholarship = await this.scholarshipRepository.findOne({
-                        where: { 
+                        where: {
                             studentId,
                             isActive: true,
                             schoolYear: new Date().getFullYear().toString()
                         }
                     });
-                    
+    
                     if (activeScholarship) {
-                        console.log(`Bourse active trouvée avec pourcentage: ${activeScholarship.percentage}%`);
+                        console.log(`Bourse active trouvée: ${activeScholarship.percentage}%`);
                         scholarshipPercentage = Number(activeScholarship.percentage) || 0;
                         scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
                         adjustedAmount = baseAmount - scholarshipAmount;
                     } else {
-                        console.log('Aucune bourse active trouvée');
+                        console.log('Aucune bourse active trouvée.');
                         adjustedAmount = baseAmount;
                     }
                 } else {
-                    console.log('Aucune configuration trouvée pour cette classe');
+                    console.log(`Aucune configuration de paiement trouvée pour la classe ID: ${student.grade.id}`);
                 }
             } else {
-                console.log('Étudiant sans grade ou non trouvé');
+                console.log('Étudiant non trouvé ou sans classe assignée.');
             }
-            
-            console.log('Données de réponse préparées:', {
+    
+            const responseData = {
+                payments,
                 baseAmount,
                 scholarshipPercentage,
                 scholarshipAmount,
                 adjustedAmount,
-                paymentsCount: payments.length
-            });
-
+                inscriptionFee,
+                reInscriptionFee,
+            };
+    
+            console.log('Données de réponse finales:', responseData);
+    
             return {
                 success: true,
-                data: {
-                    payments,
-                    baseAmount,
-                    scholarshipPercentage,
-                    scholarshipAmount,
-                    adjustedAmount
-                },
+                data: responseData,
                 message: "Paiements récupérés avec succès",
                 error: null
             };
