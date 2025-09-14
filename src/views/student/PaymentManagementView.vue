@@ -374,6 +374,7 @@ interface Student {
     path?: string;
     url?: string;
   };
+  isNew?: boolean;
 }
 
 interface Grade {
@@ -424,7 +425,9 @@ const loadPaymentConfigs = async () => {
           newConfigs.set(classId, {
             ...config,
             classId: config.classId, // Garder classId comme string
-            annualAmount: Number(config.annualAmount)
+            annualAmount: Number(config.annualAmount),
+            inscriptionFee: Number(config.inscriptionFee),
+            reInscriptionFee: Number(config.reInscriptionFee)
           });
         }
       });
@@ -700,7 +703,15 @@ const loadStudentAmounts = async () => {
       if (paidResult?.success && configResult?.success) {
         console.log('Résultats obtenus:', { paidResult, configResult });
         
-        const baseAmount = configResult.data?.annualAmount || 0;
+        const config = configResult.data;
+        let baseAmount = config?.annualAmount || 0;
+
+        if (student.isNew) {
+          baseAmount += config?.inscriptionFee || 0;
+        } else {
+          baseAmount += config?.reInscriptionFee || 0;
+        }
+
         const scholarshipPercentage = paidResult.data?.scholarshipPercentage || 0;
         const scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
         const adjustedAmount = baseAmount - scholarshipAmount;

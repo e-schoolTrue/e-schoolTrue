@@ -159,10 +159,7 @@ export class PaymentService {
 
             if (existingConfig) {
                 Object.assign(existingConfig, {
-                    annualAmount: configData.annualAmount,
-                    allowScholarship: configData.allowScholarship,
-                    scholarshipPercentages: configData.scholarshipPercentages,
-                    scholarshipCriteria: configData.scholarshipCriteria
+                    ...configData
                 });
                 
                 const savedConfig = await this.configRepository.save(existingConfig);
@@ -399,80 +396,87 @@ export class PaymentService {
         try {
             await this.ensureRepositoriesInitialized();
             console.log(`=== Récupération des paiements pour l'étudiant ID: ${studentId} ===`);
-            
+    
             const payments = await this.paymentRepository.find({
                 where: { student: { id: studentId } },
                 relations: ['student', 'scholarship'],
                 order: { created_at: 'DESC' }
             });
-            
+    
             console.log(`Paiements trouvés: ${payments.length}`);
-
-            // Récupérer les informations de bourse active et configuration de paiement
+    
             const student = await this.studentRepository.findOne({
                 where: { id: studentId },
                 relations: ['grade', 'scholarship']
             });
-            
+    
             let baseAmount = 0;
             let scholarshipPercentage = 0;
             let scholarshipAmount = 0;
             let adjustedAmount = 0;
-            
+            let inscriptionFee = 0;
+            let reInscriptionFee = 0;
+    
             if (student?.grade?.id) {
-                console.log(`Étudiant trouvé avec grade ID: ${student.grade.id}`);
-                
-                // Récupérer la configuration de paiement
+                console.log(`Étudiant trouvé: ${student.firstname} ${student.lastname}, Classe ID: ${student.grade.id}, est nouveau: ${student.isNew}`);
+    
                 const config = await this.configRepository.findOne({
                     where: { classId: student.grade.id.toString() }
                 });
-                
+    
                 if (config) {
-                    console.log(`Configuration trouvée avec montant annuel: ${config.annualAmount}`);
+                    console.log(`Configuration trouvée pour la classe:`, config);
                     baseAmount = Number(config.annualAmount) || 0;
-                    
-                    // Récupérer la bourse active
+                    inscriptionFee = Number(config.inscriptionFee) || 0;
+                    reInscriptionFee = Number(config.reInscriptionFee) || 0;
+    
+                    if (student.isNew) {
+                        console.log(`Ajout des frais d'inscription: ${inscriptionFee}`);
+                        baseAmount += inscriptionFee;
+                    } else {
+                        console.log(`Ajout des frais de réinscription: ${reInscriptionFee}`);
+                        baseAmount += reInscriptionFee;
+                    }
+    
                     const activeScholarship = await this.scholarshipRepository.findOne({
-                        where: { 
+                        where: {
                             studentId,
                             isActive: true,
                             schoolYear: new Date().getFullYear().toString()
                         }
                     });
-                    
+    
                     if (activeScholarship) {
-                        console.log(`Bourse active trouvée avec pourcentage: ${activeScholarship.percentage}%`);
+                        console.log(`Bourse active trouvée: ${activeScholarship.percentage}%`);
                         scholarshipPercentage = Number(activeScholarship.percentage) || 0;
                         scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
                         adjustedAmount = baseAmount - scholarshipAmount;
                     } else {
-                        console.log('Aucune bourse active trouvée');
+                        console.log('Aucune bourse active trouvée.');
                         adjustedAmount = baseAmount;
                     }
                 } else {
-                    console.log('Aucune configuration trouvée pour cette classe');
+                    console.log(`Aucune configuration de paiement trouvée pour la classe ID: ${student.grade.id}`);
                 }
             } else {
-                console.log('Étudiant sans grade ou non trouvé');
+                console.log('Étudiant non trouvé ou sans classe assignée.');
             }
-            
-            console.log('Données de réponse préparées:', {
+    
+            const responseData = {
+                payments,
                 baseAmount,
                 scholarshipPercentage,
                 scholarshipAmount,
                 adjustedAmount,
-                paymentsCount: payments.length
-            });
-
+                inscriptionFee,
+                reInscriptionFee,
+            };
+    
+            console.log('Données de réponse finales:', responseData);
+    
             return {
                 success: true,
-                data: {
-                    payments,
-                    baseAmount,
-                    scholarshipPercentage,
-                    scholarshipAmount,
-                    adjustedAmount
-                },
+                data: responseData,
                 message: "Paiements récupérés avec succès",
                 error: null
             };

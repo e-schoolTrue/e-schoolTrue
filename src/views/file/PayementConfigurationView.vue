@@ -54,10 +54,12 @@ const isSaving = ref(false);
 const showModal = ref(false);
 const showTrancheModal = ref(false);
 const currTrancheConfig = ref<PaymentAnnualConfigEntity>()
-const currentPaymentConfig = ref<PaymentConfig>({
+const currentPaymentConfig = ref<PaymentConfig>({ 
   classId: '',
   className: '',
   annualAmount: 0,
+  inscriptionFee: 0,
+  reInscriptionFee: 0,
   allowScholarship: false,
   scholarshipPercentages: [],
   scholarshipCriteria: ''
@@ -130,6 +132,8 @@ const savePaymentConfiguration = async () => {
     const configData: PaymentConfigCreateInput = {
       classId: String(currentPaymentConfig.value.classId),
       annualAmount: Number(currentPaymentConfig.value.annualAmount),
+      inscriptionFee: Number(currentPaymentConfig.value.inscriptionFee),
+      reInscriptionFee: Number(currentPaymentConfig.value.reInscriptionFee),
       allowScholarship: Boolean(currentPaymentConfig.value.allowScholarship),
       scholarshipPercentages: Array.isArray(currentPaymentConfig.value.scholarshipPercentages) 
         ? currentPaymentConfig.value.scholarshipPercentages.map(Number) 
@@ -175,6 +179,8 @@ const loadConfigurations = async () => {
         classId: String(grade.id),
         className: grade.name,
         annualAmount: config ? Number(config.annualAmount) : 0,
+        inscriptionFee: config ? Number(config.inscriptionFee) : 0,
+        reInscriptionFee: config ? Number(config.reInscriptionFee) : 0,
         allowScholarship: config ? config.allowScholarship : false,
         scholarshipPercentages: config ? config.scholarshipPercentages : [],
         scholarshipCriteria: config ? config.scholarshipCriteria : ''
@@ -317,6 +323,19 @@ onMounted(async () => {
 
           <el-form-item label="Frais d'inscription">
             <el-input-number
+              v-model="currentPaymentConfig.inscriptionFee"
+              :min="0"
+              :step="5000"
+              class="full-width"
+              controls-position="right"
+            >
+              <template #suffix>{{ currency }}</template>
+            </el-input-number>
+          </el-form-item>
+
+          <el-form-item label="Frais de ré-inscription">
+            <el-input-number
+              v-model="currentPaymentConfig.reInscriptionFee"
               :min="0"
               :step="5000"
               class="full-width"

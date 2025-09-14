@@ -53,9 +53,16 @@ const emits = defineEmits<{
             </template>
         </el-table-column>
 
-        <el-table-column prop="reduction" label="Reduction sur paiement annuel" >
+        <el-table-column label="Frais de ré-inscription">
             <template #default="{ row }">
-            {{ row.reduction }} %
+            <currency-display :amount="row.reInscriptionFee" />
+            </template>
+        </el-table-column>
+
+        <el-table-column prop="reduction" label="Bourse" >
+            <template #default="{ row }">
+              <el-tag v-if="row.allowScholarship" type="success">Oui</el-tag>
+              <el-tag v-else type="danger">Non</el-tag>
             </template>
         </el-table-column>
         <el-table-column label="Actions">

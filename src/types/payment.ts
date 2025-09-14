@@ -116,6 +116,8 @@ export interface PaymentConfig {
   classId: string;
   className: string;
   annualAmount: number;
+  inscriptionFee: number;
+  reInscriptionFee: number;
   allowScholarship: boolean;
   scholarshipPercentages?: number[];
   scholarshipCriteria?: string;
@@ -124,6 +126,8 @@ export interface PaymentConfig {
 export interface PaymentConfigCreateInput {
   classId: string;
   annualAmount: number;
+  inscriptionFee: number;
+  reInscriptionFee: number;
   allowScholarship: boolean;
   scholarshipPercentages?: number[];
   scholarshipCriteria?: string;

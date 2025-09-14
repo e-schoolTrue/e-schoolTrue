@@ -19,6 +19,12 @@ export class PaymentConfigEntity {
     @Column("decimal", { precision: 10, scale: 2, default: 0 })
     annualAmount!: number;
 
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    inscriptionFee!: number;
+
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    reInscriptionFee!: number;
+
     @Column("boolean", { default: false })
     allowScholarship!: boolean;
 

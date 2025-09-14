@@ -18,6 +18,9 @@
         disabled
       />
     </el-form-item>
+    <el-form-item label="Nouvel étudiant ?">
+      <el-checkbox v-model="formData.isNew" label="Cochez si l'étudiant est nouveau" />
+    </el-form-item>
   </div>
 </template>
 
@@ -34,6 +37,7 @@ interface Props {
   formData: {
     gradeId: number | null;
     schoolYear: string;
+    isNew: boolean;
   };
   classes: ClassItem[];
 }

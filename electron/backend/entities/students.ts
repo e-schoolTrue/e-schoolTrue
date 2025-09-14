@@ -140,4 +140,7 @@ export class StudentEntity {
 
   @OneToMany(() => ScholarshipEntity, scholarship => scholarship.student)
   scholarship!: ScholarshipEntity[];
+
+  @Column({ type: "boolean", default: true })
+  isNew?: boolean;
 }

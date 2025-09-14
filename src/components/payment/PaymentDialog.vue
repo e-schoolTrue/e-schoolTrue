@@ -22,9 +22,9 @@
       <el-row :gutter="20">
         <el-col :span="8">
           <div class="summary-card">
-            <div class="label">Montant annuel</div>
+            <div class="label">Montant Total Dû</div>
             <div class="value">
-              <currency-display :amount="config?.annualAmount || 0" />
+              <currency-display :amount="totalAmountDue" />
             </div>
           </div>
         </el-col>
@@ -86,7 +86,7 @@
           <template #suffix>{{ currency }}</template>
         </el-input-number>
         <small v-if="form.hasScholarship && form.scholarshipPercentage && config?.annualAmount" class="amount-info">
-          Montant annuel total (après bourse): <currency-display :amount="getAdjustedAnnualAmount()" />
+          Montant total dû (après bourse): <currency-display :amount="getAdjustedTotalAmountDue()" />
         </small>
       </el-form-item>
 
@@ -157,7 +157,7 @@
                 Réduction de bourse: -<currency-display :amount="getScholarshipReductionAmountOnAnnual()" />
               </p>
               <p class="final-amount">
-                Montant annuel après bourse: <currency-display :amount="getAdjustedAnnualAmount()" />
+                Montant total après bourse: <currency-display :amount="getAdjustedTotalAmountDue()" />
               </p>
             </div>
           </template>
@@ -274,9 +274,20 @@ const dialogTitle = computed(() => {
 
 const totalPaid = ref(0);
 
+const totalAmountDue = computed(() => {
+  if (!props.config) return 0;
+  let total = Number(props.config.annualAmount) || 0;
+  if (props.student?.isNew) {
+    total += Number(props.config.inscriptionFee) || 0;
+  } else {
+    total += Number(props.config.reInscriptionFee) || 0;
+  }
+  return total;
+});
+
 const remainingAmount = computed(() => {
-  const adjustedAnnual = getAdjustedAnnualAmount();
-  return Math.max(0, adjustedAnnual - totalPaid.value);
+  const adjustedTotal = getAdjustedTotalAmountDue();
+  return Math.max(0, adjustedTotal - totalPaid.value);
 });
 
 const getInitials = () => {
@@ -284,20 +295,19 @@ const getInitials = () => {
   return `${props.student.firstname[0]}${props.student.lastname[0]}`.toUpperCase();
 };
 
-const getAdjustedAnnualAmount = () => {
-  if (!props.config?.annualAmount) return 0;
-  const baseAnnual = props.config.annualAmount;
+const getAdjustedTotalAmountDue = () => {
+  const baseAmount = totalAmountDue.value;
   if (form.value.hasScholarship && form.value.scholarshipPercentage) {
-    return baseAnnual * (1 - form.value.scholarshipPercentage / 100);
+    return baseAmount * (1 - form.value.scholarshipPercentage / 100);
   }
-  return baseAnnual;
+  return baseAmount;
 };
 
 const getScholarshipReductionAmountOnAnnual = () => {
-  if (!form.value.hasScholarship || !form.value.scholarshipPercentage || !props.config?.annualAmount) {
+  if (!form.value.hasScholarship || !form.value.scholarshipPercentage) {
     return 0;
   }
-  return (props.config.annualAmount * form.value.scholarshipPercentage) / 100;
+  return (totalAmountDue.value * form.value.scholarshipPercentage) / 100;
 };
 
 const getAdjustedAmountForCurrentPayment = () => {
@@ -334,8 +344,8 @@ const handleSubmit = async () => {
       scholarshipAppliedOnAnnual: form.value.hasScholarship && !!form.value.scholarshipPercentage && form.value.scholarshipPercentage > 0,
       annualScholarshipPercentage: form.value.hasScholarship && form.value.scholarshipPercentage ? form.value.scholarshipPercentage : 0,
       annualScholarshipAmount: form.value.hasScholarship && form.value.scholarshipPercentage ? getScholarshipReductionAmountOnAnnual() : 0,
-      annualAmountAfterScholarship: form.value.hasScholarship && form.value.scholarshipPercentage ? getAdjustedAnnualAmount() : props.config?.annualAmount || 0,
-      baseAnnualAmount: props.config?.annualAmount || 0,
+      annualAmountAfterScholarship: form.value.hasScholarship && form.value.scholarshipPercentage ? getAdjustedTotalAmountDue() : totalAmountDue.value,
+      baseAnnualAmount: totalAmountDue.value,
     };
 
     console.log('Données finales du paiement envoyées:', JSON.stringify(paymentDataToSend, null, 2));

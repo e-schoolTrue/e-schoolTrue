@@ -24,6 +24,7 @@ export interface Student {
     optimizedUrl?: string;
   };
   schoolYear?: string;
+  isNew?: boolean;
 }
 
 export interface SchoolInfo {
