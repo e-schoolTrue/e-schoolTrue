@@ -45,6 +45,8 @@ export interface IPaymentConfigData {
     id?: number;
     classId: string;
     annualAmount: number;
+    inscriptionFee: number;
+    reInscriptionFee: number;
     allowScholarship: boolean;
     scholarshipPercentages: number[];
     scholarshipCriteria: string;

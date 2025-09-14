@@ -2,6 +2,10 @@
 let currentSupabaseUserId: string | null = null;
 
 export function getCurrentSupabaseUserId(): string | null {
+  console.log('[Session] 🔍 Récupération de l\'ID utilisateur Supabase:', {
+    currentId: currentSupabaseUserId,
+    hasValue: !!currentSupabaseUserId
+  });
   return currentSupabaseUserId;
 }
 
