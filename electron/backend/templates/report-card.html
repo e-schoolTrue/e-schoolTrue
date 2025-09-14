@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bulletin de notes</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .school-name { font-size: 24px; font-weight: bold; }
+        .student-info { margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .total { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="school-name">{{schoolName}}</div>
+        <div>Année scolaire: {{schoolYear}}</div>
+        <div>Bulletin de la période: {{period}}</div>
+    </div>
+    <div class="student-info">
+        <div><strong>Élève:</strong> {{studentName}}</div>
+        <div><strong>Classe:</strong> {{gradeName}}</div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Matière</th>
+                <th>Coefficient</th>
+                <th>Note</th>
+                <th>Appréciation</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each grades}}
+            <tr>
+                <td>{{this.courseName}}</td>
+                <td>{{this.coefficient}}</td>
+                <td>{{this.average}}</td>
+                <td>{{this.appreciation}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    <div class="total" style="margin-top: 20px;">
+        Moyenne générale: {{generalAverage}}
+    </div>
+</body>
+</html>

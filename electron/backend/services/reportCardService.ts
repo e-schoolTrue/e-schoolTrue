@@ -10,46 +10,81 @@ import {
     SaveStudentGradesInput,
     GradeData 
 } from "../types/report";
+import { GradeConfigEntity } from "#electron/backend/entities/gradeConfig";
+import { FormulaEvaluator } from "#electron/backend/utils/formula-evaluator";
+import { StudentEntity } from "#electron/backend/entities/students";
+import { PdfService } from "./pdfService";
+import * as handlebars from 'handlebars';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { app, BrowserWindow } from "electron";
+import { SchoolService } from "./schoolService";
+import { YearRepartitionService } from "./yearService";
 
 export class ReportCardService {
     private reportRepository: Repository<ReportCardEntity>;
+    private gradeConfigRepository: Repository<GradeConfigEntity>;
+    private studentRepository: Repository<StudentEntity>;
+    private schoolService: SchoolService;
+    private yearService: YearRepartitionService;
 
     constructor() {
         this.reportRepository = AppDataSource.getInstance().getRepository(ReportCardEntity);
+        this.gradeConfigRepository = AppDataSource.getInstance().getRepository(GradeConfigEntity);
+        this.studentRepository = AppDataSource.getInstance().getRepository(StudentEntity);
+        this.schoolService = new SchoolService();
+        this.yearService = new YearRepartitionService();
     }
 
-    async generateReportCards(data: GenerateReportCardsInput): Promise<ResultType<ReportCard[]>> {
+    async generateReportCards(data: GenerateReportCardsInput): Promise<ResultType<any>> {
         try {
-            const reports = [];
+            const templatePath = path.join(app.getAppPath(), 'dist-electron', 'templates', 'report-card.html');
+            const templateHtml = await fs.readFile(templatePath, 'utf-8');
+            const template = handlebars.compile(templateHtml);
+
+            const schoolInfo = await this.schoolService.getSchool();
+            const currentYear = await this.yearService.getCurrentYearRepartition();
+
             for (const studentId of data.studentIds) {
+                const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
+                if (!student) continue;
+
                 const gradesResult = await this.getStudentGrades(studentId, data.period);
                 if (!gradesResult.success || !gradesResult.data) continue;
-                
-                const studentGrades = gradesResult.data;
-                if (!studentGrades?.grades?.length) continue;
 
-                const reportGrades = await Promise.all(studentGrades.grades.map((grade: GradeData) => {
-                    return this.reportRepository.create({
-                        studentId,
-                        courseId: grade.courseId,
-                        period: data.period,
-                        assignmentGrades: grade.assignments,
-                        examGrade: grade.exam,
-                        finalGrade: grade.average,
-                        appreciation: grade.appreciation
-                    });
-                }));
+                const reportData = {
+                    schoolName: schoolInfo.data?.name || 'Mon École',
+                    schoolYear: currentYear.data?.schoolYear || '2024-2025',
+                    period: data.period,
+                    studentName: `${student.firstname} ${student.lastname}`,
+                    gradeName: student.grade.name,
+                    grades: gradesResult.data.grades,
+                    generalAverage: gradesResult.data.generalAverage
+                };
 
-                reports.push(...await this.reportRepository.save(reportGrades));
+                const htmlContent = template(reportData);
+                const pdfBuffer = await global.pdfService.generatePdf(htmlContent);
+
+                const tempDir = app.getPath('temp');
+                const pdfPath = path.join(tempDir, `bulletin-${student.firstname}-${data.period}.pdf`);
+                await fs.writeFile(pdfPath, pdfBuffer);
+
+                const win = new BrowserWindow({ show: false });
+                await win.loadFile(pdfPath);
+                win.webContents.print({ silent: false, printBackground: true }, (success, errorType) => {
+                    if (!success) console.log(errorType);
+                    win.close();
+                });
             }
 
             return {
                 success: true,
-                data: reports,
                 message: "Bulletins générés avec succès",
+                data: null,
                 error: null
             };
         } catch (error) {
+            console.error('Error generating report cards:', error);
             return {
                 success: false,
                 data: null,
@@ -61,6 +96,13 @@ export class ReportCardService {
 
     async getStudentGrades(studentId: number, period: string): Promise<ResultType<ReportCardData>> {
         try {
+            const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
+            if (!student) {
+                throw new Error('Student not found');
+            }
+
+            const gradeConfig = await this.gradeConfigRepository.findOne({ where: { grade: { id: student.grade.id } } });
+
             const grades = await this.reportRepository
                 .createQueryBuilder('report')
                 .leftJoinAndSelect('report.course', 'course')
@@ -76,8 +118,22 @@ export class ReportCardService {
                     : 0;
     
                 const examGrade = Number(grade.examGrade) || 0;
-                const normalizedExamGrade = (examGrade / 40) * 20;
-                const finalGrade = (assignmentAverage + normalizedExamGrade) / 2;
+                let finalGrade: number;
+
+                if (gradeConfig?.formula) {
+                    finalGrade = FormulaEvaluator.evaluate(gradeConfig.formula, {
+                        assignments: assignmentAverage,
+                        exam: examGrade
+                    });
+                } else if (gradeConfig) {
+                    const assignmentWeight = gradeConfig.assignmentWeight;
+                    const examWeight = gradeConfig.examWeight;
+                    finalGrade = (assignmentAverage * assignmentWeight) + (examGrade * examWeight);
+                }
+                else {
+                    // Fallback to old logic, assuming exam is /20
+                    finalGrade = (assignmentAverage + examGrade) / 2;
+                }
     
                 return {
                     courseId: grade.courseId,
@@ -151,28 +207,38 @@ export class ReportCardService {
             await queryRunner.connect();
             await queryRunner.startTransaction();
 
-            await queryRunner.manager.delete(ReportCardEntity, {
-                studentId: data.studentId,
-                period: data.period
-            });
-
-            const reportsToSave = data.grades.map(grade => {
-                const report = new ReportCardEntity();
-                report.studentId = data.studentId;
-                report.courseId = grade.courseId;
-                report.period = data.period;
-                report.assignmentGrades = grade.assignments;
-                report.examGrade = grade.exam;
-                report.finalGrade = grade.average;
-                report.appreciation = grade.appreciation;
-                return report;
-            });
-
-            await queryRunner.manager.save(ReportCardEntity, reportsToSave);
-            
+            for (const gradeData of data.grades) {
+                let report = await queryRunner.manager.findOne(ReportCardEntity, {
+                    where: {
+                        studentId: data.studentId,
+                        period: data.period,
+                        courseId: gradeData.courseId
+                    }
+                });
+    
+                if (report) {
+                    // Update existing report
+                    report.assignmentGrades = gradeData.assignments;
+                    report.examGrade = gradeData.exam;
+                    report.finalGrade = gradeData.average;
+                    report.appreciation = gradeData.appreciation;
+                } else {
+                    // Create new report
+                    report = new ReportCardEntity();
+                    report.studentId = data.studentId;
+                    report.courseId = gradeData.courseId;
+                    report.period = data.period;
+                    report.assignmentGrades = gradeData.assignments;
+                    report.examGrade = gradeData.exam;
+                    report.finalGrade = gradeData.average;
+                    report.appreciation = gradeData.appreciation;
+                }
+                await queryRunner.manager.save(report);
+            }
+    
             const verificationResult = await this.getStudentGrades(data.studentId, data.period);
             
-            if (!verificationResult.success || !verificationResult.data?.grades?.length) {
+            if (!verificationResult.success) {
                 throw new Error("La sauvegarde n'a pas pu être vérifiée");
             }
 
