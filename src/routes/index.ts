@@ -10,7 +10,6 @@ import {professorRoutes} from "@/routes/professor";
 import {toolRoutes} from '@/routes/tool';
 import {planningRoutes} from '@/routes/planning';
 import {paymentRoutes} from '@/routes/payment';
-const GradeView = () => import('@/views/GradeView.vue');
 
 
 const routes = [
@@ -27,12 +26,6 @@ const routes = [
                 path: "",
                 name: "dashboard",
                 component: DashboardView,
-                meta: { requiresAuth: true }
-            },
-            {
-                path: "grades",
-                name: "grades",
-                component: GradeView,
                 meta: { requiresAuth: true }
             },
             ...fileRoutes,

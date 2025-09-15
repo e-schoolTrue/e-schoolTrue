@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ICourseBase, ICourseFormData, ICourseGroupFormData } from '@/types/course';
+import type { GradeEntity } from '#electron/backend/entities/grade';
 
 const props = defineProps<{
   isGroupement?: boolean;
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 
 const formRef = ref<FormInstance>();
 const dialogVisible = ref(false);
+const grades = ref<GradeEntity[]>([]);
 
 // Définir une interface locale pour l'état du formulaire qui étend ICourseBase
 // et inclut toujours groupementId comme optionnel pour la réactivité du formulaire.
@@ -28,6 +30,7 @@ const form = reactive<FormState>({
   name: '',
   code: '',
   coefficient: 1,
+  gradeId: undefined,
   // Initialiser groupementId en fonction de props.isGroupement
   groupementId: props.isGroupement ? props.groupementId : undefined,
 });
@@ -44,6 +47,9 @@ const rules = reactive<FormRules>({
   coefficient: [
     { required: true, message: 'Le coefficient est requis', trigger: 'blur' },
     { type: 'number', min: 0.1, max: 10, message: 'Le coefficient doit être entre 0.1 et 10', trigger: 'blur' }
+  ],
+  gradeId: [
+    { required: true, message: 'La classe est requise', trigger: 'change' }
   ]
 });
 
@@ -53,6 +59,7 @@ const openDialog = (initialData?: ICourseFormData | ICourseGroupFormData) => {
     form.name = initialData.name;
     form.code = initialData.code;
     form.coefficient = initialData.coefficient;
+    form.gradeId = initialData.gradeId;
     if (props.isGroupement && 'groupementId' in initialData) {
       form.groupementId = initialData.groupementId;
     }
@@ -61,6 +68,7 @@ const openDialog = (initialData?: ICourseFormData | ICourseGroupFormData) => {
     form.name = '';
     form.code = '';
     form.coefficient = 1;
+    form.gradeId = undefined;
     if (props.isGroupement) {
       form.groupementId = props.groupementId;
     }
@@ -98,6 +106,7 @@ const handleSubmit = async () => {
         name: form.name,
         code: form.code,
         coefficient: form.coefficient,
+        gradeId: form.gradeId,
       };
     }
     emit('submit', formDataToSend);
@@ -106,6 +115,19 @@ const handleSubmit = async () => {
     ElMessage.error('Veuillez corriger les erreurs dans le formulaire');
   }
 };
+
+const fetchGrades = async () => {
+  try {
+    const response = await window.ipcRenderer.invoke('grade:all');
+    if (response.success) {
+      grades.value = response.data;
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des classes:', error);
+  }
+};
+
+onMounted(fetchGrades);
 
 defineExpose({
   openDialog,
@@ -148,6 +170,17 @@ defineExpose({
           :step="0.1"
           :precision="1"
         />
+      </el-form-item>
+
+      <el-form-item label="Classe" prop="gradeId">
+        <el-select v-model="form.gradeId" placeholder="Sélectionner une classe" style="width: 100%">
+          <el-option
+            v-for="grade in grades"
+            :key="grade.id"
+            :value="grade.id"
+            :label="`${grade.name} (${grade.code})`"
+          />
+        </el-select>
       </el-form-item>
     </el-form>
 

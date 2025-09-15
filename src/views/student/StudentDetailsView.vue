@@ -3,9 +3,11 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElDialog } from 'element-plus';
-import { View, Download, Back } from '@element-plus/icons-vue';
+import { View, Download, Back, Document } from '@element-plus/icons-vue';
 import type { IStudentDetails, IStudentFile } from '@/types/student';
 import type { IGrade } from '@/types/shared';
+import type { ISchoolData } from '@/types/school';
+import html2pdf from 'html2pdf.js';
 
 
 
@@ -23,6 +25,8 @@ const photoUrl = ref<string | null>(null);
 const activeNames = ref(['1', '2', '3', '4', '6']);
 const dialogVisible = ref(false);
 const currentDocument = ref<CurrentDocument | null>(null);
+const schoolInfo = ref<ISchoolData | null>(null);
+const isGeneratingCertificate = ref(false);
 
 const getClassName = (grade?: IGrade | null) => {
   if (!grade) return "Non assigné";
@@ -64,15 +68,33 @@ const loadPhoto = async (photo?: IStudentFile | null) => {
   }
 };
 
+const loadSchoolInfo = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('school:get');
+    if (result?.success && result.data) {
+      schoolInfo.value = result.data;
+    } else {
+      console.warn('Aucune information d\'école trouvée');
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des informations de l'école:", error);
+  }
+};
+
 onMounted(async () => {
   const studentId = route.params.id;
   if (studentId) {
     try {
-      const result = await window.ipcRenderer.invoke('student:getDetails', Number(studentId));
-      console.log("Données reçues:", result);
+      // Charger les informations de l'étudiant et de l'école en parallèle
+      const [studentResult] = await Promise.all([
+        window.ipcRenderer.invoke('student:getDetails', Number(studentId)),
+        loadSchoolInfo()
+      ]);
       
-      if (result.success) {
-        studentDetails.value = result.data;
+      console.log("Données reçues:", studentResult);
+      
+      if (studentResult.success) {
+        studentDetails.value = studentResult.data;
         await loadPhoto(studentDetails.value?.photo);
       } else {
         ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
@@ -147,20 +169,292 @@ const viewDocument = async (document: IStudentFile) => {
     ElMessage.error("Une erreur s'est produite lors du chargement du document");
   }
 };
+
+const generateCertificate = async () => {
+  if (!studentDetails.value || !schoolInfo.value) {
+    ElMessage.error("Informations manquantes pour générer l'attestation");
+    return;
+  }
+
+  try {
+    isGeneratingCertificate.value = true;
+    
+    // Essayer d'abord avec html2pdf
+    try {
+      await generateWithHtml2Pdf();
+    } catch (html2pdfError) {
+      console.warn("html2pdf a échoué, utilisation de la méthode alternative:", html2pdfError);
+      await generateWithPrint();
+    }
+    
+    ElMessage.success("Attestation générée avec succès");
+    
+  } catch (error) {
+    console.error("Erreur lors de la génération de l'attestation:", error);
+    ElMessage.error("Une erreur s'est produite lors de la génération de l'attestation");
+  } finally {
+    isGeneratingCertificate.value = false;
+  }
+};
+
+const generateWithHtml2Pdf = async () => {
+  // Créer le contenu HTML de l'attestation
+  const certificateHTML = createCertificateHTML();
+  console.log("HTML généré:", certificateHTML);
+  
+  // Créer un élément temporaire pour le contenu
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = certificateHTML;
+  
+  // Styles pour rendre l'élément visible mais hors écran
+  tempDiv.style.position = 'fixed';
+  tempDiv.style.top = '0';
+  tempDiv.style.left = '0';
+  tempDiv.style.width = '210mm'; // Largeur A4
+  tempDiv.style.height = '297mm'; // Hauteur A4
+  tempDiv.style.zIndex = '-1';
+  tempDiv.style.visibility = 'hidden';
+  tempDiv.style.backgroundColor = 'white';
+  
+  document.body.appendChild(tempDiv);
+  
+  // Attendre que le contenu soit rendu
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  // Configuration pour html2pdf
+  const opt = {
+    margin: [0.5, 0.5, 0.5, 0.5],
+    filename: `Attestation_Scolarite_${studentDetails.value!.firstname}_${studentDetails.value!.lastname}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { 
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    },
+    jsPDF: { 
+      unit: 'in', 
+      format: 'a4', 
+      orientation: 'portrait',
+      compress: true
+    }
+  };
+  
+  console.log("Génération du PDF en cours...");
+  
+  // Générer le PDF
+  await html2pdf().set(opt).from(tempDiv).save();
+  
+  console.log("PDF généré avec succès");
+  
+  // Nettoyer l'élément temporaire
+  document.body.removeChild(tempDiv);
+};
+
+const generateWithPrint = async () => {
+  // Créer une nouvelle fenêtre pour l'impression
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    throw new Error("Impossible d'ouvrir une nouvelle fenêtre");
+  }
+  
+  const certificateHTML = createCertificateHTML();
+  
+  printWindow.document.write(certificateHTML);
+  printWindow.document.close();
+  
+  // Attendre que le contenu soit chargé
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Déclencher l'impression
+  printWindow.print();
+  
+  // Fermer la fenêtre après impression
+  setTimeout(() => {
+    printWindow.close();
+  }, 1000);
+};
+
+const createCertificateHTML = () => {
+  const student = studentDetails.value!;
+  const school = schoolInfo.value!;
+  const currentDate = new Date().toLocaleDateString('fr-FR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body {
+          font-family: 'Times New Roman', serif;
+          margin: 0;
+          padding: 20px;
+          background: white;
+          color: #000;
+        }
+        .certificate-container {
+          max-width: 800px;
+          margin: 0 auto;
+          background: white;
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 40px;
+          border-bottom: 2px solid #333;
+          padding-bottom: 20px;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: bold;
+          color: #333;
+        }
+        .header p {
+          margin: 5px 0;
+          font-size: 14px;
+          color: #666;
+        }
+        .title {
+          text-align: center;
+          margin-bottom: 40px;
+        }
+        .title h2 {
+          margin: 0;
+          font-size: 20px;
+          font-weight: bold;
+          text-decoration: underline;
+        }
+        .content {
+          line-height: 1.8;
+          font-size: 16px;
+          text-align: justify;
+          margin-bottom: 40px;
+        }
+        .content p {
+          margin-bottom: 20px;
+        }
+        .student-info {
+          margin: 20px 0;
+          padding: 20px;
+          background: #f9f9f9;
+          border-left: 4px solid #333;
+        }
+        .student-info p {
+          margin: 5px 0;
+        }
+        .signature {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 60px;
+        }
+        .signature div {
+          text-align: center;
+        }
+        .signature p {
+          margin: 0;
+          font-size: 14px;
+        }
+        .signature-line {
+          height: 50px;
+          margin-top: 20px;
+        }
+        .signature-bottom {
+          border-top: 1px solid #333;
+          padding-top: 5px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="certificate-container">
+        <!-- En-tête de l'école -->
+        <div class="header">
+          <h1>${school.name}</h1>
+          <p>${school.address}</p>
+          <p>${school.town} - Tél: ${school.phone}</p>
+          <p>Email: ${school.email}</p>
+        </div>
+        
+        <!-- Titre du document -->
+        <div class="title">
+          <h2>ATTESTATION DE SCOLARITÉ</h2>
+        </div>
+        
+        <!-- Contenu principal -->
+        <div class="content">
+          <p>
+            Je soussigné(e), Directeur(trice) de l'établissement <strong>${school.name}</strong>, 
+            certifie que l'élève :
+          </p>
+          
+          <div class="student-info">
+            <p><strong>Nom :</strong> ${student.lastname}</p>
+            <p><strong>Prénom :</strong> ${student.firstname}</p>
+            <p><strong>Matricule :</strong> ${student.matricule}</p>
+            <p><strong>Né(e) le :</strong> ${formatDate(student.birthDay)}</p>
+            <p><strong>À :</strong> ${student.birthPlace || 'Non spécifié'}</p>
+            <p><strong>Classe :</strong> ${student.grade?.name || 'Non assigné'}</p>
+            <p><strong>Année scolaire :</strong> ${student.schoolYear}</p>
+          </div>
+          
+          <p>
+            est régulièrement inscrit(e) dans notre établissement pour l'année scolaire ${student.schoolYear}.
+          </p>
+          
+          <p>
+            Cette attestation est délivrée à l'intéressé(e) pour servir et valoir ce que de droit.
+          </p>
+        </div>
+        
+        <!-- Signature et date -->
+        <div class="signature">
+          <div>
+            <p>Fait à ${school.town}, le ${currentDate}</p>
+          </div>
+          <div>
+            <p>Le Directeur(trice)</p>
+            <div class="signature-line"></div>
+            <p class="signature-bottom">Signature et cachet</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
 </script>
 
 <template>
   <div class="details-container">
     <div class="navigation-bar">
-      <el-button 
-        type="primary" 
-        plain
-        @click="router.push({ name: 'StudentList' })"
-        class="back-button"
-      >
-        <el-icon><Back /></el-icon>
-        Retour à la liste
-      </el-button>
+      <div class="nav-left">
+        <el-button 
+          type="primary" 
+          plain
+          @click="router.push({ name: 'StudentList' })"
+          class="back-button"
+        >
+          <el-icon><Back /></el-icon>
+          Retour à la liste
+        </el-button>
+      </div>
+      
+      <div class="nav-right">
+        <el-button 
+          type="success"
+          @click="generateCertificate"
+          :loading="isGeneratingCertificate"
+          :disabled="!studentDetails || !schoolInfo"
+          class="certificate-button"
+        >
+          <el-icon><Document /></el-icon>
+          Attestation de scolarité
+        </el-button>
+      </div>
     </div>
     
     <el-card v-if="studentDetails" class="details-card">
@@ -322,12 +616,28 @@ const viewDocument = async (document: IStudentFile) => {
 
 .navigation-bar {
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nav-left, .nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .back-button {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.certificate-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 500;
 }
 
 .details-card {

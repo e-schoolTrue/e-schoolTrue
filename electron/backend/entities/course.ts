@@ -1,5 +1,6 @@
-import {Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn} from "typeorm";
+import {Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn, JoinColumn} from "typeorm";
 import {ScheduleEntity} from "./schedule"
+import {GradeEntity} from "./grade"
 
 @Entity("course")
 export class CourseEntity{
@@ -19,6 +20,9 @@ export class CourseEntity{
     isInGroupement?:boolean ;
     @ManyToOne(()=>CourseEntity , (course)=>course.courses , {onDelete:"CASCADE"}) 
     groupement?:CourseEntity ;
+    @ManyToOne(()=>GradeEntity , (grade)=>grade.courses , {onDelete:"CASCADE"})
+    @JoinColumn()
+    grade?:GradeEntity ;
     @OneToMany(()=>ObservationEntity , (observation)=>observation.course)
     observations?:ObservationEntity[]
     @OneToMany(()=>CourseEntity , (course)=>course.groupement)

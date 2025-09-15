@@ -12,12 +12,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 
-const props = defineProps<{ modelValue: number | null, isModified: boolean }>();
+const props = defineProps<{ 
+  modelValue: number | string | null, 
+  isModified: boolean,
+  type?: 'number' | 'text'
+}>();
 const emit = defineEmits(['update:modelValue']);
 
 const localValue = ref(props.modelValue);
+const isNumberType = computed(() => props.type === 'number' || typeof props.modelValue === 'number');
 
 watch(() => props.modelValue, (newValue) => {
   localValue.value = newValue;
@@ -26,15 +31,24 @@ watch(() => props.modelValue, (newValue) => {
 const onInput = (event: Event) => {
   const target = event.target as HTMLDivElement;
   const value = target.textContent;
-  // Allow only numbers and a single dot
-  if (value && !/^[0-9]*\.?[0-9]*$/.test(value)) {
-    // Restore old value
-    target.textContent = String(localValue.value || '');
-    return;
-  }
-  const parsedValue = value ? parseFloat(value) : null;
-  if (parsedValue !== localValue.value) {
-    emit('update:modelValue', parsedValue);
+  
+  if (isNumberType.value) {
+    // Allow only numbers and a single dot for number type
+    if (value && !/^[0-9]*\.?[0-9]*$/.test(value)) {
+      // Restore old value
+      target.textContent = String(localValue.value || '');
+      return;
+    }
+    const parsedValue = value ? parseFloat(value) : null;
+    if (parsedValue !== localValue.value) {
+      emit('update:modelValue', parsedValue);
+    }
+  } else {
+    // For text type, allow any text
+    const textValue = value || '';
+    if (textValue !== localValue.value) {
+      emit('update:modelValue', textValue);
+    }
   }
 };
 

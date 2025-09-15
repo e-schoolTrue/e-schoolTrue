@@ -1,5 +1,6 @@
 import {Repository} from "typeorm";
 import {CourseEntity} from "#electron/backend/entities/course";
+import {GradeEntity} from "#electron/backend/entities/grade";
 import {AppDataSource} from "#electron/data-source";
 import {Mapper} from "#electron/command";
 import {messages} from "#electron/messages";
@@ -10,9 +11,11 @@ import {
 
 export class CourseService {
     private courseRepository: Repository<CourseEntity>;
+    private gradeRepository: Repository<GradeEntity>;
 
     constructor() {
         this.courseRepository = AppDataSource.getInstance().getRepository(CourseEntity);
+        this.gradeRepository = AppDataSource.getInstance().getRepository(GradeEntity);
     }
 
     async newCourse(command: ICourseServiceParams['newCourse']): Promise<ICourseServiceResponse> {
@@ -21,11 +24,21 @@ export class CourseService {
             newCourse.name = command.name;
             newCourse.coefficient = command.coefficient;
             newCourse.code = command.code;
+            
+            // Associer la classe si fournie
+            if (command.gradeId) {
+                const grade = await this.gradeRepository.findOne({ where: { id: command.gradeId } });
+                if (grade) {
+                    newCourse.grade = grade;
+                }
+            }
+            
             await this.courseRepository.save(newCourse);
             const allCourse = await this.courseRepository.find({
                 relations: {
                     courses: true,
-                    observations: true
+                    observations: true,
+                    grade: true
                 }
             });
             return {success: true, data: allCourse, error: null, message: messages.course_save_successfully};
@@ -37,12 +50,22 @@ export class CourseService {
     async addCourseToGroupement(command: ICourseServiceParams['addCourseToGroupement']): Promise<ICourseServiceResponse> {
         try {
             const newCourse = Mapper.mapTo<ICourseServiceParams['addCourseToGroupement'], CourseEntity>(command, CourseEntity);
+            
+            // Associer la classe si fournie
+            if (command.gradeId) {
+                const grade = await this.gradeRepository.findOne({ where: { id: command.gradeId } });
+                if (grade) {
+                    newCourse.grade = grade;
+                }
+            }
+            
             await this.courseRepository.save(newCourse);
             const course = await this.courseRepository.find({
                 relations: {
                     courses: true,
                     observations: true,
-                    groupement: true
+                    groupement: true,
+                    grade: true
                 }
             });
             return {success: true, data: course, error: null, message: messages.course_group_save_successfully};
@@ -76,11 +99,21 @@ export class CourseService {
             oldCourse[0].code = command.data.code;
             oldCourse[0].coefficient = command.data.coefficient;
             oldCourse[0].name = command.data.name;
+            
+            // Mettre à jour la classe si fournie
+            if (command.data.gradeId) {
+                const grade = await this.gradeRepository.findOne({ where: { id: command.data.gradeId } });
+                if (grade) {
+                    oldCourse[0].grade = grade;
+                }
+            }
+            
             await this.courseRepository.save(oldCourse);
             const allCourse = await this.courseRepository.find({
                 relations: {
                     courses: true,
                     observations: true,
+                    grade: true
                 }
             });
             return {success: true, data: allCourse, error: null, message: messages.course_update_successfully};
@@ -94,10 +127,30 @@ export class CourseService {
             const allCourse = await this.courseRepository.find({
                 relations: {
                     courses: true,
-                    observations: true
+                    observations: true,
+                    grade: true
                 }
             });
             return {success: true, data: allCourse, error: null, message: ""};
+        } catch (e: any) {
+            console.log(e);
+            return {success: false, data: null, error: e.message, message: messages.course_retrieve_failed};
+        }
+    }
+
+    async getCoursesByGrade(gradeId: number): Promise<ICourseServiceResponse> {
+        try {
+            const courses = await this.courseRepository.find({
+                where: {
+                    grade: { id: gradeId }
+                },
+                relations: {
+                    courses: true,
+                    observations: true,
+                    grade: true
+                }
+            });
+            return {success: true, data: courses, error: null, message: ""};
         } catch (e: any) {
             console.log(e);
             return {success: false, data: null, error: e.message, message: messages.course_retrieve_failed};

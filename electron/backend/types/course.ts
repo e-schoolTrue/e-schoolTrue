@@ -7,6 +7,11 @@ export interface ICourseData {
     coefficient?: number;
     isInGroupement?: boolean;
     groupement?: CourseEntity;
+    grade?: {
+        id?: number;
+        name?: string;
+        code?: string;
+    };
     observations?: Array<{
         id?: number;
         observation?: string;
@@ -20,12 +25,14 @@ export interface ICourseServiceParams {
         name: string;
         coefficient: number;
         code: string;
+        gradeId?: number;
     };
     addCourseToGroupement: {
         name: string;
         coefficient: number;
         code: string;
         groupementId?: number;
+        gradeId?: number;
     };
     updateCourse: {
         id: number;
@@ -33,6 +40,7 @@ export interface ICourseServiceParams {
             name: string;
             coefficient: number;
             code: string;
+            gradeId?: number;
         };
     };
 }

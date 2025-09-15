@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import { StudentEntity } from "./students";
 import {ScheduleEntity} from "./schedule";
+import {CourseEntity} from "./course";
 
 
 export enum GradeType {
@@ -60,6 +61,9 @@ export class GradeEntity {
 
     @OneToMany(() => ScheduleEntity, schedule => schedule.class)
     schedules!: ScheduleEntity[];
+
+    @OneToMany(() => CourseEntity, course => course.grade)
+    courses?: CourseEntity[];
 }
 
 @Entity('class_room')

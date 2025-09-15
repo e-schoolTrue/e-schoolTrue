@@ -1,117 +1,221 @@
 <template>
-  <div class="p-4">
-    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-      <div>
-        <label for="period" class="block text-sm font-medium text-gray-700">Période</label>
-        <select id="period" v-model="selectedPeriod" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-          <option v-for="period in periods" :key="period.id" :value="period.name">{{ period.name }}</option>
-        </select>
+  <div class="report-card-container">
+    <!-- Titre principal -->
+    <div class="main-title">
+      <h2>Bulletins des notes</h2>
       </div>
-      <div>
-        <label for="grade" class="block text-sm font-medium text-gray-700">Classe</label>
-        <select id="grade" v-model="selectedGrade" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-          <option v-for="grade in grades" :key="grade.id" :value="grade.id">{{ grade.name }}</option>
-        </select>
+
+    <!-- Section de sélection des élèves -->
+    <div class="selection-section">
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-radio-group v-model="studentScope" @change="onStudentScopeChange">
+            <el-radio value="all">Afficher tous les élèves de l'établissement</el-radio>
+            <el-radio value="class">Afficher les élèves d'une classe</el-radio>
+          </el-radio-group>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20" class="selection-tables">
+        <!-- Tableau des classes -->
+        <el-col :span="12">
+          <div class="table-section">
+            <h4>Code classe</h4>
+            <el-table 
+              :data="grades" 
+              height="120" 
+              @row-click="selectGrade"
+              :row-class-name="getGradeRowClassName"
+            >
+              <el-table-column prop="code" label="Code classe" width="80" />
+              <el-table-column prop="name" label="Nom classe" />
+            </el-table>
       </div>
-      <div class="flex items-end">
-        <button @click="loadData" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-          Charger
-        </button>
+        </el-col>
+
+        <!-- Tableau des élèves -->
+        <el-col :span="12">
+          <div class="table-section">
+            <h4>Élèves</h4>
+            <el-table 
+              :data="filteredStudents" 
+              height="120" 
+              @row-click="selectStudent"
+              :row-class-name="getStudentRowClassName"
+            >
+              <el-table-column prop="id" label="Matricule" width="100" />
+              <el-table-column prop="lastname" label="Nom" />
+              <el-table-column prop="firstname" label="Prénom" />
+              <el-table-column prop="grade.name" label="Classe" />
+            </el-table>
+            <div class="legend-link">
+              <el-link type="primary">Légende des couleurs</el-link>
       </div>
-      <div class="flex items-end">
-        <button @click="saveGrades" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded" :disabled="!isModified">
-          Enregistrer
-        </button>
       </div>
-      <div class="flex items-end">
-        <button @click="showPrintModal = true" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
-          Imprimer
-        </button>
+        </el-col>
+      </el-row>
       </div>
+
+  
+
+ 
+
+    <div v-if="loading" class="loading-container">
+      <el-icon class="is-loading" size="24">
+        <Loading />
+      </el-icon>
+      <p>Chargement en cours...</p>
+        </div>
+    <!-- Tableau principal des notes -->
+    <div v-if="selectedStudent" class="main-grade-table">
+      <!-- Debug info -->
+      <div v-if="courses.length === 0" class="debug-info" style="padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; margin-bottom: 10px; border-radius: 4px;">
+        <p><strong>Debug:</strong> Aucun cours trouvé. Nombre de cours: {{ courses.length }}</p>
+        <p><strong>Élève sélectionné:</strong> {{ selectedStudent?.firstname }} {{ selectedStudent?.lastname }}</p>
+        <p><strong>Classe ID:</strong> {{ selectedStudent?.gradeId }}</p>
+      </div>
+      
+      <el-table :data="courses" border style="width: 100%" max-height="400">
+        <el-table-column label="Matière" width="150">
+          <template #default="{ row }">
+            <div class="subject-cell">
+              <span class="subject-icon">#</span>
+              <span class="subject-name">{{ row.name }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="SEQ 1" width="80">
+          <template #default="{ row }">
+            <EditableCell 
+              v-model="selectedStudentGrades[row.id!].seq1"
+              :is-modified="selectedStudentGrades[row.id!].isModified"
+              type="number"
+              @update:modelValue="markAsModified(selectedStudentGrades[row.id!])"
+            />
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="SEQ 2" width="80">
+          <template #default="{ row }">
+            <EditableCell 
+              v-model="selectedStudentGrades[row.id!].seq2"
+              :is-modified="selectedStudentGrades[row.id!].isModified"
+              type="number"
+              @update:modelValue="markAsModified(selectedStudentGrades[row.id!])"
+            />
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="Moy." width="80">
+          <template #default="{ row }">
+            <span class="calculated-average">{{ calculateCourseAverage(row.id!) }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="Coef." width="60">
+          <template #default="{ row }">
+            <span class="coefficient-value">{{ row.coefficient }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="Moy. Finale" width="80">
+          <template #default="{ row }">
+            <span class="final-average">{{ calculateFinalAverage(row.id!) }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="Observations" width="150">
+          <template #default="{ row }">
+            <EditableCell 
+              v-model="selectedStudentGrades[row.id!].observation"
+              :is-modified="selectedStudentGrades[row.id!].isModified"
+              type="text"
+              @update:modelValue="markAsModified(selectedStudentGrades[row.id!])"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+      
+      <!-- Ligne de somme -->
+      <el-table :data="[{ isSum: true }]" border style="width: 100%; margin-top: 0;">
+        <el-table-column label="Somme" width="150">
+          <template #default>
+            <strong>Somme</strong>
+          </template>
+        </el-table-column>
+        <el-table-column width="120">
+          <template #default>
+            <span class="sum-value">{{ totalAverage }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="80">
+          <template #default>
+            <span class="sum-value">{{ totalAverage }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="80">
+          <template #default>
+            <span class="sum-value">{{ totalAverage }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="60">
+          <template #default>
+            <span class="sum-value">{{ totalCoefficient }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="80">
+          <template #default>
+            <span class="sum-value">{{ totalFinalAverage }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="150">
+          <template #default>
+            <!-- Cellule vide -->
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
 
-    <!-- Print Modal -->
-    <div v-if="showPrintModal" class="fixed z-10 inset-0 overflow-y-auto">
-      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 transition-opacity" aria-hidden="true">
-          <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
-        </div>
-        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <h3 class="text-lg leading-6 font-medium text-gray-900">Imprimer les bulletins</h3>
-            <div class="mt-4">
-              <label class="block text-sm font-medium text-gray-700">Imprimer pour:</label>
-              <select v-model="printOption" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <option value="all">Toute la classe</option>
-                <option value="one">Un seul élève</option>
-              </select>
-            </div>
-            <div v-if="printOption === 'one'" class="mt-4">
-              <label class="block text-sm font-medium text-gray-700">Élève:</label>
-              <select v-model="selectedStudentForPrint" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <option v-for="student in students" :key="student.id" :value="student.id">{{ student.firstname }} {{ student.lastname }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button @click="printReportCards" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
-              Imprimer
-            </button>
-            <button @click="showPrintModal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-              Annuler
-            </button>
-          </div>
-        </div>
-      </div>
+    <!-- Section mention/sanction -->
+    <div v-if="selectedStudent" class="mention-section">
+      <el-row :gutter="20" align="middle">
+        <el-col :span="4">
+          <el-form-item label="Mention/Sanction">
+            <el-input v-model="mention" placeholder="Saisir mention ou sanction">
+              <template #suffix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
+        </el-col>
+        <el-col :span="4">
+          <el-button type="warning" @click="autoMentions">
+            <el-icon><Lightning /></el-icon>
+            Mentions auto
+          </el-button>
+        </el-col>
+        <el-col :span="4">
+          <el-button type="success" class="encouragement-btn">
+            Encouragement
+          </el-button>
+        </el-col>
+        <el-col :span="4">
+          <el-button type="info" @click="autoObservations">
+            <el-icon><Lightning /></el-icon>
+            Observations auto
+          </el-button>
+        </el-col>
+        <el-col :span="8">
+          <el-button type="primary" @click="printReportCards" class="print-btn">
+            <el-icon><Printer /></el-icon>
+            Imprimer [Ctrl+P]
+          </el-button>
+        </el-col>
+      </el-row>
     </div>
-
-    <div v-if="loading" class="text-center">
-      <p>Chargement...</p>
-    </div>
-    <div v-else-if="tableData.length > 0" class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Élève
-            </th>
-            <th v-for="course in courses" :key="course.id" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              {{ course.name }}
-            </th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Moyenne
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <tr v-for="studentData in tableData" :key="studentData.student.id">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              {{ studentData.student.firstname }} {{ studentData.student.lastname }}
-            </td>
-            <td v-for="course in courses" :key="course.id" class="px-6 py-4 whitespace-nowrap">
-              <EditableCell 
-                v-model="studentData.grades[course.id!].grade"
-                :is-modified="studentData.grades[course.id!].isModified"
-                @update:modelValue="markAsModified(studentData.grades[course.id!])"
-              />
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ studentAverages[studentData.student.id!] }}
-            </td>
-          </tr>
-          <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Moyenne Classe</td>
-            <td v-for="course in courses" :key="course.id" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ courseAverages[course.id!] }}
-            </td>
-            <td></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div v-else>
-      <p>Veuillez sélectionner une période et une classe, puis cliquez sur "Charger".</p>
+    <div v-else class="empty-state">
+      <el-empty description="Veuillez sélectionner une période et une classe, puis cliquez sur 'Charger'." />
     </div>
   </div>
 </template>
@@ -123,19 +227,21 @@ import { GradeEntity } from '#electron/backend/entities/grade';
 import { StudentEntity } from '#electron/backend/entities/students';
 import { CourseEntity } from '#electron/backend/entities/course';
 import EditableCell from '@/components/grade/EditableCell.vue';
+import { Loading, Search, Printer, Lightning } from '@element-plus/icons-vue';
 
 const periods = ref<any[]>([]);
 const grades = ref<GradeEntity[]>([]);
 const selectedPeriod = ref<string | null>(null);
 const selectedGrade = ref<number | null>(null);
-const students = ref<StudentEntity[]>([]);
 const courses = ref<CourseEntity[]>([]);
-const studentGrades = ref<any[]>([]);
 const loading = ref(false);
 const isModified = ref(false);
-const showPrintModal = ref(false);
-const printOption = ref('all');
-const selectedStudentForPrint = ref<number | null>(null);
+const selectedStudentId = ref<number | null>(null);
+const filteredStudents = ref<StudentEntity[]>([]);
+const studentScope = ref('all');
+const selectedStudent = ref<StudentEntity | null>(null);
+const selectedStudentGrades = ref<{ [courseId: number]: { seq1: number | null, seq2: number | null, observation: string, isModified: boolean } }>({});
+const mention = ref('');
 
 onMounted(async () => {
   try {
@@ -153,158 +259,410 @@ onMounted(async () => {
   }
 });
 
-const tableData = computed(() => {
-  return students.value.map(student => {
-    const gradesForStudent = studentGrades.value.find(sg => sg.studentId === student.id)?.grades.grades || [];
-    const studentCourseGrades = courses.value.reduce((acc, course) => {
-      const gradeInfo = gradesForStudent.find((g: { courseId: number | undefined; }) => g.courseId === course.id!);
-      acc[course.id!] = {
-        grade: gradeInfo ? gradeInfo.average : null,
-        isModified: false,
-        courseId: course.id!,
-        studentId: student.id!
-      };
-      return acc;
-    }, {} as { [courseId: number]: { grade: number | null, isModified: boolean, courseId: number, studentId: number } });
 
-    return {
-      student,
-      grades: studentCourseGrades
-    };
-  });
-});
-
-const studentAverages = computed(() => {
-  const averages: { [studentId: number]: number } = {};
-  tableData.value.forEach(studentData => {
-    const studentGrades = Object.values(studentData.grades).map(g => g.grade).filter(g => g !== null) as number[];
-    if (studentGrades.length > 0) {
-      const sum = studentGrades.reduce((a, b) => a + b, 0);
-      averages[studentData.student.id!] = parseFloat((sum / studentGrades.length).toFixed(2));
-    } else {
-      averages[studentData.student.id!] = 0;
-    }
-  });
-  return averages;
-});
-
-const courseAverages = computed(() => {
-  const averages: { [courseId: number]: number } = {};
-  courses.value.forEach(course => {
-    const courseGrades = tableData.value.map(sd => sd.grades[course.id!].grade).filter(g => g !== null) as number[];
-    if (courseGrades.length > 0) {
-      const sum = courseGrades.reduce((a, b) => a + b, 0);
-      averages[course.id!] = parseFloat((sum / courseGrades.length).toFixed(2));
-    } else {
-      averages[course.id!] = 0;
-    }
-  });
-  return averages;
-});
-
-const markAsModified = (grade: { isModified: boolean; }) => {
-  grade.isModified = true;
+const markAsModified = (item: { isModified: boolean; }) => {
+  item.isModified = true;
   isModified.value = true;
 };
 
-const loadData = async () => {
-  if (!selectedPeriod.value || !selectedGrade.value) {
-    alert('Veuillez sélectionner une période et une classe.');
-    return;
-  }
+const selectStudent = async (student: StudentEntity) => {
+  selectedStudentId.value = student.id!;
+  selectedStudent.value = student;
+  await loadCoursesForStudent();
+  initializeStudentGrades();
+};
 
-  loading.value = true;
-  isModified.value = false;
+const selectGrade = async (grade: GradeEntity) => {
+  selectedGrade.value = grade.id!;
+  await loadStudentsForGrade();
+  // Charger les cours pour cette classe
+  await loadCoursesForGrade(grade.id!);
+};
+
+const onStudentScopeChange = () => {
+  if (studentScope.value === 'all') {
+    loadAllStudents();
+  } else {
+    selectedGrade.value = null;
+    filteredStudents.value = [];
+  }
+};
+
+const initializeStudentGrades = () => {
+  if (!selectedStudent.value) return;
+  
+  selectedStudentGrades.value = {};
+  courses.value.forEach(course => {
+    selectedStudentGrades.value[course.id!] = {
+      seq1: null,
+      seq2: null,
+      observation: '',
+      isModified: false
+    };
+  });
+};
+
+const loadStudentsForGrade = async () => {
+  if (!selectedGrade.value) return;
+  
   try {
     const studentsResponse = await window.ipcRenderer.invoke('student:getByGrade', selectedGrade.value);
     if (studentsResponse.success) {
-      students.value = studentsResponse.data;
+      filteredStudents.value = studentsResponse.data;
     }
+  } catch (error) {
+    console.error('Error loading students:', error);
+  }
+};
 
-    const coursesResponse = await window.ipcRenderer.invoke('course:all');
+const loadAllStudents = async () => {
+  try {
+    const studentsResponse = await window.ipcRenderer.invoke('student:all');
+    if (studentsResponse.success) {
+      filteredStudents.value = studentsResponse.data;
+    }
+  } catch (error) {
+    console.error('Error loading all students:', error);
+  }
+};
+
+const loadCoursesForStudent = async () => {
+  if (!selectedStudent.value) return;
+  
+  try {
+    // Charger les cours pour la classe de l'élève sélectionné
+    const coursesResponse = await window.ipcRenderer.invoke('course:getByGrade', selectedStudent.value.gradeId);
     if (coursesResponse.success) {
       courses.value = coursesResponse.data;
-    }
-
-    const gradesData = [];
-    for (const student of students.value) {
-      const studentGradeResponse = await window.ipcRenderer.invoke('grades:get', { studentId: student.id, period: selectedPeriod.value });
-      if (studentGradeResponse.success) {
-        gradesData.push({ studentId: student.id, grades: studentGradeResponse.data });
+    } else {
+      // Fallback: charger tous les cours si pas de cours spécifiques à la classe
+      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
+      if (allCoursesResponse.success) {
+        courses.value = allCoursesResponse.data;
       }
     }
-    studentGrades.value = gradesData;
-
   } catch (error) {
-    console.error('Error loading data:', error);
-  } finally {
-    loading.value = false;
+    console.error('Error loading courses:', error);
+    // En cas d'erreur, essayer de charger tous les cours
+    try {
+      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
+      if (allCoursesResponse.success) {
+        courses.value = allCoursesResponse.data;
+      }
+    } catch (fallbackError) {
+      console.error('Error loading all courses:', fallbackError);
+    }
   }
 };
 
-const saveGrades = async () => {
-  if (!isModified.value) return;
-
+const loadCoursesForGrade = async (gradeId: number) => {
   try {
-    for (const studentData of tableData.value) {
-      const modifiedGrades = Object.values(studentData.grades).filter(g => g.isModified);
-      if (modifiedGrades.length > 0) {
-        const gradesToSave = modifiedGrades.map(g => ({
-          courseId: g.courseId,
-          assignments: [], // For now, we only handle the final grade
-          exam: g.grade, // We save the grade as exam grade
-          average: g.grade,
-          appreciation: ''
-        }));
-
-        await window.ipcRenderer.invoke('grades:save', {
-          studentId: studentData.student.id,
-          period: selectedPeriod.value,
-          grades: gradesToSave
-        });
+    const coursesResponse = await window.ipcRenderer.invoke('course:getByGrade', gradeId);
+    if (coursesResponse.success) {
+      courses.value = coursesResponse.data;
+    } else {
+      // Fallback: charger tous les cours si pas de cours spécifiques à la classe
+      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
+      if (allCoursesResponse.success) {
+        courses.value = allCoursesResponse.data;
       }
     }
-    isModified.value = false;
-    alert('Notes enregistrées avec succès!');
   } catch (error) {
-    console.error('Error saving grades:', error);
-    alert('Erreur lors de l\'enregistrement des notes.');
+    console.error('Error loading courses for grade:', error);
+    // En cas d'erreur, essayer de charger tous les cours
+    try {
+      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
+      if (allCoursesResponse.success) {
+        courses.value = allCoursesResponse.data;
+      }
+    } catch (fallbackError) {
+      console.error('Error loading all courses:', fallbackError);
+    }
   }
 };
+
+const getGradeRowClassName = ({ row }: { row: GradeEntity }) => {
+  return selectedGrade.value === row.id ? 'selected-row' : '';
+};
+
+const getStudentRowClassName = ({ row }: { row: StudentEntity }) => {
+  return selectedStudentId.value === row.id ? 'selected-row' : '';
+};
+
+const calculateCourseAverage = (courseId: number) => {
+  const grades = selectedStudentGrades.value[courseId];
+  if (!grades || (grades.seq1 === null && grades.seq2 === null)) return '0,00';
+  
+  const seq1 = grades.seq1 || 0;
+  const seq2 = grades.seq2 || 0;
+  const average = (seq1 + seq2) / 2;
+  return average.toFixed(2).replace('.', ',');
+};
+
+const calculateFinalAverage = (courseId: number) => {
+  const course = courses.value.find(c => c.id === courseId);
+  if (!course || !course.coefficient) return '0,00';
+  
+  const average = parseFloat(calculateCourseAverage(courseId).replace(',', '.'));
+  const final = average * course.coefficient;
+  return final.toFixed(2).replace('.', ',');
+};
+
+const totalAverage = computed(() => {
+  const total = courses.value.reduce((sum, course) => {
+    const average = parseFloat(calculateCourseAverage(course.id!).replace(',', '.'));
+    return sum + average;
+  }, 0);
+  return (total / courses.value.length).toFixed(2).replace('.', ',');
+});
+
+const totalCoefficient = computed(() => {
+  return courses.value.reduce((sum, course) => sum + (course.coefficient || 0), 0).toFixed(2).replace('.', ',');
+});
+
+const totalFinalAverage = computed(() => {
+  const total = courses.value.reduce((sum, course) => {
+    const final = parseFloat(calculateFinalAverage(course.id!).replace(',', '.'));
+    return sum + final;
+  }, 0);
+  return total.toFixed(2).replace('.', ',');
+});
+
+
+const autoMentions = () => {
+  // Logique pour les mentions automatiques
+  console.log('Auto mentions');
+};
+
+const autoObservations = () => {
+  // Logique pour les observations automatiques
+  console.log('Auto observations');
+};
+
 
 const printReportCards = async () => {
-  if (!selectedPeriod.value) {
-    alert('Veuillez sélectionner une période.');
-    return;
-  }
-
-  let studentIds: number[] = [];
-  if (printOption.value === 'all') {
-    studentIds = students.value.map(s => s.id);
-  } else if (selectedStudentForPrint.value) {
-    studentIds = [selectedStudentForPrint.value];
-  }
-
-  if (studentIds.length === 0) {
-    alert('Veuillez sélectionner au moins un élève.');
+  if (!selectedStudent.value) {
+    alert('Veuillez sélectionner un élève.');
     return;
   }
 
   try {
     await window.ipcRenderer.invoke('report:generateMultiple', {
-      studentIds,
-      period: selectedPeriod.value,
+      studentIds: [selectedStudent.value.id!],
+      period: selectedPeriod.value || 'Trimestre 1',
     });
     alert('Impression lancée avec succès!');
   } catch (error) {
     console.error('Error printing report cards:', error);
     alert('Erreur lors de l\'impression des bulletins.');
-  } finally {
-    showPrintModal.value = false;
   }
 };
 </script>
 
 <style scoped>
-/* Styles */
+.report-card-container {
+  padding: 10px;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.main-title {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.main-title h2 {
+  margin: 0;
+  color: #333;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.selection-section {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+}
+
+.selection-tables {
+  margin-top: 8px;
+}
+
+.table-section {
+  background: #fafafa;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.table-section h4 {
+  margin: 0 0 5px 0;
+  color: #333;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.legend-link {
+  margin-top: 10px;
+  text-align: right;
+}
+
+
+.main-grade-table {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.subject-cell {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+}
+
+.subject-icon {
+  color: #ff4444;
+  font-weight: bold;
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.subject-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.calculated-average,
+.coefficient-value,
+.final-average {
+  text-align: center;
+  font-weight: 500;
+  color: #333;
+}
+
+.sum-value {
+  text-align: center;
+  font-weight: 600;
+  color: #333;
+}
+
+
+.mention-section {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.encouragement-btn {
+  background-color: #ffc107 !important;
+  border-color: #ffc107 !important;
+  color: #000 !important;
+  font-weight: 600;
+  padding: 12px 24px;
+}
+
+.print-btn {
+  background-color: #007bff !important;
+  border-color: #007bff !important;
+  color: white !important;
+  font-weight: 600;
+  padding: 12px 24px;
+}
+
+.selected-row {
+  background-color: #e3f2fd !important;
+}
+
+:deep(.el-table .selected-row td) {
+  background-color: #e3f2fd !important;
+}
+
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  gap: 16px;
+}
+
+.loading-container p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.is-loading {
+  animation: rotating 2s linear infinite;
+}
+
+@keyframes rotating {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.el-table) {
+  font-size: 12px;
+}
+
+:deep(.el-table th) {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+:deep(.el-table td) {
+  padding: 6px 0;
+}
+
+:deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #333;
+}
+
+:deep(.el-button) {
+  font-weight: 500;
+}
+
+
+
+/* Styles pour connecter visuellement les tableaux */
+:deep(.el-table) {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+:deep(.el-table + .el-table) {
+  margin-top: 0;
+  border-top: none;
+}
+
+:deep(.el-table + .el-table .el-table__header) {
+  border-top: none;
+}
+
+:deep(.el-table + .el-table .el-table__body tr:first-child td) {
+  border-top: none;
+}
 </style>
