@@ -73,7 +73,7 @@ export class TranchConfigEntity {
     tranchName?: string;
     @Column({ type: "decimal", precision: 10, scale: 2, default: 0 })
     amount!: number;
-    @Column({ type: "integer" })
+    @Column({ type: "integer", nullable: true })
     tranchMonthCount?: number;
     @ManyToOne(() => PaymentAnnualConfigEntity, {onDelete: 'CASCADE'})
     paymentAnnualConfig?:PaymentAnnualConfigEntity

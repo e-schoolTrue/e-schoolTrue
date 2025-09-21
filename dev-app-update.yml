@@ -1,0 +1,25 @@
+# Configuration de développement pour electron-updater
+# Ce fichier est utilisé uniquement en mode développement
+
+# Désactiver les mises à jour automatiques en développement
+autoDownload: false
+autoInstallOnAppQuit: false
+
+# Configuration du logger pour le développement
+logger:
+  level: "debug"
+  file: "dev-updater.log"
+
+# Configuration pour éviter les erreurs en développement
+allowDowngrade: true
+
+# Désactiver la vérification des certificats SSL en développement
+requestHeaders:
+  "Cache-Control": "no-cache"
+
+# Configuration du cache pour le développement
+updaterCacheDirName: "eSchool-dev-updater"
+
+# Mode développement - pas de vérification réelle des mises à jour
+provider: "generic"
+url: "http://localhost:3000/updates"

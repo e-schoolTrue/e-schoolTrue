@@ -4,6 +4,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
 // @ts-ignore
 import { PaymentAnnualConfigEntity } from '#electron/backend/entities/paymentConfig';
+// @ts-ignore
+import { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
 import { useCurrency } from '@/composables/useCurrency';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 
@@ -23,6 +25,7 @@ const isSaving = ref(false);
 const showModal = ref(false);
 const showTrancheModal = ref(false);
 const currTrancheConfig = ref<PaymentAnnualConfigEntity>();
+const yearRepartition = ref<YearRepartitionEntity | null>(null);
 const currentPaymentConfig = ref<PaymentConfig>({ 
   classId: '',
   className: '',
@@ -70,15 +73,18 @@ const remainingToAllocate = computed(() => {
 });
 
 const openCreateTrancheConfigModal = () => {
+  const initialTrancheCount = yearRepartition.value?.periodConfigurations?.length || 2;
+  const initialTranches = Array.from({ length: initialTrancheCount }, (_, i) => {
+    const name = yearRepartition.value?.periodConfigurations[i]?.name || `Tranche ${i + 1}`;
+    return { name, amount: 0 };
+  });
+
   editingTrancheConfig.value = {
     id: undefined,
     gradeId: null,
     annualAmount: 0,
-    trancheCount: 2,
-    tranches: [
-      { name: 'Tranche 1', amount: 0 },
-      { name: 'Tranche 2', amount: 0 }
-    ]
+    trancheCount: initialTrancheCount,
+    tranches: initialTranches
   };
   isTrancheConfigModalVisible.value = true;
 };
@@ -97,11 +103,14 @@ const updateTotalTranches = () => {
   const currentTranches = editingTrancheConfig.value.tranches;
   const newTranches: TrancheDataItem[] = [];
 
+  const periods = yearRepartition.value?.periodConfigurations || [];
+
   for (let i = 0; i < count; i++) {
     if (i < currentTranches.length) {
       newTranches.push(currentTranches[i]);
     } else {
-      newTranches.push({ name: `Tranche ${i + 1}`, amount: 0 });
+      const name = periods[i]?.name ? periods[i].name : `Tranche ${i + 1}`;
+      newTranches.push({ name, amount: 0 });
     }
   }
   editingTrancheConfig.value.tranches = newTranches;
@@ -320,6 +329,10 @@ const loadTrancheConfigs = async () => {
 onMounted(async () => {
   await loadConfigurations();
   await loadTrancheConfigs();
+  const result = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+  if (result.success) {
+    yearRepartition.value = result.data;
+  }
 });
 </script>
 
