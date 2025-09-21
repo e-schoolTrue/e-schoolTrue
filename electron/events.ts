@@ -192,7 +192,21 @@ export function registerIpcHandlers() {
   ipcMain.handle("course:getByGrade", async (_, gradeId: number) => global.courseService.getCoursesByGrade(gradeId));
 
   // --- Étudiants ---
-  ipcMain.handle("student:all", async () => ({ success: true, data: await global.studentService.getAllStudents(), message: "Étudiants récupérés" }));
+  ipcMain.handle("student:all", async (_, options: {
+    page: number;
+    pageSize: number;
+    filters: {
+        studentFullName?: string;
+        grade?: number;
+    }
+}) => {
+    try {
+        const { students, total } = await global.studentService.getAllStudents(options);
+        return { success: true, data: { students, total }, message: "Étudiants récupérés" };
+    } catch (error) {
+        return handleError(error, "student:all");
+    }
+});
   ipcMain.handle("student:getDetails", async (_, studentId: number) => global.studentService.getStudentDetails(studentId));
   ipcMain.handle("save-student", async (_, studentData) => studentData.id ? global.studentService.updateStudent(studentData.id, studentData) : global.studentService.createStudent(studentData));
   ipcMain.handle("update-student", async (_, { studentId, studentData }) => global.studentService.updateStudent(studentId, studentData));
