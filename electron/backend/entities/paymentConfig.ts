@@ -71,6 +71,8 @@ export class TranchConfigEntity {
     id?: number;
     @Column({ type: "varchar"})
     tranchName?: string;
+    @Column({ type: "decimal", precision: 10, scale: 2, default: 0 })
+    amount!: number;
     @Column({ type: "integer" })
     tranchMonthCount?: number;
     @ManyToOne(() => PaymentAnnualConfigEntity, {onDelete: 'CASCADE'})

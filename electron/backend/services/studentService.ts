@@ -83,13 +83,11 @@ export class StudentService {
 
             // Vérifier si l'étudiant existe déjà
             const existingStudent = await this.studentRepository.findOne({
-                where: [
-                    {
-                        firstname: studentData.firstname,
-                        lastname: studentData.lastname,
-                        birthDay: studentData.birthDay
-                    }
-                ]
+                where: {
+                    firstname: studentData.firstname?.trim(),
+                    lastname: studentData.lastname?.trim(),
+                    birthDay: studentData.birthDay
+                }
             });
 
             if (existingStudent) {
