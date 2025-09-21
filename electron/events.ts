@@ -26,6 +26,7 @@ import { LicenseService } from './backend/services/licenseService';
 import { ConfigService } from './backend/services/configService';
 import { ScheduleService } from './backend/services/scheduleService';
 import { InscriptionFeeService } from './backend/services/inscription-fee.service';
+import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 
 
