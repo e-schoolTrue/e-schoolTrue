@@ -38,6 +38,7 @@ import { PreferenceService } from "./backend/services/preferenceService";
 import { LicenseService } from "./backend/services/licenseService";
 import { ScheduleService } from './backend/services/scheduleService';
 import { PdfService } from './backend/services/pdfService';
+import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 
 
 

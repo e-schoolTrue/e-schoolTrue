@@ -279,11 +279,13 @@ const validateImport = async () => {
       for (const [header, field] of Object.entries(columnMappings.value)) {
         if (field && row[header] !== undefined) {
           if (field === "birthDay" && row[header]) {
-            // Convertir la date en objet Date
+            // Convertir la date en objet Date et normaliser à minuit
             try {
               const dateValue = new Date(row[header]);
               // Vérifier si la date est valide
               if (!isNaN(dateValue.getTime())) {
+                // Normaliser la date à minuit pour éviter les problèmes de contrainte unique
+                dateValue.setHours(0, 0, 0, 0);
                 mappedRow[field] = dateValue;
               } else {
                 console.warn(`Date de naissance invalide pour la ligne ${index + 1}:`, row[header]);
@@ -305,8 +307,8 @@ const validateImport = async () => {
               mappedRow[field] = "male";
             }
           } else {
-            // S'assurer que toutes les valeurs sont des chaînes de caractères
-            mappedRow[field] = String(row[header]);
+            // S'assurer que toutes les valeurs sont des chaînes de caractères et nettoyer les espaces
+            mappedRow[field] = String(row[header]).trim();
           }
         }
       }

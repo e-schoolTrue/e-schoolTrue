@@ -89,23 +89,23 @@ const handleFileLoaded = async (students: IStudentData[]) => {
       try {
         // Préparer tous les champs requis avec des valeurs par défaut si nécessaire
         const preparedData = {
-          // Champs obligatoires
-          firstname: student.firstname || 'Importé',
-          lastname: student.lastname || 'IMPORTÉ',
+          // Champs obligatoires (nettoyer les espaces)
+          firstname: (student.firstname || 'Importé').trim(),
+          lastname: (student.lastname || 'IMPORTÉ').trim(),
           gradeId: student.gradeId,
           
-          // Champs optionnels (parents)
-          fatherFirstname: student.fatherFirstname || '',
-          fatherLastname: student.fatherLastname || '',
-          motherFirstname: student.motherFirstname || '',
-          motherLastname: student.motherLastname || '',
+          // Champs optionnels (parents) - nettoyer les espaces
+          fatherFirstname: (student.fatherFirstname || '').trim(),
+          fatherLastname: (student.fatherLastname || '').trim(),
+          motherFirstname: (student.motherFirstname || '').trim(),
+          motherLastname: (student.motherLastname || '').trim(),
           
-          // Autres champs optionnels
-          birthDay: student.birthDay ? new Date(student.birthDay) : null,
-          birthPlace: student.birthPlace || '',
-          address: student.address || '',
-          famillyPhone: student.famillyPhone || '',
-          personalPhone: student.personalPhone || '',
+          // Autres champs optionnels - nettoyer les espaces et normaliser la date
+          birthDay: student.birthDay ? new Date(new Date(student.birthDay).setHours(0, 0, 0, 0)) : null,
+          birthPlace: (student.birthPlace || '').trim(),
+          address: (student.address || '').trim(),
+          famillyPhone: (student.famillyPhone || '').trim(),
+          personalPhone: (student.personalPhone || '').trim(),
           sex: convertSex(student.sex),
           schoolYear: student.schoolYear || currentSchoolYear.value,
           
@@ -123,16 +123,24 @@ const handleFileLoaded = async (students: IStudentData[]) => {
           successCount++;
           ElMessage.success(`Étudiant ${preparedData.firstname} ${preparedData.lastname} enregistré avec succès`);
         } else {
-          errorCount++;
-          // Message d'erreur détaillé
-          const errorMessage = result.error || result.message || 'Échec de l\'enregistrement';
-          console.error('Détails de l\'erreur:', result);
-          throw new Error(errorMessage);
+          // Vérifier si c'est une erreur de doublon
+          if (result.error && result.error.includes('UNIQUE constraint failed')) {
+            console.warn(`Étudiant en doublon ignoré: ${preparedData.firstname} ${preparedData.lastname}`);
+            ElMessage.warning(`Étudiant en doublon ignoré: ${preparedData.firstname} ${preparedData.lastname}`);
+            // Ne pas compter comme une erreur pour les doublons
+          } else {
+            errorCount++;
+            // Message d'erreur détaillé pour les autres erreurs
+            const errorMessage = result.error || result.message || 'Échec de l\'enregistrement';
+            console.error('Détails de l\'erreur:', result);
+            ElMessage.error(`Erreur pour ${preparedData.firstname} ${preparedData.lastname}: ${errorMessage}`);
+          }
         }
       } catch (error) {
         errorCount++;
         console.error(`Erreur pour ${student.firstname || 'étudiant'} ${student.lastname || ''}:`, error);
         ElMessage.error(`Erreur pour ${student.firstname || 'étudiant'} ${student.lastname || ''}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+        // Continuer avec l'étudiant suivant même en cas d'erreur
       }
     }
     

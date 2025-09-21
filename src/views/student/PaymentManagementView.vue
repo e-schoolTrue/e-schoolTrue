@@ -233,6 +233,9 @@
                   <span class="separator">/</span> 
                   <currency-display :amount="getAdjustedAnnualAmount(row.id)" class="total-amount" />
                 </div>
+                <div v-if="getTrancheInfo(row)" class="tranche-info">
+                  <el-tag size="small" type="info" effect="plain">{{ getTrancheInfo(row) }}</el-tag>
+                </div>
               </div>
             </template>
           </el-table-column>
@@ -341,6 +344,8 @@ import { PaymentConfig, PaymentAmounts } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
 import { useRouter } from 'vue-router';
+// @ts-ignore
+import { PaymentAnnualConfigEntity } from '#electron/backend/entities/paymentConfig';
 
 interface Student {
   id: number;
@@ -351,20 +356,20 @@ interface Student {
     id: number;
     name: string;
   };
-  absences?: Array<{
+  absences?: Array<{ 
     id: number;
     date: Date;
     reason: string;
     justified: boolean;
   }>;
-  payments?: Array<{
+  payments?: Array<{ 
     id: number;
     amount: number;
     created_at: Date;
     paymentType: string;
   }>;
   scholarshipPercentage?: number;
-  scholarship?: Array<{
+  scholarship?: Array<{ 
     id: number;
     percentage: number;
     isActive: boolean;
@@ -401,6 +406,7 @@ const historyDialogVisible = ref(false);
 const selectedStudent = ref<Student>(null as unknown as Student);
 const classConfigs = ref(new Map<number, PaymentConfig>());
 const paymentAmounts = ref(new Map<number, PaymentAmounts>());
+const trancheConfigs = ref(new Map<number, PaymentAnnualConfigEntity>());
 const filters = ref<Filters>({
   studentFullName: "",
   grade: undefined,
@@ -415,16 +421,14 @@ const loadPaymentConfigs = async () => {
     console.log("Résultat des configurations:", result);
 
     if (result?.success && Array.isArray(result.data)) {
-      // Créer une nouvelle Map avec les configurations
       const newConfigs = new Map<number, PaymentConfig>();
       
       result.data.forEach((config: PaymentConfig) => {
-        // Assurez-vous que classId est un nombre
         const classId = Number(config.classId);
         if (!isNaN(classId)) {
           newConfigs.set(classId, {
             ...config,
-            classId: config.classId, // Garder classId comme string
+            classId: config.classId,
             annualAmount: Number(config.annualAmount),
             inscriptionFee: Number(config.inscriptionFee),
             reInscriptionFee: Number(config.reInscriptionFee)
@@ -445,6 +449,21 @@ const loadPaymentConfigs = async () => {
   } catch (error) {
     console.error("Erreur lors du chargement des configurations:", error);
     ElMessage.error("Erreur lors du chargement des configurations de paiement");
+  }
+};
+
+const loadTrancheConfigs = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('tranche-config:all');
+    if (result.success && Array.isArray(result.data)) {
+      const newTrancheConfigs = new Map<number, PaymentAnnualConfigEntity>();
+      result.data.forEach((config: PaymentAnnualConfigEntity) => {
+        newTrancheConfigs.set(Number(config.grade?.id), config);
+      });
+      trancheConfigs.value = newTrancheConfigs;
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des configurations de tranches:", error);
   }
 };
 
@@ -489,10 +508,8 @@ const loadStudents = async () => {
     if (result.success && Array.isArray(result.data)) {
       console.log(`${result.data.length} étudiants récupérés.`);
       
-      // Transform the raw students data into a proper format
       const processedStudents = await Promise.all(
         result.data.map(async (student: any) => {
-          // Process photo if exists
           if (student.photo?.id) {
             try {
               const photoUrl = await window.ipcRenderer.invoke('file:getFileUrl', { 
@@ -509,10 +526,8 @@ const loadStudents = async () => {
         })
       );
       
-      // Update the students ref with processed data
       students.value = processedStudents;
       
-      // Load payments for each student
       for (const student of students.value) {
         if (!student || typeof student.id !== 'number') {
           console.warn('Étudiant invalide:', student);
@@ -527,7 +542,6 @@ const loadStudents = async () => {
         }
       }
       
-      // Update filtered students after loading
       handleFilter();
       
     } else {
@@ -564,15 +578,12 @@ const handleFilter = () => {
   filteredStudents.value = students.value.filter(student => {
     if (!student) return false;
 
-    // Filtre par nom/prénom
     const fullName = `${student.firstname} ${student.lastname}`.toLowerCase();
     const searchName = filters.value.studentFullName.toLowerCase();
     const nameMatch = !searchName || fullName.includes(searchName);
 
-    // Filtre par classe
     const gradeMatch = !filters.value.grade || student.grade?.id === filters.value.grade;
 
-    // Filtre par statut de paiement
     let statusMatch = true;
     if (filters.value.paymentStatus) {
       const status = getPaymentStatus(student.id);
@@ -582,13 +593,11 @@ const handleFilter = () => {
     return nameMatch && gradeMatch && statusMatch;
   });
 
-  // Mettre à jour le total
   totalStudents.value = filteredStudents.value.length;
 };
 
 const openPaymentDialog = (student: Student) => {
   if (!verifyPaymentConfigs()) {
-    // Proposer d'aller à la configuration des paiements
     ElMessageBox.confirm(
       'Voulez-vous configurer les paiements maintenant ?',
       'Configuration des paiements',
@@ -599,11 +608,9 @@ const openPaymentDialog = (student: Student) => {
       }
     )
       .then(() => {
-        // Rediriger vers la page de configuration des paiements
         router.push('/settings/payment');
       })
       .catch(() => {
-        // L'utilisateur ne souhaite pas configurer maintenant
       });
     return;
   }
@@ -626,7 +633,6 @@ const exportToExcel = async () => {
   try {
     loading.value = true;
 
-    // Préparer les données pour l'export
     const exportData = await Promise.all(
       filteredStudents.value.map(async (student) => {
         const paidAmount = getPaidAmount(student.id);
@@ -648,31 +654,26 @@ const exportToExcel = async () => {
       })
     );
 
-    // Créer un workbook et une worksheet
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(exportData);
 
-    // Ajuster la largeur des colonnes
     const colWidths = [
-      { wch: 15 }, // Matricule
-      { wch: 20 }, // Nom
-      { wch: 20 }, // Prénom
-      { wch: 15 }, // Classe
-      { wch: 15 }, // Montant annuel
-      { wch: 15 }, // Montant payé
-      { wch: 15 }, // Reste à payer
-      { wch: 12 }, // Progression
-      { wch: 12 }  // Statut
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 12 }
     ];
     ws['!cols'] = colWidths;
 
-    // Ajouter la worksheet au workbook
     XLSX.utils.book_append_sheet(wb, ws, 'Paiements');
 
-    // Générer le nom du fichier
     const fileName = `paiements_etudiants_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-    // Sauvegarder le fichier
     XLSX.writeFile(wb, fileName);
 
     ElMessage.success('Export Excel réussi');
@@ -723,7 +724,6 @@ const loadStudentAmounts = async () => {
             )
           : 0;
 
-        // Mettre à jour les données de l'étudiant avec les informations de bourse
         const studentIndex = students.value.findIndex(s => s.id === student.id);
         if (studentIndex !== -1) {
           students.value[studentIndex] = {
@@ -783,7 +783,6 @@ const getTotalCollectedAmount = () => {
   console.log("Calcul du montant total collecté...");
   console.log("Données de paiement disponibles:", Array.from(paymentAmounts.value.entries()));
   
-  // Vérifier que paymentAmounts contient des données
   if (paymentAmounts.value.size === 0) {
     console.warn("Aucune donnée de paiement disponible");
     return 0;
@@ -837,7 +836,8 @@ watch(
 onMounted(async () => {
   loading.value = true;
   try {
-    await loadPaymentConfigs(); // Charger d'abord les configurations
+    await loadPaymentConfigs();
+    await loadTrancheConfigs();
     await loadGrades();
     await loadStudents();
   } catch (error) {
@@ -886,7 +886,6 @@ const getPaymentStatus = (studentId: number) => {
 
 const cleanText = (text: string): string => {
   if (!text) return '';
-  // Décoder les caractères spéciaux
   return decodeURIComponent(escape(text));
 };
 
@@ -911,12 +910,10 @@ const printReceipt = async (student: Student) => {
     const studentName = `${student.firstname} ${student.lastname}`;
     const { currency } = useCurrency();
 
-    // Nettoyer les textes
     const schoolName = cleanText(schoolInfo.data.name);
     const schoolTown = cleanText(schoolInfo.data.town);
     const schoolAddress = cleanText(schoolInfo.data.address);
 
-    // Créer un élément temporaire pour contenir le reçu
     const receiptElement = document.createElement('div');
     receiptElement.innerHTML = `
       <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
@@ -988,7 +985,6 @@ const printReceipt = async (student: Student) => {
       </div>
     `;
 
-    // Styles d'impression
     const style = document.createElement('style');
     style.textContent = `
       @media print {
@@ -1013,17 +1009,14 @@ const printReceipt = async (student: Student) => {
       }
     `;
     
-    // Créer un conteneur d'impression
     const printContainer = document.createElement('div');
     printContainer.id = 'receipt-for-print';
     printContainer.style.cssText = 'position: fixed; left: -9999px; top: 0;';
     printContainer.appendChild(receiptElement);
     
-    // Ajouter les éléments au document
     document.body.appendChild(style);
     document.body.appendChild(printContainer);
     
-    // Attendre que l'image soit chargée si elle existe
     if (schoolInfo?.data?.logo) {
       const img = receiptElement.querySelector('img');
       if (img) {
@@ -1034,10 +1027,8 @@ const printReceipt = async (student: Student) => {
       }
     }
     
-    // Lancer l'impression
     window.print();
     
-    // Nettoyer après l'impression
     const cleanup = () => {
       if (document.body.contains(printContainer)) {
         document.body.removeChild(printContainer);
@@ -1047,9 +1038,8 @@ const printReceipt = async (student: Student) => {
       }
     };
     
-    // Nettoyer après l'impression ou l'annulation
     window.onafterprint = cleanup;
-    setTimeout(cleanup, 5000); // Fallback de nettoyage après 5 secondes
+    setTimeout(cleanup, 5000);
 
     ElMessage.success('Reçu généré avec succès');
   } catch (error) {
@@ -1084,20 +1074,17 @@ const formatPaymentMethod = (method: string): string => {
 };
 
 const getAdjustedAnnualAmount = (studentId: number): number => {
-  // Vérifier d'abord si nous avons déjà les données dans paymentAmounts
   const amounts = paymentAmounts.value.get(studentId);
   if (amounts && amounts.adjustedAmount > 0) {
     return amounts.adjustedAmount;
   }
   
-  // Sinon, calculer à la volée
   const student = students.value.find(s => s.id === studentId);
   if (!student?.grade?.id) return 0;
 
   const baseAmount = getAnnualAmount(student.grade.id);
   if (!student.scholarship?.length) return baseAmount;
 
-  // Utiliser la bourse active
   const activeScholarship = student.scholarship.find(s => 
     s.isActive && s.schoolYear === new Date().getFullYear().toString()
   );
@@ -1115,7 +1102,6 @@ const loadStudentPayments = async (studentId: number) => {
     console.log(`Résultat pour l'étudiant ${studentId}:`, result);
 
     if (result.success && result.data) {
-      // Extraire les données avec des valeurs par défaut pour éviter les erreurs
       const { 
         payments = [], 
         baseAmount = 0, 
@@ -1124,10 +1110,8 @@ const loadStudentPayments = async (studentId: number) => {
         adjustedAmount = 0
       } = result.data;
 
-      // Vérifier si payments est bien un tableau et le transformer si nécessaire
       const paymentsArray = Array.isArray(payments) ? payments : [];
       
-      // Calculer le total payé
       let totalPaid = 0;
       paymentsArray.forEach((payment: any) => {
         if (payment && typeof payment.amount !== 'undefined') {
@@ -1135,7 +1119,6 @@ const loadStudentPayments = async (studentId: number) => {
         }
       });
       
-      // Définir les nouvelles données
       const newAmounts = {
         paid: totalPaid,
         remaining: Math.max(0, adjustedAmount - totalPaid),
@@ -1150,17 +1133,14 @@ const loadStudentPayments = async (studentId: number) => {
       paymentAmounts.value.set(studentId, newAmounts);
     } else {
       console.warn(`Échec du chargement des paiements pour l'étudiant ${studentId}:`, result.message || 'Raison inconnue');
-      // Initialiser avec des valeurs par défaut
       initializeDefaultPaymentAmounts(studentId);
     }
   } catch (error) {
     console.error(`Erreur lors du chargement des paiements pour l'étudiant ${studentId}:`, error);
-    // Initialiser avec des valeurs par défaut en cas d'erreur
     initializeDefaultPaymentAmounts(studentId);
   }
 };
 
-// Fonction utilitaire pour initialiser des valeurs par défaut
 const initializeDefaultPaymentAmounts = (studentId: number) => {
   paymentAmounts.value.set(studentId, {
     paid: 0,
@@ -1202,7 +1182,6 @@ const getActiveScholarship = (student: Student) => {
   console.log('Année courante:', currentYear);
   console.log('Données étudiant:', student);
   
-  // Vérifier d'abord dans les montants calculés
   const amounts = paymentAmounts.value.get(student.id);
   if (amounts?.scholarshipPercentage) {
     console.log('Bourse trouvée dans les montants calculés:', amounts.scholarshipPercentage);
@@ -1213,7 +1192,6 @@ const getActiveScholarship = (student: Student) => {
     };
   }
   
-  // Vérifier si la bourse est directement dans l'objet étudiant
   if (student.scholarshipPercentage) {
     console.log('Bourse trouvée dans les données directes:', student.scholarshipPercentage);
     return {
@@ -1223,7 +1201,6 @@ const getActiveScholarship = (student: Student) => {
     };
   }
   
-  // Vérifier dans le tableau des bourses
   if (Array.isArray(student.scholarship)) {
     console.log('Bourses disponibles dans le tableau:', student.scholarship);
     const activeScholarship = student.scholarship.find(s => s.isActive && s.schoolYear === currentYear);
@@ -1247,6 +1224,27 @@ const getTotalScholarshipAmount = () => {
     return sum + (amounts.scholarshipAmount || 0);
   }, 0);
 };
+
+const getTrancheInfo = (student: Student) => {
+  if (!student.grade?.id) return '';
+  const trancheConfig = trancheConfigs.value.get(student.grade.id);
+  if (!trancheConfig || !trancheConfig.tranches?.length) return '';
+
+  const paidAmount = getPaidAmount(student.id);
+  let cumulativeAmount = 0;
+  let currentTrancheNum = 0;
+
+  for (const tranche of trancheConfig.tranches) {
+    currentTrancheNum++;
+    // @ts-ignore
+    cumulativeAmount += tranche.amount;
+    if (paidAmount < cumulativeAmount) {
+      return `Tranche ${currentTrancheNum} / ${trancheConfig.trancheCount}`;
+    }
+  }
+  return `Toutes les tranches payées`;
+};
+
 </script>
 
 <style scoped>
@@ -1476,6 +1474,11 @@ const getTotalScholarshipAmount = () => {
 .el-table {
   overflow-x: auto;
   max-width: 100%;
+}
+
+.tranche-info {
+  margin-top: 4px;
+  text-align: center;
 }
 
 /* Responsive design */

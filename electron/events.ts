@@ -26,9 +26,7 @@ import { LicenseService } from './backend/services/licenseService';
 import { ConfigService } from './backend/services/configService';
 import { ScheduleService } from './backend/services/scheduleService';
 import { InscriptionFeeService } from './backend/services/inscription-fee.service';
-import { TranchConfigService } from './backend/services/tranch-config.service';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
-import { TranchConfigEntity } from './backend/entities/paymentConfig';
 
 
 
@@ -587,49 +585,40 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   });
 
   // --- Tranch Configurations ---
-  ipcMain.handle("tranch-config:all", async () => {
+  ipcMain.handle("tranche-config:all", async () => {
     try {
-      const configs = await global.tranchConfigService.findAll();
+      // Assumes global.paymentAnnualConfigService is now available
+      const configs = await global.paymentAnnualConfigService.findAll();
       return { success: true, data: configs };
     } catch (error) {
-      return { success: false, error: error.message };
+      return handleError(error, "tranche-config:all");
     }
   });
 
-  ipcMain.handle("tranch-config:get", async (_, id: number) => {
+  ipcMain.handle("tranche-config:create", async (_, data) => {
     try {
-      const config = await global.tranchConfigService.findOne(id);
-      if (!config) return { success: false, error: 'Tranch config not found' };
-      return { success: true, data: config };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("tranch-config:create", async (_, data: TranchConfigEntity) => {
-    try {
-      const result = await global.tranchConfigService.create(data);
+      const result = await global.paymentAnnualConfigService.create(data);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: error.message };
+      return handleError(error, "tranche-config:create");
     }
   });
 
-  ipcMain.handle("tranch-config:update", async (_, data: TranchConfigEntity) => {
+  ipcMain.handle("tranche-config:update", async (_, data) => {
     try {
-      const result = await global.tranchConfigService.update(data);
+      const result = await global.paymentAnnualConfigService.update(data);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: error.message };
+      return handleError(error, "tranche-config:update");
     }
   });
 
-  ipcMain.handle("tranch-config:delete", async (_, id: number) => {
+  ipcMain.handle("tranche-config:delete", async (_, id: number) => {
     try {
-      const result = await global.tranchConfigService.delete(id);
+      const result = await global.paymentAnnualConfigService.delete(id);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: error.message };
+      return handleError(error, "tranch-config:delete");
     }
   });
   
