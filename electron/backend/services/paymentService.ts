@@ -149,6 +149,49 @@ export class PaymentService {
         });
     }
 
+    async createInitialInscriptionFee(student: StudentEntity): Promise<void> {
+        try {
+            await this.ensureRepositoriesInitialized();
+    
+            if (!student.grade) {
+                console.log(`Student ${student.id} has no grade, skipping inscription fee.`);
+                return;
+            }
+    
+            const config = await this.configRepository.findOne({
+                where: { classId: student.grade.id.toString() }
+            });
+    
+            if (!config) {
+                console.log(`No payment config found for grade ${student.grade.id}, skipping inscription fee.`);
+                return;
+            }
+    
+            const inscriptionFee = student.isNew ? config.inscriptionFee : config.reInscriptionFee;
+    
+            if (inscriptionFee && inscriptionFee > 0) {
+                const payment = this.paymentRepository.create({
+                    student: student,
+                    amount: inscriptionFee,
+                    paymentType: 'inscription',
+                    paymentMethod: 'cash', // or a default method
+                    created_at: new Date(),
+                    baseAmount: inscriptionFee,
+                    adjustedAmount: inscriptionFee,
+                    scholarshipAmount: 0,
+                    scholarshipPercentage: 0,
+                });
+    
+                await this.paymentRepository.save(payment);
+                console.log(`Created inscription fee payment of ${inscriptionFee} for student ${student.id}`);
+            }
+        } catch (error) {
+            console.error(`Failed to create initial inscription fee for student ${student.id}:`, error);
+            // We don't want to throw an error here, as it might fail the student creation process.
+            // Logging the error is sufficient.
+        }
+    }
+
     async saveConfig(configData: IPaymentConfigData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
@@ -395,93 +438,55 @@ export class PaymentService {
     async getPaymentsByStudent(studentId: number): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            console.log(`=== Récupération des paiements pour l'étudiant ID: ${studentId} ===`);
     
-            const payments = await this.paymentRepository.find({
-                where: { student: { id: studentId } },
-                relations: ['student', 'scholarship'],
-                order: { created_at: 'DESC' }
-            });
-    
-            console.log(`Paiements trouvés: ${payments.length}`);
-    
-            const student = await this.studentRepository.findOne({
-                where: { id: studentId },
-                relations: ['grade', 'scholarship']
-            });
-    
-            let baseAmount = 0;
-            let scholarshipPercentage = 0;
-            let scholarshipAmount = 0;
-            let adjustedAmount = 0;
-            let inscriptionFee = 0;
-            let reInscriptionFee = 0;
-    
-            if (student?.grade?.id) {
-                console.log(`Étudiant trouvé: ${student.firstname} ${student.lastname}, Classe ID: ${student.grade.id}, est nouveau: ${student.isNew}`);
-    
-                const config = await this.configRepository.findOne({
-                    where: { classId: student.grade.id.toString() }
-                });
-    
-                if (config) {
-                    console.log(`Configuration trouvée pour la classe:`, config);
-                    baseAmount = Number(config.annualAmount) || 0;
-                    inscriptionFee = Number(config.inscriptionFee) || 0;
-                    reInscriptionFee = Number(config.reInscriptionFee) || 0;
-    
-                    if (student.isNew) {
-                        console.log(`Ajout des frais d'inscription: ${inscriptionFee}`);
-                        baseAmount += inscriptionFee;
-                    } else {
-                        console.log(`Ajout des frais de réinscription: ${reInscriptionFee}`);
-                        baseAmount += reInscriptionFee;
-                    }
-    
-                    const activeScholarship = await this.scholarshipRepository.findOne({
-                        where: {
-                            studentId,
-                            isActive: true,
-                            schoolYear: new Date().getFullYear().toString()
-                        }
-                    });
-    
-                    if (activeScholarship) {
-                        console.log(`Bourse active trouvée: ${activeScholarship.percentage}%`);
-                        scholarshipPercentage = Number(activeScholarship.percentage) || 0;
-                        scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
-                        adjustedAmount = baseAmount - scholarshipAmount;
-                    } else {
-                        console.log('Aucune bourse active trouvée.');
-                        adjustedAmount = baseAmount;
-                    }
-                } else {
-                    console.log(`Aucune configuration de paiement trouvée pour la classe ID: ${student.grade.id}`);
-                }
-            } else {
-                console.log('Étudiant non trouvé ou sans classe assignée.');
+            const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
+            if (!student) {
+                return { success: false, data: null, message: "Étudiant non trouvé" };
             }
-    
+
+            const config = await this.configRepository.findOne({ where: { classId: student.grade.id.toString() } });
+            
+            const inscriptionFeeDue = student.isNew ? (config?.inscriptionFee || 0) : (config?.reInscriptionFee || 0);
+            const tuitionFeeDue = config?.annualAmount || 0;
+
+            const payments = await this.paymentRepository.find({ where: { student: { id: studentId } } });
+
+            let paidInscriptionFee = 0;
+            let paidTuition = 0;
+
+            payments.forEach(p => {
+                if (p.paymentType === 'inscription') {
+                    paidInscriptionFee += Number(p.amount);
+                } else {
+                    paidTuition += Number(p.amount);
+                }
+            });
+
+            const activeScholarship = await this.scholarshipRepository.findOne({ where: { studentId, isActive: true } });
+            const scholarshipPercentage = activeScholarship?.percentage || 0;
+            const scholarshipAmount = tuitionFeeDue * (scholarshipPercentage / 100);
+            const adjustedTuitionFee = tuitionFeeDue - scholarshipAmount;
+            const totalDue = inscriptionFeeDue + adjustedTuitionFee;
+
             const responseData = {
-                payments,
-                baseAmount,
+                inscriptionFeeDue,
+                tuitionFeeDue,
+                paidInscriptionFee,
+                paidTuition,
+                totalPaid: paidInscriptionFee + paidTuition,
+                remainingInscriptionFee: Math.max(0, inscriptionFeeDue - paidInscriptionFee),
+                remainingTuition: Math.max(0, adjustedTuitionFee - paidTuition),
+                totalRemaining: Math.max(0, totalDue - (paidInscriptionFee + paidTuition)),
                 scholarshipPercentage,
                 scholarshipAmount,
-                adjustedAmount,
-                inscriptionFee,
-                reInscriptionFee,
+                adjustedTuitionFee,
+                totalDue,
+                payments
             };
-    
-            console.log('Données de réponse finales:', responseData);
-    
-            return {
-                success: true,
-                data: responseData,
-                message: "Paiements récupérés avec succès",
-                error: null
-            };
+
+            return { success: true, data: responseData, message: "Paiements de l'étudiant récupérés avec succès" };
         } catch (error) {
-            console.error(`Erreur lors de la récupération des paiements pour l'étudiant ${studentId}:`, error);
+            console.error(`Erreur lors de la récupération des paiements pour l\'étudiant ${studentId}:`, error);
             return {
                 success: false,
                 data: null,

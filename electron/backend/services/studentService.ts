@@ -7,6 +7,7 @@ import { FileService } from "./fileService";
 import { DashboardService } from "./dashboardService";
 import { SchoolService } from "./schoolService";
 import { CascadeDelete } from "../utils/cascadeDelete";
+import { PaymentService } from "./paymentService";
 import {
     IStudentDetails,
     IStudentServiceParams,
@@ -19,6 +20,7 @@ export class StudentService {
     private fileService: FileService;
     private dashboardService: DashboardService;
     private schoolService: SchoolService;
+    private paymentService: PaymentService;
 
     // Mapper pour les détails d'un étudiant
     private mapToIStudentDetails(student: StudentEntity): IStudentDetails {
@@ -50,6 +52,7 @@ export class StudentService {
         this.fileService = new FileService();
         this.dashboardService = new DashboardService();
         this.schoolService = new SchoolService();
+        this.paymentService = new PaymentService();
     }
 
     // Créer un étudiant
@@ -155,6 +158,10 @@ export class StudentService {
                 return completeStudent;
             });
 
+            if (result) {
+                await this.paymentService.createInitialInscriptionFee(result);
+            }
+
             // Mise à jour des statistiques du tableau de bord
             await this.dashboardService.getStats();
 
@@ -176,11 +183,36 @@ export class StudentService {
     }
 
     // Récupérer tous les étudiants
-    async getAllStudents(): Promise<StudentEntity[]> {
+    async getAllStudents(options: {
+        page: number;
+        pageSize: number;
+        filters: {
+            studentFullName?: string;
+            grade?: number;
+        }
+    }): Promise<{ students: StudentEntity[], total: number }> {
         try {
-            return await this.studentRepository.find({
-                relations: ["photo", "documents", "grade"],
-            });
+            const { page, pageSize, filters } = options;
+            const qb = this.studentRepository.createQueryBuilder("student")
+                .leftJoinAndSelect("student.photo", "photo")
+                .leftJoinAndSelect("student.documents", "documents")
+                .leftJoinAndSelect("student.grade", "grade");
+
+            if (filters.studentFullName) {
+                const searchName = `%${filters.studentFullName.toLowerCase()}%`;
+                qb.where("LOWER(student.firstname || ' ' || student.lastname) LIKE :searchName", { searchName });
+            }
+
+            if (filters.grade) {
+                qb.andWhere("student.grade.id = :gradeId", { gradeId: filters.grade });
+            }
+
+            const [students, total] = await qb
+                .skip((page - 1) * pageSize)
+                .take(pageSize)
+                .getManyAndCount();
+
+            return { students, total };
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue";
             console.error("Erreur détaillée dans getAllStudents:", error);

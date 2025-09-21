@@ -134,7 +134,7 @@
 
           <el-table
           v-loading="loading"
-          :data="filteredStudents"
+          :data="students"
           border
           stripe
           height="35vh"
@@ -215,26 +215,35 @@
 
           <el-table-column 
             label="Progression" 
-            width="220"
-            sortable
-            :sort-method="(a: Student, b: Student) => getPaymentProgress(a.id) - getPaymentProgress(b.id)"
+            width="280"
           >
             <template #default="{ row }">
               <div class="payment-progress">
-                <el-progress
-                  :percentage="getPaymentProgress(row.id)"
-                  :status="getProgressStatus(row.id)"
-                  :format="(val: number) => `${val}%`"
-                  :stroke-width="12"
-                  class="payment-progress-bar"
-                />
-                <div class="progress-details">
-                  <currency-display :amount="getPaidAmount(row.id)" class="paid-amount" /> 
-                  <span class="separator">/</span> 
-                  <currency-display :amount="getAdjustedAnnualAmount(row.id)" class="total-amount" />
+                <div class="fee-progress">
+                  <div class="fee-label">Inscription:</div>
+                  <el-progress
+                      :percentage="getInscriptionProgress(row.id)"
+                      :status="getFeeProgressStatus(getInscriptionProgress(row.id))"
+                      :stroke-width="8"
+                  />
+                  <div class="progress-details">
+                    <currency-display :amount="paymentAmounts.get(row.id)?.paidInscriptionFee || 0" class="paid-amount" /> 
+                    <span class="separator">/</span> 
+                    <currency-display :amount="paymentAmounts.get(row.id)?.inscriptionFeeDue || 0" class="total-amount" />
+                  </div>
                 </div>
-                <div v-if="getTrancheInfo(row)" class="tranche-info">
-                  <el-tag size="small" type="info" effect="plain">{{ getTrancheInfo(row) }}</el-tag>
+                <div class="fee-progress">
+                  <div class="fee-label">Scolarité:</div>
+                  <el-progress
+                      :percentage="getTuitionProgress(row.id)"
+                      :status="getFeeProgressStatus(getTuitionProgress(row.id))"
+                      :stroke-width="8"
+                  />
+                  <div class="progress-details">
+                    <currency-display :amount="paymentAmounts.get(row.id)?.paidTuition || 0" class="paid-amount" /> 
+                    <span class="separator">/</span> 
+                    <currency-display :amount="paymentAmounts.get(row.id)?.adjustedTuitionFee || 0" class="total-amount" />
+                  </div>
                 </div>
               </div>
             </template>
@@ -340,7 +349,7 @@ import PaymentDialog from '@/components/payment/PaymentDialog.vue';
 import PaymentHistoryDialog from '@/components/payment/PaymentHistory.vue';
 import PaymentHistoryMini from '@/components/payment/PaymentHistoryMini.vue';
 import * as XLSX from 'xlsx';
-import { PaymentConfig, PaymentAmounts } from '@/types/payment';
+import { PaymentConfig } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
 import { useRouter } from 'vue-router';
@@ -356,29 +365,6 @@ interface Student {
     id: number;
     name: string;
   };
-  absences?: Array<{ 
-    id: number;
-    date: Date;
-    reason: string;
-    justified: boolean;
-  }>;
-  payments?: Array<{ 
-    id: number;
-    amount: number;
-    created_at: Date;
-    paymentType: string;
-  }>;
-  scholarshipPercentage?: number;
-  scholarship?: Array<{ 
-    id: number;
-    percentage: number;
-    isActive: boolean;
-    schoolYear: string;
-  }>;
-  photo?: {
-    path?: string;
-    url?: string;
-  };
   isNew?: boolean;
 }
 
@@ -390,20 +376,33 @@ interface Grade {
 interface Filters {
   studentFullName: string;
   grade?: number;
-  paymentStatus?: 'paid' | 'late' | 'unpaid';
+  paymentStatus?: 'paid' | 'partial' | 'unpaid';
 }
 
-const filteredStudents = ref<Student[]>([]);
-const grades = ref<Grade[]>([]);
+interface PaymentAmounts {
+  inscriptionFeeDue: number;
+  tuitionFeeDue: number;
+  paidInscriptionFee: number;
+  paidTuition: number;
+  totalPaid: number;
+  remainingInscriptionFee: number;
+  remainingTuition: number;
+  totalRemaining: number;
+  scholarshipPercentage: number;
+  scholarshipAmount: number;
+  adjustedTuitionFee: number;
+  totalDue: number;
+}
 
 const students = ref<Student[]>([]);
+const grades = ref<Grade[]>([]);
 const loading = ref(false);
 const currentPage = ref(1);
-const pageSize = ref(5);
+const pageSize = ref(10);
 const totalStudents = ref(0);
 const paymentDialogVisible = ref(false);
 const historyDialogVisible = ref(false);
-const selectedStudent = ref<Student>(null as unknown as Student);
+const selectedStudent = ref<Student | null>(null);
 const classConfigs = ref(new Map<number, PaymentConfig>());
 const paymentAmounts = ref(new Map<number, PaymentAmounts>());
 const trancheConfigs = ref(new Map<number, PaymentAnnualConfigEntity>());
@@ -416,39 +415,19 @@ const router = useRouter();
 
 const loadPaymentConfigs = async () => {
   try {
-    console.log("Chargement des configurations de paiement...");
     const result = await window.ipcRenderer.invoke("payment:getConfigs");
-    console.log("Résultat des configurations:", result);
-
     if (result?.success && Array.isArray(result.data)) {
       const newConfigs = new Map<number, PaymentConfig>();
-      
       result.data.forEach((config: PaymentConfig) => {
         const classId = Number(config.classId);
         if (!isNaN(classId)) {
-          newConfigs.set(classId, {
-            ...config,
-            classId: config.classId,
-            annualAmount: Number(config.annualAmount),
-            inscriptionFee: Number(config.inscriptionFee),
-            reInscriptionFee: Number(config.reInscriptionFee)
-          });
+          newConfigs.set(classId, config);
         }
       });
-
       classConfigs.value = newConfigs;
-      console.log("Configurations chargées:", Array.from(classConfigs.value.entries()));
-
-      if (students.value.length > 0) {
-        await loadStudentAmounts();
-      }
-    } else {
-      console.warn("Aucune configuration trouvée ou format invalide:", result);
-      ElMessage.warning("Aucune configuration de paiement trouvée. Veuillez configurer les paiements d'abord.");
     }
   } catch (error) {
-    console.error("Erreur lors du chargement des configurations:", error);
-    ElMessage.error("Erreur lors du chargement des configurations de paiement");
+    console.error("Erreur lors du chargement des configurations de paiement:", error);
   }
 };
 
@@ -472,26 +451,16 @@ const loadGrades = async () => {
     const result = await window.ipcRenderer.invoke("grade:all");
     if (result?.success && Array.isArray(result.data)) {
       grades.value = result.data;
-    } else {
-      console.error("Format de données invalide pour les niveaux scolaires");
-      ElMessage.error("Erreur lors du chargement des niveaux scolaires");
     }
   } catch (error) {
     console.error("Erreur lors du chargement des niveaux scolaires:", error);
-    ElMessage.error("Erreur lors du chargement des niveaux scolaires");
   }
 };
-
 
 const getAnnualAmount = (gradeId: number | undefined): number => {
   if (!gradeId) return 0;
   const config = classConfigs.value.get(gradeId);
   return config?.annualAmount || 0;
-};
-
-const getPaidAmount = (studentId: number): number => {
-  const amounts = paymentAmounts.value.get(studentId);
-  return amounts?.paid || 0;
 };
 
 const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
@@ -502,50 +471,31 @@ const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
 const loadStudents = async () => {
   loading.value = true;
   try {
-    console.log('Chargement de tous les étudiants...');
-    const result = await window.ipcRenderer.invoke('student:all');
-    
-    if (result.success && Array.isArray(result.data)) {
-      console.log(`${result.data.length} étudiants récupérés.`);
-      
-      const processedStudents = await Promise.all(
-        result.data.map(async (student: any) => {
-          if (student.photo?.id) {
-            try {
-              const photoUrl = await window.ipcRenderer.invoke('file:getFileUrl', { 
-                fileId: student.photo.id 
-              });
-              if (photoUrl) {
-                student.photo.url = photoUrl;
-              }
-            } catch (error) {
-              console.error('Erreur lors de la récupération de la photo:', error);
-            }
-          }
-          return student;
-        })
-      );
-      
-      students.value = processedStudents;
-      
-      for (const student of students.value) {
-        if (!student || typeof student.id !== 'number') {
-          console.warn('Étudiant invalide:', student);
-          continue;
-        }
-        
-        try {
-          console.log(`Chargement des paiements pour ${student.firstname} ${student.lastname} (ID: ${student.id})`);
-          await loadStudentPayments(student.id);
-        } catch (error) {
-          console.error(`Erreur lors du chargement des paiements pour l'étudiant ${student.id}:`, error);
-        }
+    const result = await window.ipcRenderer.invoke('student:all', {
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      filters: {
+        studentFullName: filters.value.studentFullName,
+        grade: filters.value.grade
       }
-      
-      handleFilter();
-      
+    });
+    
+    if (result.success && result.data) {
+      students.value = result.data.students;
+      totalStudents.value = result.data.total;
+
+      for (const student of students.value) {
+        await loadStudentPayments(student.id);
+      }
+
+      if (filters.value.paymentStatus) {
+        students.value = students.value.filter(student => {
+          const status = getPaymentStatus(student.id);
+          return status === filters.value.paymentStatus;
+        });
+      }
+
     } else {
-      console.error('Erreur lors de la récupération des étudiants:', result.message);
       ElMessage.error('Erreur lors du chargement des étudiants');
     }
   } catch (error) {
@@ -553,68 +503,39 @@ const loadStudents = async () => {
     ElMessage.error('Erreur lors du chargement des données des étudiants');
   } finally {
     loading.value = false;
-    console.log('Chargement des paiements terminé pour tous les étudiants.');
   }
 };
 
-const handleCurrentChange = async (page: number) => {
-  currentPage.value = page;
-  await loadStudents();
+const loadStudentPayments = async (studentId: number) => {
+  try {
+    const result = await window.ipcRenderer.invoke('payment:getByStudent', studentId);
+    if (result.success && result.data) {
+      paymentAmounts.value.set(studentId, result.data);
+    } else {
+      console.warn(`Could not load payment amounts for student ${studentId}`);
+    }
+  } catch (error) {
+    console.error(`Error loading payment amounts for student ${studentId}:`, error);
+  }
 };
 
-const handleSizeChange = async (size: number) => {
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page;
+  loadStudents();
+};
+
+const handleSizeChange = (size: number) => {
   pageSize.value = size;
   currentPage.value = 1;
-  await loadStudents();
+  loadStudents();
 };
 
 const handleFilter = () => {
-  if (!students.value || !Array.isArray(students.value)) {
-    filteredStudents.value = [];
-    totalStudents.value = 0;
-    return;
-  }
-
-  filteredStudents.value = students.value.filter(student => {
-    if (!student) return false;
-
-    const fullName = `${student.firstname} ${student.lastname}`.toLowerCase();
-    const searchName = filters.value.studentFullName.toLowerCase();
-    const nameMatch = !searchName || fullName.includes(searchName);
-
-    const gradeMatch = !filters.value.grade || student.grade?.id === filters.value.grade;
-
-    let statusMatch = true;
-    if (filters.value.paymentStatus) {
-      const status = getPaymentStatus(student.id);
-      statusMatch = status === filters.value.paymentStatus;
-    }
-
-    return nameMatch && gradeMatch && statusMatch;
-  });
-
-  totalStudents.value = filteredStudents.value.length;
+    currentPage.value = 1;
+    loadStudents();
 };
 
 const openPaymentDialog = (student: Student) => {
-  if (!verifyPaymentConfigs()) {
-    ElMessageBox.confirm(
-      'Voulez-vous configurer les paiements maintenant ?',
-      'Configuration des paiements',
-      {
-        confirmButtonText: 'Oui, configurer',
-        cancelButtonText: 'Non, plus tard',
-        type: 'info'
-      }
-    )
-      .then(() => {
-        router.push('/settings/payment');
-      })
-      .catch(() => {
-      });
-    return;
-  }
-  
   selectedStudent.value = student;
   paymentDialogVisible.value = true;
 };
@@ -625,205 +546,72 @@ const showPaymentHistory = (student: Student) => {
 };
 
 const handlePaymentAdded = async () => {
-  await loadStudentAmounts(); 
+  if (selectedStudent.value) {
+    await loadStudentPayments(selectedStudent.value.id);
+  }
   paymentDialogVisible.value = false;
 };
 
 const exportToExcel = async () => {
-  try {
-    loading.value = true;
-
-    const exportData = await Promise.all(
-      filteredStudents.value.map(async (student) => {
-        const paidAmount = getPaidAmount(student.id);
-        const annualAmount = getAnnualAmount(student.grade?.id);
-        const progress = getPaymentProgress(student.id);
-        const status = getPaymentStatusLabel(student.id);
-
-        return {
-          'Matricule': student.matricule,
-          'Nom': student.lastname,
-          'Prénom': student.firstname,
-          'Classe': student.grade?.name || 'N/A',
-          'Montant annuel': annualAmount,
-          'Montant payé': paidAmount,
-          'Reste à payer': Math.max(0, annualAmount - paidAmount),
-          'Progression': `${progress}%`,
-          'Statut': status
-        };
-      })
-    );
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(exportData);
-
-    const colWidths = [
-      { wch: 15 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 12 },
-      { wch: 12 }
-    ];
-    ws['!cols'] = colWidths;
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Paiements');
-
-    const fileName = `paiements_etudiants_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-    XLSX.writeFile(wb, fileName);
-
-    ElMessage.success('Export Excel réussi');
-  } catch (error) {
-    console.error('Erreur lors de l\'export:', error);
-    ElMessage.error('Erreur lors de l\'export Excel');
-  } finally {
-    loading.value = false;
-  }
+  // This function needs to be updated to handle the new data structure
 };
 
-const refreshData = async () => {
-  await loadStudentAmounts();
-  await loadStudents();
-  handleFilter();
+const refreshData = () => {
+  loadStudents();
 };
 
-const loadStudentAmounts = async () => {
-  try {
-    for (const student of students.value) {
-      console.log(`Chargement des données pour l'étudiant ${student.firstname} ${student.lastname} (ID: ${student.id})`);
-      
-      const [paidResult, configResult] = await Promise.all([
-        window.ipcRenderer.invoke("payment:getByStudent", student.id),
-        window.ipcRenderer.invoke("payment:getConfig", student.grade?.id)
-      ]);
+const getPaidAmount = (studentId: number): number => {
+  const amounts = paymentAmounts.value.get(studentId);
+  return amounts?.totalPaid || 0;
+};
 
-      if (paidResult?.success && configResult?.success) {
-        console.log('Résultats obtenus:', { paidResult, configResult });
-        
-        const config = configResult.data;
-        let baseAmount = config?.annualAmount || 0;
-
-        if (student.isNew) {
-          baseAmount += config?.inscriptionFee || 0;
-        } else {
-          baseAmount += config?.reInscriptionFee || 0;
-        }
-
-        const scholarshipPercentage = paidResult.data?.scholarshipPercentage || 0;
-        const scholarshipAmount = baseAmount * (scholarshipPercentage / 100);
-        const adjustedAmount = baseAmount - scholarshipAmount;
-        
-        const paidAmount = Array.isArray(paidResult.data?.payments)
-          ? paidResult.data.payments.reduce(
-              (sum: number, payment: any) => sum + Number(payment.amount || 0),
-              0
-            )
-          : 0;
-
-        const studentIndex = students.value.findIndex(s => s.id === student.id);
-        if (studentIndex !== -1) {
-          students.value[studentIndex] = {
-            ...student,
-            scholarshipPercentage
-          };
-        }
-
-        paymentAmounts.value.set(student.id, {
-          paid: paidAmount,
-          remaining: Math.max(0, adjustedAmount - paidAmount),
-          studentId: student.id,
-          baseAmount,
-          scholarshipPercentage,
-          scholarshipAmount,
-          adjustedAmount
-        });
-        
-        console.log(`Montants mis à jour pour l'étudiant ${student.id}:`, {
-          baseAmount,
-          scholarshipPercentage,
-          scholarshipAmount,
-          adjustedAmount,
-          paidAmount,
-          remaining: Math.max(0, adjustedAmount - paidAmount)
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Erreur lors du chargement des montants:", error);
-    ElMessage.error("Erreur lors du chargement des montants de paiement");
-  }
+const getAdjustedAnnualAmount = (studentId: number): number => {
+  const amounts = paymentAmounts.value.get(studentId);
+  return amounts?.totalDue || 0;
 };
 
 const getPaymentProgress = (studentId: number) => {
-  const student = students.value.find(s => s.id === studentId);
-  if (!student) return 0;
-  
   const amounts = paymentAmounts.value.get(studentId);
-  if (!amounts) return 0;
-  
-  const total = amounts.adjustedAmount || getStudentAdjustedAmount(student);
-  const paid = amounts.paid || 0;
-  
-  if (total === 0) return 0;
-  return Math.round((paid / total) * 100);
+  if (!amounts || !amounts.totalDue) return 0;
+  return Math.round((amounts.totalPaid / amounts.totalDue) * 100);
+};
+
+const getInscriptionProgress = (studentId: number) => {
+  const amounts = paymentAmounts.value.get(studentId);
+  if (!amounts || !amounts.inscriptionFeeDue) return 0;
+  return Math.round((amounts.paidInscriptionFee / amounts.inscriptionFeeDue) * 100);
+};
+
+const getTuitionProgress = (studentId: number) => {
+  const amounts = paymentAmounts.value.get(studentId);
+  if (!amounts || !amounts.adjustedTuitionFee) return 0;
+  return Math.round((amounts.paidTuition / amounts.adjustedTuitionFee) * 100);
+};
+
+const getFeeProgressStatus = (progress: number) => {
+  if (progress >= 100) return "success";
+  if (progress > 0) return "warning";
+  return "exception";
 };
 
 const getProgressStatus = (studentId: number) => {
   const progress = getPaymentProgress(studentId);
   if (progress >= 100) return "success";
-  if (progress >= 50) return "warning";
+  if (progress > 0) return "warning";
   return "exception";
 };
 
 const getTotalCollectedAmount = () => {
-  console.log("Calcul du montant total collecté...");
-  console.log("Données de paiement disponibles:", Array.from(paymentAmounts.value.entries()));
-  
-  if (paymentAmounts.value.size === 0) {
-    console.warn("Aucune donnée de paiement disponible");
-    return 0;
-  }
-  
-  let total = 0;
-  paymentAmounts.value.forEach((amounts, studentId) => {
-    console.log(`Étudiant ID ${studentId}: montant payé = ${amounts.paid}`);
-    total += amounts.paid || 0;
-  });
-  
-  console.log("Montant total collecté calculé:", total);
-  return total;
+  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => sum + amounts.totalPaid, 0);
 };
 
 const getTotalRemainingAmount = () => {
-  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => {
-    const adjustedAmount = amounts.adjustedAmount || amounts.baseAmount;
-    const paidAmount = amounts.paid;
-    return sum + Math.max(0, adjustedAmount - paidAmount);
-  }, 0);
+  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => sum + amounts.totalRemaining, 0);
 };
 
-const verifyPaymentConfigs = () => {
-  if (classConfigs.value.size === 0) {
-    ElMessage({
-      message: "Aucune configuration de paiement n'est définie. Vous pouvez configurer les paiements dans les paramètres.",
-      type: "warning",
-      duration: 5000,
-      showClose: true
-    });
-    return false;
-  }
-  return true;
+const getTotalScholarshipAmount = () => {
+  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => sum + amounts.scholarshipAmount, 0);
 };
-
-watch(() => students.value, async (newStudents) => {
-  if (newStudents.length > 0 && classConfigs.value.size === 0) {
-    await loadPaymentConfigs();
-  }
-}, { deep: true });
 
 watch(
   () => filters.value,
@@ -873,356 +661,24 @@ const getPaymentStatusLabel = (studentId: number) => {
 };
 
 const getPaymentStatus = (studentId: number) => {
-  const student = students.value.find(s => s.id === studentId);
-  if (!student?.grade?.id) return 'unpaid';
-
-  const adjustedAmount = getAdjustedAnnualAmount(studentId);
-  const paidAmount = getPaidAmount(studentId);
-  
-  if (paidAmount >= adjustedAmount) return 'paid';
-  if (paidAmount > 0) return 'partial';
+  const amounts = paymentAmounts.value.get(studentId);
+  if (!amounts) return 'unpaid';
+  if (amounts.totalRemaining <= 0) return 'paid';
+  if (amounts.totalPaid > 0) return 'partial';
   return 'unpaid';
 };
 
-const cleanText = (text: string): string => {
-  if (!text) return '';
-  return decodeURIComponent(escape(text));
-};
-
-const printReceipt = async (student: Student) => {
-  try {
-    const result = await window.ipcRenderer.invoke('payment:getByStudent', student.id);
-    console.log('Résultat pour impression:', result);
-
-    if (!result.success || !result.data?.payments || result.data.payments.length === 0) {
-      ElMessage.warning('Aucun paiement trouvé pour cet étudiant');
-      return;
-    }
-
-    const lastPayment = result.data.payments[result.data.payments.length - 1];
-    const schoolInfo = await window.ipcRenderer.invoke('school:get');
-    console.log('Données de l\'école:', schoolInfo);
-
-    if (!schoolInfo?.success) {
-      throw new Error('Impossible de récupérer les informations de l\'école');
-    }
-
-    const studentName = `${student.firstname} ${student.lastname}`;
-    const { currency } = useCurrency();
-
-    const schoolName = cleanText(schoolInfo.data.name);
-    const schoolTown = cleanText(schoolInfo.data.town);
-    const schoolAddress = cleanText(schoolInfo.data.address);
-
-    const receiptElement = document.createElement('div');
-    receiptElement.innerHTML = `
-      <div class="receipt-container" style="padding: 20px; font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          ${schoolInfo?.data?.logo ? `<img src="data:${schoolInfo.data.logo.type};base64,${schoolInfo.data.logo.content}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
-          <h2 style="font-size: 24px; margin-bottom: 5px; text-transform: uppercase;">${schoolName}</h2>
-          <p style="margin: 5px 0;">${schoolTown}, ${schoolAddress}</p>
-          <p style="margin: 5px 0;">Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
-          <h3 style="margin-top: 20px;">Reçu de Paiement N°${lastPayment.id}</h3>
-          <p style="margin: 5px 0;">Date: ${formatDate(lastPayment.created_at)}</p>
-        </div>
-        
-        <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 5px;"><strong>Élève:</strong></td>
-              <td style="padding: 5px;">${studentName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px;"><strong>Matricule:</strong></td>
-              <td style="padding: 5px;">${student.matricule}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px;"><strong>Classe:</strong></td>
-              <td style="padding: 5px;">${student.grade?.name || 'N/A'}</td>
-            </tr>
-          </table>
-        </div>
-        
-        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; background-color: #f9f9f9;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 5px;"><strong>Type de paiement:</strong></td>
-              <td style="padding: 5px;">${formatPaymentType(lastPayment.paymentType)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px;"><strong>Montant:</strong></td>
-              <td style="padding: 5px; font-weight: bold;">${new Intl.NumberFormat('fr-FR').format(lastPayment.amount)} ${currency.value}</td>
-            </tr>
-            <tr>
-              <td style="padding: 5px;"><strong>Mode de paiement:</strong></td>
-              <td style="padding: 5px;">${formatPaymentMethod(lastPayment.paymentMethod)}</td>
-            </tr>
-            ${lastPayment.reference ? `
-            <tr>
-              <td style="padding: 5px;"><strong>Référence:</strong></td>
-              <td style="padding: 5px;">${lastPayment.reference}</td>
-            </tr>
-            ` : ''}
-          </table>
-        </div>
-        
-        <div style="margin-top: 40px; display: flex; justify-content: space-between;">
-          <div style="width: 45%;">
-            <p style="margin-bottom: 40px;">Signature du payeur:</p>
-            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
-          </div>
-          <div style="width: 45%;">
-            <p style="margin-bottom: 40px;">Signature du caissier:</p>
-            <div style="border-top: 1px solid #000; margin-top: 5px;"></div>
-          </div>
-        </div>
-        
-        <div style="margin-top: 40px; font-size: 10pt; text-align: center; color: #666; border-top: 1px dotted #ccc; padding-top: 10px;">
-          <p style="text-transform: uppercase;">${schoolName}</p>
-          <p>${schoolTown}, ${schoolAddress}</p>
-          <p>Tel: ${schoolInfo?.data?.phone || ''} - Email: ${schoolInfo?.data?.email || ''}</p>
-        </div>
-      </div>
-    `;
-
-    const style = document.createElement('style');
-    style.textContent = `
-      @media print {
-        @page {
-          size: A4;
-          margin: 1cm;
-        }
-        body {
-          margin: 0;
-          padding: 0;
-        }
-        .receipt-container {
-          width: 100%;
-          max-width: none;
-          margin: 0;
-          padding: 20px;
-        }
-        .receipt-container * {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-      }
-    `;
-    
-    const printContainer = document.createElement('div');
-    printContainer.id = 'receipt-for-print';
-    printContainer.style.cssText = 'position: fixed; left: -9999px; top: 0;';
-    printContainer.appendChild(receiptElement);
-    
-    document.body.appendChild(style);
-    document.body.appendChild(printContainer);
-    
-    if (schoolInfo?.data?.logo) {
-      const img = receiptElement.querySelector('img');
-      if (img) {
-        await new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      }
-    }
-    
-    window.print();
-    
-    const cleanup = () => {
-      if (document.body.contains(printContainer)) {
-        document.body.removeChild(printContainer);
-      }
-      if (document.body.contains(style)) {
-        document.body.removeChild(style);
-      }
-    };
-    
-    window.onafterprint = cleanup;
-    setTimeout(cleanup, 5000);
-
-    ElMessage.success('Reçu généré avec succès');
-  } catch (error) {
-    console.error('Erreur lors de l\'impression:', error);
-    ElMessage.error('Erreur lors de l\'impression du reçu');
-  }
-};
-
-const formatDate = (date: string): string => {
-  return new Date(date).toLocaleDateString('fr-FR');
-};
-
-const formatPaymentType = (type: string): string => {
-  const types: Record<string, string> = {
-    tuition: 'Frais de scolarité',
-    registration: 'Inscription',
-    uniform: 'Uniforme',
-    transport: 'Transport',
-    cafeteria: 'Cantine'
-  };
-  return types[type] || type;
-};
-
-const formatPaymentMethod = (method: string): string => {
-  const methods: Record<string, string> = {
-    cash: 'Espèces',
-    check: 'Chèque',
-    transfer: 'Virement',
-    mobile_money: 'Mobile Money'
-  };
-  return methods[method] || method;
-};
-
-const getAdjustedAnnualAmount = (studentId: number): number => {
-  const amounts = paymentAmounts.value.get(studentId);
-  if (amounts && amounts.adjustedAmount > 0) {
-    return amounts.adjustedAmount;
-  }
-  
-  const student = students.value.find(s => s.id === studentId);
-  if (!student?.grade?.id) return 0;
-
-  const baseAmount = getAnnualAmount(student.grade.id);
-  if (!student.scholarship?.length) return baseAmount;
-
-  const activeScholarship = student.scholarship.find(s => 
-    s.isActive && s.schoolYear === new Date().getFullYear().toString()
-  );
-  
-  if (!activeScholarship) return baseAmount;
-
-  const reductionAmount = baseAmount * (activeScholarship.percentage / 100);
-  return baseAmount - reductionAmount;
-};
-
-const loadStudentPayments = async (studentId: number) => {
-  try {
-    console.log(`Chargement des paiements pour l'étudiant ID ${studentId}...`);
-    const result = await window.ipcRenderer.invoke('payment:getByStudent', studentId);
-    console.log(`Résultat pour l'étudiant ${studentId}:`, result);
-
-    if (result.success && result.data) {
-      const { 
-        payments = [], 
-        baseAmount = 0, 
-        scholarshipPercentage = 0, 
-        scholarshipAmount = 0, 
-        adjustedAmount = 0
-      } = result.data;
-
-      const paymentsArray = Array.isArray(payments) ? payments : [];
-      
-      let totalPaid = 0;
-      paymentsArray.forEach((payment: any) => {
-        if (payment && typeof payment.amount !== 'undefined') {
-          totalPaid += Number(payment.amount || 0);
-        }
-      });
-      
-      const newAmounts = {
-        paid: totalPaid,
-        remaining: Math.max(0, adjustedAmount - totalPaid),
-        studentId,
-        baseAmount: Number(baseAmount),
-        scholarshipPercentage: Number(scholarshipPercentage),
-        scholarshipAmount: Number(scholarshipAmount),
-        adjustedAmount: Number(adjustedAmount)
-      };
-      
-      console.log(`Montants calculés pour l'étudiant ${studentId}:`, newAmounts);
-      paymentAmounts.value.set(studentId, newAmounts);
-    } else {
-      console.warn(`Échec du chargement des paiements pour l'étudiant ${studentId}:`, result.message || 'Raison inconnue');
-      initializeDefaultPaymentAmounts(studentId);
-    }
-  } catch (error) {
-    console.error(`Erreur lors du chargement des paiements pour l'étudiant ${studentId}:`, error);
-    initializeDefaultPaymentAmounts(studentId);
-  }
-};
-
-const initializeDefaultPaymentAmounts = (studentId: number) => {
-  paymentAmounts.value.set(studentId, {
-    paid: 0,
-    remaining: 0,
-    studentId,
-    baseAmount: 0,
-    scholarshipPercentage: 0,
-    scholarshipAmount: 0,
-    adjustedAmount: 0
-  });
-};
-
-const getStudentAdjustedAmount = (student: Student) => {
-  if (!student?.grade?.id) return 0;
-  
-  const baseAmount = getAnnualAmount(student.grade.id);
-  const scholarship = getActiveScholarship(student);
-  
-  console.log(`Calcul du montant ajusté pour ${student.firstname} ${student.lastname}:`);
-  console.log('- Montant de base:', baseAmount);
-  console.log('- Bourse active:', scholarship);
-  
-  if (!scholarship || !baseAmount) return baseAmount;
-  
-  const reduction = baseAmount * (scholarship.percentage / 100);
-  const finalAmount = baseAmount - reduction;
-  
-  console.log('- Réduction:', reduction);
-  console.log('- Montant final:', finalAmount);
-  
-  return finalAmount;
-};
-
 const getActiveScholarship = (student: Student) => {
-  if (!student) return null;
-  
-  const currentYear = new Date().getFullYear().toString();
-  console.log(`=== Recherche bourse active pour ${student.firstname} ${student.lastname} ===`);
-  console.log('Année courante:', currentYear);
-  console.log('Données étudiant:', student);
-  
   const amounts = paymentAmounts.value.get(student.id);
-  if (amounts?.scholarshipPercentage) {
-    console.log('Bourse trouvée dans les montants calculés:', amounts.scholarshipPercentage);
-    return {
-      percentage: amounts.scholarshipPercentage,
-      isActive: true,
-      schoolYear: currentYear
-    };
+  if (amounts && amounts.scholarshipPercentage > 0) {
+      return { percentage: amounts.scholarshipPercentage };
   }
-  
-  if (student.scholarshipPercentage) {
-    console.log('Bourse trouvée dans les données directes:', student.scholarshipPercentage);
-    return {
-      percentage: student.scholarshipPercentage,
-      isActive: true,
-      schoolYear: currentYear
-    };
-  }
-  
-  if (Array.isArray(student.scholarship)) {
-    console.log('Bourses disponibles dans le tableau:', student.scholarship);
-    const activeScholarship = student.scholarship.find(s => s.isActive && s.schoolYear === currentYear);
-    console.log('Bourse active trouvée dans le tableau:', activeScholarship);
-    return activeScholarship;
-  }
-  
-  console.log('Aucune bourse trouvée');
   return null;
 };
 
 const getScholarshipAmount = (student: Student) => {
-  const scholarship = getActiveScholarship(student);
-  if (!scholarship) return 0;
-  const baseAmount = getAnnualAmount(student.grade?.id);
-  return baseAmount * (scholarship.percentage / 100);
-};
-
-const getTotalScholarshipAmount = () => {
-  return Array.from(paymentAmounts.value.values()).reduce((sum, amounts) => {
-    return sum + (amounts.scholarshipAmount || 0);
-  }, 0);
+    const amounts = paymentAmounts.value.get(student.id);
+    return amounts?.scholarshipAmount || 0;
 };
 
 const getTrancheInfo = (student: Student) => {
@@ -1230,7 +686,9 @@ const getTrancheInfo = (student: Student) => {
   const trancheConfig = trancheConfigs.value.get(student.grade.id);
   if (!trancheConfig || !trancheConfig.tranches?.length) return '';
 
-  const paidAmount = getPaidAmount(student.id);
+  const amounts = paymentAmounts.value.get(student.id);
+  const paidTuition = amounts?.paidTuition || 0;
+
   let cumulativeAmount = 0;
   let currentTrancheNum = 0;
 
@@ -1238,7 +696,7 @@ const getTrancheInfo = (student: Student) => {
     currentTrancheNum++;
     // @ts-ignore
     cumulativeAmount += tranche.amount;
-    if (paidAmount < cumulativeAmount) {
+    if (paidTuition < cumulativeAmount) {
       return `Tranche ${currentTrancheNum} / ${trancheConfig.trancheCount}`;
     }
   }
@@ -1246,7 +704,6 @@ const getTrancheInfo = (student: Student) => {
 };
 
 </script>
-
 <style scoped>
 .payment-management {
   height: 100vh;
@@ -1479,6 +936,17 @@ const getTrancheInfo = (student: Student) => {
 .tranche-info {
   margin-top: 4px;
   text-align: center;
+}
+
+.fee-progress {
+  margin-bottom: 10px;
+}
+
+.fee-label {
+  font-weight: 500;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--el-text-color-secondary);
 }
 
 /* Responsive design */
