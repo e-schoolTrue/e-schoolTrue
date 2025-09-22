@@ -167,7 +167,7 @@ export class PaymentService {
                 return;
             }
     
-            const inscriptionFee = student.isNew ? config.inscriptionFee : config.reInscriptionFee;
+            const inscriptionFee = student.isNew === false ? config.reInscriptionFee : config.inscriptionFee;
     
             if (inscriptionFee && inscriptionFee > 0) {
                 const payment = this.paymentRepository.create({
@@ -444,9 +444,9 @@ export class PaymentService {
                 return { success: false, data: null, message: "Étudiant non trouvé" };
             }
 
-            const config = await this.configRepository.findOne({ where: { classId: student.grade.id.toString() } });
+            const config = student.grade ? await this.configRepository.findOne({ where: { classId: student.grade.id.toString() } }) : null;
             
-            const inscriptionFeeDue = student.isNew ? (config?.inscriptionFee || 0) : (config?.reInscriptionFee || 0);
+            const inscriptionFeeDue = student.isNew === false ? (config?.reInscriptionFee || 0) : (config?.inscriptionFee || 0);
             const tuitionFeeDue = config?.annualAmount || 0;
 
             const payments = await this.paymentRepository.find({ where: { student: { id: studentId } } });

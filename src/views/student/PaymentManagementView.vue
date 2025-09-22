@@ -107,12 +107,22 @@
 
             <div class="table-actions">
               <el-button-group>
+                <el-tooltip content="Exporter les données vers PDF" placement="top">
+                <el-button
+                  type="danger"
+                  :icon="Document"
+                  @click="exportToPdf"
+                  :loading="loadingPdf"
+                >
+                  Exporter PDF
+                </el-button>
+                </el-tooltip>
                 <el-tooltip content="Exporter les données vers Excel" placement="top">
                 <el-button
                   type="success"
                   :icon="Download"
                   @click="exportToExcel"
-                  :loading="loading"
+                  :loading="loadingExcel"
                 >
                   Exporter Excel
                 </el-button>
@@ -122,7 +132,7 @@
                   type="primary"
                   :icon="Refresh"
                   @click="refreshData"
-                  :loading="loading"
+                  :loading="loadingRefresh"
                 >
                   Actualiser
                 </el-button>
@@ -242,7 +252,7 @@
                   <div class="progress-details">
                     <currency-display :amount="paymentAmounts.get(row.id)?.paidTuition || 0" class="paid-amount" /> 
                     <span class="separator">/</span> 
-                    <currency-display :amount="paymentAmounts.get(row.id)?.adjustedTuitionFee || 0" class="total-amount" />
+                    <currency-display :amount="paymentAmounts.get(row.id)?.tuitionDueToDate ?? (paymentAmounts.get(row.id)?.adjustedTuitionFee || 0)" class="total-amount" />
                   </div>
                 </div>
               </div>
@@ -343,16 +353,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import { Plus, Document, Download, Refresh, Printer, Discount, Money, Wallet, Search, Filter, School } from "@element-plus/icons-vue";
 import PaymentDialog from '@/components/payment/PaymentDialog.vue';
 import PaymentHistoryDialog from '@/components/payment/PaymentHistory.vue';
 import PaymentHistoryMini from '@/components/payment/PaymentHistoryMini.vue';
 import * as XLSX from 'xlsx';
+import html2pdf from 'html2pdf.js';
 import { PaymentConfig } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
-import { useCurrency } from '@/composables/useCurrency';
-import { useRouter } from 'vue-router';
+
 // @ts-ignore
 import { PaymentAnnualConfigEntity } from '#electron/backend/entities/paymentConfig';
 
@@ -366,6 +376,11 @@ interface Student {
     name: string;
   };
   isNew?: boolean;
+}
+
+interface PrintableStudent extends Student {
+  paymentInfo: PaymentAmounts | undefined;
+  statusLabel: string;
 }
 
 interface Grade {
@@ -392,11 +407,15 @@ interface PaymentAmounts {
   scholarshipAmount: number;
   adjustedTuitionFee: number;
   totalDue: number;
+  tuitionDueToDate?: number;
 }
 
 const students = ref<Student[]>([]);
 const grades = ref<Grade[]>([]);
 const loading = ref(false);
+const loadingPdf = ref(false);
+const loadingExcel = ref(false);
+const loadingRefresh = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const totalStudents = ref(0);
@@ -411,7 +430,7 @@ const filters = ref<Filters>({
   grade: undefined,
   paymentStatus: undefined
 });
-const router = useRouter();
+
 
 const loadPaymentConfigs = async () => {
   try {
@@ -468,6 +487,37 @@ const getConfigForStudent = (student: Student | null): PaymentConfig | null => {
   return classConfigs.value.get(student.grade.id) || null;
 };
 
+const getTuitionDueToDate = (student: Student): number => {
+  if (!student?.grade?.id) return 0;
+  const annualConfig = trancheConfigs.value.get(student.grade.id);
+  const amounts = paymentAmounts.value.get(student.id);
+  const totalTuition = amounts?.adjustedTuitionFee || 0;
+
+  if (!annualConfig || !annualConfig.tranches || annualConfig.tranches.length === 0) {
+    return totalTuition;
+  }
+
+  const today = new Date();
+  let dueAmount = 0;
+
+  const sortedTranches = [...annualConfig.tranches].sort((a, b) => {
+    const firstEntryA = a.entries?.[0]?.startDate;
+    const firstEntryB = b.entries?.[0]?.startDate;
+    if (!firstEntryA || !firstEntryB) return 0;
+    return new Date(firstEntryA).getTime() - new Date(firstEntryB).getTime();
+  });
+
+  for (const tranche of sortedTranches) {
+    const firstEntryStartDate = tranche.entries?.[0]?.startDate;
+    if (firstEntryStartDate && new Date(firstEntryStartDate) <= today) {
+      // @ts-ignore
+      dueAmount += Number(tranche.amount);
+    }
+  }
+
+  return dueAmount;
+};
+
 const loadStudents = async () => {
   loading.value = true;
   try {
@@ -486,6 +536,11 @@ const loadStudents = async () => {
 
       for (const student of students.value) {
         await loadStudentPayments(student.id);
+        const amounts = paymentAmounts.value.get(student.id);
+        if (amounts) {
+          amounts.tuitionDueToDate = getTuitionDueToDate(student);
+          paymentAmounts.value.set(student.id, amounts);
+        }
       }
 
       if (filters.value.paymentStatus) {
@@ -553,11 +608,222 @@ const handlePaymentAdded = async () => {
 };
 
 const exportToExcel = async () => {
+  loadingExcel.value = true;
+  try {
+    // 1. Fetch all students with current filters
+    const result = await window.ipcRenderer.invoke("student:all", {
+      page: 1,
+      pageSize: totalStudents.value === 0 ? 1000 : totalStudents.value, // Fetch all, with a fallback
+      filters: {
+        studentFullName: filters.value.studentFullName,
+        grade: filters.value.grade
+      }
+    });
+
+    if (!result.success || !result.data) {
+      ElMessage.error("Erreur lors de la récupération des données à exporter.");
+      return;
+    }
+
+    let allStudents: Student[] = result.data.students;
+
+    // 2. Fetch payment info for all students
+    await Promise.all(allStudents.map((s: Student) => loadStudentPayments(s.id)));
+
+    // 3. Filter by payment status if needed
+    if (filters.value.paymentStatus) {
+      allStudents = allStudents.filter((student: Student) => {
+        const status = getPaymentStatus(student.id);
+        return status === filters.value.paymentStatus;
+      });
+    }
+
+    // 4. Prepare data for export
+    const dataForExport = allStudents.map((student: Student) => {
+      const paymentInfo = paymentAmounts.value.get(student.id);
+      return {
+        "Matricule": student.matricule,
+        "Nom": student.lastname,
+        "Prénom": student.firstname,
+        "Classe": student.grade?.name || "N/A",
+        "Statut": getPaymentStatusLabel(student.id),
+        "Total Dû": paymentInfo?.totalDue || 0,
+        "Total Payé": paymentInfo?.totalPaid || 0,
+        "Reste à Payer": paymentInfo?.totalRemaining || 0,
+        "Bourse (%)": paymentInfo?.scholarshipPercentage || 0
+      };
+    });
+
+    if (dataForExport.length === 0) {
+      ElMessage.warning("Aucune donnée à exporter pour les filtres actuels.");
+      return;
+    }
+
+    // 5. Create and download Excel file
+    const worksheet = XLSX.utils.json_to_sheet(dataForExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Paiements");
+    XLSX.writeFile(workbook, `export_paiements_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+  } catch (error) {
+    console.error("Erreur lors de l'export Excel:", error);
+    ElMessage.error("Une erreur est survenue lors de l'exportation.");
+  } finally {
+    loading.value = false;
+  }
+};
+
+const refreshData = async () => {
+  loadingRefresh.value = true;
+  try {
+    await loadStudents();
+  } finally {
+    loadingRefresh.value = false;
+  }
+};
+
+const printReceipt = (student: Student) => {
   // This function needs to be updated to handle the new data structure
 };
 
-const refreshData = () => {
-  loadStudents();
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('fr-FR', { 
+    style: 'currency', 
+    currency: 'XOF',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount);
+};
+
+const exportToPdf = async () => {
+  loadingPdf.value = true;
+  try {
+    const result = await window.ipcRenderer.invoke('student:all', {
+      page: 1,
+      pageSize: totalStudents.value === 0 ? 1000 : totalStudents.value,
+      filters: {
+        studentFullName: filters.value.studentFullName,
+        grade: filters.value.grade
+      }
+    });
+
+    if (!result.success || !result.data) {
+      ElMessage.error("Erreur lors de la récupération des données à exporter.");
+      return;
+    }
+
+    let allStudents: Student[] = result.data.students;
+    await Promise.all(allStudents.map((s: Student) => loadStudentPayments(s.id)));
+
+    if (filters.value.paymentStatus) {
+      allStudents = allStudents.filter((student: Student) => getPaymentStatus(student.id) === filters.value.paymentStatus);
+    }
+
+    if (allStudents.length === 0) {
+      ElMessage.warning("Aucune donnée à exporter pour les filtres actuels.");
+      return;
+    }
+
+    const printableStudents: PrintableStudent[] = allStudents.map((student: Student) => ({
+      ...student,
+      paymentInfo: paymentAmounts.value.get(student.id),
+      statusLabel: getPaymentStatusLabel(student.id)
+    }));
+
+    const printContainer = document.createElement('div');
+    printContainer.id = 'pdf-export';
+    printContainer.style.position = 'absolute';
+    printContainer.style.left = '-9999px';
+    document.body.appendChild(printContainer);
+
+    let tableHtml = `
+      <style>
+        @page { margin: 20mm; }
+        table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        h1 { font-family: Arial, sans-serif; text-align: center; font-size: 18px; margin-bottom: 20px; }
+        .date { text-align: right; font-size: 12px; margin-bottom: 10px; }
+      </style>
+      <div class="date">Date d'édition: ${new Date().toLocaleDateString('fr-FR')}</div>
+      <h1>Liste des Paiements Étudiants</h1>
+      <table>
+        <thead>
+          <tr>
+            <th>Matricule</th>
+            <th>Nom</th>
+            <th>Prénom</th>
+            <th>Classe</th>
+            <th>Statut</th>
+            <th>Total Dû</th>
+            <th>Total Payé</th>
+            <th>Reste à Payer</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    printableStudents.forEach((student: PrintableStudent) => {
+      const paymentInfo = student.paymentInfo || {};
+      tableHtml += `
+        <tr>
+          <td>${student.matricule || ''}</td>
+          <td>${student.lastname || ''}</td>
+          <td>${student.firstname || ''}</td>
+          <td>${student.grade?.name || 'N/A'}</td>
+          <td>${student.statusLabel || ''}</td>
+          <td>${formatCurrency(paymentInfo.totalDue || 0)}</td>
+          <td>${formatCurrency(paymentInfo.totalPaid || 0)}</td>
+          <td>${formatCurrency(paymentInfo.totalRemaining || 0)}</td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `</tbody></table>
+      <div style="margin-top: 20px; font-size: 12px;">
+        <p><strong>Total:</strong> ${printableStudents.length} étudiant(s)</p>
+      </div>`;
+
+    printContainer.innerHTML = tableHtml;
+
+    // Attendre que le contenu soit complètement rendu
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const element = document.getElementById('pdf-export');
+    if (element) {
+      const opt = {
+        margin: 10,
+        filename: `export_paiements_${new Date().toISOString().slice(0,10)}.pdf`,
+        image: { type: 'jpeg', quality: 1 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          logging: false
+        },
+        jsPDF: { 
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'landscape',
+          compress: true
+        }
+      };
+      
+      try {
+        await html2pdf().set(opt).from(element).save();
+      } catch (error) {
+        console.error('Erreur lors de la génération du PDF:', error);
+        ElMessage.error('Erreur lors de la génération du PDF');
+      }
+    }
+
+    document.body.removeChild(printContainer);
+
+  } catch (error) {
+    console.error("Erreur lors de l'export PDF:", error);
+    ElMessage.error("Une erreur est survenue lors de l'exportation PDF.");
+  } finally {
+    loading.value = false;
+  }
 };
 
 const getPaidAmount = (studentId: number): number => {
@@ -584,8 +850,10 @@ const getInscriptionProgress = (studentId: number) => {
 
 const getTuitionProgress = (studentId: number) => {
   const amounts = paymentAmounts.value.get(studentId);
-  if (!amounts || !amounts.adjustedTuitionFee) return 0;
-  return Math.round((amounts.paidTuition / amounts.adjustedTuitionFee) * 100);
+  if (!amounts) return 0;
+  const dueToDate = amounts.tuitionDueToDate;
+  if (dueToDate === undefined || dueToDate === 0) return 0;
+  return Math.round((amounts.paidTuition / dueToDate) * 100);
 };
 
 const getFeeProgressStatus = (progress: number) => {
@@ -660,11 +928,11 @@ const getPaymentStatusLabel = (studentId: number) => {
   return labels[status] || status;
 };
 
-const getPaymentStatus = (studentId: number) => {
+const getPaymentStatus = (studentId: number): 'paid' | 'partial' | 'unpaid' => {
   const amounts = paymentAmounts.value.get(studentId);
   if (!amounts) return 'unpaid';
-  if (amounts.totalRemaining <= 0) return 'paid';
-  if (amounts.totalPaid > 0) return 'partial';
+  if (amounts.remainingTuition <= 0) return 'paid';
+  if (amounts.paidTuition > 0) return 'partial';
   return 'unpaid';
 };
 

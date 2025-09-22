@@ -112,6 +112,7 @@ export class StudentService {
                 // Créer l'étudiant
                 const student = this.studentRepository.create({
                     ...studentData,
+                    isNew: studentData.isNew !== false,
                     grade: grade || undefined,
                 });
 
@@ -279,7 +280,7 @@ export class StudentService {
         try {
             const existingStudent = await this.studentRepository.findOne({
                 where: { id },
-                relations: ["photo", "documents"],
+                relations: ["photo", "documents", "grade"],
             });
 
             if (!existingStudent) {
@@ -291,8 +292,20 @@ export class StudentService {
                 };
             }
 
+            const { gradeId, ...otherData } = studentData;
+            const isReEnrollment = gradeId && existingStudent.grade?.id !== gradeId;
+
             // Mettre à jour les données de l'étudiant
-            Object.assign(existingStudent, studentData);
+            Object.assign(existingStudent, otherData);
+
+            // Handle grade change and re-enrollment
+            if (isReEnrollment) {
+                const grade = await this.gradeRepository.findOne({ where: { id: gradeId } });
+                if (grade) {
+                    existingStudent.grade = grade;
+                }
+                existingStudent.isNew = false;
+            }
 
             // Sauvegarde de la photo si elle existe
             if (studentData.photo?.content) {
@@ -320,6 +333,10 @@ export class StudentService {
             }
 
             const updatedStudent = await this.studentRepository.save(existingStudent);
+
+            if (isReEnrollment) {
+                await this.paymentService.createInitialInscriptionFee(updatedStudent);
+            }
 
             return {
                 success: true,
