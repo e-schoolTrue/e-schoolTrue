@@ -28,10 +28,7 @@ export class PaymentAnnualConfigService {
 
   async findAll(): Promise<PaymentAnnualConfigEntity[]> {
     return this.annualConfigRepo.find({
-      relations: {
-        grade: true,
-        tranches: true,
-      },
+      relations: ["grade", "tranches", "tranches.entries"],
       order: {
         grade: {
           name: 'ASC'
@@ -41,7 +38,7 @@ export class PaymentAnnualConfigService {
   }
 
   async findOne(id: number): Promise<PaymentAnnualConfigEntity | null> {
-    return this.annualConfigRepo.findOne({ where: { id }, relations: { grade: true, tranches: true } });
+    return this.annualConfigRepo.findOne({ where: { id }, relations: ["grade", "tranches", "tranches.entries"] });
   }
 
   async create(data: PaymentAnnualConfigData): Promise<PaymentAnnualConfigEntity> {

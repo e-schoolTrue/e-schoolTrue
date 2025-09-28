@@ -514,6 +514,7 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("payment:saveAnnualConfig", async (_, configData) => global.paymentService.savePaymentAnnualConfig(configData));
   ipcMain.handle("payment:saveConfig", async (_, configData) => global.paymentService.saveConfig(configData));
   ipcMain.handle("payment:getByStudent", async (_, studentId) => global.paymentService.getPaymentsByStudent(studentId));
+  ipcMain.handle("payment:getByDate", async (_, date) => global.paymentService.getPaymentsByDate(date));
   ipcMain.handle("payment:getConfig", async (_, classId) => global.paymentService.getConfigByClass(String(classId)));
   ipcMain.handle("payment:create", async (_, paymentData) => global.paymentService.addPayment(paymentData));
   ipcMain.handle("payment:getRemainingAmount", async (_, studentId) => global.paymentService.getRemainingAmount(studentId));
