@@ -51,7 +51,6 @@
       </div>
 
       <el-table
-        v-loading="loading"
         :data="paymentData"
         border
         stripe
@@ -59,11 +58,11 @@
       >
         <el-table-column
           label="Date"
-          prop="createdAt"
+          prop="created_at"
           width="120"
         >
           <template #default="{ row }">
-            {{ formatDate(row.createdAt) }}
+            {{ formatDate(row.created_at || row.createdAt) }}
           </template>
         </el-table-column>
 
@@ -158,15 +157,22 @@ const dialogVisible = computed({
   set: (value) => emit('update:visible', value)
 });
 
-const loading = ref(false);
 const paymentData = ref([]);
 const totalPaid = ref(0);
 const annualAmount = ref(0);
 const remainingAmount = ref(0);
 const adjustedAnnualAmount = ref(0);
 
-const formatDate = (date: string): string => {
-  return new Date(date).toLocaleDateString('fr-FR');
+const formatDate = (date: string | Date | undefined): string => {
+  if (!date) return 'N/A';
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(dateObj.getTime())) return 'N/A';
+    return dateObj.toLocaleDateString('fr-FR');
+  } catch (error) {
+    console.error('Erreur de formatage de date:', date, error);
+    return 'N/A';
+  }
 };
 
 const getPaymentTypeColor = (type: string): string => {
@@ -216,42 +222,50 @@ const loadPayments = async () => {
     if (!result.success) {
       ElMessage.warning('Aucun paiement trouvé pour cet étudiant');
       paymentData.value = [];
+      totalPaid.value = 0;
+      annualAmount.value = 0;
+      adjustedAnnualAmount.value = 0;
+      remainingAmount.value = 0;
       return;
     }
 
-    if (!result.data?.payments || result.data.payments.length === 0) {
+    // Utiliser les bonnes propriétés du backend
+    const { 
+      payments, 
+      tuitionFeeDue,
+      inscriptionFeeDue,
+      scholarshipAmount,
+      totalDue,
+      totalPaid: totalPaidFromServer,
+      totalRemaining 
+    } = result.data;
+
+    // Calculer le montant annuel total (frais de scolarité + frais d'inscription)
+    annualAmount.value = Number(tuitionFeeDue || 0) + Number(inscriptionFeeDue || 0);
+    adjustedAnnualAmount.value = Number(totalDue || 0);
+    totalPaid.value = Number(totalPaidFromServer || 0);
+    remainingAmount.value = Number(totalRemaining || 0);
+
+    if (!payments || payments.length === 0) {
       ElMessage.info('Aucun paiement enregistré pour cet étudiant');
       paymentData.value = [];
-      return;
+    } else {
+      // Mapper les paiements avec les bonnes propriétés
+      paymentData.value = payments.map((p: any) => ({
+        ...p,
+        created_at: p.created_at || p.createdAt,
+        createdAt: p.created_at || p.createdAt // Compatibilité
+      }));
     }
-
-    const { 
-      payments: paymentsFromServer, 
-      baseAmount, 
-      scholarshipAmount: scholarshipAmountFromServer,
-      adjustedAmount,
-      scholarshipPercentage 
-    } = result.data;
-    
-    // Mettre à jour les montants avec la bourse
-    annualAmount.value = Number(baseAmount);
-    adjustedAnnualAmount.value = Number(adjustedAmount);
-    
-    // Calculer le total payé
-    totalPaid.value = paymentsFromServer.reduce((sum: number, p: { amount: any; }) => sum + Number(p.amount), 0);
-    
-    // Calculer le reste à payer en utilisant le montant ajusté
-    remainingAmount.value = Math.max(0, adjustedAnnualAmount.value - totalPaid.value);
-    
-    paymentData.value = paymentsFromServer;
     
     console.log('Détails du chargement:', {
-      baseAmount,
-      scholarshipAmountFromServer,
-      adjustedAmount,
-      scholarshipPercentage,
+      tuitionFeeDue,
+      inscriptionFeeDue,
+      scholarshipAmount,
+      totalDue,
       totalPaid: totalPaid.value,
-      remaining: remainingAmount.value
+      remaining: remainingAmount.value,
+      payments: paymentData.value
     });
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);
@@ -262,23 +276,20 @@ const loadPayments = async () => {
 const exportToExcel = () => {
   try {
     // Préparer les données pour l'export
-    const exportData = paymentData.value.map((payment: {
-      createdAt: string,
-      paymentType: string,
-      amount: number,
-      paymentMethod: string,
-      reference: string
-    }) => ({
-      'Date': formatDate(payment.createdAt),
+    const exportData = paymentData.value.map((payment: any) => ({
+      'Date': formatDate(payment.created_at || payment.createdAt),
       'Type': formatPaymentType(payment.paymentType), 
       'Montant': payment.amount,
       'Mode de paiement': formatPaymentMethod(payment.paymentMethod),
-      'Référence': payment.reference || ''
+      'Référence': payment.reference || '',
+      'Élève': `${props.student.firstname} ${props.student.lastname}`,
+      'Matricule': props.student.matricule,
+      'Classe': props.student.grade?.name || 'N/A'
     }));
 
     // Créer un workbook et une worksheet
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const ws = XLSX.utils.json_to_sheet(exportData); 
 
     // Ajouter la worksheet au workbook
     XLSX.utils.book_append_sheet(wb, ws, 'Paiements');
@@ -321,7 +332,7 @@ const printReceipt = async (payment: any) => {
           ${schoolInfo?.data?.logo ? `<img src="${schoolInfo.data.logo.path || ''}" style="max-height: 100px; margin-bottom: 10px;">` : ''}
           <h2>${schoolInfo?.data?.name || 'École'}</h2>
           <h3>Reçu de Paiement N°${payment.id}</h3>
-          <p style="margin: 5px 0;">Date: ${formatDate(payment.createdAt)}</p>
+          <p style="margin: 5px 0;">Date: ${formatDate(payment.created_at || payment.createdAt)}</p>
         </div>
         
         <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">

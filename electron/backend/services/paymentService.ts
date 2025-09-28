@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { PaymentEntity } from '../entities/payment';
 import { PaymentAnnualConfigEntity, PaymentConfigEntity, TranchConfigEntity, TrancheEntryEntity } from '../entities/paymentConfig';
 import { AppDataSource } from '../../data-source';
@@ -754,6 +754,87 @@ export class PaymentService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la récupération des paiements récents",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getHistoryByStudent(studentId: number): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            const payments = await this.paymentRepository.find({
+                where: { student: { id: studentId } },
+                relations: ['student', 'scholarship'],
+                order: { created_at: 'DESC' }
+            });
+
+            // Formater les données pour l'affichage
+            const formattedPayments = payments.map(payment => ({
+                id: payment.id,
+                amount: payment.amount,
+                paymentDate: payment.created_at,
+                paymentMethod: payment.paymentMethod,
+                feeType: payment.paymentType, // 'inscription' ou 'tuition'
+                reference: payment.reference || '',
+                comment: payment.comment || '',
+                scholarshipPercentage: payment.scholarshipPercentage || 0,
+                scholarshipAmount: payment.scholarshipAmount || 0,
+                baseAmount: payment.baseAmount || payment.amount,
+                adjustedAmount: payment.adjustedAmount || payment.amount
+            }));
+
+            return {
+                success: true,
+                data: formattedPayments,
+                message: "Historique des paiements récupéré avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error(`Erreur lors de la récupération de l'historique pour l'étudiant ${studentId}:`, error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération de l'historique des paiements",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async getPaymentsByDate(date: string): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            // Créer les dates de début et fin de journée
+            const startOfDay = new Date(date);
+            startOfDay.setHours(0, 0, 0, 0);
+            
+            const endOfDay = new Date(date);
+            endOfDay.setHours(23, 59, 59, 999);
+            
+            // Récupérer tous les paiements de la journée avec les relations
+            const payments = await this.paymentRepository.find({
+                where: {
+                    created_at: Between(startOfDay, endOfDay)
+                },
+                relations: ['student', 'student.grade'],
+                order: {
+                    created_at: 'ASC'
+                }
+            });
+            
+            return {
+                success: true,
+                data: payments,
+                message: `${payments.length} paiement(s) trouvé(s) pour le ${date}`,
+                error: null
+            };
+        } catch (error) {
+            console.error(`Erreur lors de la récupération des paiements du ${date}:`, error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des paiements journaliers",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
