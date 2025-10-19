@@ -839,4 +839,121 @@ export class PaymentService {
             };
         }
     }
+
+    // Méthodes pour les configurations personnalisées
+    // Stockage temporaire en mémoire pour les configurations personnalisées
+    private customConfigs: Map<number, any> = new Map();
+    
+    async getCustomConfigs(): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            // TODO: Implémenter avec une vraie entité CustomPaymentConfigEntity
+            // Pour l'instant, utiliser le stockage temporaire
+            const configs = Array.from(this.customConfigs.values());
+            
+            return {
+                success: true,
+                data: configs,
+                message: "Configurations personnalisées récupérées",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur lors de la récupération des configurations personnalisées:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des configurations",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async saveCustomConfig(configData: any): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            // Valider les données reçues
+            if (!configData || !configData.gradeId || !configData.name) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Données de configuration incomplètes",
+                    error: "Missing required fields"
+                };
+            }
+            
+            // Convertir les dates string en objets Date si nécessaire
+            if (configData.customSchedule && configData.customSchedule.schedules) {
+                configData.customSchedule.schedules = configData.customSchedule.schedules.map((schedule: any) => ({
+                    ...schedule,
+                    dueDate: typeof schedule.dueDate === 'string' ? new Date(schedule.dueDate) : schedule.dueDate
+                }));
+            }
+            
+            // TODO: Implémenter la sauvegarde réelle avec CustomPaymentConfigEntity
+            // Pour l'instant, utiliser le stockage temporaire en mémoire
+            const savedConfig = { 
+                ...configData, 
+                id: configData.id || Date.now(),
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            
+            // Sauvegarder dans le Map
+            this.customConfigs.set(savedConfig.id, savedConfig);
+            
+            console.log("Configuration personnalisée sauvegardée:", savedConfig);
+            
+            return {
+                success: true,
+                data: savedConfig,
+                message: "Configuration personnalisée sauvegardée avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur lors de la sauvegarde de la configuration personnalisée:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la sauvegarde de la configuration",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    async deleteCustomConfig(configId: number): Promise<ResultType> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            // TODO: Implémenter la suppression réelle avec CustomPaymentConfigEntity
+            // Pour l'instant, supprimer du stockage temporaire
+            const deleted = this.customConfigs.delete(configId);
+            
+            if (deleted) {
+                console.log("Configuration personnalisée supprimée:", configId);
+                return {
+                    success: true,
+                    data: null,
+                    message: "Configuration personnalisée supprimée",
+                    error: null
+                };
+            } else {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Configuration non trouvée",
+                    error: "Configuration with id " + configId + " not found"
+                };
+            }
+        } catch (error) {
+            console.error("Erreur lors de la suppression de la configuration personnalisée:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la suppression",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
 }

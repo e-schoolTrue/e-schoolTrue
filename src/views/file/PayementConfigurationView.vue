@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
-// @ts-ignore
-import { PaymentAnnualConfigEntity } from '#electron/backend/entities/paymentConfig';
-// @ts-ignore
-import { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
+import { PaymentConfig, PaymentConfigCreateInput, CustomPaymentConfig, PaymentSchedule } from '@/types/payment';
 import { useCurrency } from '@/composables/useCurrency';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { Delete, Plus, Calendar, Money, Setting } from '@element-plus/icons-vue';
 
 // Assuming Grade has at least id and name
 interface Grade {
@@ -16,16 +13,14 @@ interface Grade {
 }
 
 const { currency } = useCurrency();
-const activeTab = ref('mensuality');
+const activeTab = ref('fees');
 const paymentConfigs = ref<PaymentConfig[]>([]);
-const trancheConfigs = ref<PaymentAnnualConfigEntity[]>([]);
+const customPaymentConfigs = ref<CustomPaymentConfig[]>([]);
 const grades = ref<Grade[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const showModal = ref(false);
-const showTrancheModal = ref(false);
-const currTrancheConfig = ref<PaymentAnnualConfigEntity>();
-const yearRepartition = ref<YearRepartitionEntity | null>(null);
+const showCustomConfigModal = ref(false);
 const currentPaymentConfig = ref<PaymentConfig>({ 
   classId: '',
   className: '',
@@ -37,96 +32,198 @@ const currentPaymentConfig = ref<PaymentConfig>({
   scholarshipCriteria: ''
 });
 
-// New state for tranche configuration modal
-const isTrancheConfigModalVisible = ref(false);
-
-interface TrancheDataItem {
-  id?: number;
-  name: string;
-  amount: number;
-}
-
-interface TrancheConfigData {
-  id?: number;
-  gradeId: string | null;
-  annualAmount: number;
-  trancheCount: number;
-  tranches: TrancheDataItem[];
-}
-
-const editingTrancheConfig = ref<TrancheConfigData | null>(null);
-
-const unconfiguredClasses = computed(() => {
-  if (!trancheConfigs.value || !paymentConfigs.value) return [];
-  const configuredGradeIds = new Set(trancheConfigs.value.map(c => String(c.grade.id)));
-  return paymentConfigs.value.filter(p => p.annualAmount > 0 && !configuredGradeIds.has(String(p.classId)));
+// Custom payment configuration states
+const currentCustomConfig = ref<CustomPaymentConfig>({
+  gradeId: 0,
+  name: '',
+  paymentType: 'monthly',
+  totalAnnualAmount: 0,
+  isDefault: false,
+  monthlyConfig: {
+    numberOfMonths: 10,
+    startMonth: 9,
+    monthlyAmount: 0,
+    excludedMonths: [7, 8]
+  },
+  installmentConfig: {
+    numberOfInstallments: 3,
+    installments: []
+  },
+  customSchedule: {
+    schedules: []
+  }
 });
 
-const totalTrancheAmount = computed(() => {
-  if (!editingTrancheConfig.value) return 0;
-  return editingTrancheConfig.value.tranches.reduce((sum, tranche) => sum + Number(tranche.amount || 0), 0);
-});
+const monthNames = [
+  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+];
 
-const remainingToAllocate = computed(() => {
-  if (!editingTrancheConfig.value) return 0;
-  return editingTrancheConfig.value.annualAmount - totalTrancheAmount.value;
-});
-
-const openCreateTrancheConfigModal = () => {
-  const initialTrancheCount = yearRepartition.value?.periodConfigurations?.length || 2;
-  const initialTranches = Array.from({ length: initialTrancheCount }, (_, i) => {
-    const name = yearRepartition.value?.periodConfigurations[i]?.name || `Tranche ${i + 1}`;
-    return { name, amount: 0 };
-  });
-
-  editingTrancheConfig.value = {
-    id: undefined,
-    gradeId: null,
-    annualAmount: 0,
-    trancheCount: initialTrancheCount,
-    tranches: initialTranches
-  };
-  isTrancheConfigModalVisible.value = true;
+// Fonction utilitaire pour nettoyer l'objet avant l'envoi via IPC
+const serializeForIPC = (obj: any): any => {
+  return JSON.parse(JSON.stringify(obj, (_key, value) => {
+    // Convertir les dates en strings ISO
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    // Filtrer les valeurs undefined
+    if (value === undefined) {
+      return null;
+    }
+    return value;
+  }));
 };
 
-const handleGradeChange = (gradeId: string) => {
-  if (!editingTrancheConfig.value) return;
+const selectedGradeForCustom = ref<string>('');
+
+
+// Calculs pour la configuration personnalisée
+const calculatedMonthlyAmount = computed(() => {
+  if (!currentCustomConfig.value || currentCustomConfig.value.paymentType !== 'monthly') return 0;
+  const config = currentCustomConfig.value.monthlyConfig;
+  if (!config || config.numberOfMonths === 0) return 0;
+  return Math.round(currentCustomConfig.value.totalAnnualAmount / config.numberOfMonths);
+});
+
+const totalInstallmentsAmount = computed(() => {
+  if (!currentCustomConfig.value || currentCustomConfig.value.paymentType !== 'installments') return 0;
+  const config = currentCustomConfig.value.installmentConfig;
+  if (!config) return 0;
+  return config.installments.reduce((sum, inst) => sum + (inst.amount || 0), 0);
+});
+
+const totalCustomScheduleAmount = computed(() => {
+  if (!currentCustomConfig.value || currentCustomConfig.value.paymentType !== 'custom') return 0;
+  const config = currentCustomConfig.value.customSchedule;
+  if (!config) return 0;
+  return config.schedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+});
+
+
+const openCustomConfigModal = () => {
+  currentCustomConfig.value = {
+    gradeId: 0,
+    name: '',
+    paymentType: 'monthly',
+    totalAnnualAmount: 0,
+    isDefault: false,
+    monthlyConfig: {
+      numberOfMonths: 10,
+      startMonth: 9,
+      monthlyAmount: 0,
+      excludedMonths: [7, 8]
+    },
+    installmentConfig: {
+      numberOfInstallments: 3,
+      installments: [
+        { name: 'Première Tranche', percentage: 40, dueMonth: 9, amount: 0 },
+        { name: 'Deuxième Tranche', percentage: 30, dueMonth: 1, amount: 0 },
+        { name: 'Troisième Tranche', percentage: 30, dueMonth: 4, amount: 0 }
+      ]
+    },
+    customSchedule: {
+      schedules: []
+    }
+  };
+  selectedGradeForCustom.value = '';
+  showCustomConfigModal.value = true;
+};
+
+const updateMonthlyConfig = () => {
+  if (currentCustomConfig.value.paymentType !== 'monthly') return;
+  const config = currentCustomConfig.value.monthlyConfig!;
+  config.monthlyAmount = calculatedMonthlyAmount.value;
+};
+
+const updateInstallmentAmounts = () => {
+  if (currentCustomConfig.value.paymentType !== 'installments') return;
+  const config = currentCustomConfig.value.installmentConfig!;
+  const totalAmount = currentCustomConfig.value.totalAnnualAmount;
+  
+  config.installments.forEach(inst => {
+    inst.amount = Math.round((totalAmount * inst.percentage) / 100);
+  });
+};
+
+const addInstallment = () => {
+  if (currentCustomConfig.value.paymentType !== 'installments') return;
+  const config = currentCustomConfig.value.installmentConfig!;
+  config.installments.push({
+    name: `Tranche ${config.installments.length + 1}`,
+    percentage: 0,
+    dueMonth: 1,
+    amount: 0
+  });
+  config.numberOfInstallments = config.installments.length;
+};
+
+const removeInstallment = (index: number) => {
+  if (currentCustomConfig.value.paymentType !== 'installments') return;
+  const config = currentCustomConfig.value.installmentConfig!;
+  config.installments.splice(index, 1);
+  config.numberOfInstallments = config.installments.length;
+  updateInstallmentAmounts();
+};
+
+const addCustomSchedule = () => {
+  if (currentCustomConfig.value.paymentType !== 'custom') return;
+  const config = currentCustomConfig.value.customSchedule!;
+  const today = new Date();
+  const newSchedule: PaymentSchedule = {
+    name: `Échéance ${config.schedules.length + 1}`,
+    amount: 0,
+    dueDate: today,
+    order: config.schedules.length + 1,
+    description: ''
+  };
+  config.schedules.push(newSchedule);
+};
+
+const removeCustomSchedule = (index: number) => {
+  if (currentCustomConfig.value.paymentType !== 'custom') return;
+  const config = currentCustomConfig.value.customSchedule!;
+  config.schedules.splice(index, 1);
+  // Réorganiser les ordres
+  config.schedules.forEach((schedule, idx) => {
+    schedule.order = idx + 1;
+  });
+};
+
+
+
+const handleCustomGradeChange = (gradeId: string) => {
   const config = paymentConfigs.value.find(p => String(p.classId) === String(gradeId));
   if (config) {
-    editingTrancheConfig.value.annualAmount = config.annualAmount;
-  }
-};
-
-const updateTotalTranches = () => {
-  if (!editingTrancheConfig.value) return;
-  const count = Number(editingTrancheConfig.value.trancheCount);
-  const currentTranches = editingTrancheConfig.value.tranches;
-  const newTranches: TrancheDataItem[] = [];
-
-  const periods = yearRepartition.value?.periodConfigurations || [];
-
-  for (let i = 0; i < count; i++) {
-    if (i < currentTranches.length) {
-      newTranches.push(currentTranches[i]);
-    } else {
-      const name = periods[i]?.name ? periods[i].name : `Tranche ${i + 1}`;
-      newTranches.push({ name, amount: 0 });
+    currentCustomConfig.value.gradeId = Number(gradeId);
+    currentCustomConfig.value.totalAnnualAmount = config.annualAmount;
+    if (currentCustomConfig.value.paymentType === 'monthly') {
+      updateMonthlyConfig();
+    } else if (currentCustomConfig.value.paymentType === 'installments') {
+      updateInstallmentAmounts();
     }
   }
-  editingTrancheConfig.value.tranches = newTranches;
 };
 
-const openTrancheDialog = (config: PaymentAnnualConfigEntity) => {
-  showTrancheModal.value = true;
-  currTrancheConfig.value = config;
-};
+watch(() => currentCustomConfig.value.paymentType, (newType) => {
+  if (newType === 'monthly') {
+    updateMonthlyConfig();
+  } else if (newType === 'installments') {
+    updateInstallmentAmounts();
+  }
+});
 
-const closeTrancheDialog = () => {
-  showTrancheModal.value = false;
-};
+watch(() => currentCustomConfig.value.totalAnnualAmount, () => {
+  if (currentCustomConfig.value.paymentType === 'monthly') {
+    updateMonthlyConfig();
+  } else if (currentCustomConfig.value.paymentType === 'installments') {
+    updateInstallmentAmounts();
+  }
+});
+
+
 
 const modalTitle = computed(() => 
-  `Configuration des frais - ${currentPaymentConfig.value.className}`
+  `Configuration des frais de scolarité et d'inscription - ${currentPaymentConfig.value.className}`
 );
 
 const openCreateModal = () => {
@@ -145,49 +242,7 @@ const editPaymentConfiguration = (config: PaymentConfig) => {
   showModal.value = true;
 };
 
-const deleteTrancheConfiguration = async (config: PaymentAnnualConfigEntity) => {
-  try {
-    await ElMessageBox.confirm(
-      `Êtes-vous sûr de vouloir supprimer la configuration des tranches pour la classe ${config.grade.name} ?`,
-      'Confirmation',
-      {
-        confirmButtonText: 'Oui, supprimer',
-        cancelButtonText: 'Annuler',
-        type: 'warning',
-      }
-    );
 
-    const result = await window.ipcRenderer.invoke('tranche-config:delete', config.id);
-    if (result.success) {
-      ElMessage.success('Configuration supprimée.');
-      await loadTrancheConfigs();
-    } else {
-      throw new Error(result.message || 'Erreur lors de la suppression.');
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to delete tranche config:', error);
-      ElMessage.error(error instanceof Error ? error.message : 'Une erreur est survenue.');
-    }
-  }
-};
-
-const editTrancheConfiguration = (config: PaymentAnnualConfigEntity) => {
-  const annualAmount = paymentConfigs.value.find(p => String(p.classId) === String(config.grade.id))?.annualAmount || 0;
-  
-  editingTrancheConfig.value = {
-    id: config.id,
-    gradeId: String(config.grade.id),
-    annualAmount: annualAmount,
-    trancheCount: config.trancheCount,
-    tranches: config.tranches.map((t: any) => ({
-      id: t.id,
-      name: t.tranchName || t.name,
-      amount: t.amount || 0
-    }))
-  };
-  isTrancheConfigModalVisible.value = true;
-};
 
 const savePaymentConfiguration = async () => {
   try {
@@ -240,38 +295,114 @@ const savePaymentConfiguration = async () => {
   }
 };
 
-const saveTrancheConfiguration = async () => {
-  if (!editingTrancheConfig.value) return;
-
-  if (!editingTrancheConfig.value.gradeId) {
-    ElMessage.error('Veuillez sélectionner une classe.');
-    return;
-  }
-  if (remainingToAllocate.value !== 0) {
-    ElMessage.error('La somme des montants des tranches doit être égale au montant annuel.');
-    return;
-  }
-
-  isSaving.value = true;
+const saveCustomPaymentConfig = async () => {
   try {
-    const { id, gradeId, tranches } = editingTrancheConfig.value;
-    const payload = { id, gradeId, tranches: tranches.map(t => ({name: t.name, amount: t.amount})) };
+    if (!currentCustomConfig.value.gradeId) {
+      ElMessage.error('Veuillez sélectionner une classe');
+      return;
+    }
+
+    if (!currentCustomConfig.value.name) {
+      ElMessage.error('Veuillez entrer un nom pour cette configuration');
+      return;
+    }
+
+    // Validation selon le type
+    if (currentCustomConfig.value.paymentType === 'monthly') {
+      const config = currentCustomConfig.value.monthlyConfig!;
+      if (config.numberOfMonths <= 0) {
+        ElMessage.error('Le nombre de mois doit être supérieur à 0');
+        return;
+      }
+    } else if (currentCustomConfig.value.paymentType === 'installments') {
+      const totalPercentage = currentCustomConfig.value.installmentConfig!.installments
+        .reduce((sum, inst) => sum + inst.percentage, 0);
+      if (totalPercentage !== 100) {
+        ElMessage.error('La somme des pourcentages doit être égale à 100%');
+        return;
+      }
+    } else if (currentCustomConfig.value.paymentType === 'custom') {
+      const totalAmount = totalCustomScheduleAmount.value;
+      if (Math.abs(totalAmount - currentCustomConfig.value.totalAnnualAmount) > 1) {
+        ElMessage.error('La somme des échéances doit être égale au montant annuel');
+        return;
+      }
+    }
+
+    isSaving.value = true;
     
-    const event = id ? 'tranche-config:update' : 'tranche-config:create';
-    const result = await window.ipcRenderer.invoke(event, payload);
+    // Nettoyer l'objet pour l'envoi via IPC
+    const configToSave = serializeForIPC(currentCustomConfig.value);
+    
+    const result = await window.ipcRenderer.invoke('payment:saveCustomConfig', configToSave);
 
     if (result.success) {
-      ElMessage.success('Configuration des tranches sauvegardée.');
-      isTrancheConfigModalVisible.value = false;
-      await loadTrancheConfigs();
+      ElMessage.success('Configuration personnalisée sauvegardée avec succès');
+      showCustomConfigModal.value = false;
+      await loadCustomConfigs();
     } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde.');
+      throw new Error(result.message || 'Erreur lors de la sauvegarde');
     }
   } catch (error) {
-    console.error('Failed to save tranche config:', error);
-    ElMessage.error(error instanceof Error ? error.message : 'Une erreur est survenue.');
+    console.error('Erreur lors de la sauvegarde:', error);
+    ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
   } finally {
     isSaving.value = false;
+  }
+};
+
+
+const loadCustomConfigs = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('payment:getCustomConfigs');
+    if (result.success) {
+      customPaymentConfigs.value = result.data || [];
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des configurations personnalisées:', error);
+  }
+};
+
+const editCustomConfig = async (config: CustomPaymentConfig) => {
+  // Convertir les dates strings en objets Date pour l'édition
+  const configWithDates = {
+    ...config,
+    customSchedule: config.customSchedule ? {
+      schedules: config.customSchedule.schedules.map(schedule => ({
+        ...schedule,
+        dueDate: typeof schedule.dueDate === 'string' ? new Date(schedule.dueDate) : schedule.dueDate
+      }))
+    } : config.customSchedule
+  };
+  currentCustomConfig.value = configWithDates;
+  selectedGradeForCustom.value = String(config.gradeId);
+  showCustomConfigModal.value = true;
+};
+
+const deleteCustomConfig = async (config: CustomPaymentConfig) => {
+  try {
+    await ElMessageBox.confirm(
+      `Êtes-vous sûr de vouloir supprimer la configuration "${config.name}" ?`,
+      'Confirmation',
+      {
+        confirmButtonText: 'Oui, supprimer',
+        cancelButtonText: 'Annuler',
+        type: 'warning',
+      }
+    );
+
+    const result = await window.ipcRenderer.invoke('payment:deleteCustomConfig', config.id);
+    if (result.success) {
+      ElMessage.success('Configuration supprimée avec succès');
+      await loadCustomConfigs();
+    } else {
+      throw new Error(result.message || 'Erreur lors de la suppression');
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Erreur lors de la suppression:', error);
+      ElMessage.error(error instanceof Error ? error.message : 'Une erreur est survenue');
+    }
   }
 };
 
@@ -312,27 +443,10 @@ const loadConfigurations = async () => {
   }
 };
 
-const loadTrancheConfigs = async () => {
-  try {
-    const result = await window.ipcRenderer.invoke('tranche-config:all');
-    if (result.success) {
-      trancheConfigs.value = result.data;
-    } else {
-      ElMessage.error('Erreur lors du chargement des configurations de tranches.');
-    }
-  } catch (error) {
-    console.error('Failed to load tranche configs:', error);
-    ElMessage.error('Une erreur est survenue lors du chargement des tranches.');
-  }
-};
 
 onMounted(async () => {
   await loadConfigurations();
-  await loadTrancheConfigs();
-  const result = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
-  if (result.success) {
-    yearRepartition.value = result.data;
-  }
+  await loadCustomConfigs();
 });
 </script>
 
@@ -342,80 +456,296 @@ onMounted(async () => {
         type="card"
         v-model="activeTab"
       >
-        <el-tab-pane label="Mensualités" name="mensuality">
+        <el-tab-pane label="Frais de scolarité et d'inscription" name="fees">
           <div class="title">
-            <el-button type="primary" @click="openCreateModal" class="create-btn"> Configurer les Frais de Scolarité </el-button>
+            <el-button type="primary" @click="openCreateModal" class="create-btn">Configurer les Frais</el-button>
           </div>
           <mensuality-config-table :configs="paymentConfigs" @openUpdateForm="editPaymentConfiguration" />
         </el-tab-pane>
-        <el-tab-pane label="Tranches" name="tranches">
+        <el-tab-pane label="Configuration Personnalisée" name="custom-config">
           <div class="title">
-            <el-button type="primary" @click="openCreateTrancheConfigModal" class="create-btn">Configuration des tranches</el-button>
+            <el-button type="primary" @click="openCustomConfigModal" class="create-btn">
+              <el-icon><Setting /></el-icon>
+              Nouvelle Configuration d'Échéances
+            </el-button>
           </div>
-          <tranch-config-table :configs="trancheConfigs" @openUpdateForm="editTrancheConfiguration" @openDetails="openTrancheDialog" @delete="deleteTrancheConfiguration" />
+          <div class="config-list">
+            <el-table :data="customPaymentConfigs" stripe>
+              <el-table-column prop="name" label="Nom de la Configuration" />
+              <el-table-column label="Classe">
+                <template #default="{ row }">
+                  {{ paymentConfigs.find(p => p.classId == row.gradeId)?.className || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="paymentType" label="Type">
+                <template #default="{ row }">
+                  <el-tag :type="row.paymentType === 'monthly' ? 'success' : row.paymentType === 'installments' ? 'warning' : 'info'">
+                    {{ row.paymentType === 'monthly' ? 'Mensualités' : row.paymentType === 'installments' ? 'Tranches' : 'Personnalisé' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="Montant Annuel">
+                <template #default="{ row }">
+                  <currency-display :amount="row.totalAnnualAmount" />
+                </template>
+              </el-table-column>
+              <el-table-column label="Actions" width="200">
+                <template #default="{ row }">
+                  <el-button type="primary" size="small" @click="editCustomConfig(row)">Modifier</el-button>
+                  <el-button type="danger" size="small" @click="deleteCustomConfig(row)">Supprimer</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </el-tab-pane>
       </el-tabs>
 
-      <TrancheConfigDetails :config="currTrancheConfig" :dialog="showTrancheModal" @closeDialog="closeTrancheDialog" />
-
-      <el-dialog 
-        v-model="isTrancheConfigModalVisible" 
-        :title="editingTrancheConfig && editingTrancheConfig.id ? 'Modifier la configuration des tranches' : 'Nouvelle configuration des tranches'"
-        width="600px"
+      <!-- Modal de Configuration Personnalisée des Échéances -->
+      <el-dialog
+        v-model="showCustomConfigModal"
+        :title="currentCustomConfig.id ? 'Modifier la Configuration' : 'Nouvelle Configuration d\'Échéances'"
+        width="800px"
         destroy-on-close
       >
-        <el-form v-if="editingTrancheConfig" :model="editingTrancheConfig" label-position="top">
-          <el-form-item label="Classe">
-            <el-select
-              v-model="editingTrancheConfig.gradeId"
-              placeholder="Sélectionner une classe"
-              class="full-width"
-              @change="handleGradeChange"
-              :disabled="!!editingTrancheConfig.id"
+        <el-form :model="currentCustomConfig" label-position="top">
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="Nom de la configuration" required>
+                <el-input
+                  v-model="currentCustomConfig.name"
+                  placeholder="Ex: Paiement Mensuel Standard"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="Classe" required>
+                <el-select
+                  v-model="selectedGradeForCustom"
+                  placeholder="Sélectionnez une classe"
+                  @change="handleCustomGradeChange"
+                  class="full-width"
+                >
+                  <el-option
+                    v-for="config in paymentConfigs"
+                    :key="config.classId"
+                    :label="config.className"
+                    :value="config.classId"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item label="Type de paiement">
+            <el-radio-group v-model="currentCustomConfig.paymentType">
+              <el-radio-button value="monthly">
+                <el-icon><Calendar /></el-icon> Mensualités
+              </el-radio-button>
+              <el-radio-button value="installments">
+                <el-icon><Money /></el-icon> Tranches
+              </el-radio-button>
+              <el-radio-button value="custom">
+                <el-icon><Setting /></el-icon> Personnalisé
+              </el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+
+          <el-form-item label="Montant Annuel Total">
+            <currency-display :amount="currentCustomConfig.totalAnnualAmount" />
+          </el-form-item>
+
+          <!-- Configuration Mensualités -->
+          <template v-if="currentCustomConfig.paymentType === 'monthly'">
+            <el-divider>Configuration des Mensualités</el-divider>
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-form-item label="Nombre de mois">
+                  <el-input-number
+                    v-model="currentCustomConfig.monthlyConfig!.numberOfMonths"
+                    :min="1"
+                    :max="12"
+                    @change="updateMonthlyConfig"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="Mois de début">
+                  <el-select v-model="currentCustomConfig.monthlyConfig!.startMonth" class="full-width">
+                    <el-option
+                      v-for="(month, index) in monthNames"
+                      :key="index"
+                      :label="month"
+                      :value="index + 1"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="Montant mensuel">
+                  <currency-display :amount="calculatedMonthlyAmount" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="Mois exclus (vacances, etc.)">
+              <el-select
+                v-model="currentCustomConfig.monthlyConfig!.excludedMonths"
+                multiple
+                placeholder="Sélectionnez les mois exclus"
+                class="full-width"
+              >
+                <el-option
+                  v-for="(month, index) in monthNames"
+                  :key="index"
+                  :label="month"
+                  :value="index + 1"
+                />
+              </el-select>
+            </el-form-item>
+          </template>
+
+          <!-- Configuration Tranches -->
+          <template v-if="currentCustomConfig.paymentType === 'installments'">
+            <el-divider>Configuration des Tranches</el-divider>
+            <div v-for="(installment, index) in currentCustomConfig.installmentConfig!.installments" :key="index" class="installment-item">
+              <el-row :gutter="10" align="middle">
+                <el-col :span="6">
+                  <el-input
+                    v-model="installment.name"
+                    placeholder="Nom de la tranche"
+                  />
+                </el-col>
+                <el-col :span="5">
+                  <el-input-number
+                    v-model="installment.percentage"
+                    :min="0"
+                    :max="100"
+                    @change="updateInstallmentAmounts"
+                  >
+                    <template #suffix>%</template>
+                  </el-input-number>
+                </el-col>
+                <el-col :span="6">
+                  <el-select v-model="installment.dueMonth" placeholder="Mois d'échéance" class="full-width">
+                    <el-option
+                      v-for="(month, idx) in monthNames"
+                      :key="idx"
+                      :label="month"
+                      :value="idx + 1"
+                    />
+                  </el-select>
+                </el-col>
+                <el-col :span="5">
+                  <currency-display :amount="installment.amount || 0" />
+                </el-col>
+                <el-col :span="2">
+                  <el-button
+                    type="danger"
+                    size="small"
+                    circle
+                    @click="removeInstallment(index)"
+                    :disabled="currentCustomConfig.installmentConfig!.installments.length <= 1"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </el-col>
+              </el-row>
+            </div>
+            <el-button type="primary" plain @click="addInstallment">
+              <el-icon><Plus /></el-icon> Ajouter une tranche
+            </el-button>
+            <el-alert
+              v-if="totalInstallmentsAmount !== currentCustomConfig.totalAnnualAmount"
+              type="warning"
+              :closable="false"
+              show-icon
+              style="margin-top: 10px"
             >
-              <el-option
-                v-for="grade in unconfiguredClasses"
-                :key="grade.classId"
-                :label="grade.className"
-                :value="grade.classId"
-              />
-              <el-option
-                v-if="editingTrancheConfig.id"
-                :key="editingTrancheConfig.gradeId"
-                :label="paymentConfigs.find(p => p.classId === editingTrancheConfig.gradeId)?.className"
-                :value="editingTrancheConfig.gradeId"
-              />
-            </el-select>
+              Total des tranches: <currency-display :amount="totalInstallmentsAmount" /> 
+              (Différence: <currency-display :amount="currentCustomConfig.totalAnnualAmount - totalInstallmentsAmount" />)
+            </el-alert>
+          </template>
+
+          <!-- Configuration Personnalisée -->
+          <template v-if="currentCustomConfig.paymentType === 'custom'">
+            <el-divider>Configuration Personnalisée des Échéances</el-divider>
+            <div v-for="(schedule, index) in currentCustomConfig.customSchedule!.schedules" :key="index" class="custom-schedule-item">
+              <el-row :gutter="10" align="middle">
+                <el-col :span="6">
+                  <el-input
+                    v-model="schedule.name"
+                    placeholder="Nom de l'échéance"
+                  />
+                </el-col>
+                <el-col :span="6">
+                  <el-date-picker
+                    v-model="schedule.dueDate"
+                    type="date"
+                    placeholder="Date d'échéance"
+                    format="DD/MM/YYYY"
+                    class="full-width"
+                  />
+                </el-col>
+                <el-col :span="6">
+                  <el-input-number
+                    v-model="schedule.amount"
+                    :min="0"
+                    :step="1000"
+                    class="full-width"
+                  >
+                    <template #suffix>{{ currency }}</template>
+                  </el-input-number>
+                </el-col>
+                <el-col :span="4">
+                  <el-input
+                    v-model="schedule.description"
+                    placeholder="Description"
+                  />
+                </el-col>
+                <el-col :span="2">
+                  <el-button
+                    type="danger"
+                    size="small"
+                    circle
+                    @click="removeCustomSchedule(index)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </el-col>
+              </el-row>
+            </div>
+            <el-button type="primary" plain @click="addCustomSchedule">
+              <el-icon><Plus /></el-icon> Ajouter une échéance
+            </el-button>
+            <el-alert
+              v-if="totalCustomScheduleAmount !== currentCustomConfig.totalAnnualAmount"
+              type="warning"
+              :closable="false"
+              show-icon
+              style="margin-top: 10px"
+            >
+              Total des échéances: <currency-display :amount="totalCustomScheduleAmount" />
+              (Différence: <currency-display :amount="currentCustomConfig.totalAnnualAmount - totalCustomScheduleAmount" />)
+            </el-alert>
+          </template>
+
+          <el-form-item label="Configuration par défaut" style="margin-top: 20px">
+            <el-switch
+              v-model="currentCustomConfig.isDefault"
+              active-text="Oui"
+              inactive-text="Non"
+            />
+            <div class="form-hint">Si activé, cette configuration sera utilisée par défaut pour les nouveaux étudiants</div>
           </el-form-item>
-
-          <el-form-item label="Montant Annuel des Frais de Scolarité">
-            <currency-display :amount="editingTrancheConfig.annualAmount" />
-          </el-form-item>
-
-          <el-form-item label="Nombre de tranches">
-            <el-input-number v-model="editingTrancheConfig.trancheCount" :min="1" :max="12" @change="updateTotalTranches" />
-          </el-form-item>
-
-          <el-divider>Détails des tranches</el-divider>
-
-          <div v-for="(tranche, index) in editingTrancheConfig.tranches" :key="index" class="tranche-item">
-            <el-input v-model="tranche.name" placeholder="Nom de la tranche" />
-            <el-input-number v-model="tranche.amount" :min="0" :step="1000" controls-position="right">
-              <template #suffix>{{ currency }}</template>
-            </el-input-number>
-          </div>
-
-          <div class="summary">
-            <div>Montant total alloué: <currency-display :amount="totalTrancheAmount" /></div>
-            <div>Reste à allouer: <currency-display :amount="remainingToAllocate" :class="{ 'error-text': remainingToAllocate !== 0 }" /></div>
-          </div>
-
         </el-form>
+
         <template #footer>
-          <el-button @click="isTrancheConfigModalVisible = false">Annuler</el-button>
-          <el-button type="primary" @click="saveTrancheConfiguration" :loading="isSaving">Enregistrer</el-button>
+          <el-button @click="showCustomConfigModal = false">Annuler</el-button>
+          <el-button type="primary" @click="saveCustomPaymentConfig" :loading="isSaving">
+            {{ currentCustomConfig.id ? 'Modifier' : 'Enregistrer' }}
+          </el-button>
         </template>
       </el-dialog>
+
 
       <el-dialog 
         v-model="showModal" 
@@ -447,7 +777,7 @@ onMounted(async () => {
             </el-input-number>
           </el-form-item>
 
-          <el-divider>Frais d'inscription</el-divider>
+          <el-divider>Frais d'inscription et de ré-inscription</el-divider>
 
           <el-form-item label="Frais d'inscription">
             <el-input-number
@@ -557,6 +887,10 @@ onMounted(async () => {
   width: 100%;
 }
 
+.config-list {
+  padding: 1.5rem 0;
+}
+
 .full-width {
   width: 100%;
 }
@@ -565,30 +899,28 @@ onMounted(async () => {
   width: 100%;
 }
 
-.tranche-item {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  align-items: center;
+.installment-item,
+.custom-schedule-item {
+  padding: 0.75rem;
+  background: #f5f7fa;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
 }
 
-.tranche-item .el-input {
-  flex: 1;
-}
-
-.tranche-item .el-input-number {
-  flex: 1;
-}
-
-.summary {
-  margin-top: 1rem;
-  padding: 1rem;
-  background-color: #f5f7fa;
-  border-radius: 4px;
+.installment-item:hover,
+.custom-schedule-item:hover {
+  background: #ebeef5;
 }
 
 .error-text {
   color: var(--el-color-error);
   font-weight: bold;
+}
+
+.form-hint {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
 }
 </style>

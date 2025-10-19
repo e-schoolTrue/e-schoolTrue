@@ -192,16 +192,29 @@ export function registerIpcHandlers() {
   ipcMain.handle("course:getByGrade", async (_, gradeId: number) => global.courseService.getCoursesByGrade(gradeId));
 
   // --- Étudiants ---
-  ipcMain.handle("student:all", async (_, options: {
-    page: number;
-    pageSize: number;
-    filters: {
+  ipcMain.handle("student:all", async (_, options?: {
+    page?: number;
+    pageSize?: number;
+    filters?: {
         studentFullName?: string;
-        grade?: number;
-    }
-}) => {
+        grade?: string;
+    };
+  }) => {
     try {
-        const { students, total } = await global.studentService.getAllStudents(options);
+        // Fournir des valeurs par défaut si options est undefined ou partiel
+        const defaultOptions = {
+            page: options?.page || 1,
+            pageSize: options?.pageSize || 1000, // Grande valeur par défaut pour récupérer tous les étudiants
+            filters: options?.filters || {}
+        };
+        
+        const { students, total } = await global.studentService.getAllStudents(defaultOptions);
+        
+        // Pour la compatibilité avec l'ancien code qui attend directement un tableau
+        if (!options) {
+            return { success: true, data: students, message: "Étudiants récupérés" };
+        }
+        
         return { success: true, data: { students, total }, message: "Étudiants récupérés" };
     } catch (error) {
         return handleError(error, "student:all");
@@ -513,6 +526,12 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("payment:getAnnualConfigs", async () => global.paymentService.getPaymentAnnualConfigs());
   ipcMain.handle("payment:saveAnnualConfig", async (_, configData) => global.paymentService.savePaymentAnnualConfig(configData));
   ipcMain.handle("payment:saveConfig", async (_, configData) => global.paymentService.saveConfig(configData));
+  
+  // --- Configurations Personnalisées des Paiements ---
+  ipcMain.handle("payment:getCustomConfigs", async () => global.paymentService.getCustomConfigs());
+  ipcMain.handle("payment:saveCustomConfig", async (_, configData) => global.paymentService.saveCustomConfig(configData));
+  ipcMain.handle("payment:deleteCustomConfig", async (_, configId) => global.paymentService.deleteCustomConfig(configId));
+  
   ipcMain.handle("payment:getByStudent", async (_, studentId) => global.paymentService.getPaymentsByStudent(studentId));
   ipcMain.handle("payment:getByDate", async (_, date) => global.paymentService.getPaymentsByDate(date));
   ipcMain.handle("payment:getConfig", async (_, classId) => global.paymentService.getConfigByClass(String(classId)));
