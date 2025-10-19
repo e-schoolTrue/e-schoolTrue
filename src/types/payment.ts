@@ -164,10 +164,63 @@ export interface PaymentAmounts {
 
 export interface TranchConfig {
   id: string;
-  
 }
 
+export interface PaymentScheduleConfig {
+  id?: number;
+  gradeId: number;
+  paymentMode: 'monthly' | 'installments' | 'custom';
+  schedules: PaymentSchedule[];
+  totalAmount: number;
+  isActive: boolean;
+  schoolYear?: string;
+}
 
+export interface PaymentSchedule {
+  id?: number;
+  name: string;
+  amount: number;
+  dueDate: Date;
+  order: number;
+  isRecurring?: boolean;
+  description?: string;
+}
+
+export interface CustomPaymentConfig {
+  id?: number;
+  gradeId: number;
+  name: string;
+  paymentType: 'monthly' | 'installments' | 'custom';
+  
+  // Pour les mensualités
+  monthlyConfig?: {
+    numberOfMonths: number;
+    startMonth: number; // 1-12
+    monthlyAmount: number;
+    excludedMonths?: number[]; // Mois exclus (vacances, etc.)
+  };
+  
+  // Pour les tranches
+  installmentConfig?: {
+    numberOfInstallments: number;
+    installments: {
+      name: string;
+      percentage: number;
+      dueMonth: number;
+      amount?: number;
+    }[];
+  };
+  
+  // Pour configuration personnalisée
+  customSchedule?: {
+    schedules: PaymentSchedule[];
+  };
+  
+  totalAnnualAmount: number;
+  isDefault: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export interface IPaymentAnnualConfig{
   id?: number;
@@ -175,7 +228,6 @@ export interface IPaymentAnnualConfig{
   gradeId?:number
   tranches?:ITranchConfig[]
 }
-
 
 export interface ITranchConfig {
   id?: number;

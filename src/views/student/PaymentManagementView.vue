@@ -716,9 +716,11 @@ const printReceipt = async (student: Student) => {
 
   try {
     // 1. Récupérer toutes les données nécessaires
-    const [paymentsResult, schoolInfoResult, trancheConfigResult] = await Promise.all([
+    const [paymentsResult, schoolInfoResult, customConfigsResult, paymentConfigResult, trancheConfigResult] = await Promise.all([
       window.ipcRenderer.invoke('payment:getByStudent', student.id),
       window.ipcRenderer.invoke('school:get'),
+      window.ipcRenderer.invoke('payment:getCustomConfigs'),
+      window.ipcRenderer.invoke('payment:getConfigs'),
       window.ipcRenderer.invoke('tranche-config:all')
     ]);
     
@@ -732,9 +734,95 @@ const printReceipt = async (student: Student) => {
     const paymentInfo = paymentAmounts.value.get(student.id);
     const schoolInfo = schoolInfoResult?.data || {};
     
-    // Récupérer les échéances pour cette classe
-    const studentTrancheConfig = trancheConfigResult.success ? 
-      trancheConfigResult.data.find((config: any) => config.grade?.id === student.grade?.id) : null;
+    // Récupérer la configuration de paiement pour cette classe
+    const classPaymentConfig = paymentConfigResult.success ?
+      paymentConfigResult.data.find((config: any) => config.classId === student.grade?.id) : null;
+    
+    // Récupérer la configuration personnalisée pour cette classe
+    const customConfig = customConfigsResult.success ?
+      customConfigsResult.data.find((config: any) => config.gradeId === student.grade?.id && config.isDefault) : null;
+    
+    // Calculer le nombre de mois payés
+    const totalPaidTuition = paymentInfo?.paidTuition || 0;
+    const totalTuition = paymentInfo?.adjustedTuitionFee || classPaymentConfig?.annualAmount || 0;
+    let monthsPaid = 0;
+    let monthlyAmount = 0;
+    
+    if (customConfig && customConfig.paymentType === 'monthly' && customConfig.monthlyConfig) {
+      const config = customConfig.monthlyConfig;
+      monthlyAmount = totalTuition / config.numberOfMonths;
+      monthsPaid = Math.floor(totalPaidTuition / monthlyAmount);
+    } else if (totalTuition > 0) {
+      // Par défaut, considérer 10 mois (septembre à juin)
+      monthlyAmount = totalTuition / 10;
+      monthsPaid = Math.floor(totalPaidTuition / monthlyAmount);
+    }
+    
+    // Récupérer le logo de l'école si disponible (même structure que SchoolInfoView.vue)
+    let logoBase64 = '';
+    
+    // Vérifier si l'école a un logo (objet avec id)
+    if (schoolInfo && schoolInfo.logo && schoolInfo.logo.id) {
+      try {
+        const logoResult = await window.ipcRenderer.invoke('school:getLogo', schoolInfo.logo.id);
+        
+        if (logoResult.success && logoResult.data && logoResult.data.content) {
+          // Construire l'URL base64 comme dans SchoolInfoView.vue
+          logoBase64 = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération du logo:', error);
+      }
+    }
+
+    // Fonction pour générer la grille de mois
+    const generateMonthlyGrid = (monthsPaid: number, _monthlyAmount: number, customConfig: any) => {
+      const allMonths = [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+      ];
+      
+      let monthsToShow = [];
+      let startMonth = 8; // Septembre par défaut (index 8)
+      let excludedMonths: number[] = [];
+      
+      if (customConfig && customConfig.paymentType === 'monthly' && customConfig.monthlyConfig) {
+        const config = customConfig.monthlyConfig;
+        startMonth = config.startMonth - 1; // Convertir en index 0-based
+        excludedMonths = config.excludedMonths || [];
+        
+        // Créer la liste des mois à afficher en fonction de la configuration
+        for (let i = 0; i < config.numberOfMonths; i++) {
+          let currentMonthIndex = (startMonth + i) % 12;
+          // Sauter les mois exclus
+          while (excludedMonths.includes(currentMonthIndex + 1)) {
+            currentMonthIndex = (currentMonthIndex + 1) % 12;
+          }
+          monthsToShow.push({
+            name: allMonths[currentMonthIndex],
+            index: currentMonthIndex,
+            isPaid: i < monthsPaid
+          });
+        }
+      } else {
+        // Configuration par défaut : Septembre à Juin (10 mois)
+        const defaultMonths = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5]; // Sep, Oct, Nov, Dec, Jan, Fev, Mar, Avr, Mai, Juin
+        monthsToShow = defaultMonths.map((monthIndex, i) => ({
+          name: allMonths[monthIndex],
+          index: monthIndex,
+          isPaid: i < monthsPaid
+        }));
+      }
+      
+      return monthsToShow.map(month => `
+        <div class="month-box">
+          <span class="month-checkbox ${month.isPaid ? 'checked' : ''}">
+            ${month.isPaid ? '✓' : ''}
+          </span>
+          <span class="month-name">${month.name}</span>
+        </div>
+      `).join('');
+    };
 
     // 2. Create HTML for the receipt with improved styling
     const receiptHtml = `
@@ -792,6 +880,27 @@ const printReceipt = async (student: Student) => {
             border-bottom: 2px solid #007bff; 
             padding-bottom: 10px; 
             margin-bottom: 15px;
+            position: relative;
+          }
+          
+          .school-logo {
+            width: 80px;
+            height: 80px;
+            max-width: 80px;
+            max-height: 80px;
+            object-fit: contain;
+            margin-right: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 5px;
+            background: white;
+            display: block;
+          }
+          
+          .school-header {
+            display: flex;
+            align-items: center;
+            flex: 1;
           }
           
           .school-info h1 { 
@@ -844,6 +953,65 @@ const printReceipt = async (student: Student) => {
             margin: 0 0 8px 0;
             font-size: 13px;
             color: #e65100;
+          }
+          
+          .monthly-payment-grid {
+            background: #f0f8ff;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 3px solid #2196f3;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          
+          .monthly-payment-grid h3 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #1565c0;
+          }
+          
+          .months-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+          }
+          
+          .month-box {
+            display: flex;
+            align-items: center;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 10px;
+          }
+          
+          .month-checkbox {
+            width: 14px;
+            height: 14px;
+            border: 1px solid #333;
+            border-radius: 2px;
+            margin-right: 5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #4caf50;
+          }
+          
+          .month-checkbox.checked {
+            background: #e8f5e9;
+          }
+          
+          .month-name {
+            flex: 1;
+            font-weight: 500;
+          }
+          
+          .month-amount {
+            font-size: 9px;
+            color: #666;
+            margin-left: 5px;
           }
 
           .schedule-table {
@@ -1042,13 +1210,25 @@ const printReceipt = async (student: Student) => {
       <body>
         <div class="receipt-container">
           <div class="header">
-            <div class="school-info">
-              <h1>${schoolInfo.name || 'École'}</h1>
-              <p><strong>Adresse:</strong> ${schoolInfo.address || 'Non renseignée'}</p>
-              <p><strong>Téléphone:</strong> ${schoolInfo.phone || 'Non renseigné'}</p>
-              <p><strong>Email:</strong> ${schoolInfo.email || 'Non renseigné'}</p>
-              ${schoolInfo.website ? `<p><strong>Site web:</strong> ${schoolInfo.website}</p>` : ''}
-              ${schoolInfo.director ? `<p><strong>Directeur:</strong> ${schoolInfo.director}</p>` : ''}
+            <div class="school-header">
+              ${logoBase64 ? `
+                <div style="width: 90px; margin-right: 15px;">
+                  <img 
+                    src="${logoBase64}" 
+                    alt="Logo de l'école" 
+                    class="school-logo" 
+                    onerror="this.style.display='none'; console.error('Erreur chargement logo');" 
+                  />
+                </div>
+              ` : ''}
+              <div class="school-info">
+                <h1>${schoolInfo.name || 'École'}</h1>
+                <p><strong>Adresse:</strong> ${schoolInfo.address || 'Non renseignée'}</p>
+                <p><strong>Téléphone:</strong> ${schoolInfo.phone || 'Non renseigné'}</p>
+                <p><strong>Email:</strong> ${schoolInfo.email || 'Non renseigné'}</p>
+                ${schoolInfo.website ? `<p><strong>Site web:</strong> ${schoolInfo.website}</p>` : ''}
+                ${schoolInfo.director ? `<p><strong>Directeur:</strong> ${schoolInfo.director}</p>` : ''}
+              </div>
             </div>
             <div class="receipt-info">
               <h2>Reçu de Paiement</h2>
@@ -1080,42 +1260,60 @@ const printReceipt = async (student: Student) => {
             </div>
           </div>
 
-          <!-- Section des échéances de paiement -->
-          ${studentTrancheConfig && studentTrancheConfig.tranches ? `
+          <!-- Section de la grille de paiements mensuels -->
+          ${totalTuition > 0 ? `
+          <div class="monthly-payment-grid">
+            <h3>Suivi des Paiements Mensuels</h3>
+            <div class="months-grid">
+              ${generateMonthlyGrid(monthsPaid, monthlyAmount, customConfig)}
+            </div>
+            <div style="margin-top: 8px; font-size: 10px; color: #666;">
+              <strong>Montant mensuel:</strong> ${formatCurrency(monthlyAmount)} | 
+              <strong>Mois payés:</strong> ${monthsPaid} / ${customConfig?.monthlyConfig?.numberOfMonths || 10}
+            </div>
+          </div>
+          ` : ''}
+
+          <!-- Section des échéances de paiement (tranches personnalisées) si disponibles -->
+          ${customConfig && customConfig.paymentType === 'installments' && customConfig.installmentConfig ? `
           <div class="payment-schedule-section">
             <h3>Échéancier de Paiement - ${student.grade?.name}</h3>
             <table class="schedule-table">
               <thead>
                 <tr>
                   <th>Tranche</th>
-                  <th>Date d'échéance</th>
+                  <th>Mois</th>
                   <th>Montant</th>
                   <th>Statut</th>
                 </tr>
               </thead>
               <tbody>
-                ${studentTrancheConfig.tranches.map((tranche: any, index: number) => {
-                  const period = yearRepartition.value?.periodConfigurations?.[index];
-                  const dueDate = period ? new Date(period.start).toLocaleDateString('fr-FR') : 'Non définie';
+                ${customConfig.installmentConfig.installments.map((tranche: any, index: number) => {
                   const amount = formatCurrency(tranche.amount);
                   
                   // Calculer le statut de paiement pour cette tranche
                   const paidAmount = payments
-                    .filter((p: any) => p.feeType === 'tuition')
-                    .slice(0, index + 1)
+                    .filter((p: any) => p.paymentType === 'tuition')
                     .reduce((sum: number, p: any) => sum + p.amount, 0);
-                  const trancheTotal = studentTrancheConfig.tranches
+                  
+                  const tranchesTotal = customConfig.installmentConfig.installments
                     .slice(0, index + 1)
                     .reduce((sum: number, t: any) => sum + t.amount, 0);
                   
                   let status = 'Non payé';
-                  if (paidAmount >= trancheTotal) status = 'Payé';
-                  else if (paidAmount > 0) status = 'Partiel';
+                  if (paidAmount >= tranchesTotal) status = 'Payé';
+                  else if (paidAmount > tranchesTotal - tranche.amount) status = 'Partiel';
+                  
+                  const monthNames = [
+                    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+                  ];
+                  const monthName = monthNames[tranche.month - 1] || `Mois ${tranche.month}`;
                   
                   return `
                     <tr>
                       <td>Tranche ${index + 1}</td>
-                      <td>${dueDate}</td>
+                      <td>${monthName}</td>
                       <td>${amount}</td>
                       <td class="status-${status.toLowerCase().replace(' ', '-')}">${status}</td>
                     </tr>
@@ -1125,6 +1323,51 @@ const printReceipt = async (student: Student) => {
             </table>
           </div>
           ` : ''}
+          
+          <!-- Section des tranches (ancienne méthode) si disponibles -->
+          ${(!customConfig || customConfig.paymentType !== 'installments') && trancheConfigResult.success && trancheConfigResult.data ? (() => {
+            const studentTranche = trancheConfigResult.data.find((config: any) => config.grade?.id === student.grade?.id);
+            if (studentTranche && studentTranche.tranches) {
+              return `
+              <div class="payment-schedule-section">
+                <h3>Échéancier de Paiement - ${student.grade?.name}</h3>
+                <table class="schedule-table">
+                  <thead>
+                    <tr>
+                      <th>Tranche</th>
+                      <th>Montant</th>
+                      <th>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${studentTranche.tranches.map((tranche: any, index: number) => {
+                      const amount = formatCurrency(tranche.amount);
+                      const paidAmount = payments
+                        .filter((p: any) => p.paymentType === 'tuition')
+                        .reduce((sum: number, p: any) => sum + p.amount, 0);
+                      const tranchesTotal = studentTranche.tranches
+                        .slice(0, index + 1)
+                        .reduce((sum: number, t: any) => sum + t.amount, 0);
+                      
+                      let status = 'Non payé';
+                      if (paidAmount >= tranchesTotal) status = 'Payé';
+                      else if (paidAmount > tranchesTotal - tranche.amount) status = 'Partiel';
+                      
+                      return `
+                        <tr>
+                          <td>${tranche.name || tranche.tranchName || `Tranche ${index + 1}`}</td>
+                          <td>${amount}</td>
+                          <td class="status-${status.toLowerCase().replace(' ', '-')}">${status}</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+              `;
+            }
+            return '';
+          })() : ''}
           
           <table class="payments-table">
             <thead>
@@ -1261,6 +1504,8 @@ const formatCurrency = (amount: number) => {
     maximumFractionDigits: 0
   }).format(amount);
 };
+
+// La fonction generateMonthlyGrid est déjà définie dans printReceipt - suppression du doublon
 
 const exportToPdf = async () => {
   loadingPdf.value = true;
