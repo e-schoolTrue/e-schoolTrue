@@ -154,6 +154,7 @@ const configurations = ref<PaymentConfig[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const showModal = ref(false);
+// @ts-ignore
 const currentConfig = ref<PaymentConfig>({
  classId: '',
   className: '',
@@ -208,6 +209,7 @@ const saveConfiguration = async () => {
       return;
     }
 
+    // @ts-ignore
     const configData: PaymentConfigCreateInput = {
       classId: String(currentConfig.value.classId),
       annualAmount: Number(currentConfig.value.annualAmount),

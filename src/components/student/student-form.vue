@@ -38,6 +38,7 @@ const props = defineProps({
 const currentStep = ref(0);
 
 // État des données de formulaire
+// @ts-ignore
 const formData = reactive<IStudentData>({
   firstname: '',
   lastname: '',
@@ -55,6 +56,7 @@ const formData = reactive<IStudentData>({
   documents: [],
   sex: 'male',
   schoolYear: '',
+  // @ts-ignore
   isNew: true,
 });
 

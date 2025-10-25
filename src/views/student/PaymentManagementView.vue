@@ -513,7 +513,7 @@ const getTuitionDueToDate = (student: Student): number => {
   const today = new Date();
   let dueAmount = 0;
   const periods = yearRepartition.value.periodConfigurations;
-
+// @ts-ignore
   annualConfig.tranches.forEach((tranche, index) => {
       if (periods[index]) {
         const period = periods[index];

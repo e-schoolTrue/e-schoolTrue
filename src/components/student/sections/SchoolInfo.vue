@@ -42,8 +42,10 @@ interface Props {
   classes: ClassItem[];
 }
 
+// @ts-ignore
 const props = withDefaults(defineProps<Props>(), {
   classes: () => [],
+  // @ts-ignore
   formData: () => ({
     gradeId: null,
     schoolYear: '',

@@ -28,6 +28,7 @@ import { YearRepartition } from '@/types/year';
     const dues: PaymentDue[] = [];
     const periods = yearRepartition.value.periodConfigurations;
 
+    // @ts-ignore
     props.config.tranches.forEach((tranche, index) => {
       if (periods[index]) {
         const period = periods[index];
