@@ -7,8 +7,9 @@ import { View, Download, Back, Document } from '@element-plus/icons-vue';
 import type { IStudentDetails, IStudentFile } from '@/types/student';
 import type { IGrade } from '@/types/shared';
 import type { ISchoolData } from '@/types/school';
-import html2pdf from 'html2pdf.js';
 
+import ScolaritePreview from '@/components/document/scolarite.vue';
+import InscriptionPreview from '@/components/document/inscription.vue';
 
 
 interface CurrentDocument {
@@ -22,11 +23,17 @@ const route = useRoute();
 const router = useRouter();
 const studentDetails = ref<IStudentDetails | null>(null);
 const photoUrl = ref<string | null>(null);
+const schoolLogoUrl = ref<string>('');
 const activeNames = ref(['1', '2', '3', '4', '6']);
 const dialogVisible = ref(false);
 const currentDocument = ref<CurrentDocument | null>(null);
 const schoolInfo = ref<ISchoolData | null>(null);
 const isGeneratingCertificate = ref(false);
+const isGeneratingInscription = ref(false);
+const scolariteContent = ref('');
+const inscriptionContent = ref('');
+const scolaritePreviewRef = ref<any>(null);
+const inscriptionPreviewRef = ref<any>(null);
 
 const getClassName = (grade?: IGrade | null) => {
   if (!grade) return "Non assigné";
@@ -73,6 +80,18 @@ const loadSchoolInfo = async () => {
     const result = await window.ipcRenderer.invoke('school:get');
     if (result?.success && result.data) {
       schoolInfo.value = result.data;
+      
+      // Charger le logo de l'école
+      if (schoolInfo.value?.logo?.id) {
+        try {
+          const logoResult = await window.ipcRenderer.invoke('school:getLogo', schoolInfo.value.logo.id);
+          if (logoResult.success && logoResult.data && logoResult.data.content) {
+            schoolLogoUrl.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+          }
+        } catch (error) {
+          console.error("Erreur lors du chargement du logo de l'école:", error);
+        }
+      }
     } else {
       console.warn('Aucune information d\'école trouvée');
     }
@@ -85,9 +104,10 @@ onMounted(async () => {
   const studentId = route.params.id;
   if (studentId) {
     try {
-      // Charger les informations de l'étudiant et de l'école en parallèle
-      const [studentResult] = await Promise.all([
+      // Charger les informations de l'étudiant, de l'école et les modèles de documents en parallèle
+      const [studentResult, documentResult] = await Promise.all([
         window.ipcRenderer.invoke('student:getDetails', Number(studentId)),
+        window.documentContent.get(),
         loadSchoolInfo()
       ]);
       
@@ -100,46 +120,11 @@ onMounted(async () => {
         ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
       }
     } catch (error) {
-      console.error("Erreur lors du chargement des détails de l'étudiant:", error);
-      ElMessage.error("Une erreur s'est produite lors du chargement des détails");
+      console.error("Erreur lors de la récupération des détails de l'étudiant:", error);
+      ElMessage.error("Une erreur s'est produite lors de la récupération des détails de l'étudiant");
     }
   }
 });
-
-const downloadDocument = async (document: IStudentFile) => {
-  try {
-    const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
-    console.log("Document à télécharger:", result);
-    if (result.success && result.data && result.data.content) {
-      try {
-        const byteCharacters = atob(result.data.content);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: result.data.type });
-        
-        const url = window.URL.createObjectURL(blob);
-        const a = window.document.createElement('a');
-        a.href = url;
-        a.download = document.name;
-        window.document.body.appendChild(a);
-        a.click();
-        window.document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error("Erreur de décodage:", error);
-        ElMessage.error("Erreur lors du décodage du document");
-      }
-    } else {
-      ElMessage.error("Erreur lors du téléchargement du document");
-    }
-  } catch (error) {
-    console.error("Erreur lors du téléchargement du document:", error);
-    ElMessage.error("Une erreur s'est produite lors du téléchargement du document");
-  }
-};
 
 const viewDocument = async (document: IStudentFile) => {
   try {
@@ -164,286 +149,18 @@ const viewDocument = async (document: IStudentFile) => {
     } else {
       ElMessage.error("Erreur lors du chargement du document");
     }
-  } catch (error) {
-    console.error("Erreur lors du chargement du document:", error);
-    ElMessage.error("Une erreur s'est produite lors du chargement du document");
-  }
-};
-
-const generateCertificate = async () => {
-  if (!studentDetails.value || !schoolInfo.value) {
-    ElMessage.error("Informations manquantes pour générer l'attestation");
-    return;
-  }
-
-  try {
-    isGeneratingCertificate.value = true;
-    
-    // Essayer d'abord avec html2pdf
-    try {
-      await generateWithHtml2Pdf();
-    } catch (html2pdfError) {
-      console.warn("html2pdf a échoué, utilisation de la méthode alternative:", html2pdfError);
-      await generateWithPrint();
-    }
-    
-    ElMessage.success("Attestation générée avec succès");
-    
-  } catch (error) {
-    console.error("Erreur lors de la génération de l'attestation:", error);
-    ElMessage.error("Une erreur s'est produite lors de la génération de l'attestation");
-  } finally {
-    isGeneratingCertificate.value = false;
-  }
-};
-
-const generateWithHtml2Pdf = async () => {
-  // Créer le contenu HTML de l'attestation
-  const certificateHTML = createCertificateHTML();
-  console.log("HTML généré:", certificateHTML);
-  
-  // Créer un élément temporaire pour le contenu
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = certificateHTML;
-  
-  // Styles pour rendre l'élément visible mais hors écran
-  tempDiv.style.position = 'fixed';
-  tempDiv.style.top = '0';
-  tempDiv.style.left = '0';
-  tempDiv.style.width = '210mm'; // Largeur A4
-  tempDiv.style.height = '297mm'; // Hauteur A4
-  tempDiv.style.zIndex = '-1';
-  tempDiv.style.visibility = 'hidden';
-  tempDiv.style.backgroundColor = 'white';
-  
-  document.body.appendChild(tempDiv);
-  
-  // Attendre que le contenu soit rendu
-  await new Promise(resolve => setTimeout(resolve, 200));
-  
-  // Configuration pour html2pdf
-  const opt = {
-    margin: [0.5, 0.5, 0.5, 0.5],
-    filename: `Attestation_Scolarite_${studentDetails.value!.firstname}_${studentDetails.value!.lastname}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { 
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff'
-    },
-    jsPDF: { 
-      unit: 'in', 
-      format: 'a4', 
-      orientation: 'portrait',
-      compress: true
-    }
-  };
-  
-  console.log("Génération du PDF en cours...");
-  
-  // Générer le PDF
-  await html2pdf().set(opt).from(tempDiv).save();
-  
-  console.log("PDF généré avec succès");
-  
-  // Nettoyer l'élément temporaire
-  document.body.removeChild(tempDiv);
-};
-
-const generateWithPrint = async () => {
-  // Créer une nouvelle fenêtre pour l'impression
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    throw new Error("Impossible d'ouvrir une nouvelle fenêtre");
-  }
-  
-  const certificateHTML = createCertificateHTML();
-  
-  printWindow.document.write(certificateHTML);
-  printWindow.document.close();
-  
-  // Attendre que le contenu soit chargé
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // Déclencher l'impression
-  printWindow.print();
-  
-  // Fermer la fenêtre après impression
-  setTimeout(() => {
-    printWindow.close();
-  }, 1000);
-};
-
-const createCertificateHTML = () => {
-  const student = studentDetails.value!;
-  const school = schoolInfo.value!;
-  const currentDate = new Date().toLocaleDateString('fr-FR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body {
-          font-family: 'Times New Roman', serif;
-          margin: 0;
-          padding: 20px;
-          background: white;
-          color: #000;
-        }
-        .certificate-container {
-          max-width: 800px;
-          margin: 0 auto;
-          background: white;
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 40px;
-          border-bottom: 2px solid #333;
-          padding-bottom: 20px;
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: bold;
-          color: #333;
-        }
-        .header p {
-          margin: 5px 0;
-          font-size: 14px;
-          color: #666;
-        }
-        .title {
-          text-align: center;
-          margin-bottom: 40px;
-        }
-        .title h2 {
-          margin: 0;
-          font-size: 20px;
-          font-weight: bold;
-          text-decoration: underline;
-        }
-        .content {
-          line-height: 1.8;
-          font-size: 16px;
-          text-align: justify;
-          margin-bottom: 40px;
-        }
-        .content p {
-          margin-bottom: 20px;
-        }
-        .student-info {
-          margin: 20px 0;
-          padding: 20px;
-          background: #f9f9f9;
-          border-left: 4px solid #333;
-        }
-        .student-info p {
-          margin: 5px 0;
-        }
-        .signature {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 60px;
-        }
-        .signature div {
-          text-align: center;
-        }
-        .signature p {
-          margin: 0;
-          font-size: 14px;
-        }
-        .signature-line {
-          height: 50px;
-          margin-top: 20px;
-        }
-        .signature-bottom {
-          border-top: 1px solid #333;
-          padding-top: 5px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="certificate-container">
-        <!-- En-tête de l'école -->
-        <div class="header">
-          <h1>${school.name}</h1>
-          <p>${school.address}</p>
-          <p>${school.town} - Tél: ${school.phone}</p>
-          <p>Email: ${school.email}</p>
-        </div>
-        
-        <!-- Titre du document -->
-        <div class="title">
-          <h2>ATTESTATION DE SCOLARITÉ</h2>
-        </div>
-        
-        <!-- Contenu principal -->
-        <div class="content">
-          <p>
-            Je soussigné(e), Directeur(trice) de l'établissement <strong>${school.name}</strong>, 
-            certifie que l'élève :
-          </p>
-          
-          <div class="student-info">
-            <p><strong>Nom :</strong> ${student.lastname}</p>
-            <p><strong>Prénom :</strong> ${student.firstname}</p>
-            <p><strong>Matricule :</strong> ${student.matricule}</p>
-            <p><strong>Né(e) le :</strong> ${formatDate(student.birthDay)}</p>
-            <p><strong>À :</strong> ${student.birthPlace || 'Non spécifié'}</p>
-            <p><strong>Classe :</strong> ${student.grade?.name || 'Non assigné'}</p>
-            <p><strong>Année scolaire :</strong> ${student.schoolYear}</p>
-          </div>
-          
-          <p>
-            est régulièrement inscrit(e) dans notre établissement pour l'année scolaire ${student.schoolYear}.
-          </p>
-          
-          <p>
-            Cette attestation est délivrée à l'intéressé(e) pour servir et valoir ce que de droit.
-          </p>
-        </div>
-        
-        <!-- Signature et date -->
-        <div class="signature">
-          <div>
-            <p>Fait à ${school.town}, le ${currentDate}</p>
-          </div>
-          <div>
-            <p>Le Directeur(trice)</p>
-            <div class="signature-line"></div>
-            <p class="signature-bottom">Signature et cachet</p>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
-</script>
-
-<template>
-  <div class="details-container">
-    <div class="navigation-bar">
-      <div class="nav-left">
-        <el-button 
-          type="primary" 
-          plain
-          @click="router.push({ name: 'StudentList' })"
-          class="back-button"
-        >
-          <el-icon><Back /></el-icon>
-          Retour à la liste
-        </el-button>
-      </div>
       
       <div class="nav-right">
+        <el-button 
+          type="primary"
+          @click="generateInscription"
+          :loading="isGeneratingInscription"
+          :disabled="!studentDetails || !schoolInfo"
+          class="certificate-button"
+        >
+          <el-icon><Document /></el-icon>
+          Attestation d'inscription
+        </el-button>
         <el-button 
           type="success"
           @click="generateCertificate"
@@ -452,7 +169,7 @@ const createCertificateHTML = () => {
           class="certificate-button"
         >
           <el-icon><Document /></el-icon>
-          Attestation de scolarité
+          Certificat de scolarité
         </el-button>
       </div>
     </div>
@@ -603,6 +320,30 @@ const createCertificateHTML = () => {
         </template>
       </div>
     </el-dialog>
+
+    <!-- Hidden preview components for PDF generation -->
+    <div style="position: fixed; top: -9999px; left: -9999px;">
+      <div ref="scolaritePreviewRef">
+        <ScolaritePreview
+          v-if="studentDetails && schoolInfo"
+          :content="scolariteContent"
+          :student="studentDetails"
+          :school-info="schoolInfo"
+          :academic-year="studentDetails.schoolYear"
+          :logo-url="schoolLogoUrl"
+        />
+      </div>
+      <div ref="inscriptionPreviewRef">
+        <InscriptionPreview
+          v-if="studentDetails && schoolInfo"
+          :content="inscriptionContent"
+          :student="studentDetails"
+          :school-info="schoolInfo"
+          :academic-year="studentDetails.schoolYear"
+          :logo-url="schoolLogoUrl"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
