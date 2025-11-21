@@ -28,6 +28,7 @@ import { ScheduleService } from './backend/services/scheduleService';
 import { InscriptionFeeService } from './backend/services/inscription-fee.service';
 import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
+import { documentContentService } from './backend/services/document-content-service';
 
 
 
@@ -56,6 +57,25 @@ const handleError = (error: any, message: string): ResultType => {
 
 export function registerIpcHandlers() {
   
+  // --- Document Content ---
+  ipcMain.handle("document-content:get", async () => {
+    try {
+      const content = await documentContentService.get();
+      return { success: true, data: content };
+    } catch (error) {
+      return handleError(error, "document-content:get");
+    }
+  });
+
+  ipcMain.handle("document-content:update", async (_, data) => {
+    try {
+      const updatedContent = await documentContentService.update(data);
+      return { success: true, data: updatedContent };
+    } catch (error) {
+      return handleError(error, "document-content:update");
+    }
+  });
+
 
   // --- Authentification ---
   ipcMain.handle("auth:create", async (_, userData) => global.authService.createSupervisor(userData.username, userData.password, userData.securityQuestion, userData.securityAnswer));

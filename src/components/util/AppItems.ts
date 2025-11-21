@@ -137,14 +137,19 @@ export const AppItems: MenuItem[] = [
                 icon: "fluent-emoji:graduation-cap",
                 route: "/tools/school-report",
             },
-            {
-                id: "submenu-5-2",
+                    { 
+                         id: "submenu-5-2",
+                        title: "Documents Scolaires",
+                        icon: "fluent-emoji:file-folder",
+                        route: "/tools/documents",
+                },            {
+                id: "submenu-5-3",
                 title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
                 route: "/tools/generate-id",
             },
             {
-                id: "submenu-5-3",
+                id: "submenu-5-4",
                 title: "Sauvegarde et Restauration",
                 icon: "mdi:database-sync",
                 route: "/tools/sync",

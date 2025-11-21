@@ -64,6 +64,10 @@ declare global {
   interface Window {
     ipcRenderer: IpcRenderer;
     electronAPI: ElectronAPI;
+    documentContent: {
+      get: () => Promise<{ success: boolean; data: import('../../electron/backend/entities/documentContent').DocumentContentEntity }>;
+      update: (data: Partial<import('../../electron/backend/entities/documentContent').DocumentContentEntity>) => Promise<{ success: boolean; data: import('../../electron/backend/entities/documentContent').DocumentContentEntity }>;
+    };
   }
 }
 export {}; 
