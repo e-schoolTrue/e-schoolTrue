@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 })
 
 
+contextBridge.exposeInMainWorld('documentContent', {
+  get: () => ipcRenderer.invoke('document-content:get'),
+  update: (data) => ipcRenderer.invoke('document-content:update', data),
+})
+
 // Exposer l'API Electron pour l'impression
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,

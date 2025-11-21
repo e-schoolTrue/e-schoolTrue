@@ -30,6 +30,7 @@ import { TranchConfigEntity } from "./backend/entities/paymentConfig";
 import { InscriptionFeeEntity } from "./backend/entities/paymentConfig";
 import { TrancheEntryEntity } from "./backend/entities/paymentConfig";
 import { PaymentAnnualConfigEntity } from "./backend/entities/paymentConfig";
+import { DocumentContentEntity } from "./backend/entities/documentContent";
 
 // --- ENSEMBLE DES ENTITÉS ---
 const entities = [
@@ -64,7 +65,8 @@ const entities = [
     PaymentAnnualConfigEntity,
     TranchConfigEntity,
     TrancheEntryEntity,
-    InscriptionFeeEntity
+    InscriptionFeeEntity,
+    DocumentContentEntity
 ];
 
 export class AppDataSource {

@@ -14,4 +14,9 @@ export const toolRoutes = [
       name: "Sync",
       component: () => import("@/views/tools/SyncView.vue"),
     },
+    {
+      path: "/tools/documents",
+      name: "DocumentEditor",
+      component: () => import("@/views/tools/DocumentsView.vue"),
+    }
   ]; 
