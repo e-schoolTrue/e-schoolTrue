@@ -6,7 +6,6 @@ import { ResultType } from "#electron/command";
 import { FileService } from "./fileService";
 import { DashboardService } from "./dashboardService";
 import { SchoolService } from "./schoolService";
-import { CascadeDelete } from "../utils/cascadeDelete";
 import { PaymentService } from "./paymentService";
 import {
     IStudentDetails,

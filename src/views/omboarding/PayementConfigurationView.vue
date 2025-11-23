@@ -155,9 +155,11 @@ const isLoading = ref(false);
 const isSaving = ref(false);
 const showModal = ref(false);
 const currentConfig = ref<PaymentConfig>({
-  classId: '',
+ classId: '',
   className: '',
   annualAmount: 0,
+  inscriptionFee: 0,
+  reInscriptionFee: 0,
   allowScholarship: false,
   scholarshipPercentages: [],
   scholarshipCriteria: ''
@@ -209,6 +211,8 @@ const saveConfiguration = async () => {
     const configData: PaymentConfigCreateInput = {
       classId: String(currentConfig.value.classId),
       annualAmount: Number(currentConfig.value.annualAmount),
+      inscriptionFee: Number(currentConfig.value.inscriptionFee || 0),
+      reInscriptionFee: Number(currentConfig.value.reInscriptionFee || 0),
       allowScholarship: Boolean(currentConfig.value.allowScholarship),
       scholarshipPercentages: Array.isArray(currentConfig.value.scholarshipPercentages) 
         ? currentConfig.value.scholarshipPercentages.map(Number) 

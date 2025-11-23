@@ -13,7 +13,6 @@ import {
 import { GradeConfigEntity } from "#electron/backend/entities/gradeConfig";
 import { FormulaEvaluator } from "#electron/backend/utils/formula-evaluator";
 import { StudentEntity } from "#electron/backend/entities/students";
-import { PdfService } from "./pdfService";
 import * as handlebars from 'handlebars';
 import * as fs from 'fs/promises';
 import * as path from 'path';

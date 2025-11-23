@@ -374,15 +374,11 @@ import PaymentHistoryMini from '@/components/payment/PaymentHistoryMini.vue';
 import PaymentDaily from '@/components/payment/PaymentDaily.vue';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-// @ts-ignore
 import autoTable from 'jspdf-autotable';
 import { PaymentConfig } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
-
-// @ts-ignore
-import { PaymentAnnualConfigEntity } from '#electron/backend/entities/paymentConfig';
-// @ts-ignore
-import { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
+import { PaymentAnnualConfig } from "@/types/payment";
+import { YearRepartition } from "@/types/year";
 
 interface Student {
   id: number;
@@ -439,8 +435,8 @@ const dailyReportVisible = ref(false);
 const selectedStudent = ref<Student | null>(null);
 const classConfigs = ref(new Map<number, PaymentConfig>());
 const paymentAmounts = ref(new Map<number, PaymentAmounts>());
-const trancheConfigs = ref(new Map<number, PaymentAnnualConfigEntity>());
-const yearRepartition = ref<YearRepartitionEntity | null>(null);
+const trancheConfigs = ref(new Map<number, PaymentAnnualConfig>());
+const yearRepartition = ref<YearRepartition | null>(null);
 const filters = ref<Filters>({
   studentFullName: "",
   grade: undefined,
@@ -470,8 +466,8 @@ const loadTrancheConfigs = async () => {
   try {
     const result = await window.ipcRenderer.invoke('tranche-config:all');
     if (result.success && Array.isArray(result.data)) {
-      const newTrancheConfigs = new Map<number, PaymentAnnualConfigEntity>();
-      result.data.forEach((config: PaymentAnnualConfigEntity) => {
+      const newTrancheConfigs = new Map<number, PaymentAnnualConfig>();
+      result.data.forEach((config: PaymentAnnualConfig) => {
         newTrancheConfigs.set(Number(config.grade?.id), config);
       });
       trancheConfigs.value = newTrancheConfigs;

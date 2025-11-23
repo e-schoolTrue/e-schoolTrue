@@ -441,7 +441,7 @@ export class PaymentService {
     
             const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
             if (!student) {
-                return { success: false, data: null, message: "Étudiant non trouvé" };
+                return { success: false, data: null, error: "", message: "Étudiant non trouvé" };
             }
 
             const config = student.grade ? await this.configRepository.findOne({ where: { classId: student.grade.id.toString() } }) : null;
@@ -483,8 +483,7 @@ export class PaymentService {
                 totalDue,
                 payments
             };
-
-            return { success: true, data: responseData, message: "Paiements de l'étudiant récupérés avec succès" };
+            return { success: true, data: responseData, error: "", message: "Paiements de l'étudiant récupérés avec succès" };
         } catch (error) {
             console.error(`Erreur lors de la récupération des paiements pour l\'étudiant ${studentId}:`, error);
             return {
@@ -776,7 +775,6 @@ export class PaymentService {
                 paymentDate: payment.created_at,
                 paymentMethod: payment.paymentMethod,
                 feeType: payment.paymentType, // 'inscription' ou 'tuition'
-                reference: payment.reference || '',
                 comment: payment.comment || '',
                 scholarshipPercentage: payment.scholarshipPercentage || 0,
                 scholarshipAmount: payment.scholarshipAmount || 0,

@@ -35,6 +35,7 @@ interface StudentTableItem {
     name: string;
     code: string;
   } | undefined;
+  isNew:true | false;
 }
 
 // Interface pour les composants d'impression
@@ -95,6 +96,7 @@ const loadStudents = async () => {
             name: doc.name,
             type: doc.type
           }))
+          ,isNew:student.isNew
         };
 
         console.log('Mapped student:', mappedStudent);

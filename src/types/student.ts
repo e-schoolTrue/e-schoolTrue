@@ -30,6 +30,7 @@ export interface IStudentData {
         name: string;
         code: string;
     };
+    isNew: boolean;
 }
 
 // Types pour les fichiers de l'étudiant
@@ -60,6 +61,7 @@ export interface IStudentDetails {
     photo: IFile | null;
     documents: IFile[];
     grade: IGrade | null;
+    isNew: boolean;
 }
 
 // Types pour les paramètres des méthodes du service
