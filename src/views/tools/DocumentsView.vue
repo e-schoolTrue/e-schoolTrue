@@ -46,7 +46,7 @@ import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import InscriptionPreview from '@/components/document/inscription.vue';
 import ScolaritePreview from '@/components/document/scolarite.vue';
-import type { DocumentContentEntity } from '@/../electron/backend/entities/documentContent';
+import {IDocument} from '@/types/document';
 import type { ISchoolData } from '@/types/school';
 
 const activeTab = ref('inscription');
@@ -126,7 +126,7 @@ const save = async () => {
     inscriptionContent.value = extractHtml(inscriptionRef.value);
     scolariteContent.value = extractHtml(scolariteRef.value);
 
-    const payload: Partial<DocumentContentEntity> = {
+    const payload: Partial<IDocument> = {
       id: documentId.value,
       inscription: inscriptionContent.value,
       scolarite: scolariteContent.value,

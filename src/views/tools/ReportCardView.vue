@@ -222,10 +222,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
-import { GradeEntity } from '#electron/backend/entities/grade';
-import { StudentEntity } from '#electron/backend/entities/students';
-import { CourseEntity } from '#electron/backend/entities/course';
+import type { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
+import type { GradeEntity } from '#electron/backend/entities/grade';
+import type { StudentEntity } from '#electron/backend/entities/students';
+import type { CourseEntity } from '#electron/backend/entities/course';
 import EditableCell from '@/components/grade/EditableCell.vue';
 import { Loading, Search, Printer, Lightning } from '@element-plus/icons-vue';
 
@@ -247,7 +247,7 @@ onMounted(async () => {
   try {
     const periodsResponse = await window.ipcRenderer.invoke('yearRepartition:getAll');
     if (periodsResponse.success) {
-      periods.value = periodsResponse.data.flatMap((year: YearRepartitionEntity) => year.periodConfigurations.map(p => ({...p, id: `${year.id}-${p.name}`})));
+      periods.value = periodsResponse.data.flatMap((year: YearRepartitionEntity) => year.periodConfigurations.map((p: any) => ({...p, id: `${year.id}-${p.name}`})));
     }
 
     const gradesResponse = await window.ipcRenderer.invoke('grade:all');
@@ -292,7 +292,7 @@ const initializeStudentGrades = () => {
   if (!selectedStudent.value) return;
   
   selectedStudentGrades.value = {};
-  courses.value.forEach(course => {
+  courses.value.forEach((course: CourseEntity) => {
     selectedStudentGrades.value[course.id!] = {
       seq1: null,
       seq2: null,
@@ -400,7 +400,7 @@ const calculateCourseAverage = (courseId: number) => {
 };
 
 const calculateFinalAverage = (courseId: number) => {
-  const course = courses.value.find(c => c.id === courseId);
+  const course = courses.value.find((c: CourseEntity) => c.id === courseId);
   if (!course || !course.coefficient) return '0,00';
   
   const average = parseFloat(calculateCourseAverage(courseId).replace(',', '.'));
@@ -409,7 +409,7 @@ const calculateFinalAverage = (courseId: number) => {
 };
 
 const totalAverage = computed(() => {
-  const total = courses.value.reduce((sum, course) => {
+  const total = courses.value.reduce((sum: number, course: CourseEntity) => {
     const average = parseFloat(calculateCourseAverage(course.id!).replace(',', '.'));
     return sum + average;
   }, 0);
@@ -417,11 +417,11 @@ const totalAverage = computed(() => {
 });
 
 const totalCoefficient = computed(() => {
-  return courses.value.reduce((sum, course) => sum + (course.coefficient || 0), 0).toFixed(2).replace('.', ',');
+  return courses.value.reduce((sum: number, course: CourseEntity) => sum + (course.coefficient || 0), 0).toFixed(2).replace('.', ',');
 });
 
 const totalFinalAverage = computed(() => {
-  const total = courses.value.reduce((sum, course) => {
+  const total = courses.value.reduce((sum: number, course: CourseEntity) => {
     const final = parseFloat(calculateFinalAverage(course.id!).replace(',', '.'));
     return sum + final;
   }, 0);

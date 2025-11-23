@@ -46,7 +46,8 @@ const props = withDefaults(defineProps<Props>(), {
   classes: () => [],
   formData: () => ({
     gradeId: null,
-    schoolYear: ''
+    schoolYear: '',
+    isNew: false
   })
 });
 

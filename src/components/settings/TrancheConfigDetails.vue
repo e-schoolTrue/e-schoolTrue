@@ -2,14 +2,14 @@
   import { ref, computed, onMounted } from 'vue'
   import { type ComponentSize } from 'element-plus'
   import { ElMessage } from 'element-plus'
-  // @ts-ignore
-import { PaymentAnnualConfigEntity } from '#electron/backend/entities/paymentConfig';
-  // @ts-ignore
-import { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
+ 
+import { PaymentAnnualConfig } from '@/types/payment';
+
+import { YearRepartition } from '@/types/year';
   
   const size = ref<ComponentSize>('default')
-  const props = defineProps<{ dialog: boolean, config:PaymentAnnualConfigEntity }>()
-  const yearRepartition = ref<YearRepartitionEntity | null>(null)
+  const props = defineProps<{ dialog: boolean, config:PaymentAnnualConfig }>()
+  const yearRepartition = ref<YearRepartition | null>(null)
 
   // Interface pour les échéances de paiement
   interface PaymentDue {

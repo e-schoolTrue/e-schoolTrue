@@ -1,3 +1,5 @@
+import { Grade } from '@/types/grade';
+
 export interface IPaymentData {
     id?: number;
     amount: number;
@@ -164,6 +166,9 @@ export interface PaymentAmounts {
 
 export interface TranchConfig {
   id: string;
+  tranchName: string;
+  tranchMonthCount: number;
+  amount: number;
 }
 
 export interface PaymentScheduleConfig {
@@ -240,6 +245,14 @@ export interface ITrancheEntry {
   id?: number;
   startDate?: Date;
   endDate?: Date;
+}
+
+export interface PaymentAnnualConfig{
+  id?: number;
+  trancheCount?: number;
+  grade?:Grade
+  gradeId?:number
+  tranches?:TranchConfig[]
 }
 
 

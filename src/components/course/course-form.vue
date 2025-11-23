@@ -3,7 +3,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ICourseBase, ICourseFormData, ICourseGroupFormData } from '@/types/course';
-import type { GradeEntity } from '#electron/backend/entities/grade';
+import { Grade } from '@/types/grade';
 
 const props = defineProps<{
   isGroupement?: boolean;
@@ -18,7 +18,7 @@ const emit = defineEmits<{
 
 const formRef = ref<FormInstance>();
 const dialogVisible = ref(false);
-const grades = ref<GradeEntity[]>([]);
+const grades = ref<Grade[]>([]);
 
 // Définir une interface locale pour l'état du formulaire qui étend ICourseBase
 // et inclut toujours groupementId comme optionnel pour la réactivité du formulaire.

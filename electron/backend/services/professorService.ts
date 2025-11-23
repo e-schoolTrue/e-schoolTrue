@@ -8,7 +8,6 @@ import { CourseEntity } from "../entities/course";
 import { FileService } from "#electron/backend/services/fileService";
 import { DashboardService } from "#electron/backend/services/dashboardService";
 import { SchoolService } from "#electron/backend/services/schoolService";
-import { CascadeDelete } from "../utils/cascadeDelete";
 import {
     IProfessorServiceParams,
     IProfessorServiceResponse,
