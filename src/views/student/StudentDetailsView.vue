@@ -441,6 +441,7 @@ onBeforeUnmount(() => {
 
 .navigation-bar {
   margin-bottom: 20px;
+  margin-left: 50rem;
   display: flex;
   justify-content: space-between;
   align-items: center;

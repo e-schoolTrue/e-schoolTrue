@@ -186,7 +186,7 @@ onMounted(() => {
         </div>
         <div class="header-actions">
             <!-- Exemple de bouton d'action rapide -->
-            <el-button type="primary" round icon="plus">Nouveau rapport</el-button>
+            <el-button type="primary" round icon="Plus">Nouveau rapport</el-button>
         </div>
       </div>
 
@@ -529,9 +529,7 @@ onMounted(() => {
     font-size: 14px;
     color: #2c3e50;
 }
-icon{
-  color: #ecf5ff;
-}
+
 .item-sub {
     font-size: 12px;
     color: #909399;
