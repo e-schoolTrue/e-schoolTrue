@@ -141,8 +141,23 @@ export const AppItems: MenuItem[] = [
                          id: "submenu-5-2",
                         title: "Documents Scolaires",
                         icon: "fluent-emoji:file-folder",
-                        route: "/tools/documents",
-                },            {
+                        subItems: [
+                            {
+                                id: "submenu-5-2-1",    
+                                title: "Attestations et Certificats de Scolarité",
+                                icon: "fluent-emoji:page-with-curl",
+                                route: "/tools/documents/scolarity",
+                        
+                },   
+                            {
+                                id: "submenu-5-2-2",    
+                                title: "Rapport administratif",
+                                icon: "fluent-emoji:page-with-curl",
+                                route: "/tools/documents/administrative-report",
+                            }
+                        ]
+            },
+                {
                 id: "submenu-5-3",
                 title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
