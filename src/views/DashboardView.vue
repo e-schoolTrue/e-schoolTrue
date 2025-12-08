@@ -529,9 +529,7 @@ onMounted(() => {
     font-size: 14px;
     color: #2c3e50;
 }
-icon{
-  color: #ecf5ff;
-}
+
 .item-sub {
     font-size: 12px;
     color: #909399;

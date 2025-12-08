@@ -63,7 +63,6 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps } from 'vue';
 import { SchoolInfo } from '@/types/report';
 
 interface Props {

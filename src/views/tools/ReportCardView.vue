@@ -1,668 +1,1192 @@
 <template>
-  <div class="report-card-container">
-    <!-- Titre principal -->
-    <div class="main-title">
-      <h2>Bulletins des notes</h2>
-      </div>
+  <div class="report-card-view">
+    <!-- Header compact -->
+    <div class="header-bar">
+      <div class="header-left">
+        <h2><el-icon><Document /></el-icon> Saisie des Notes</h2>
+        <div class="selectors">
+          <el-select
+            v-model="selectedClassId"
+            placeholder="Classe"
+            @change="onClassChange"
+            size="default"
+            style="width: 180px"
+          >
+            <el-option
+              v-for="classe in classes"
+              :key="classe.id"
+              :label="classe.name"
+              :value="classe.id"
+            />
+          </el-select>
 
-    <!-- Section de sélection des élèves -->
-    <div class="selection-section">
-      <el-row :gutter="20">
-        <el-col :span="12">
-          <el-radio-group v-model="studentScope" @change="onStudentScopeChange">
-            <el-radio value="all">Afficher tous les élèves de l'établissement</el-radio>
-            <el-radio value="class">Afficher les élèves d'une classe</el-radio>
-          </el-radio-group>
-        </el-col>
-      </el-row>
-
-      <el-row :gutter="20" class="selection-tables">
-        <!-- Tableau des classes -->
-        <el-col :span="12">
-          <div class="table-section">
-            <h4>Code classe</h4>
-            <el-table 
-              :data="grades" 
-              height="120" 
-              @row-click="selectGrade"
-              :row-class-name="getGradeRowClassName"
-            >
-              <el-table-column prop="code" label="Code classe" width="80" />
-              <el-table-column prop="name" label="Nom classe" />
-            </el-table>
-      </div>
-        </el-col>
-
-        <!-- Tableau des élèves -->
-        <el-col :span="12">
-          <div class="table-section">
-            <h4>Élèves</h4>
-            <el-table 
-              :data="filteredStudents" 
-              height="120" 
-              @row-click="selectStudent"
-              :row-class-name="getStudentRowClassName"
-            >
-              <el-table-column prop="id" label="Matricule" width="100" />
-              <el-table-column prop="lastname" label="Nom" />
-              <el-table-column prop="firstname" label="Prénom" />
-              <el-table-column prop="grade.name" label="Classe" />
-            </el-table>
-            <div class="legend-link">
-              <el-link type="primary">Légende des couleurs</el-link>
-      </div>
-      </div>
-        </el-col>
-      </el-row>
-      </div>
-
-  
-
- 
-
-    <div v-if="loading" class="loading-container">
-      <el-icon class="is-loading" size="24">
-        <Loading />
-      </el-icon>
-      <p>Chargement en cours...</p>
+          <el-select
+            v-model="selectedPeriod"
+            placeholder="Période"
+            @change="onPeriodChange"
+            size="default"
+            style="width: 160px"
+            :disabled="!selectedClassId"
+          >
+            <el-option
+              v-for="period in periods"
+              :key="period"
+              :label="period"
+              :value="period"
+            />
+          </el-select>
         </div>
-    <!-- Tableau principal des notes -->
-    <div v-if="selectedStudent" class="main-grade-table">
-      <!-- Debug info -->
-      <div v-if="courses.length === 0" class="debug-info" style="padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; margin-bottom: 10px; border-radius: 4px;">
-        <p><strong>Debug:</strong> Aucun cours trouvé. Nombre de cours: {{ courses.length }}</p>
-        <p><strong>Élève sélectionné:</strong> {{ selectedStudent?.firstname }} {{ selectedStudent?.lastname }}</p>
-        <p><strong>Classe ID:</strong> {{ selectedStudent?.gradeId }}</p>
       </div>
-      
-      <el-table :data="courses" border style="width: 100%" max-height="400">
-        <el-table-column label="Matière" width="150">
-          <template #default="{ row }">
-            <div class="subject-cell">
-              <span class="subject-icon">#</span>
-              <span class="subject-name">{{ row.name }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="SEQ 1" width="80">
-          <template #default="{ row }">
-            <EditableCell 
-              v-model="selectedStudentGrades[row.id!].seq1"
-              :is-modified="selectedStudentGrades[row.id!].isModified"
-              type="number"
-              @update:modelValue="markAsModified(selectedStudentGrades[row.id!])"
-            />
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="SEQ 2" width="80">
-          <template #default="{ row }">
-            <EditableCell 
-              v-model="selectedStudentGrades[row.id!].seq2"
-              :is-modified="selectedStudentGrades[row.id!].isModified"
-              type="number"
-              @update:modelValue="markAsModified(selectedStudentGrades[row.id!])"
-            />
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Moy." width="80">
-          <template #default="{ row }">
-            <span class="calculated-average">{{ calculateCourseAverage(row.id!) }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Coef." width="60">
-          <template #default="{ row }">
-            <span class="coefficient-value">{{ row.coefficient }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Moy. Finale" width="80">
-          <template #default="{ row }">
-            <span class="final-average">{{ calculateFinalAverage(row.id!) }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column label="Observations" width="150">
-          <template #default="{ row }">
-            <EditableCell 
-              v-model="selectedStudentGrades[row.id!].observation"
-              :is-modified="selectedStudentGrades[row.id!].isModified"
-              type="text"
-              @update:modelValue="markAsModified(selectedStudentGrades[row.id!])"
-            />
-          </template>
-        </el-table-column>
-      </el-table>
-      
-      <!-- Ligne de somme -->
-      <el-table :data="[{ isSum: true }]" border style="width: 100%; margin-top: 0;">
-        <el-table-column label="Somme" width="150">
-          <template #default>
-            <strong>Somme</strong>
-          </template>
-        </el-table-column>
-        <el-table-column width="120">
-          <template #default>
-            <span class="sum-value">{{ totalAverage }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column width="80">
-          <template #default>
-            <span class="sum-value">{{ totalAverage }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column width="80">
-          <template #default>
-            <span class="sum-value">{{ totalAverage }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column width="60">
-          <template #default>
-            <span class="sum-value">{{ totalCoefficient }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column width="80">
-          <template #default>
-            <span class="sum-value">{{ totalFinalAverage }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column width="150">
-          <template #default>
-            <!-- Cellule vide -->
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
+      <el-button 
+        type="primary"
+        @click="saveAll"
+        :loading="saving"
+        :disabled="!hasChanges"
+      >
+        <el-icon><Check /></el-icon>
+        Enregistrer
+      </el-button>
+      </div>
 
-    <!-- Section mention/sanction -->
-    <div v-if="selectedStudent" class="mention-section">
-      <el-row :gutter="20" align="middle">
-        <el-col :span="4">
-          <el-form-item label="Mention/Sanction">
-            <el-input v-model="mention" placeholder="Saisir mention ou sanction">
-              <template #suffix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-form-item>
+    <!-- Contenu principal -->
+    <div v-if="selectedClassId && selectedPeriod" class="main-content">
+      <el-row :gutter="16" class="content-row">
+        <!-- Liste des élèves (sidebar) -->
+        <el-col :span="5">
+          <el-card class="students-card compact-card">
+            <template #header>
+              <div class="card-header">
+                <span>Élèves ({{ students.length }})</span>
+                <el-input
+                  v-model="studentSearch"
+                  placeholder="Rechercher..."
+                  size="small"
+                  clearable
+                >
+                  <template #prefix><el-icon><Search /></el-icon></template>
+                </el-input>
+      </div>
+            </template>
+            <div class="students-list">
+              <div
+                v-for="student in filteredStudents"
+                :key="student.id"
+                class="student-item"
+                :class="{ 'active': selectedStudentId === student.id }"
+                @click="selectStudent(student)"
+              >
+                <div class="student-info">
+                  <span class="student-name">{{ student.lastname }} {{ student.firstname }}</span>
+                  <span class="student-mat">{{ student.id }}</span>
+                </div>
+                <el-icon v-if="studentHasGrades(student.id)" color="#67c23a"><Check /></el-icon>
+              </div>
+            </div>
+          </el-card>
         </el-col>
-        <el-col :span="4">
-          <el-button type="warning" @click="autoMentions">
-            <el-icon><Lightning /></el-icon>
-            Mentions auto
-          </el-button>
-        </el-col>
-        <el-col :span="4">
-          <el-button type="success" class="encouragement-btn">
-            Encouragement
-          </el-button>
-        </el-col>
-        <el-col :span="4">
-          <el-button type="info" @click="autoObservations">
-            <el-icon><Lightning /></el-icon>
-            Observations auto
-          </el-button>
-        </el-col>
-        <el-col :span="8">
-          <el-button type="primary" @click="printReportCards" class="print-btn">
-            <el-icon><Printer /></el-icon>
-            Imprimer [Ctrl+P]
-          </el-button>
+
+        <!-- Tableau des notes -->
+        <el-col :span="19">
+          <div v-if="!selectedStudent" class="empty-state">
+            <el-empty description="Sélectionnez un élève pour commencer" />
+          </div>
+
+          <el-card v-else class="grades-card compact-card" v-loading="loading">
+            <template #header>
+              <div class="card-header-grade">
+                <div>
+                  <strong>{{ selectedStudent.lastname }} {{ selectedStudent.firstname }}</strong>
+                  <span class="student-class">{{ selectedClassName }}</span>
+                </div>
+                <el-tag v-if="configInfo" type="info" effect="plain">
+                  Config: {{ configInfo.level }} - Base {{ configInfo.finalGradeBase }}
+                </el-tag>
+              </div>
+            </template>
+
+            <!-- Tableau scrollable -->
+            <div class="grades-table-container">
+              <table class="grades-table">
+                <thead>
+                  <tr>
+                    <th class="subject-col">Matière</th>
+                    <th 
+                      v-for="category in categories" 
+                      :key="category.id"
+                      :class="['category-col', category.isExam ? 'exam-col' : 'class-col']"
+                      :style="{ borderTopColor: category.color }"
+                    >
+                      <div class="category-header">
+                        <el-icon v-if="category.isExam" color="#e74c3c" size="16"><Star /></el-icon>
+                        <span class="category-code">{{ category.code }}</span>
+                        <span class="category-name">{{ category.name }}</span>
+                        <span class="category-info">/{{ category.defaultMaxScore }} ×{{ category.weight }}</span>
+      </div>
+                    </th>
+                    <th class="class-avg-col">Moy. Classe</th>
+                    <th class="average-col">Moyenne</th>
+                    <th class="weighted-col">Moy. × Coeff</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="course in courses" :key="course.id" class="grade-row">
+                    <td class="subject-cell">
+                      <div class="subject-info">
+                        <span class="subject-name">{{ course.name }}</span>
+                        <span class="subject-coef">Coef. {{ course.coefficient }}</span>
+      </div>
+                    </td>
+                    <td 
+                      v-for="category in categories" 
+                      :key="`${course.id}-${category.id}`"
+                      class="grade-cell"
+                    >
+                      <el-input-number
+                        v-model="gradesData[course.id!][category.id]"
+                        :min="0"
+                        :max="category.defaultMaxScore"
+                        :precision="1"
+                        :step="0.5"
+                        size="small"
+                        controls-position="right"
+                        @change="onGradeChange(course.id!, category.id)"
+                      />
+                    </td>
+                    <td class="class-avg-cell">
+                      <span class="class-avg-value">
+                        {{ calculateClassAverage(course.id!) }}
+                      </span>
+                    </td>
+                    <td class="average-cell">
+                      <el-tooltip content="Cliquez pour voir le détail du calcul">
+                        <span 
+                          class="average-value clickable" 
+                          :class="getAverageClass(course.id!)"
+                          @click="showCalculationDetail(course.id!)"
+                        >
+                          {{ calculateCourseAverage(course.id!) }}
+                        </span>
+                      </el-tooltip>
+                    </td>
+                    <td class="weighted-cell">
+                      <span class="weighted-value">
+                        {{ calculateWeightedAverage(course.id!, course.coefficient) }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="summary-row">
+                    <td colspan="100%">
+                      <div class="summary-content">
+                        <span class="summary-label">Moyenne Générale:</span>
+                        <span class="summary-value">{{ generalAverage }}</span>
+                        <span class="summary-base">/ {{ configInfo?.finalGradeBase || 20 }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </el-card>
         </el-col>
       </el-row>
+      </div>
+
+    <!-- Empty state initial -->
+    <div v-else class="initial-state">
+      <el-empty description="Sélectionnez une classe et une période pour commencer">
+        <el-icon size="80" color="#909399"><Reading /></el-icon>
+      </el-empty>
     </div>
-    <div v-else class="empty-state">
-      <el-empty description="Veuillez sélectionner une période et une classe, puis cliquez sur 'Charger'." />
-    </div>
+
+    <!-- Dialog de détail du calcul -->
+    <GradeCalculationDetail ref="calculationDetailRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import type { YearRepartitionEntity } from '#electron/backend/entities/yearRepartition';
-import type { GradeEntity } from '#electron/backend/entities/grade';
-import type { StudentEntity } from '#electron/backend/entities/students';
-import type { CourseEntity } from '#electron/backend/entities/course';
-import EditableCell from '@/components/grade/EditableCell.vue';
-import { Loading, Search, Printer, Lightning } from '@element-plus/icons-vue';
+import { ref, computed, onMounted, reactive } from 'vue';
+import { Document, Check, Search, Reading, Star } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import GradeCalculationDetail from '@/components/grade/GradeCalculationDetail.vue';
 
-const periods = ref<any[]>([]);
-const grades = ref<GradeEntity[]>([]);
-const selectedPeriod = ref<string | null>(null);
-const selectedGrade = ref<number | null>(null);
-const courses = ref<CourseEntity[]>([]);
+interface Student {
+  id: number;
+  firstname: string;
+  lastname: string;
+  gradeId: number;
+}
+
+interface Course {
+  id: number;
+  name: string;
+  coefficient: number;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  code: string;
+  weight: number;
+  defaultMaxScore: number;
+  color: string;
+  isExam: boolean;
+}
+
+interface GradesDataStructure {
+  [courseId: number]: {
+    [categoryId: number]: number | null;
+  };
+}
+
+// État
 const loading = ref(false);
-const isModified = ref(false);
+const saving = ref(false);
+const hasChanges = ref(false);
+
+const classes = ref<any[]>([]);
+const students = ref<Student[]>([]);
+const courses = ref<Course[]>([]);
+const categories = ref<Category[]>([]);
+
+const selectedClassId = ref<number | null>(null);
+const selectedPeriod = ref<string | null>(null);
 const selectedStudentId = ref<number | null>(null);
-const filteredStudents = ref<StudentEntity[]>([]);
-const studentScope = ref('all');
-const selectedStudent = ref<StudentEntity | null>(null);
-const selectedStudentGrades = ref<{ [courseId: number]: { seq1: number | null, seq2: number | null, observation: string, isModified: boolean } }>({});
-const mention = ref('');
+const selectedStudent = ref<Student | null>(null);
+const studentSearch = ref('');
 
-onMounted(async () => {
-  try {
-    const periodsResponse = await window.ipcRenderer.invoke('yearRepartition:getAll');
-    if (periodsResponse.success) {
-      periods.value = periodsResponse.data.flatMap((year: YearRepartitionEntity) => year.periodConfigurations.map((p: any) => ({...p, id: `${year.id}-${p.name}`})));
-    }
+const periods = ref<string[]>([]);
+const schoolId = ref(1);
 
-    const gradesResponse = await window.ipcRenderer.invoke('grade:all');
-    if (gradesResponse.success) {
-      grades.value = gradesResponse.data;
-    }
-  } catch (error) {
-    console.error('Error fetching initial data:', error);
-  }
+const configInfo = ref<any>(null);
+const gradesData = reactive<GradesDataStructure>({});
+const calculatedAverages = ref<Map<number, number>>(new Map());
+const calculationDetailRef = ref<InstanceType<typeof GradeCalculationDetail> | null>(null);
+
+// Computed
+const selectedClassName = computed(() => {
+  return classes.value.find(c => c.id === selectedClassId.value)?.name || '';
 });
 
+const filteredStudents = computed(() => {
+  if (!studentSearch.value) return students.value;
+  const search = studentSearch.value.toLowerCase();
+  return students.value.filter(s => 
+    s.firstname.toLowerCase().includes(search) || 
+    s.lastname.toLowerCase().includes(search) ||
+    s.id.toString().includes(search)
+  );
+});
 
-const markAsModified = (item: { isModified: boolean; }) => {
-  item.isModified = true;
-  isModified.value = true;
-};
+const generalAverage = computed(() => {
+  if (!selectedStudent.value || courses.value.length === 0) return '0.00';
+  
+  let totalWeighted = 0;
+  let totalCoef = 0;
 
-const selectStudent = async (student: StudentEntity) => {
-  selectedStudentId.value = student.id!;
-  selectedStudent.value = student;
-  await loadCoursesForStudent();
-  initializeStudentGrades();
-};
+  for (const course of courses.value) {
+    const avg = parseFloat(calculateCourseAverage(course.id!));
+    if (!isNaN(avg) && avg > 0) {
+      totalWeighted += avg * (course.coefficient || 1);
+      totalCoef += course.coefficient || 1;
+    }
+  }
 
-const selectGrade = async (grade: GradeEntity) => {
-  selectedGrade.value = grade.id!;
-  await loadStudentsForGrade();
-  // Charger les cours pour cette classe
-  await loadCoursesForGrade(grade.id!);
-};
+  const general = totalCoef > 0 ? totalWeighted / totalCoef : 0;
+  return general.toFixed(2);
+});
 
-const onStudentScopeChange = () => {
-  if (studentScope.value === 'all') {
-    loadAllStudents();
-  } else {
-    selectedGrade.value = null;
-    filteredStudents.value = [];
+// Lifecycle
+onMounted(async () => {
+  await loadSchoolInfo();
+  await loadClasses();
+  await loadPeriods();
+});
+
+// Méthodes
+const loadSchoolInfo = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('school:get');
+    if (result?.success && result.data?.id) {
+      schoolId.value = result.data.id;
+    }
+  } catch (error) {
+    console.error('Erreur chargement école:', error);
   }
 };
 
-const initializeStudentGrades = () => {
-  if (!selectedStudent.value) return;
+const loadClasses = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('grade:all');
+    if (result.success) {
+      classes.value = result.data || [];
+    }
+  } catch (error) {
+    console.error('Erreur chargement classes:', error);
+  }
+};
+
+const loadPeriods = async () => {
+  try {
+    // Récupérer l'année scolaire en cours
+    const currentYearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+    if (currentYearRes.success && currentYearRes.data) {
+      const yearConfig = currentYearRes.data;
+      // Extraire les noms des périodes
+      periods.value = yearConfig.periodConfigurations.map((p: any) => p.name);
+    } else {
+      // Fallback sur des périodes par défaut
+      periods.value = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];
+      ElMessage.warning('Aucune année scolaire en cours. Périodes par défaut utilisées.');
+    }
+  } catch (error) {
+    console.error('Erreur chargement périodes:', error);
+    periods.value = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];
+  }
+};
+
+const onClassChange = async () => {
+  selectedStudentId.value = null;
+  selectedStudent.value = null;
+  students.value = [];
+  courses.value = [];
+  categories.value = [];
   
-  selectedStudentGrades.value = {};
-  courses.value.forEach((course: CourseEntity) => {
-    selectedStudentGrades.value[course.id!] = {
-      seq1: null,
-      seq2: null,
-      observation: '',
-      isModified: false
+  if (!selectedClassId.value) return;
+
+  loading.value = true;
+  try {
+    // Charger les élèves
+    const studentsRes = await window.ipcRenderer.invoke('student:getByGrade', selectedClassId.value);
+    if (studentsRes.success) {
+      students.value = studentsRes.data || [];
+    }
+
+    // Charger les matières
+    const coursesRes = await window.ipcRenderer.invoke('course:getByGrade', selectedClassId.value);
+    if (coursesRes.success) {
+      courses.value = coursesRes.data || [];
+    }
+
+    // Charger la configuration
+    await loadConfig();
+  } catch (error) {
+    console.error('Erreur chargement données:', error);
+    ElMessage.error('Erreur lors du chargement des données');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const onPeriodChange = () => {
+  if (selectedStudent.value) {
+    loadStudentGrades();
+  }
+};
+
+const loadConfig = async () => {
+  if (!selectedClassId.value) return;
+
+  try {
+    const configRes = await window.ipcRenderer.invoke('grade-config:get', {
+      schoolId: schoolId.value,
+      classId: selectedClassId.value
+    });
+
+    if (configRes.success && configRes.data) {
+      const config = configRes.data;
+      categories.value = config.categories.map((cat: any) => ({
+        id: cat.id,
+        name: cat.name,
+        code: cat.code,
+        weight: cat.weight,
+        defaultMaxScore: cat.defaultMaxScore,
+        color: cat.color,
+        isExam: cat.isExam || false
+      }));
+
+      configInfo.value = {
+        level: config.contextLevel,
+        finalGradeBase: config.finalGradeBase,
+        strategy: config.calculationStrategy,
+        normalize: config.normalizeScores
+      };
+    } else {
+      ElMessage.warning('Aucune configuration de notation trouvée pour cette classe');
+      categories.value = [];
+    }
+  } catch (error) {
+    console.error('Erreur chargement config:', error);
+  }
+};
+
+const selectStudent = async (student: Student) => {
+  selectedStudentId.value = student.id;
+  selectedStudent.value = student;
+  await loadStudentGrades();
+};
+
+const loadStudentGrades = async () => {
+  if (!selectedStudent.value || !selectedPeriod.value || courses.value.length === 0) return;
+
+  loading.value = true;
+  try {
+    // Initialiser la structure de données
+    for (const course of courses.value) {
+      if (!gradesData[course.id!]) {
+        gradesData[course.id!] = {};
+      }
+      for (const category of categories.value) {
+        gradesData[course.id!][category.id] = null;
+      }
+    }
+
+    // Charger les notes existantes pour chaque matière
+    for (const course of courses.value) {
+      const gradesRes = await window.ipcRenderer.invoke('gradeEntry:get', {
+        studentId: selectedStudent.value.id,
+        courseId: course.id,
+        period: selectedPeriod.value
+      });
+
+      if (gradesRes.success && gradesRes.data) {
+        for (const entry of gradesRes.data) {
+          gradesData[course.id!][entry.categoryId] = entry.score;
+        }
+      }
+
+      // Charger la moyenne calculée
+      const avgRes = await window.ipcRenderer.invoke('gradeEntry:getCalculated', {
+        studentId: selectedStudent.value.id,
+        courseId: course.id,
+        classId: selectedClassId.value,
+        schoolId: schoolId.value,
+        period: selectedPeriod.value
+      });
+
+      if (avgRes.success && avgRes.data) {
+        calculatedAverages.value.set(course.id!, avgRes.data.finalAverage);
+      }
+    }
+
+    hasChanges.value = false;
+  } catch (error) {
+    console.error('Erreur chargement notes:', error);
+    ElMessage.error('Erreur lors du chargement des notes');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const onGradeChange = (courseId: number, _categoryId: number) => {
+  hasChanges.value = true;
+  // Recalculer la moyenne localement
+  calculatedAverages.value.delete(courseId);
+};
+
+const calculateClassAverage = (courseId: number): string => {
+  const courseGrades = gradesData[courseId];
+  if (!courseGrades || !configInfo.value) return '-';
+
+  const classCategories = categories.value.filter(c => !c.isExam);
+  if (classCategories.length === 0) return '-';
+
+  const classScores: number[] = [];
+
+  for (const category of classCategories) {
+    const grade = courseGrades[category.id];
+    if (grade !== null && grade !== undefined && grade > 0) {
+      let normalizedGrade = grade;
+      if (configInfo.value.normalize) {
+        normalizedGrade = (grade / category.defaultMaxScore) * configInfo.value.finalGradeBase;
+      }
+      classScores.push(normalizedGrade);
+    }
+  }
+
+  if (classScores.length === 0) return '-';
+  
+  const classAverage = classScores.reduce((a, b) => a + b, 0) / classScores.length;
+  return classAverage.toFixed(2);
+};
+
+const calculateCourseAverage = (courseId: number): string => {
+  // Si on a une moyenne en cache, l'utiliser
+  if (calculatedAverages.value.has(courseId)) {
+    return calculatedAverages.value.get(courseId)!.toFixed(2);
+  }
+
+  // Sinon calculer localement (temporaire)
+  const courseGrades = gradesData[courseId];
+  if (!courseGrades || !configInfo.value) return '0.00';
+
+  // Vérifier la stratégie de calcul
+  if (configInfo.value.strategy === 'SIMPLE') {
+    // Moyenne simple : toutes les notes comptent pareil
+    let sum = 0;
+    let count = 0;
+    
+    for (const category of categories.value) {
+      const grade = courseGrades[category.id];
+      if (grade !== null && grade !== undefined) {
+        let normalizedGrade = grade;
+        if (configInfo.value.normalize) {
+          normalizedGrade = (grade / category.defaultMaxScore) * configInfo.value.finalGradeBase;
+        }
+        sum += normalizedGrade;
+        count++;
+      }
+    }
+    
+    const avg = count > 0 ? sum / count : 0;
+    return avg.toFixed(2);
+    } else {
+    // Moyenne pondérée : séparer notes de classe et examens
+    const classCategories = categories.value.filter(c => !c.isExam);
+    const examCategories = categories.value.filter(c => c.isExam);
+
+    let totalWeighted = 0;
+    let totalWeight = 0;
+
+    // 1. Traiter les notes de classe (groupées)
+    // Les notes de classe sont moyennées et comptent pour 1 coefficient total
+    if (classCategories.length > 0) {
+      const classScores: number[] = [];
+
+      for (const category of classCategories) {
+        const grade = courseGrades[category.id];
+        if (grade !== null && grade !== undefined && grade > 0) {
+          let normalizedGrade = grade;
+          if (configInfo.value.normalize) {
+            normalizedGrade = (grade / category.defaultMaxScore) * configInfo.value.finalGradeBase;
+          }
+          classScores.push(normalizedGrade);
+        }
+      }
+
+      if (classScores.length > 0) {
+        const classAverage = classScores.reduce((a, b) => a + b, 0) / classScores.length;
+        // CORRECTION: Les notes de classe comptent pour 1 coefficient, pas la somme
+        const classCoefficient = 1;
+        totalWeighted += classAverage * classCoefficient;
+        totalWeight += classCoefficient;
+      }
+    }
+
+    // 2. Traiter les examens (individuellement)
+    for (const category of examCategories) {
+      const grade = courseGrades[category.id];
+      if (grade !== null && grade !== undefined && grade > 0) {
+        let normalizedGrade = grade;
+        if (configInfo.value.normalize) {
+          normalizedGrade = (grade / category.defaultMaxScore) * configInfo.value.finalGradeBase;
+        }
+        totalWeighted += normalizedGrade * category.weight;
+        totalWeight += category.weight;
+      }
+    }
+
+    const avg = totalWeight > 0 ? totalWeighted / totalWeight : 0;
+    return avg.toFixed(2);
+  }
+};
+
+const calculateWeightedAverage = (courseId: number, courseCoef: number): string => {
+  const avg = parseFloat(calculateCourseAverage(courseId));
+  if (isNaN(avg) || avg === 0) return '-';
+  const weighted = avg * courseCoef;
+  return weighted.toFixed(2);
+};
+
+const getAverageClass = (courseId: number): string => {
+  const avg = parseFloat(calculateCourseAverage(courseId));
+  const base = configInfo.value?.finalGradeBase || 20;
+  const ratio = avg / base;
+
+  if (ratio >= 0.8) return 'excellent';
+  if (ratio >= 0.6) return 'good';
+  if (ratio >= 0.5) return 'average';
+  return 'poor';
+};
+
+const studentHasGrades = (_studentId: number): boolean => {
+  // TODO: Implémenter la vérification
+  return false;
+};
+
+const showCalculationDetail = (courseId: number) => {
+  if (!configInfo.value || !calculationDetailRef.value) return;
+
+  const courseGrades = gradesData[courseId];
+  if (!courseGrades) return;
+
+  const classCategories = categories.value.filter(c => !c.isExam);
+  const examCategories = categories.value.filter(c => c.isExam);
+
+  // Préparer les détails du calcul
+  const categoryDetails = categories.value.map(category => {
+    const grade = courseGrades[category.id];
+    const grades: any[] = [];
+    
+    if (grade !== null && grade !== undefined) {
+      let normalized = grade;
+      if (configInfo.value.normalize) {
+        normalized = (grade / category.defaultMaxScore) * configInfo.value.finalGradeBase;
+      }
+      grades.push({ score: grade, maxScore: category.defaultMaxScore, normalized });
+    }
+
+    const average = grades.length > 0 ? grades[0].normalized : 0;
+
+    return {
+      name: category.name,
+      code: category.code,
+      weight: category.weight,
+      isExam: category.isExam,
+      grades,
+      average
     };
+  });
+
+  let totalWeighted = 0;
+  let totalWeight = 0;
+  let totalSum = 0;
+  let totalCount = 0;
+
+  if (configInfo.value.strategy === 'WEIGHTED') {
+    // Notes de classe groupées
+    const classScores: number[] = [];
+    
+    for (const cat of classCategories) {
+      const grade = courseGrades[cat.id];
+      if (grade !== null && grade !== undefined && grade > 0) {
+        let normalized = grade;
+        if (configInfo.value.normalize) {
+          normalized = (grade / cat.defaultMaxScore) * configInfo.value.finalGradeBase;
+        }
+        classScores.push(normalized);
+      }
+    }
+
+    if (classScores.length > 0) {
+      const classAvg = classScores.reduce((a, b) => a + b, 0) / classScores.length;
+      totalWeighted += classAvg * 1; // Coef 1 pour toutes les notes de classe
+      totalWeight += 1;
+    }
+
+    // Examens individuels
+    for (const cat of examCategories) {
+      const grade = courseGrades[cat.id];
+      if (grade !== null && grade !== undefined && grade > 0) {
+        let norm = grade;
+        if (configInfo.value.normalize) {
+          norm = (grade / cat.defaultMaxScore) * configInfo.value.finalGradeBase;
+        }
+        totalWeighted += norm * cat.weight;
+        totalWeight += cat.weight;
+      }
+    }
+  } else {
+    for (const cat of categoryDetails) {
+      if (cat.grades.length > 0) {
+        totalSum += cat.average;
+        totalCount++;
+      }
+    }
+  }
+
+  const finalAverage = configInfo.value.strategy === 'WEIGHTED'
+    ? (totalWeight > 0 ? totalWeighted / totalWeight : 0)
+    : (totalCount > 0 ? totalSum / totalCount : 0);
+
+  calculationDetailRef.value.show({
+    strategy: configInfo.value.strategy,
+    base: configInfo.value.finalGradeBase,
+    normalized: configInfo.value.normalize,
+    categories: categoryDetails,
+    totalWeighted,
+    totalWeight,
+    totalSum,
+    totalCount,
+    finalAverage
   });
 };
 
-const loadStudentsForGrade = async () => {
-  if (!selectedGrade.value) return;
-  
-  try {
-    const studentsResponse = await window.ipcRenderer.invoke('student:getByGrade', selectedGrade.value);
-    if (studentsResponse.success) {
-      filteredStudents.value = studentsResponse.data;
-    }
-  } catch (error) {
-    console.error('Error loading students:', error);
-  }
-};
+const saveAll = async () => {
+  if (!selectedStudent.value || !selectedPeriod.value) return;
 
-const loadAllStudents = async () => {
+  saving.value = true;
   try {
-    const studentsResponse = await window.ipcRenderer.invoke('student:all');
-    if (studentsResponse.success) {
-      filteredStudents.value = studentsResponse.data;
-    }
-  } catch (error) {
-    console.error('Error loading all students:', error);
-  }
-};
+    console.log('=== DÉBUT SAUVEGARDE ===');
+    console.log('Élève:', selectedStudent.value.id, selectedStudent.value.lastname);
+    console.log('Période:', selectedPeriod.value);
+    console.log('Catégories:', categories.value.map(c => ({ id: c.id, name: c.name, isExam: c.isExam })));
+    
+    // Sauvegarder les notes pour chaque matière
+    for (const course of courses.value) {
+      const courseGrades = gradesData[course.id!];
+      const gradesToSave: any[] = [];
 
-const loadCoursesForStudent = async () => {
-  if (!selectedStudent.value) return;
-  
-  try {
-    // Charger les cours pour la classe de l'élève sélectionné
-    const coursesResponse = await window.ipcRenderer.invoke('course:getByGrade', selectedStudent.value.gradeId);
-    if (coursesResponse.success) {
-      courses.value = coursesResponse.data;
-    } else {
-      // Fallback: charger tous les cours si pas de cours spécifiques à la classe
-      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
-      if (allCoursesResponse.success) {
-        courses.value = allCoursesResponse.data;
+      console.log(`\n--- Matière: ${course.name} (ID: ${course.id}) ---`);
+      console.log('Notes saisies:', courseGrades);
+
+      for (const category of categories.value) {
+        const score = courseGrades[category.id];
+        console.log(`Catégorie ${category.name} (ID: ${category.id}):`, score);
+        
+        if (score !== null && score !== undefined && score > 0) {
+          gradesToSave.push({
+            categoryId: category.id,
+            score: score,
+            maxScore: category.defaultMaxScore
+          });
+        }
+      }
+
+      console.log('Notes à sauvegarder:', gradesToSave);
+
+      if (gradesToSave.length > 0) {
+        const savePayload = {
+          studentId: selectedStudent.value.id,
+          courseId: course.id,
+          period: selectedPeriod.value,
+          grades: gradesToSave
+        };
+        
+        console.log('Payload de sauvegarde:', JSON.stringify(savePayload, null, 2));
+        
+        const saveRes = await window.ipcRenderer.invoke('gradeEntry:bulkSave', savePayload);
+        console.log('Résultat sauvegarde:', saveRes);
+
+        // Recalculer et mettre en cache
+        const calcPayload = {
+          studentId: selectedStudent.value.id,
+          courseId: course.id,
+          classId: selectedClassId.value,
+          schoolId: schoolId.value,
+          period: selectedPeriod.value
+        };
+        
+        console.log('Calcul de la moyenne...');
+        const calcRes = await window.ipcRenderer.invoke('gradeEntry:calculate', calcPayload);
+        console.log('Résultat calcul:', calcRes);
+
+        if (calcRes.success && calcRes.data) {
+          calculatedAverages.value.set(course.id!, calcRes.data.finalAverage);
+          console.log(`Moyenne mise en cache: ${calcRes.data.finalAverage}`);
+        }
+      } else {
+        console.log('Aucune note à sauvegarder pour cette matière');
       }
     }
+
+    console.log('=== FIN SAUVEGARDE ===\n');
+    ElMessage.success('Notes enregistrées avec succès');
+    hasChanges.value = false;
   } catch (error) {
-    console.error('Error loading courses:', error);
-    // En cas d'erreur, essayer de charger tous les cours
-    try {
-      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
-      if (allCoursesResponse.success) {
-        courses.value = allCoursesResponse.data;
-      }
-    } catch (fallbackError) {
-      console.error('Error loading all courses:', fallbackError);
-    }
-  }
-};
-
-const loadCoursesForGrade = async (gradeId: number) => {
-  try {
-    const coursesResponse = await window.ipcRenderer.invoke('course:getByGrade', gradeId);
-    if (coursesResponse.success) {
-      courses.value = coursesResponse.data;
-    } else {
-      // Fallback: charger tous les cours si pas de cours spécifiques à la classe
-      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
-      if (allCoursesResponse.success) {
-        courses.value = allCoursesResponse.data;
-      }
-    }
-  } catch (error) {
-    console.error('Error loading courses for grade:', error);
-    // En cas d'erreur, essayer de charger tous les cours
-    try {
-      const allCoursesResponse = await window.ipcRenderer.invoke('course:all');
-      if (allCoursesResponse.success) {
-        courses.value = allCoursesResponse.data;
-      }
-    } catch (fallbackError) {
-      console.error('Error loading all courses:', fallbackError);
-    }
-  }
-};
-
-const getGradeRowClassName = ({ row }: { row: GradeEntity }) => {
-  return selectedGrade.value === row.id ? 'selected-row' : '';
-};
-
-const getStudentRowClassName = ({ row }: { row: StudentEntity }) => {
-  return selectedStudentId.value === row.id ? 'selected-row' : '';
-};
-
-const calculateCourseAverage = (courseId: number) => {
-  const grades = selectedStudentGrades.value[courseId];
-  if (!grades || (grades.seq1 === null && grades.seq2 === null)) return '0,00';
-  
-  const seq1 = grades.seq1 || 0;
-  const seq2 = grades.seq2 || 0;
-  const average = (seq1 + seq2) / 2;
-  return average.toFixed(2).replace('.', ',');
-};
-
-const calculateFinalAverage = (courseId: number) => {
-  const course = courses.value.find((c: CourseEntity) => c.id === courseId);
-  if (!course || !course.coefficient) return '0,00';
-  
-  const average = parseFloat(calculateCourseAverage(courseId).replace(',', '.'));
-  const final = average * course.coefficient;
-  return final.toFixed(2).replace('.', ',');
-};
-
-const totalAverage = computed(() => {
-  const total = courses.value.reduce((sum: number, course: CourseEntity) => {
-    const average = parseFloat(calculateCourseAverage(course.id!).replace(',', '.'));
-    return sum + average;
-  }, 0);
-  return (total / courses.value.length).toFixed(2).replace('.', ',');
-});
-
-const totalCoefficient = computed(() => {
-  return courses.value.reduce((sum: number, course: CourseEntity) => sum + (course.coefficient || 0), 0).toFixed(2).replace('.', ',');
-});
-
-const totalFinalAverage = computed(() => {
-  const total = courses.value.reduce((sum: number, course: CourseEntity) => {
-    const final = parseFloat(calculateFinalAverage(course.id!).replace(',', '.'));
-    return sum + final;
-  }, 0);
-  return total.toFixed(2).replace('.', ',');
-});
-
-
-const autoMentions = () => {
-  // Logique pour les mentions automatiques
-  console.log('Auto mentions');
-};
-
-const autoObservations = () => {
-  // Logique pour les observations automatiques
-  console.log('Auto observations');
-};
-
-
-const printReportCards = async () => {
-  if (!selectedStudent.value) {
-    alert('Veuillez sélectionner un élève.');
-    return;
-  }
-
-  try {
-    await window.ipcRenderer.invoke('report:generateMultiple', {
-      studentIds: [selectedStudent.value.id!],
-      period: selectedPeriod.value || 'Trimestre 1',
-    });
-    alert('Impression lancée avec succès!');
-  } catch (error) {
-    console.error('Error printing report cards:', error);
-    alert('Erreur lors de l\'impression des bulletins.');
+    console.error('Erreur sauvegarde:', error);
+    ElMessage.error('Erreur lors de la sauvegarde');
+  } finally {
+    saving.value = false;
   }
 };
 </script>
 
 <style scoped>
-.report-card-container {
-  padding: 10px;
-  background-color: #f5f5f5;
-  min-height: 100vh;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-.main-title {
-  text-align: center;
-  margin-bottom: 10px;
-}
-
-.main-title h2 {
-  margin: 0;
-  color: #333;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.selection-section {
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 10px;
-}
-
-.selection-tables {
-  margin-top: 8px;
-}
-
-.table-section {
-  background: #fafafa;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #e0e0e0;
-}
-
-.table-section h4 {
-  margin: 0 0 5px 0;
-  color: #333;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.legend-link {
-  margin-top: 10px;
-  text-align: right;
-}
-
-
-.main-grade-table {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+.report-card-view {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fa;
   overflow: hidden;
 }
 
-.subject-cell {
+/* Header */
+.header-bar {
+  background: white;
+  padding: 12px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 8px;
+  flex-shrink: 0;
 }
 
-.subject-icon {
-  color: #ff4444;
-  font-weight: bold;
-  margin-right: 8px;
-  font-size: 16px;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-left h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2c3e50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selectors {
+  display: flex;
+  gap: 12px;
+}
+
+/* Main content */
+.main-content {
+  flex: 1;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.content-row {
+  height: 100%;
+}
+
+.content-row :deep(.el-col) {
+  height: 100%;
+}
+
+/* Cards */
+.compact-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.compact-card :deep(.el-card__header) {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f2f5;
+  flex-shrink: 0;
+}
+
+.compact-card :deep(.el-card__body) {
+  padding: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-header span {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.card-header-grade {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header-grade strong {
+  font-size: 1rem;
+  color: #2c3e50;
+}
+
+.student-class {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 0.85rem;
+}
+
+/* Students list */
+.students-list {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.student-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f2f5;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.student-item:hover {
+  background: #f8f9fa;
+}
+
+.student-item.active {
+  background: #e6f4ff;
+  border-left: 3px solid #1890ff;
+}
+
+.student-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.student-name {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.student-mat {
+  font-size: 0.75rem;
+  color: #909399;
+}
+
+/* Grades table */
+.grades-table-container {
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+  padding: 16px;
+}
+
+.grades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.grades-table th {
+  background: #f8f9fa;
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 2px solid #e0e6ed;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.subject-col {
+  width: 180px;
+  min-width: 180px;
+}
+
+.category-col {
+  width: 100px;
+  text-align: center;
+  border-top: 3px solid #3498db;
+}
+
+.class-col {
+  background: #f8f9fa;
+}
+
+.exam-col {
+  background: #fff5f5;
+  border-top: 3px solid #e74c3c !important;
+}
+
+.class-avg-col {
+  width: 100px;
+  text-align: center;
+  background: #e8f5e9;
+  font-size: 0.8rem;
+}
+
+.average-col {
+  width: 100px;
+  text-align: center;
+  background: #fef5e7;
+}
+
+.weighted-col {
+  width: 110px;
+  text-align: center;
+  background: #e3f2fd;
+  font-size: 0.8rem;
+}
+
+.category-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.category-code {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.category-name {
+  font-size: 0.75rem;
+  color: #7f8c8d;
+}
+
+.category-info {
+  font-size: 0.7rem;
+  color: #95a5a6;
+}
+
+.grades-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.grade-row:hover {
+  background: #fafbfc;
+}
+
+.subject-cell {
+  font-weight: 500;
+}
+
+.subject-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .subject-name {
-  font-weight: 500;
-  color: #333;
+  color: #2c3e50;
+  font-size: 0.9rem;
 }
 
-.calculated-average,
-.coefficient-value,
-.final-average {
+.subject-coef {
+  font-size: 0.75rem;
+  color: #7f8c8d;
+}
+
+.grade-cell {
   text-align: center;
-  font-weight: 500;
-  color: #333;
 }
 
-.sum-value {
+.grade-cell :deep(.el-input-number) {
+  width: 80px;
+}
+
+.class-avg-cell {
   text-align: center;
+  background: #f1f8f4;
+  font-size: 0.85rem;
+}
+
+.class-avg-value {
+  color: #2e7d32;
   font-weight: 600;
-  color: #333;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #c8e6c9;
 }
 
-
-.mention-section {
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.average-cell {
+  text-align: center;
+  background: #fffbf0;
 }
 
-.encouragement-btn {
-  background-color: #ffc107 !important;
-  border-color: #ffc107 !important;
-  color: #000 !important;
+.weighted-cell {
+  text-align: center;
+  background: #e3f2fd;
+  font-size: 0.85rem;
+}
+
+.weighted-value {
+  color: #1565c0;
   font-weight: 600;
-  padding: 12px 24px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #bbdefb;
 }
 
-.print-btn {
-  background-color: #007bff !important;
-  border-color: #007bff !important;
-  color: white !important;
-  font-weight: 600;
-  padding: 12px 24px;
+.average-value {
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
-.selected-row {
-  background-color: #e3f2fd !important;
+.average-value.excellent {
+  background: #d1fae5;
+  color: #047857;
 }
 
-:deep(.el-table .selected-row td) {
-  background-color: #e3f2fd !important;
+.average-value.good {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
+.average-value.average {
+  background: #fef3c7;
+  color: #b45309;
+}
 
-.loading-container {
+.average-value.poor {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.average-value.clickable {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.average-value.clickable:hover {
+  transform: scale(1.1);
+}
+
+/* Summary */
+.summary-row {
+  background: #f8f9fa;
+}
+
+.summary-content {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  min-height: 200px;
-  gap: 16px;
+  gap: 12px;
+  padding: 12px;
+  justify-content: flex-end;
 }
 
-.loading-container p {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
+.summary-label {
+  font-weight: 600;
+  color: #2c3e50;
 }
 
-.is-loading {
-  animation: rotating 2s linear infinite;
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1890ff;
 }
 
-@keyframes rotating {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.summary-base {
+  color: #909399;
 }
 
-
-.empty-state {
+/* Empty states */
+.empty-state,
+.initial-state {
   display: flex;
-  justify-content: center;
   align-items: center;
-  min-height: 300px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  justify-content: center;
+  height: calc(100vh - 100px);
 }
 
-:deep(.el-table) {
-  font-size: 12px;
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-:deep(.el-table th) {
-  background-color: #fafafa;
-  font-weight: 600;
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
-:deep(.el-table td) {
-  padding: 6px 0;
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
 }
 
-:deep(.el-form-item__label) {
-  font-weight: 600;
-  color: #333;
-}
-
-:deep(.el-button) {
-  font-weight: 500;
-}
-
-
-
-/* Styles pour connecter visuellement les tableaux */
-:deep(.el-table) {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-:deep(.el-table + .el-table) {
-  margin-top: 0;
-  border-top: none;
-}
-
-:deep(.el-table + .el-table .el-table__header) {
-  border-top: none;
-}
-
-:deep(.el-table + .el-table .el-table__body tr:first-child td) {
-  border-top: none;
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 </style>
