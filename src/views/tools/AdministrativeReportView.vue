@@ -123,12 +123,6 @@ onMounted(() => {
       <p class="subtitle">Générez des rapports administratifs complets en quelques clics</p>
     </div>
 
-    <!-- Stepper -->
-    <el-steps :active="activeStep" finish-status="success" class="mb-8 no-print" simple>
-      <el-step title="Configuration" icon="Setting" />
-      <el-step title="Personnalisation" icon="Edit" />
-      <el-step title="Aperçu & Export" icon="View" />
-    </el-steps>
 
     <!-- Step 1: Configuration -->
     <div v-if="activeStep === 0" class="step-content no-print">

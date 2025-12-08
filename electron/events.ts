@@ -29,13 +29,15 @@ import { InscriptionFeeService } from './backend/services/inscription-fee.servic
 import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 import { documentContentService } from './backend/services/document-content-service';
+import { ICreateConfigParams, IGetConfigParams } from './backend/types/note';
+import { ConfigNoteService } from './backend/services/note-config-service';
 
 
 
 // ====================================================
 // FONCTIONS D'INITIALISATION
 // ====================================================
-  
+
 
 // =================================================================
 // FONCTIONS UTILITAIRES
@@ -56,7 +58,7 @@ const handleError = (error: any, message: string): ResultType => {
 // =================================================================
 
 export function registerIpcHandlers() {
-  
+
   // --- Document Content ---
   ipcMain.handle("document-content:get", async () => {
     try {
@@ -123,13 +125,13 @@ export function registerIpcHandlers() {
       if (!user?.id) {
         return { success: false, error: 'Utilisateur non authentifié. Veuillez vous connecter au cloud.' };
       }
-      
+
       const syncResult = await global.backupService.performBidirectionalSync(user.id);
 
       if (syncResult.status === 'failed') {
         return { success: false, data: syncResult, error: syncResult.error_message || 'La synchronisation a échoué.' };
       }
-      
+
       return { success: true, data: syncResult };
     } catch (error) {
       return handleError(error, "sync:now");
@@ -149,7 +151,7 @@ export function registerIpcHandlers() {
       // Essayer de récupérer l'utilisateur avec un timeout
       const user = await Promise.race([
         global.backupService.getSupabaseAuthUser(),
-        new Promise<null>((_, reject) => 
+        new Promise<null>((_, reject) =>
           setTimeout(() => reject(new Error('Timeout')), 5000)
         )
       ]);
@@ -157,7 +159,7 @@ export function registerIpcHandlers() {
       if (!user?.id) {
         return { success: true, data: [] };
       }
-      
+
       const history = await global.backupService.getLocalSyncHistory(user.id);
       return { success: true, data: history };
     } catch (error) {
@@ -216,30 +218,30 @@ export function registerIpcHandlers() {
     page?: number;
     pageSize?: number;
     filters?: {
-        studentFullName?: string;
-        grade?: string;
+      studentFullName?: string;
+      grade?: string;
     };
   }) => {
     try {
-        // Fournir des valeurs par défaut si options est undefined ou partiel
-        const defaultOptions = {
-            page: options?.page || 1,
-            pageSize: options?.pageSize || 1000, // Grande valeur par défaut pour récupérer tous les étudiants
-            filters: options?.filters || {}
-        };
-        
-        const { students, total } = await global.studentService.getAllStudents(defaultOptions);
-        
-        // Pour la compatibilité avec l'ancien code qui attend directement un tableau
-        if (!options) {
-            return { success: true, data: students, message: "Étudiants récupérés" };
-        }
-        
-        return { success: true, data: { students, total }, message: "Étudiants récupérés" };
+      // Fournir des valeurs par défaut si options est undefined ou partiel
+      const defaultOptions = {
+        page: options?.page || 1,
+        pageSize: options?.pageSize || 1000, // Grande valeur par défaut pour récupérer tous les étudiants
+        filters: options?.filters || {}
+      };
+
+      const { students, total } = await global.studentService.getAllStudents(defaultOptions);
+
+      // Pour la compatibilité avec l'ancien code qui attend directement un tableau
+      if (!options) {
+        return { success: true, data: students, message: "Étudiants récupérés" };
+      }
+
+      return { success: true, data: { students, total }, message: "Étudiants récupérés" };
     } catch (error) {
-        return handleError(error, "student:all");
+      return handleError(error, "student:all");
     }
-});
+  });
   ipcMain.handle("student:getDetails", async (_, studentId: number) => global.studentService.getStudentDetails(studentId));
   ipcMain.handle("save-student", async (_, studentData) => studentData.id ? global.studentService.updateStudent(studentData.id, studentData) : global.studentService.createStudent(studentData));
   ipcMain.handle("update-student", async (_, { studentId, studentData }) => global.studentService.updateStudent(studentId, studentData));
@@ -266,7 +268,7 @@ export function registerIpcHandlers() {
         type: fileData.type,
         content: fileData.content // Le contenu base64 doit être sauvegardé en base
       });
-  
+
       return {
         success: true,
         data: result,
@@ -289,7 +291,7 @@ export function registerIpcHandlers() {
           message: "L'ID du fichier est requis"
         };
       }
-  
+
       const file = await global.fileService.getFileById({ fileId });
       if (!file) {
         return {
@@ -299,11 +301,11 @@ export function registerIpcHandlers() {
           message: "Le fichier n'a pas pu être récupéré"
         };
       }
-  
-      const content = Buffer.isBuffer(file.content) 
+
+      const content = Buffer.isBuffer(file.content)
         ? file.content.toString('base64')
         : Buffer.from(file.content).toString('base64');
-  
+
       return {
         success: true,
         data: {
@@ -330,7 +332,7 @@ export function registerIpcHandlers() {
           message: "Le chemin du fichier est requis"
         };
       }
-  
+
       const fileExists = await fs.access(params.path).then(() => true).catch(() => false);
       if (!fileExists) {
         return {
@@ -340,7 +342,7 @@ export function registerIpcHandlers() {
           message: "Le fichier demandé n'existe pas"
         };
       }
-  
+
       // Le téléchargement sera géré côté client
       return {
         success: true,
@@ -356,37 +358,37 @@ export function registerIpcHandlers() {
       return handleError(error, 'Erreur lors du téléchargement du fichier');
     }
   });
-  
+
   ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
     try {
-        const photo = await global.fileService.getFileById({ fileId: photoId });
-        if (!photo) {
-            return {
-                success: false,
-                data: null,
-                error: "Photo non trouvée",
-                message: "La photo n'a pas pu être récupérée"
-            };
-        }
-
-        // Convertir le Buffer en base64
-        const base64Content = photo.content.toString('base64');
-        console.log("Taille du contenu base64:", base64Content.length);
-
+      const photo = await global.fileService.getFileById({ fileId: photoId });
+      if (!photo) {
         return {
-            success: true,
-            data: {
-                content: base64Content,
-                type: photo.type,
-                name: photo.name
-            },
-            error: null,
-            message: "Photo récupérée avec succès"
+          success: false,
+          data: null,
+          error: "Photo non trouvée",
+          message: "La photo n'a pas pu être récupérée"
         };
+      }
+
+      // Convertir le Buffer en base64
+      const base64Content = photo.content.toString('base64');
+      console.log("Taille du contenu base64:", base64Content.length);
+
+      return {
+        success: true,
+        data: {
+          content: base64Content,
+          type: photo.type,
+          name: photo.name
+        },
+        error: null,
+        message: "Photo récupérée avec succès"
+      };
     } catch (error) {
-        return handleError(error, 'Erreur lors de la récupération de la photo de l\'étudiant');
+      return handleError(error, 'Erreur lors de la récupération de la photo de l\'étudiant');
     }
-});
+  });
   ipcMain.handle("student:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
     try {
       const document = await global.fileService.getFileById({ fileId: documentId });
@@ -398,16 +400,16 @@ export function registerIpcHandlers() {
           message: "Le document n'a pas pu être récupéré"
         };
       }
-  
+
       // S'assurer que le contenu est un Buffer avant de le convertir en base64
-      const content = Buffer.isBuffer(document.content) 
+      const content = Buffer.isBuffer(document.content)
         ? document.content.toString('base64')
         : Buffer.from(document.content).toString('base64');
-  
+
       console.log('Type du document:', document.type);
       console.log('Nom du document:', document.name);
       console.log('Taille du contenu encodé:', content.length);
-  
+
       return {
         success: true,
         data: {
@@ -425,118 +427,118 @@ export function registerIpcHandlers() {
   });
   ipcMain.handle("getProfessorPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
     try {
-        const photo = await global.fileService.getFileById({ fileId: photoId });
-        if (!photo) {
-            return {
-                success: false,
-                data: null,
-                error: "Photo non trouvée",
-                message: "La photo n'a pas pu être récupérée"
-            };
-        }
-  
-        // Convertir le Buffer en base64
-        const base64Content = photo.content.toString('base64');
-        console.log("Taille du contenu base64:", base64Content.length);
-  
+      const photo = await global.fileService.getFileById({ fileId: photoId });
+      if (!photo) {
         return {
-            success: true,
-            data: {
-                content: base64Content,
-                type: photo.type,
-                name: photo.name
-            },
-            error: null,
-            message: "Photo récupérée avec succès"
+          success: false,
+          data: null,
+          error: "Photo non trouvée",
+          message: "La photo n'a pas pu être récupérée"
         };
+      }
+
+      // Convertir le Buffer en base64
+      const base64Content = photo.content.toString('base64');
+      console.log("Taille du contenu base64:", base64Content.length);
+
+      return {
+        success: true,
+        data: {
+          content: base64Content,
+          type: photo.type,
+          name: photo.name
+        },
+        error: null,
+        message: "Photo récupérée avec succès"
+      };
     } catch (error) {
-        return handleError(error, 'Erreur lors de la récupération de la photo du professeur');
+      return handleError(error, 'Erreur lors de la récupération de la photo du professeur');
     }
   });
-  
+
   ipcMain.handle("school:getLogo", async (_event: Electron.IpcMainInvokeEvent, logoId: number): Promise<ResultType> => {
     try {
-        const logo = await global.fileService.getFileById({ fileId: logoId });
-        if (!logo) {
-            return {
-                success: false,
-                data: null,
-                error: "Logo non trouvé",
-                message: "Le logo n'a pas pu être récupéré"
-            };
-        }
-
+      const logo = await global.fileService.getFileById({ fileId: logoId });
+      if (!logo) {
         return {
-            success: true,
-            data: {
-                content: logo.content.toString('base64'),
-                type: logo.type,
-                name: logo.name
-            },
-            error: null,
-            message: "Logo récupéré avec succès"
+          success: false,
+          data: null,
+          error: "Logo non trouvé",
+          message: "Le logo n'a pas pu être récupéré"
         };
+      }
+
+      return {
+        success: true,
+        data: {
+          content: logo.content.toString('base64'),
+          type: logo.type,
+          name: logo.name
+        },
+        error: null,
+        message: "Logo récupéré avec succès"
+      };
     } catch (error) {
-        return handleError(error, "Erreur lors de la récupération du logo");
+      return handleError(error, "Erreur lors de la récupération du logo");
     }
-});
-ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
-  try {
+  });
+  ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvokeEvent, documentId: number): Promise<ResultType> => {
+    try {
       const document = await global.fileService.getFileById({ fileId: documentId });
       if (!document) {
-          return {
-              success: false,
-              data: null,
-              error: "Document non trouvé",
-              message: "Le document n'a pas pu être récupéré"
-          };
+        return {
+          success: false,
+          data: null,
+          error: "Document non trouvé",
+          message: "Le document n'a pas pu être récupéré"
+        };
       }
 
       // ✅ CORRECTION : Utiliser le contenu stocké en base de données
       let base64Content: string;
-      
+
       if (document.content) {
-          // Si le contenu est déjà en base de données (Buffer ou string)
-          base64Content = Buffer.isBuffer(document.content) 
-              ? document.content.toString('base64')
-              : Buffer.from(document.content).toString('base64');
+        // Si le contenu est déjà en base de données (Buffer ou string)
+        base64Content = Buffer.isBuffer(document.content)
+          ? document.content.toString('base64')
+          : Buffer.from(document.content).toString('base64');
       } else if (document.path) {
-          // Fallback : si le fichier physique existe encore
-          try {
-              const fileContent = await fs.readFile(document.path);
-              base64Content = fileContent.toString('base64');
-          } catch (fsError) {
-              console.error('Fichier physique introuvable:', document.path);
-              return {
-                  success: false,
-                  data: null,
-                  error: "Fichier physique introuvable",
-                  message: "Le document n'a pas pu être récupéré depuis le stockage"
-              };
-          }
-      } else {
+        // Fallback : si le fichier physique existe encore
+        try {
+          const fileContent = await fs.readFile(document.path);
+          base64Content = fileContent.toString('base64');
+        } catch (fsError) {
+          console.error('Fichier physique introuvable:', document.path);
           return {
-              success: false,
-              data: null,
-              error: "Aucune source de contenu disponible",
-              message: "Le document ne contient ni contenu ni chemin valide"
+            success: false,
+            data: null,
+            error: "Fichier physique introuvable",
+            message: "Le document n'a pas pu être récupéré depuis le stockage"
           };
+        }
+      } else {
+        return {
+          success: false,
+          data: null,
+          error: "Aucune source de contenu disponible",
+          message: "Le document ne contient ni contenu ni chemin valide"
+        };
       }
 
-      return { 
-          success: true, 
-          data: {
-              content: base64Content,
-              type: document.type,
-              name: document.name
-          },
-          error: null,
-          message: "Document récupéré avec succès"
+      return {
+        success: true,
+        data: {
+          content: base64Content,
+          type: document.type,
+          name: document.name
+        },
+        error: null,
+        message: "Document récupéré avec succès"
       };
-  } catch (error) {
+    } catch (error) {
       return handleError(error, 'Erreur lors de la récupération du document');
-  }
-});
+    }
+  });
 
 
   ipcMain.handle("file:showInFolder", async (_, filePath: string) => shell.showItemInFolder(path.normalize(filePath)));
@@ -546,12 +548,12 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("payment:getAnnualConfigs", async () => global.paymentService.getPaymentAnnualConfigs());
   ipcMain.handle("payment:saveAnnualConfig", async (_, configData) => global.paymentService.savePaymentAnnualConfig(configData));
   ipcMain.handle("payment:saveConfig", async (_, configData) => global.paymentService.saveConfig(configData));
-  
+
   // --- Configurations Personnalisées des Paiements ---
   ipcMain.handle("payment:getCustomConfigs", async () => global.paymentService.getCustomConfigs());
   ipcMain.handle("payment:saveCustomConfig", async (_, configData) => global.paymentService.saveCustomConfig(configData));
   ipcMain.handle("payment:deleteCustomConfig", async (_, configId) => global.paymentService.deleteCustomConfig(configId));
-  
+
   ipcMain.handle("payment:getByStudent", async (_, studentId) => global.paymentService.getPaymentsByStudent(studentId));
   ipcMain.handle("payment:getByDate", async (_, date) => global.paymentService.getPaymentsByDate(date));
   ipcMain.handle("payment:getConfig", async (_, classId) => global.paymentService.getConfigByClass(String(classId)));
@@ -562,7 +564,7 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("professor:payment:create", async (_, paymentData) => global.paymentService.addProfessorPayment(paymentData));
   ipcMain.handle("professor:payment:update", async (_, paymentData) => global.paymentService.updateProfessorPayment(paymentData));
   ipcMain.handle("professor:payment:getById", async (_, paymentId) => global.paymentService.getProfessorPaymentById(paymentId));
-  
+
   // --- Payment Fees ---
   ipcMain.handle("payment-fee:all", async () => {
     try {
@@ -676,7 +678,7 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
       return handleError(error, "tranch-config:delete");
     }
   });
-  
+
   // --- Absences ---
   ipcMain.handle("absence:allStudent", async () => global.absenceService.getAllAbsences("STUDENT"));
   ipcMain.handle("absence:allProfessor", async () => global.absenceService.getAllAbsences("PROFESSOR"));
@@ -693,14 +695,14 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
       return handleError(error, "Erreur lors de la création des absences en lot");
     }
   });
-  
+
   // --- Devoirs (Homework) ---
   ipcMain.handle("homework:create", async (_, data) => global.homeworkService.createHomework(data));
   ipcMain.handle("homework:getByGrade", async (_, gradeId) => global.homeworkService.getHomeworkByGrade(gradeId));
   ipcMain.handle("homework:delete", async (_, id) => global.homeworkService.deleteHomework(id));
   ipcMain.handle("homework:update", async (_, data) => global.homeworkService.updateHomework(data.id, data));
   ipcMain.handle("homework:notify", async (_, data) => ({ success: true, message: "Notifications simulées envoyées." }));
-  
+
   // --- Congés (Vacation) ---
   ipcMain.handle("vacation:getByStudent", async (_, studentId) => global.vacationService.getVacationsByStudent(studentId));
   ipcMain.handle("vacation:getByProfessor", async (_, professorId) => global.vacationService.getVacationsByProfessor(professorId));
@@ -708,13 +710,13 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
   ipcMain.handle("vacation:update", async (_, data) => data.id && data.status ? global.vacationService.updateVacationStatus(data.id, data.status, data.comment) : { success: false, error: "INVALID_DATA" });
   ipcMain.handle("vacation:updateStatus", async (_, { id, status, comment }) => global.vacationService.updateVacationStatus(id, status, comment));
   ipcMain.handle("vacation:delete", async (_, id) => global.vacationService.deleteVacation(id));
-  
+
   // --- Bulletins (Report Card) ---
   ipcMain.handle("report:generateMultiple", async (_, data) => global.reportCardService.generateReportCards(data));
   ipcMain.handle("report:preview", async (_, data) => global.reportCardService.generateReportCards({ studentIds: [data.studentId], period: data.period, templateId: "preview" }));
   ipcMain.handle("grades:save", async (_, data) => global.reportCardService.saveStudentGrades(data));
   ipcMain.handle("grades:get", async (_, { studentId, period }) => global.reportCardService.getStudentGrades(studentId, period));
-  
+
   // --- Configuration ---
   ipcMain.handle("gradeConfig:save", async (_, config) => global.gradeConfigService.saveConfiguration(config));
   ipcMain.handle("gradeConfig:get", async (_, { gradeId }) => global.gradeConfigService.getConfigurationByGrade(gradeId));
@@ -730,23 +732,23 @@ ipcMain.handle("professor:downloadDocument", async (_event: Electron.IpcMainInvo
     return { success: true };
   });
   // Gestionnaire pour ouvrir le dialogue de sélection de dossier
-ipcMain.handle('open-file-dialog', async () => {
-  try {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Sélectionner un dossier de stockage'
-    });
-    
-    if (!result.canceled && result.filePaths.length > 0) {
-      return result.filePaths[0];
+  ipcMain.handle('open-file-dialog', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Sélectionner un dossier de stockage'
+      });
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        return result.filePaths[0];
+      }
+      return null;
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture du dialogue de fichier:', error);
+      throw error;
     }
-    return null;
-  } catch (error) {
-    console.error('Erreur lors de l\'ouverture du dialogue de fichier:', error);
-    throw error;
-  }
-});
-  
+  });
+
   // --- École ---
   ipcMain.handle("school:get", async () => global.schoolService.getSchool());
   ipcMain.handle("school:save", async (_, schoolData) => global.schoolService.saveOrUpdateSchool(schoolData));
@@ -764,7 +766,7 @@ ipcMain.handle('open-file-dialog', async () => {
   ipcMain.handle("yearRepartition:update", async (_, { id, data }) => global.yearRepartitionService.updateYearRepartition(id, data));
   ipcMain.handle("yearRepartition:delete", async (_, id) => global.yearRepartitionService.deleteYearRepartition(id));
   ipcMain.handle("yearRepartition:setCurrent", async (_, id) => global.yearRepartitionService.setCurrentYearRepartition(id));
-  
+
   // --- Bourses ---
   ipcMain.handle("scholarship:getByStudent", async (_, studentId) => global.scholarshipService.getByStudent(studentId));
   ipcMain.handle("scholarship:getActiveByStudent", async (_, studentId) => global.paymentService.getActiveByStudent(studentId));
@@ -773,13 +775,13 @@ ipcMain.handle('open-file-dialog', async () => {
   ipcMain.handle("license:generateMachineId", async () => ({ success: true, data: global.licenseService.generateMachineId() }));
   ipcMain.handle("license:activate", async (_, licenseCode) => global.licenseService.activateLicense(licenseCode));
   ipcMain.handle("license:isValid", async () => ({ success: true, data: await global.licenseService.getLicenseStatus() }));
-  
+
   // Correction pour getLicenseDetails - ne prend aucun paramètre
   ipcMain.handle("license:getDetails", async () => {
     try {
       const details = await global.licenseService.getLicenseDetails();
-      return { 
-        success: true, 
+      return {
+        success: true,
         data: {
           maxActivations: details.maxActivations,
           usedActivations: details.currentActivations
@@ -789,151 +791,277 @@ ipcMain.handle('open-file-dialog', async () => {
       return handleError(error, "Erreur lors de la récupération des détails de licence");
     }
   });
-  
+
   // Correction pour generateSub - ne prend aucun paramètre
   ipcMain.handle("license:generateSub", async () => {
     try {
       const result = await global.licenseService.generateSubLicense();
       if (result.success) {
-        return { 
-          success: true, 
-          data: { 
-            subLicenseCode: result.newCode 
+        return {
+          success: true,
+          data: {
+            subLicenseCode: result.newCode
           },
           message: result.message
         };
       } else {
-        return { 
-          success: false, 
-          error: result.message 
+        return {
+          success: false,
+          error: result.message
         };
       }
     } catch (error) {
       return handleError(error, "Erreur lors de la génération de sous-licence");
     }
   });
-  
-  
-//shedule
+
+
+  //shedule
   // Handler pour créer un emploi du temps
   ipcMain.handle('schedule:create', async (event, command: ScheduleCommand) => {
     try {
-        return await global.scheduleService.createSchedule(command);
+      return await global.scheduleService.createSchedule(command);
     } catch (error) {
-        console.error('Error in schedule:create handler:', error);
-        return {
-            success: false,
-            message: 'Erreur serveur lors de la création du créneau',
-            data: null,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        };
+      console.error('Error in schedule:create handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la création du créneau',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   });
 
   // Handler pour récupérer l'emploi du temps par date
   ipcMain.handle('schedule:getByDate', async (event, { date }) => {
     try {
-        return await global.scheduleService.getScheduleByDate(date);
+      return await global.scheduleService.getScheduleByDate(date);
     } catch (error) {
-        console.error('Error in schedule:getByDate handler:', error);
-        return {
-            success: false,
-            message: 'Erreur lors de la récupération de l\'emploi du temps',
-            data: null,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        };
+      console.error('Error in schedule:getByDate handler:', error);
+      return {
+        success: false,
+        message: 'Erreur lors de la récupération de l\'emploi du temps',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   });
 
   // Handler pour récupérer tous les emplois du temps
   ipcMain.handle('schedule:all', async () => {
-      try {
-          return await global.scheduleService.getAllSchedules();
-      } catch (error) {
-          console.error('Error in schedule:all handler:', error);
-          return {
-              success: false,
-              message: 'Erreur serveur lors de la récupération des emplois du temps',
-              data: null,
-              error: error instanceof Error ? error.message : 'Unknown error'
-          };
-      }
+    try {
+      return await global.scheduleService.getAllSchedules();
+    } catch (error) {
+      console.error('Error in schedule:all handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la récupération des emplois du temps',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   });
 
   // Handler pour récupérer l'emploi du temps par classe
   ipcMain.handle('schedule:by-class', async (event, classId: number) => {
-      try {
-          return await global.scheduleService.getScheduleByClass(classId);
-      } catch (error) {
-          console.error('Error in schedule:by-class handler:', error);
-          return {
-              success: false,
-              message: 'Erreur serveur lors de la récupération de l\'emploi du temps de la classe',
-              data: null,
-              error: error instanceof Error ? error.message : 'Unknown error'
-          };
-      }
+    try {
+      return await global.scheduleService.getScheduleByClass(classId);
+    } catch (error) {
+      console.error('Error in schedule:by-class handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la récupération de l\'emploi du temps de la classe',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   });
 
   // Handler pour récupérer l'emploi du temps par professeur
   ipcMain.handle('schedule:by-professor', async (event, professorId: number) => {
-      try {
-          return await global.scheduleService.getScheduleByProfessor(professorId);
-      } catch (error) {
-          console.error('Error in schedule:by-professor handler:', error);
-          return {
-              success: false,
-              message: 'Erreur serveur lors de la récupération de l\'emploi du temps du professeur',
-              data: null,
-              error: error instanceof Error ? error.message : 'Unknown error'
-          };
-      }
+    try {
+      return await global.scheduleService.getScheduleByProfessor(professorId);
+    } catch (error) {
+      console.error('Error in schedule:by-professor handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la récupération de l\'emploi du temps du professeur',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   });
 
   // Handler pour supprimer un créneau
   ipcMain.handle('schedule:delete', async (event, scheduleId: number) => {
-      try {
-          return await global.scheduleService.deleteSchedule(scheduleId);
-      } catch (error) {
-          console.error('Error in schedule:delete handler:', error);
-          return {
-              success: false,
-              message: 'Erreur serveur lors de la suppression du créneau',
-              data: null,
-              error: error instanceof Error ? error.message : 'Unknown error'
-          };
-      }
+    try {
+      return await global.scheduleService.deleteSchedule(scheduleId);
+    } catch (error) {
+      console.error('Error in schedule:delete handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la suppression du créneau',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   });
 
   // Handler pour mettre à jour un créneau
   ipcMain.handle('schedule:update', async (event, scheduleId: number, command: Partial<ScheduleCommand>) => {
-      try {
-          return await global.scheduleService.updateSchedule(scheduleId, command);
-      } catch (error) {
-          console.error('Error in schedule:update handler:', error);
-          return {
-              success: false,
-              message: 'Erreur serveur lors de la mise à jour du créneau',
-              data: null,
-              error: error instanceof Error ? error.message : 'Unknown error'
-          };
-      }
+    try {
+      return await global.scheduleService.updateSchedule(scheduleId, command);
+    } catch (error) {
+      console.error('Error in schedule:update handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la mise à jour du créneau',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+  // ===================================================================
+  // CONFIGURATION DES NOTES (ConfigNoteService)
+  // ===================================================================
+  
+  // Sauvegarder une configuration de notation
+  ipcMain.handle('grade-config:save', async (_event, params: ICreateConfigParams) => {
+    try {
+      return await global.configNoteService.saveConfig(params);
+    } catch (error) {
+      return handleError(error, "grade-config:save");
+    }
+  });
+
+  // Récupérer la configuration applicable (avec cascade)
+  ipcMain.handle('grade-config:get', async (_event, { schoolId, classId, subjectId }) => {
+    try {
+      return await global.configNoteService.getApplicableConfig({ schoolId, classId, subjectId });
+    } catch (error) {
+      return handleError(error, "grade-config:get");
+    }
+  });
+
+  // Récupérer la configuration exacte (sans cascade)
+  ipcMain.handle('grade-config:getExact', async (_event, { schoolId, classId, subjectId }) => {
+    try {
+      return await global.configNoteService.getExactConfig({ schoolId, classId, subjectId });
+    } catch (error) {
+      return handleError(error, "grade-config:getExact");
+    }
+  });
+
+  // Lister toutes les configurations d'une école
+  ipcMain.handle('grade-config:getAllForSchool', async (_event, schoolId: number) => {
+    try {
+      return await global.configNoteService.getAllConfigsForSchool(schoolId);
+    } catch (error) {
+      return handleError(error, "grade-config:getAllForSchool");
+    }
+  });
+
+  // Supprimer une configuration
+  ipcMain.handle('grade-config:delete', async (_event, configId: number) => {
+    try {
+      return await global.configNoteService.deleteConfig(configId);
+    } catch (error) {
+      return handleError(error, "grade-config:delete");
+    }
+  });
+
+  // Calculer la moyenne d'une matière
+  ipcMain.handle('grade-config:calculateAverage', async (_event, { studentId, subjectId, classId, schoolId, period, grades, options }) => {
+    try {
+      return await global.configNoteService.calculateSubjectAverage(
+        studentId, subjectId, classId, schoolId, period, grades, options
+      );
+    } catch (error) {
+      return handleError(error, "grade-config:calculateAverage");
+    }
+  });
+
+  // ===================================================================
+  // SAISIE DES NOTES (GradeEntryService)
+  // ===================================================================
+
+  // Sauvegarder une note individuelle
+  ipcMain.handle('gradeEntry:save', async (_event, input) => {
+    try {
+      return await global.gradeEntryService.saveGradeEntry(input);
+    } catch (error) {
+      return handleError(error, "gradeEntry:save");
+    }
+  });
+
+  // Sauvegarder plusieurs notes
+  ipcMain.handle('gradeEntry:bulkSave', async (_event, input) => {
+    try {
+      return await global.gradeEntryService.bulkSaveGrades(input);
+    } catch (error) {
+      return handleError(error, "gradeEntry:bulkSave");
+    }
+  });
+
+  // Récupérer les notes d'un élève pour une matière
+  ipcMain.handle('gradeEntry:get', async (_event, { studentId, courseId, period }) => {
+    try {
+      return await global.gradeEntryService.getGradeEntries({ studentId, courseId, period });
+    } catch (error) {
+      return handleError(error, "gradeEntry:get");
+    }
+  });
+
+  // Calculer et mettre en cache la moyenne
+  ipcMain.handle('gradeEntry:calculate', async (_event, { studentId, courseId, classId, schoolId, period }) => {
+    try {
+      return await global.gradeEntryService.calculateAndCacheGrade(studentId, courseId, classId, schoolId, period);
+    } catch (error) {
+      return handleError(error, "gradeEntry:calculate");
+    }
+  });
+
+  // Récupérer une moyenne calculée
+  ipcMain.handle('gradeEntry:getCalculated', async (_event, { studentId, courseId, classId, schoolId, period }) => {
+    try {
+      return await global.gradeEntryService.getCalculatedGrade(studentId, courseId, classId, schoolId, period);
+    } catch (error) {
+      return handleError(error, "gradeEntry:getCalculated");
+    }
+  });
+
+  // Supprimer une note
+  ipcMain.handle('gradeEntry:delete', async (_event, entryId: number) => {
+    try {
+      return await global.gradeEntryService.deleteGradeEntry(entryId);
+    } catch (error) {
+      return handleError(error, "gradeEntry:delete");
+    }
+  });
+
+  // Récupérer toutes les moyennes d'un élève
+  ipcMain.handle('gradeEntry:getStudentAverages', async (_event, { studentId, classId, schoolId, period }) => {
+    try {
+      return await global.gradeEntryService.getStudentAverages(studentId, classId, schoolId, period);
+    } catch (error) {
+      return handleError(error, "gradeEntry:getStudentAverages");
+    }
   });
 
   // Handler pour vérifier les conflits
   ipcMain.handle('schedule:check-conflicts', async (event, professorId: number, day: string, timeSlot: string, excludeScheduleId?: number) => {
-      try {
-          return await global.scheduleService.checkConflicts(professorId, day, timeSlot, excludeScheduleId);
-      } catch (error) {
-          console.error('Error in schedule:check-conflicts handler:', error);
-          return {
-              success: false,
-              message: 'Erreur serveur lors de la vérification des conflits',
-              data: null,
-              error: error instanceof Error ? error.message : 'Unknown error'
-          };
-      }
+    try {
+      return await global.scheduleService.checkConflicts(professorId, day, timeSlot, excludeScheduleId);
+    } catch (error) {
+      console.error('Error in schedule:check-conflicts handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la vérification des conflits',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   });
-  
+
   console.log('Tous les handlers IPC ont été enregistrés.');
 }

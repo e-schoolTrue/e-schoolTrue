@@ -1,39 +1,39 @@
 interface MenuItem {
-  id: string;
-  title: string;
-  icon: string;
-  route?: string;
-  description?: string;
-  subItems?: MenuItem[];
+    id: string;
+    title: string;
+    icon: string;
+    route?: string;
+    description?: string;
+    subItems?: MenuItem[];
 }
 
 export const AppItems: MenuItem[] = [
     {
-        id:"submenu-1",
+        id: "submenu-1",
         title: "Gestion des Elèves",
         icon: "mdi:account-school",
-        subItems:[
+        subItems: [
             {
                 id: "submenu-1-1",
                 title: "Nouvelle Inscription",
                 icon: "mdi:account-plus",
                 route: "/student/add",
-                subItems:[]
+                subItems: []
             },
             {
                 id: "submenu-1-2",
                 title: "Elèves",
                 icon: "mdi:account-group",
                 route: "/student",
-                subItems:[]
+                subItems: []
             },
         ]
     },
     {
-        id:"submenu-2",
+        id: "submenu-2",
         title: "Gestion des Professeurs",
         icon: "mdi:human-male-board",
-        subItems:[
+        subItems: [
             {
                 id: "submenu-2-1",
                 title: "Nouvelle Inscription",
@@ -116,7 +116,7 @@ export const AppItems: MenuItem[] = [
                         icon: "fluent-emoji:beach-with-umbrella",
                         route: "/planning/professors/vacation",
                     },
-                     {
+                    {
                         id: "submenu-4-2-2",
                         title: "Emploi du temps",
                         icon: "fluent-emoji:calendar",
@@ -135,29 +135,42 @@ export const AppItems: MenuItem[] = [
                 id: "submenu-5-1",
                 title: "Bulletin Scolaire",
                 icon: "fluent-emoji:graduation-cap",
-                route: "/tools/school-report",
+                subItems: [
+                    {
+                        id: "submenu-5-1-1",
+                        title: "Notes",
+                        icon: "fluent-emoji:open-book",
+                        route: "/tools/school-report/notes",
+                    },
+                    {
+                        id: "submenu-5-1-2",
+                        title: "Impression et Modèle",
+                        icon: "fluent-emoji:printer",
+                        route: "/tools/school-report/print-model",
+                    }
+                ]
             },
-                    { 
-                         id: "submenu-5-2",
-                        title: "Documents Scolaires",
-                        icon: "fluent-emoji:file-folder",
-                        subItems: [
-                            {
-                                id: "submenu-5-2-1",    
-                                title: "Attestations et Certificats de Scolarité",
-                                icon: "fluent-emoji:page-with-curl",
-                                route: "/tools/documents/scolarity",
-                        
-                },   
-                            {
-                                id: "submenu-5-2-2",    
-                                title: "Rapport administratif",
-                                icon: "fluent-emoji:page-with-curl",
-                                route: "/tools/documents/administrative-report",
-                            }
-                        ]
+            {
+                id: "submenu-5-2",
+                title: "Documents Scolaires",
+                icon: "fluent-emoji:file-folder",
+                subItems: [
+                    {
+                        id: "submenu-5-2-1",
+                        title: "Attestations et Certificats de Scolarité",
+                        icon: "fluent-emoji:page-with-curl",
+                        route: "/tools/documents/scolarity",
+
+                    },
+                    {
+                        id: "submenu-5-2-2",
+                        title: "Rapport administratif",
+                        icon: "fluent-emoji:page-with-curl",
+                        route: "/tools/documents/administrative-report",
+                    }
+                ]
             },
-                {
+            {
                 id: "submenu-5-3",
                 title: "Carte d/'Identité Scolaire",
                 icon: "fluent-emoji:identification-card",
@@ -205,6 +218,12 @@ export const AppItems: MenuItem[] = [
                         title: "Matières",
                         icon: "fluent-emoji:open-book",
                         route: "/course",
+                    },
+                    {
+                        id: "submenu-6-1-5",
+                        title: "Configuration de la notation",
+                        icon: "fluent-emoji:open-book",
+                        route: "/note-config",
                     }
                 ]
             },

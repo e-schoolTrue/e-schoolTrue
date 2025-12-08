@@ -1,10 +1,3 @@
-<script lang="ts">
-
-export interface StudentFormInstance {
-  resetForm: () => void;
-}
-</script>
-
 <script setup lang="ts">
 import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted, watch} from 'vue';
 import { ElMessage } from 'element-plus';
@@ -13,7 +6,9 @@ import type { IStudentData } from '@/types/student';
 export interface StudentFormInstance {
   resetForm: () => void;
 }
-
+export interface StudentFormInstance {
+  resetForm: () => void;
+}
 interface ClassItem {
   id: number;
   name: string;

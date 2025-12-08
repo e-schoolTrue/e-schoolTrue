@@ -31,6 +31,8 @@ import { InscriptionFeeEntity } from "./backend/entities/paymentConfig";
 import { TrancheEntryEntity } from "./backend/entities/paymentConfig";
 import { PaymentAnnualConfigEntity } from "./backend/entities/paymentConfig";
 import { DocumentContentEntity } from "./backend/entities/documentContent";
+import { GradingConfigEntity, EvaluationCategoryEntity } from "./backend/entities/configNote";
+import { GradeEntryEntity, CalculatedGradeEntity } from "./backend/entities/gradeEntry";
 
 // --- ENSEMBLE DES ENTITÉS ---
 const entities = [
@@ -66,7 +68,11 @@ const entities = [
     TranchConfigEntity,
     TrancheEntryEntity,
     InscriptionFeeEntity,
-    DocumentContentEntity
+    DocumentContentEntity, 
+    GradingConfigEntity,
+    EvaluationCategoryEntity,
+    GradeEntryEntity,
+    CalculatedGradeEntity
 ];
 
 export class AppDataSource {

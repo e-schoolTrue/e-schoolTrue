@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, computed } from 'vue';
+
 import { SchoolInfo } from '@/types/report';
 
 interface Props {
