@@ -198,6 +198,104 @@ export class AbsenceService {
         };
     }
 
+    /**
+     * Calcule le nombre total d'absences pour un élève
+     * @param studentId - L'identifiant de l'élève
+     * @returns Le nombre total d'absences
+     */
+    async getTotalAbsencesByStudent(studentId: number): Promise<number> {
+        const count = await this.absenceRepository.count({
+            where: { 
+                student: { id: studentId },
+                type: 'STUDENT'
+            }
+        });
+        return count;
+    }
+
+    /**
+     * Calcule le nombre d'heures d'absence en fonction du type
+     * @param absence - L'entité absence
+     * @returns Le nombre d'heures d'absence
+     */
+    private calculateAbsenceHours(absence: AbsenceEntity): number {
+        switch (absence.absenceType) {
+            case 'FULL_DAY':
+                return 8; // Journée complète = 8 heures
+            case 'MORNING':
+            case 'AFTERNOON':
+                return 4; // Demi-journée = 4 heures
+            case 'COURSE':
+                // Calculer les heures à partir de startTime et endTime
+                if (absence.startTime && absence.endTime) {
+                    const start = absence.startTime.split(':');
+                    const end = absence.endTime.split(':');
+                    const startMinutes = parseInt(start[0]) * 60 + parseInt(start[1]);
+                    const endMinutes = parseInt(end[0]) * 60 + parseInt(end[1]);
+                    const diffMinutes = endMinutes - startMinutes;
+                    return Math.max(1, Math.round(diffMinutes / 60)); // Au minimum 1 heure
+                }
+                return 1; // Par défaut, 1 heure de cours
+            default:
+                return 1; // Par défaut
+        }
+    }
+
+    /**
+     * Calcule le total d'absences par élève pour une classe donnée
+     * @param gradeId - L'identifiant de la classe (optionnel)
+     * @returns Un tableau contenant les totaux d'absences par élève (en heures)
+     */
+    async getTotalAbsencesGroupedByStudent(gradeId?: number): Promise<{ studentId: number; studentName: string; totalAbsences: number; totalHours: number; justified: number; unjustified: number }[]> {
+        try {
+            const queryBuilder = this.absenceRepository.createQueryBuilder('absence')
+                .leftJoinAndSelect('absence.student', 'student')
+                .where('absence.type = :type', { type: 'STUDENT' });
+
+            if (gradeId) {
+                queryBuilder.andWhere('absence.gradeId = :gradeId', { gradeId });
+            }
+
+            const absences = await queryBuilder.getMany();
+
+            // Grouper les absences par élève
+            const groupedData = absences.reduce((acc, absence) => {
+                if (!absence.student) return acc;
+
+                const studentId = absence.student.id;
+                if (!acc[studentId]) {
+                    acc[studentId] = {
+                        studentId,
+                        studentName: `${absence.student.firstname} ${absence.student.lastname}`,
+                        totalAbsences: 0,
+                        totalHours: 0,
+                        justified: 0,
+                        unjustified: 0
+                    };
+                }
+
+                const hours = this.calculateAbsenceHours(absence);
+                
+                acc[studentId].totalAbsences++;
+                acc[studentId].totalHours += hours;
+                
+                if (absence.justified) {
+                    acc[studentId].justified += hours;
+                } else {
+                    acc[studentId].unjustified += hours;
+                }
+
+                return acc;
+            }, {} as Record<number, { studentId: number; studentName: string; totalAbsences: number; totalHours: number; justified: number; unjustified: number }>);
+
+            // Convertir en tableau et trier par nombre d'heures d'absence décroissant
+            return Object.values(groupedData).sort((a, b) => b.totalHours - a.totalHours);
+        } catch (error) {
+            console.error("Erreur lors du calcul des totaux d'absences par élève:", error);
+            throw error;
+        }
+    }
+
     async getRecentAbsences(limit: number = 5): Promise<IAbsenceServiceResponse> {
         try {
             const absences = await this.absenceRepository.find({

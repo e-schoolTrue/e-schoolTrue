@@ -552,5 +552,215 @@ export class GradeEntryService {
             };
         }
     }
+
+    /**
+     * Calcule le classement des élèves d'une classe pour une période donnée
+     * @param classId - L'identifiant de la classe
+     * @param schoolId - L'identifiant de l'école
+     * @param period - La période (ex: "Trimestre 1")
+     * @returns Un tableau contenant le classement des élèves avec leur rang et moyenne générale
+     */
+    async getClassRankings(
+        classId: number,
+        schoolId: number,
+        period: string
+    ): Promise<ResultType<Array<{
+        studentId: number;
+        studentName: string;
+        generalAverage: number;
+        rank: number;
+        totalCoefficients: number;
+    }>>> {
+        try {
+            console.log('\n=== CALCUL CLASSEMENT CLASSE ===');
+            console.log(`Classe: ${classId}, Période: ${period}`);
+
+            const dataSource = AppDataSource.getInstance();
+            
+            // Récupérer tous les élèves de la classe
+            const studentRepo = dataSource.getRepository('StudentEntity');
+            const students = await studentRepo.find({
+                where: { grade: { id: classId } },
+                relations: ['grade']
+            });
+            
+            console.log(`Nombre d'élèves trouvés: ${students.length}`);
+
+            if (students.length === 0) {
+                return {
+                    success: true,
+                    data: [],
+                    message: "Aucun élève dans cette classe",
+                    error: null
+                };
+            }
+
+            // Récupérer les cours de la classe avec leurs coefficients
+            const courseRepo = dataSource.getRepository('CourseEntity');
+            const courses = await courseRepo.find({
+                where: { grade: { id: classId } }
+            });
+
+            console.log(`Nombre de matières: ${courses.length}`);
+
+            // Créer un map des coefficients par courseId
+            const courseCoefficients = new Map<number, number>();
+            courses.forEach(course => {
+                courseCoefficients.set(course.id, course.coefficient || 1);
+            });
+
+            // Calculer la moyenne générale de chaque élève
+            const studentAverages: Array<{
+                studentId: number;
+                studentName: string;
+                generalAverage: number;
+                totalCoefficients: number;
+            }> = [];
+
+            for (const student of students) {
+                // Récupérer toutes les moyennes calculées pour cet élève
+                const averages = await this.calculatedGradeRepository.find({
+                    where: { 
+                        studentId: student.id, 
+                        period 
+                    }
+                });
+
+                if (averages.length === 0) {
+                    console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): Aucune note`);
+                    continue; // Ignorer les élèves sans notes
+                }
+
+                // Calculer la moyenne générale pondérée
+                let totalWeightedValue = 0;
+                let totalCoefficients = 0;
+
+                for (const avg of averages) {
+                    const coefficient = courseCoefficients.get(avg.courseId) || 1;
+                    totalWeightedValue += avg.finalAverage * coefficient;
+                    totalCoefficients += coefficient;
+                }
+
+                const generalAverage = totalCoefficients > 0 
+                    ? Math.round((totalWeightedValue / totalCoefficients) * 100) / 100 
+                    : 0;
+
+                console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): ${generalAverage}/20 (${averages.length} matières)`);
+
+                studentAverages.push({
+                    studentId: student.id,
+                    studentName: `${student.firstname} ${student.lastname}`,
+                    generalAverage,
+                    totalCoefficients
+                });
+            }
+
+            // Trier par moyenne décroissante
+            studentAverages.sort((a, b) => b.generalAverage - a.generalAverage);
+
+            // Attribuer les rangs (gérer les ex-aequo)
+            const rankings = studentAverages.map((student, index, array) => {
+                let rank = index + 1;
+                
+                // Si la moyenne est identique à celle du précédent, même rang
+                if (index > 0 && student.generalAverage === array[index - 1].generalAverage) {
+                    rank = (array[index - 1] as any).rank;
+                }
+                
+                return {
+                    ...student,
+                    rank
+                };
+            });
+
+            console.log('Classement final:');
+            rankings.forEach(r => {
+                console.log(`  ${r.rank}. ${r.studentName}: ${r.generalAverage}/20`);
+            });
+            console.log('=== FIN CALCUL CLASSEMENT ===\n');
+
+            return {
+                success: true,
+                data: rankings,
+                message: `Classement calculé pour ${rankings.length} élèves`,
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur getClassRankings:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors du calcul du classement",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    /**
+     * Récupère le rang d'un élève spécifique dans sa classe
+     * @param studentId - L'identifiant de l'élève
+     * @param classId - L'identifiant de la classe
+     * @param schoolId - L'identifiant de l'école
+     * @param period - La période
+     * @returns Le rang de l'élève et sa moyenne
+     */
+    async getStudentRank(
+        studentId: number,
+        classId: number,
+        schoolId: number,
+        period: string
+    ): Promise<ResultType<{
+        studentId: number;
+        rank: number;
+        generalAverage: number;
+        totalStudents: number;
+        classAverage: number;
+    }>> {
+        try {
+            const rankingsResult = await this.getClassRankings(classId, schoolId, period);
+            
+            if (!rankingsResult.success || !rankingsResult.data) {
+                throw new Error("Impossible de calculer le classement");
+            }
+
+            const rankings = rankingsResult.data;
+            const studentRanking = rankings.find(r => r.studentId === studentId);
+
+            if (!studentRanking) {
+                return {
+                    success: false,
+                    data: null,
+                    message: "Élève non trouvé dans le classement (pas de notes)",
+                    error: "STUDENT_NOT_RANKED"
+                };
+            }
+
+            // Calculer la moyenne de classe
+            const classAverage = rankings.length > 0
+                ? Math.round((rankings.reduce((sum, r) => sum + r.generalAverage, 0) / rankings.length) * 100) / 100
+                : 0;
+
+            return {
+                success: true,
+                data: {
+                    studentId,
+                    rank: studentRanking.rank,
+                    generalAverage: studentRanking.generalAverage,
+                    totalStudents: rankings.length,
+                    classAverage
+                },
+                message: "Rang calculé avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur getStudentRank:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors du calcul du rang",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
 }
 

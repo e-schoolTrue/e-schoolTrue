@@ -686,6 +686,7 @@ export function registerIpcHandlers() {
   ipcMain.handle("absence:addProfessor", async (_, data) => global.absenceService.createProfessorAbsence(data));
   ipcMain.handle("absence:updateProfessor", async (_, data) => global.absenceService.updateProfessorAbsence(data));
   ipcMain.handle("absence:getAllProfessor", async () => global.absenceService.getAllProfessorAbsences());
+  ipcMain.handle("absence:getTotalAbsencesGroupedByStudent", async (_, gradeId?: number) => global.absenceService.getTotalAbsencesGroupedByStudent(gradeId));
   ipcMain.handle("absence:deleteProfessor", async (_, id) => global.absenceService.deleteProfessorAbsence(id));
   ipcMain.handle("absence:createBatch", async (_, absencesData) => {
     try {
@@ -1045,6 +1046,22 @@ export function registerIpcHandlers() {
       return await global.gradeEntryService.getStudentAverages(studentId, classId, schoolId, period);
     } catch (error) {
       return handleError(error, "gradeEntry:getStudentAverages");
+    }
+  });
+
+  ipcMain.handle('gradeEntry:getClassRankings', async (_event, { classId, schoolId, period }) => {
+    try {
+      return await global.gradeEntryService.getClassRankings(classId, schoolId, period);
+    } catch (error) {
+      return handleError(error, "gradeEntry:getClassRankings");
+    }
+  });
+
+  ipcMain.handle('gradeEntry:getStudentRank', async (_event, { studentId, classId, schoolId, period }) => {
+    try {
+      return await global.gradeEntryService.getStudentRank(studentId, classId, schoolId, period);
+    } catch (error) {
+      return handleError(error, "gradeEntry:getStudentRank");
     }
   });
 

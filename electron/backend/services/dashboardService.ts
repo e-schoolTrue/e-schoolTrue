@@ -4,7 +4,7 @@ import { ProfessorEntity } from "../entities/professor";
 import { GradeEntity } from "../entities/grade";
 import { PaymentEntity } from "../entities/payment";
 import { AbsenceEntity } from "../entities/absence";
-import { IDashboardServiceResponse, IRecentPayment } from "../types/dashboard";
+import { IDashboardServiceResponse, IRecentPayment, IRecentAbsence } from "../types/dashboard";
 import { StudentService } from "./studentService";
 
 export class DashboardService {
@@ -142,6 +142,49 @@ export class DashboardService {
         }
     }
 
+    async getRecentAbsences(limit: number = 5): Promise<ResultType> {
+        try {
+            const dataSource = AppDataSource.getInstance();
+            const absenceRepo = dataSource.getRepository(AbsenceEntity);
+            
+            const absences = await absenceRepo
+                .createQueryBuilder('absence')
+                .leftJoinAndSelect('absence.student', 'student')
+                .leftJoinAndSelect('absence.grade', 'grade')
+                .where('absence.type = :type', { type: 'STUDENT' })
+                .orderBy('absence.date', 'DESC')
+                .addOrderBy('absence.created_at', 'DESC')
+                .take(limit)
+                .getMany();
+
+            const formattedAbsences: IRecentAbsence[] = absences.map(absence => ({
+                id: absence.id,
+                studentName: absence.student 
+                    ? `${absence.student.firstname} ${absence.student.lastname}`
+                    : 'Inconnu',
+                className: absence.grade?.name || 'N/A',
+                date: absence.date,
+                absenceType: absence.absenceType,
+                justified: absence.justified
+            }));
+
+            return {
+                success: true,
+                data: formattedAbsences,
+                message: "Absences récentes récupérées avec succès",
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur getRecentAbsences:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des absences récentes",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
+
     async getAbsenceStats(): Promise<ResultType> {
         try {
             console.log('=== Service Dashboard - Début getAbsenceStats ===');
@@ -200,7 +243,7 @@ export class DashboardService {
                     this.getTotalProfessors(),
                     this.getTotalClasses(),
                     this.getRecentPayments(5),
-                    this.getAbsenceStats()
+                    this.getRecentAbsences(5)
                 ]);
 
             return {
@@ -211,7 +254,7 @@ export class DashboardService {
                         totalProfessors: totalProfessors.data || 0,
                         totalClasses: totalClasses.data || 0,
                         recentPayments: recentPayments.data || [],
-                        recentAbsences: recentAbsences.data || {}
+                        recentAbsences: recentAbsences.data || []
                     }
                 },
                 message: "Statistiques récupérées avec succès",
@@ -227,7 +270,7 @@ export class DashboardService {
                         totalProfessors: 0,
                         totalClasses: 0,
                         recentPayments: [],
-                        recentAbsences: {}
+                        recentAbsences: []
                     }
                 },
                 message: "Erreur lors de la récupération des statistiques",

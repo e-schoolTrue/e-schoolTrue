@@ -4,7 +4,9 @@ import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import { Chart, registerables } from 'chart.js';
 import { useCurrency } from '@/composables/useCurrency';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 
 Chart.register(...registerables);
 
@@ -50,6 +52,15 @@ const createGradient = (ctx: CanvasRenderingContext2D, colorStart: string, color
   gradient.addColorStop(0, colorStart);
   gradient.addColorStop(1, colorEnd);
   return gradient;
+};
+
+//--- Navigation ---
+const navigateToAbsences = () => {
+  router.push('/planning/students/absences');
+};
+
+const navigateToPayments = () => {
+  router.push('/payment/students');
 };
 
 // --- Logic ---
@@ -184,10 +195,6 @@ onMounted(() => {
                 <Icon icon="mdi:calendar-blank-outline" class="mr-2"/> {{ currentDate }}
             </p>
         </div>
-        <div class="header-actions">
-            <!-- Exemple de bouton d'action rapide -->
-            <el-button type="primary" round icon="plus">Nouveau rapport</el-button>
-        </div>
       </div>
 
       <!-- KPI Cards -->
@@ -268,7 +275,7 @@ onMounted(() => {
           <div class="custom-card">
             <div class="card-header-clean">
               <h3><Icon icon="mdi:wallet-outline" class="icon-header"/> Derniers paiements</h3>
-              <el-button link type="primary">Voir tout</el-button>
+              <el-button link type="primary" @click="navigateToPayments">Voir tout</el-button>
             </div>
             <div class="list-container">
               <div
@@ -298,7 +305,7 @@ onMounted(() => {
           <div class="custom-card">
             <div class="card-header-clean">
               <h3><Icon icon="mdi:alert-circle-outline" class="icon-header text-red"/> Absences récentes</h3>
-              <el-button link type="danger">Voir tout</el-button>
+              <el-button link type="danger" @click="navigateToAbsences">Voir tout</el-button>
             </div>
             <div class="list-container">
               <div
