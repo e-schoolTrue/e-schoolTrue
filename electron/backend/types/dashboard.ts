@@ -3,7 +3,7 @@ export interface IDashboardStats {
     totalProfessors: number;
     totalClasses: number;
     recentPayments: IRecentPayment[];
-    recentAbsences: { [key: string]: number };
+    recentAbsences: IRecentAbsence[];
 }
 
 export interface IRecentPayment {
@@ -11,6 +11,15 @@ export interface IRecentPayment {
     studentName: string;
     amount: number;
     date: Date;
+}
+
+export interface IRecentAbsence {
+    id: number;
+    studentName: string;
+    className: string;
+    date: Date;
+    absenceType: string;
+    justified: boolean;
 }
 
 export interface IDashboardServiceResponse {
