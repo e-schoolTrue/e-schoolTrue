@@ -24,6 +24,7 @@ const grades = ref<Grade[]>([]);
 // et inclut toujours groupementId comme optionnel pour la réactivité du formulaire.
 interface FormState extends ICourseBase {
   groupementId?: number; // Rendre groupementId explicitement optionnel ici pour l'état interne du formulaire
+  gradeIds?: number[]; // Tableau pour les classes multiples
 }
 
 const form = reactive<FormState>({
@@ -31,6 +32,7 @@ const form = reactive<FormState>({
   code: '',
   coefficient: 1,
   gradeId: undefined,
+  gradeIds: [],
   // Initialiser groupementId en fonction de props.isGroupement
   groupementId: props.isGroupement ? props.groupementId : undefined,
 });
@@ -48,18 +50,38 @@ const rules = reactive<FormRules>({
     { required: true, message: 'Le coefficient est requis', trigger: 'blur' },
     { type: 'number', min: 0.1, max: 10, message: 'Le coefficient doit être entre 0.1 et 10', trigger: 'blur' }
   ],
-  gradeId: [
-    { required: true, message: 'La classe est requise', trigger: 'change' }
+  gradeIds: [
+    { 
+      required: true, 
+      message: 'Au moins une classe est requise', 
+      trigger: 'change',
+      validator: (rule, value, callback) => {
+        if (!value || value.length === 0) {
+          callback(new Error('Au moins une classe est requise'));
+        } else {
+          callback();
+        }
+      }
+    }
   ]
 });
 
-const openDialog = (initialData?: ICourseFormData | ICourseGroupFormData) => {
+const openDialog = (initialData?: any) => {
   if (initialData) {
     form.id = initialData.id;
     form.name = initialData.name;
     form.code = initialData.code;
     form.coefficient = initialData.coefficient;
-    form.gradeId = initialData.gradeId;
+    
+    // Gérer les grades (multiple ou simple)
+    if (initialData.grades && Array.isArray(initialData.grades)) {
+      form.gradeIds = initialData.grades.map((g: any) => g.id);
+    } else if (initialData.gradeId) {
+      form.gradeIds = [initialData.gradeId];
+    } else {
+      form.gradeIds = [];
+    }
+    
     if (props.isGroupement && 'groupementId' in initialData) {
       form.groupementId = initialData.groupementId;
     }
@@ -68,7 +90,7 @@ const openDialog = (initialData?: ICourseFormData | ICourseGroupFormData) => {
     form.name = '';
     form.code = '';
     form.coefficient = 1;
-    form.gradeId = undefined;
+    form.gradeIds = [];
     if (props.isGroupement) {
       form.groupementId = props.groupementId;
     }
@@ -86,14 +108,14 @@ const handleSubmit = async () => {
 
   try {
     await formRef.value.validate();
-    let formDataToSend: ICourseFormData | ICourseGroupFormData;
+    let formDataToSend: any;
 
     if (props.isGroupement) {
-      if (typeof form.groupementId !== 'number') { // S'assurer qu'il est défini et est un nombre
+      if (typeof form.groupementId !== 'number') {
         ElMessage.error('ID de groupement est requis pour un cours groupé.');
         return;
       }
-      formDataToSend = { // Ceci correspondra à ICourseGroupFormData
+      formDataToSend = {
         id: form.id,
         name: form.name,
         code: form.code,
@@ -101,12 +123,12 @@ const handleSubmit = async () => {
         groupementId: form.groupementId,
       };
     } else {
-      formDataToSend = { // Ceci correspondra à ICourseFormData
+      formDataToSend = {
         id: form.id,
         name: form.name,
         code: form.code,
         coefficient: form.coefficient,
-        gradeId: form.gradeId,
+        gradeIds: form.gradeIds,
       };
     }
     emit('submit', formDataToSend);
@@ -172,8 +194,15 @@ defineExpose({
         />
       </el-form-item>
 
-      <el-form-item label="Classe" prop="gradeId">
-        <el-select v-model="form.gradeId" placeholder="Sélectionner une classe" style="width: 100%">
+      <el-form-item label="Classes" prop="gradeIds">
+        <el-select 
+          v-model="form.gradeIds" 
+          placeholder="Sélectionner une ou plusieurs classes" 
+          style="width: 100%"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+        >
           <el-option
             v-for="grade in grades"
             :key="grade.id"

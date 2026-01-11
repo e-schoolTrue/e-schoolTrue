@@ -1,4 +1,4 @@
-import {Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn, JoinColumn} from "typeorm";
+import {Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, OneToMany, ManyToMany, JoinTable, PrimaryGeneratedColumn, UpdateDateColumn, JoinColumn} from "typeorm";
 import {ScheduleEntity} from "./schedule"
 import {GradeEntity} from "./grade"
 
@@ -20,9 +20,21 @@ export class CourseEntity{
     isInGroupement?:boolean ;
     @ManyToOne(()=>CourseEntity , (course)=>course.courses , {onDelete:"CASCADE"}) 
     groupement?:CourseEntity ;
-    @ManyToOne(()=>GradeEntity , (grade)=>grade.courses , {onDelete:"CASCADE"})
+    
+    // Relation Many-to-Many avec les classes
+    @ManyToMany(() => GradeEntity, (grade) => grade.courses, {cascade: true})
+    @JoinTable({
+        name: "course_grades",
+        joinColumn: { name: "courseId", referencedColumnName: "id" },
+        inverseJoinColumn: { name: "gradeId", referencedColumnName: "id" }
+    })
+    grades?: GradeEntity[];
+    
+    // Ancienne relation ManyToOne conservée pour compatibilité (deprecated)
+    @ManyToOne(()=>GradeEntity, {nullable: true, onDelete:"CASCADE"})
     @JoinColumn()
     grade?:GradeEntity ;
+    
     @OneToMany(()=>ObservationEntity , (observation)=>observation.course)
     observations?:ObservationEntity[]
     @OneToMany(()=>CourseEntity , (course)=>course.groupement)

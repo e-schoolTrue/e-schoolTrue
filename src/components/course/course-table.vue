@@ -6,11 +6,19 @@ import {Course, CourseCommand} from "@/types/course";
 import CourseDetails from "@/components/course/course-details.vue";
 import CourseGroupForm from "@/components/course/course-group-form.vue";
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRouter } from 'vue-router';
+
 
 const props = defineProps<{
   courses: Course[];
   loading?: boolean;
 }>();
+
+const router = useRouter();
+
+const handleProf = () => {
+  router.push("/professor");
+};
 
 const emit = defineEmits<{
   (e: 'update', course: Course): void;
@@ -147,7 +155,7 @@ function addNewSubModule(subModuleFormRef: FormInstance | undefined, subModuleFo
                     <el-dropdown-item>
                       <el-space>
                         <Icon icon="twemoji:woman-teacher"/>
-                        <el-text>Gérer enseignants</el-text>
+                        <el-text @click="handleProf()" >Gérer enseignants</el-text>
                       </el-space>
                     </el-dropdown-item>
                     <el-dropdown-item v-if="!scope.row?.isInGroupement" @click="openNewSubModuleForm(scope.row)">

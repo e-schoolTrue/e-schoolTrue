@@ -161,12 +161,6 @@ export const AppItems: MenuItem[] = [
                         icon: "fluent-emoji:page-with-curl",
                         route: "/tools/documents/scolarity",
 
-                    },
-                    {
-                        id: "submenu-5-2-2",
-                        title: "Rapport administratif",
-                        icon: "fluent-emoji:page-with-curl",
-                        route: "/tools/documents/administrative-report",
                     }
                 ]
             },

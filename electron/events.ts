@@ -258,6 +258,9 @@ export function registerIpcHandlers() {
   ipcMain.handle("professor:getById", async (_, professorId: number) => global.professorService.getProfessorById(professorId));
   ipcMain.handle("professor:search", async (_, query: string) => global.professorService.searchProfessors(query));
   ipcMain.handle("professor:count", async () => global.professorService.getTotalProfessors());
+  ipcMain.handle("professor:getByCourseAndGrade", async (_, { courseId, gradeId }: { courseId: number, gradeId: number }) => 
+    global.professorService.getProfessorByCourseAndGrade(courseId, gradeId)
+  );
 
   // --- Fichiers ---
 
