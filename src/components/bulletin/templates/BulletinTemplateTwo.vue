@@ -13,14 +13,6 @@
         </div>
       </div>
       <div class="header-center">
-        <h2 :style="{ color: options.primaryColor }">{{ schoolInfo?.country || 'REPUBLIQUE DE GUINEE' }}</h2>
-        <div class="motto">
-          <span class="red">Travail-</span>
-          <span class="yellow">Justice-</span>
-          <span class="green">Solidarité</span>
-        </div>
-        <p class="ministry">MINISTERE DE L'EDUCATION NATIONALE ET DE L'ALPHABETISATION</p>
-        <p class="inspection">{{ schoolInfo?.town || 'INSPECTION REGIONALE' }}</p>
         <h1 class="school-name" :style="{ color: options.primaryColor }">{{ schoolInfo?.name || 'Nom de l\'École' }}</h1>
       </div>
     </header>
@@ -43,7 +35,6 @@
       </div>
       <div class="row">
         <div class="cell"><strong>N° Matricule :</strong> {{ student?.matricule || '-' }}</div>
-        <div class="cell"><strong>Sexe :</strong> {{ student?.gender || '-' }}</div>
       </div>
     </div>
 
@@ -56,6 +47,7 @@
           <th class="col-note">Moyenne</th>
           <th class="col-note">Points</th>
           <th>Appréciation</th>
+          <th class="col-prof">Professeur</th>
         </tr>
       </thead>
       <tbody>
@@ -65,6 +57,7 @@
           <td :class="getGradeClass(grade.average)">{{ fmt(grade.average) }}</td>
           <td class="bg-gray">{{ fmt(grade.weightedValue) }}</td>
           <td class="appreciation">{{ grade.appreciation || getAppreciation(grade.average) }}</td>
+          <td class="professor-name">{{ grade.professorName || '-' }}</td>
         </tr>
       </tbody>
       <tfoot>
@@ -74,10 +67,11 @@
           <td></td>
           <td class="bg-gray font-bold">{{ fmt(totalWeightedPoints) }}</td>
           <td></td>
+          <td></td>
         </tr>
         <tr class="moyenne-generale-row" :style="{ backgroundColor: options.secondaryColor + '20' }">
           <td colspan="2" class="label-moyenne">Moyenne Générale</td>
-          <td colspan="3" class="value-moyenne" :style="{ color: options.primaryColor }">
+          <td colspan="4" class="value-moyenne" :style="{ color: options.primaryColor }">
             {{ fmt(generalAverage) }} / 20
           </td>
         </tr>
@@ -373,9 +367,10 @@ const getAppreciation = (note: number) => {
   letter-spacing: 0.3px;
 }
 
-.col-matiere { width: 35%; text-align: left; padding-left: 8px !important; }
-.col-coeff { width: 10%; }
-.col-note { width: 15%; }
+.col-matiere { width: 25%; text-align: left; padding-left: 8px !important; }
+.col-coeff { width: 8%; }
+.col-note { width: 12%; }
+.col-prof { width: 20%; }
 
 .text-left { text-align: left; padding-left: 8px; }
 .bg-gray { background-color: #e8e8e8; }
@@ -387,6 +382,7 @@ const getAppreciation = (note: number) => {
 .grade-excellent { color: #1565c0; font-weight: bold; }
 
 .appreciation { font-size: 10px; font-style: italic; }
+.professor-name { font-size: 9px; text-align: left; padding-left: 6px; }
 
 /* Totaux */
 .total-row td {
