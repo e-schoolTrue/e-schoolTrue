@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineEmits } from 'vue';
+import { ref, computed} from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';

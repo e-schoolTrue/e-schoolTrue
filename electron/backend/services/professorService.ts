@@ -786,6 +786,112 @@ export class ProfessorService {
             };
         }
     }
+
+    /**
+     * Récupérer le professeur enseignant un cours dans une classe spécifique
+     */
+    async getProfessorByCourseAndGrade(courseId: number, gradeId: number): Promise<IProfessorServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            
+            console.log(`🔍 Recherche professeur pour courseId=${courseId}, gradeId=${gradeId}`);
+            
+            // ÉTAPE 1 : Chercher un professeur de matière (SECONDARY) affecté spécifiquement à ce cours
+            const secondaryTeachingAssignments = await this.teachingAssignmentRepository
+                .createQueryBuilder('teaching')
+                .leftJoinAndSelect('teaching.professor', 'professor')
+                .leftJoinAndSelect('teaching.course', 'course')
+                .leftJoinAndSelect('teaching.class', 'class')
+                .leftJoinAndSelect('teaching.grades', 'grades')
+                .where('teaching.course.id = :courseId', { courseId })
+                .andWhere('teaching.teachingType = :type', { type: TEACHING_TYPE.SECONDARY })
+                .getMany();
+
+            console.log(`📚 Affectations SECONDARY trouvées: ${secondaryTeachingAssignments.length}`);
+
+            // Filtrer pour trouver celle qui correspond à la classe
+            let teachingAssignment = secondaryTeachingAssignments.find(ta => {
+                // Vérifier si la classe unique correspond
+                if (ta.class && ta.class.id === gradeId) {
+                    return true;
+                }
+                // Vérifier si la classe est dans gradeIds (string CSV)
+                if (ta.gradeIds) {
+                    const gradeIdArray = ta.gradeIds.split(',').map(id => parseInt(id.trim()));
+                    if (gradeIdArray.includes(gradeId)) {
+                        return true;
+                    }
+                }
+                // Vérifier si la classe est dans grades (relation ManyToMany)
+                if (ta.grades && ta.grades.length > 0) {
+                    if (ta.grades.some(g => g.id === gradeId)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+
+            // ÉTAPE 2 : Si aucun professeur de matière n'est trouvé, chercher le professeur titulaire (CLASS_TEACHER)
+            if (!teachingAssignment) {
+                console.log('🔄 Aucun prof SECONDARY, recherche du professeur titulaire (CLASS_TEACHER)...');
+                
+                const classTacherAssignments = await this.teachingAssignmentRepository
+                    .createQueryBuilder('teaching')
+                    .leftJoinAndSelect('teaching.professor', 'professor')
+                    .leftJoinAndSelect('teaching.class', 'class')
+                    .where('teaching.class.id = :gradeId', { gradeId })
+                    .andWhere('teaching.teachingType = :type', { type: TEACHING_TYPE.CLASS_TEACHER })
+                    .getMany();
+
+                console.log(`👨‍🏫 Professeurs titulaires trouvés: ${classTacherAssignments.length}`);
+                
+                if (classTacherAssignments.length > 0) {
+                    teachingAssignment = classTacherAssignments[0];
+                    console.log(`✅ Professeur titulaire utilisé: ${teachingAssignment.professor?.firstname} ${teachingAssignment.professor?.lastname}`);
+                }
+            } else {
+                console.log(`✅ Professeur de matière trouvé: ${teachingAssignment.professor?.firstname} ${teachingAssignment.professor?.lastname}`);
+            }
+
+            if (!teachingAssignment || !teachingAssignment.professor) {
+                console.log('❌ Aucun professeur trouvé (ni SECONDARY, ni CLASS_TEACHER)');
+                return {
+                    success: false,
+                    message: "Aucun professeur trouvé pour ce cours dans cette classe",
+                    error: "NOT_FOUND",
+                    data: null
+                };
+            }
+
+            // Retourner les informations du professeur
+            return {
+                success: true,
+                message: "Professeur trouvé avec succès",
+                error: null,
+                data: {
+                    id: teachingAssignment.professor.id,
+                    firstname: teachingAssignment.professor.firstname,
+                    lastname: teachingAssignment.professor.lastname,
+                    civility: teachingAssignment.professor.civility,
+                    family_situation: teachingAssignment.professor.family_situation,
+                    birth_town: teachingAssignment.professor.birth_town,
+                    address: teachingAssignment.professor.address,
+                    town: teachingAssignment.professor.town,
+                    cni_number: teachingAssignment.professor.cni_number,
+                    nbr_child: teachingAssignment.professor.nbr_child,
+                    teaching: []
+                }
+            };
+        } catch (error) {
+            console.error('Erreur lors de la récupération du professeur:', error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération du professeur",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
 }
 
    

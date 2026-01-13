@@ -1,18 +1,18 @@
 export const fileRoutes = [
     {
-        path : '/grade' ,
-        name : "Niveau scolaire" ,
-        component : () => import('@/views/file/GradeView.vue')
+        path: '/grade',
+        name: "Niveau scolaire",
+        component: () => import('@/views/file/GradeView.vue')
     },
     {
-        path : '/classroom' ,
-        name : "Salles de classe" ,
-        component : () => import('@/views/file/ClassRoomView.vue')
+        path: '/classroom',
+        name: "Salles de classe",
+        component: () => import('@/views/file/ClassRoomView.vue')
     },
     {
-        path : '/course' ,
-        name : "Matières" ,
-        component : () => import('@/views/file/CourseView.vue')
+        path: '/course',
+        name: "Matières",
+        component: () => import('@/views/file/CourseView.vue')
     },
     {
         path: '/payment-config',
@@ -38,5 +38,10 @@ export const fileRoutes = [
         path: '/license-status',
         name: "Statut de la licence",
         component: () => import('@/views/file/LicenseStatusView.vue')
+    },
+    {
+        path: '/note-config',
+        name: "Configuration de la notation",
+        component: () => import('@/views/file/NoteConfigView.vue')
     }
 ]

@@ -135,94 +135,101 @@
             style="width: 100%"
             height="40vh"
             v-loading="loading"
-            border
             stripe
             highlight-current-row
+            :header-cell-style="{ background: '#f5f7fa', fontWeight: '600' }"
           >
-            <el-table-column
-              label="Élève"
-              min-width="200"
-              sortable
-            >
+            <!-- Colonne Élève + Classe -->
+            <el-table-column label="Élève" min-width="220" sortable>
               <template #default="{ row }">
-                <div class="student-info">
-                  <div class="student-details">
+                <div class="student-cell">
+                  <div class="student-name-row">
+                    <Icon icon="mdi:account" class="student-icon" />
                     <span class="student-name">{{ row.student?.firstname }} {{ row.student?.lastname }}</span>
-                    <small class="student-matricule">{{ row.student?.matricule }}</small>
+                  </div>
+                  <div class="student-meta">
+                    <el-tag size="small" type="info" effect="plain">{{ row.grade?.name }}</el-tag>
+                    <span class="student-matricule">{{ row.student?.matricule }}</span>
                   </div>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column
-              label="Classe"
-              width="120"
-              sortable
-            >
+            <!-- Colonne Date + Type -->
+            <el-table-column label="Date & Type" width="220" sortable>
               <template #default="{ row }">
-                {{ row.grade?.name }}
-              </template>
-            </el-table-column>
-
-            <el-table-column label="Date" width="180" sortable>
-              <template #default="{ row }">
-                <div class="date-info">
-                  <div class="date-primary">{{ formatDate(row.date) }}</div>
-                  <small class="date-time" v-if="row.startTime">
-                    {{ row.startTime }} - {{ row.endTime }}
-                  </small>
+                <div class="date-type-cell">
+                  <div class="date-row">
+                    <Icon icon="mdi:calendar" class="cell-icon" />
+                    <span class="date-text">{{ formatDate(row.date) }}</span>
+                  </div>
+                  <div class="type-row">
+                    <el-tag size="small" :type="getAbsenceTypeTag(row.absenceType)">
+                      {{ absenceTypes.find(t => t.value === row.absenceType)?.label }}
+                    </el-tag>
+                    <span v-if="row.startTime" class="time-range">
+                      {{ row.startTime }} - {{ row.endTime }}
+                    </span>
+                  </div>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column label="Type" width="150">
+            <!-- Colonne Motif -->
+            <el-table-column label="Motif" width="160">
               <template #default="{ row }">
-                <el-tag :type="getAbsenceTypeTag(row.absenceType)">
-                  {{ absenceTypes.find(t => t.value === row.absenceType)?.label }}
-                </el-tag>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="Motif" width="150">
-              <template #default="{ row }">
-                <el-tooltip
-                  :content="row.reason"
-                  placement="top"
-                  :show-after="500"
-                >
-                  <el-tag :type="getReasonTypeTag(row.reasonType)">
+                <el-tooltip :content="row.reason" placement="top" :show-after="300">
+                  <el-tag size="small" :type="getReasonTypeTag(row.reasonType)">
                     {{ reasonTypes.find(r => r.value === row.reasonType)?.label }}
                   </el-tag>
                 </el-tooltip>
               </template>
             </el-table-column>
 
-            <el-table-column label="Justification" width="180">
+            <!-- Colonne Statut -->
+            <el-table-column label="Statut" width="140" align="center">
               <template #default="{ row }">
-                <div class="justification-status">
-                  <el-tag :type="row.justified ? 'success' : 'danger'">
+                <div class="status-cell">
+                  <el-tag 
+                    size="small" 
+                    :type="row.justified ? 'success' : 'danger'"
+                    :icon="row.justified ? 'CircleCheck' : 'CircleClose'"
+                  >
                     {{ row.justified ? 'Justifiée' : 'Non justifiée' }}
                   </el-tag>
-                  <div v-if="row.document" class="document-actions">
+                  <Icon 
+                    v-if="row.document" 
+                    icon="mdi:paperclip" 
+                    class="document-indicator"
+                    :title="'Document joint'"
+                  />
+                </div>
+              </template>
+            </el-table-column>
+
+            <!-- Colonne Actions -->
+            <el-table-column label="Actions" width="100" align="center" fixed="right">
+              <template #default="{ row }">
+                <div class="actions-cell">
+                  <el-tooltip content="Voir le document" placement="top" v-if="row.document">
                     <el-button
-                      type="primary"
-                      link
+                      circle
                       size="small"
                       @click="viewDocument(row.document)"
                     >
-                      <Icon icon="mdi:eye" class="mr-1" />
-                      Voir
+                      <Icon icon="mdi:eye" />
                     </el-button>
+                  </el-tooltip>
+                  <el-tooltip content="Télécharger" placement="top" v-if="row.document">
                     <el-button
-                      type="success"
-                      link
+                      circle
                       size="small"
+                      type="success"
                       @click="downloadDocument(row.document)"
                     >
-                      <Icon icon="mdi:download" class="mr-1" />
-                      Télécharger
+                      <Icon icon="mdi:download" />
                     </el-button>
-                  </div>
+                  </el-tooltip>
                 </div>
               </template>
             </el-table-column>
@@ -264,7 +271,6 @@
             width="100%"
             height="100%"
           >
-            <p>Ce navigateur ne supporte pas l'affichage des PDF.</p>
           </object>
         </template>
         <template v-else-if="currentDocument?.isImage">
@@ -781,10 +787,7 @@ const forceViewAsPdf = () => {
   background-color: var(--el-bg-color-page);
 }
 
-.el-container {
-  height: 100%;
-  padding: 20px;
-}
+
 
 .filters-sidebar {
   padding-right: 20px;
@@ -977,35 +980,94 @@ const forceViewAsPdf = () => {
   --el-table-tr-bg-color: var(--el-color-success-light);
 }
 
-.student-info {
+/* Nouvelles cellules du tableau restructuré */
+.student-cell {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.student-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-icon {
+  font-size: 16px;
+  color: var(--el-color-primary);
 }
 
 .student-name {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--el-text-color-primary);
+  font-size: 14px;
+}
+
+.student-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 24px;
 }
 
 .student-matricule {
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  margin-top: 4px;
 }
 
-.date-info {
+.date-type-cell {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
 
-.date-primary {
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cell-icon {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+}
+
+.date-text {
   font-weight: 500;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
 }
 
-.date-time {
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-range {
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  margin-top: 4px;
+}
+
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.document-indicator {
+  font-size: 16px;
+  color: var(--el-color-primary);
+  cursor: help;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
 }
 
 .document-link {
@@ -1025,27 +1087,12 @@ const forceViewAsPdf = () => {
   }
 }
 
-.justification-status {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.document-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 5px;
-}
-
-.el-button.el-button--primary.is-link, 
-.el-button.el-button--success.is-link {
-  height: auto;
-  padding: 4px 0;
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* Styles pour les boutons circulaires d'actions */
+:deep(.actions-cell .el-button.is-circle) {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 14px;
 }
 
 .document-viewer {

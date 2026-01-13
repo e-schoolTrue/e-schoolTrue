@@ -24,7 +24,8 @@ export enum SCHOOL_TYPE {
 
 export enum TEACHING_TYPE {
     CLASS_TEACHER = "CLASS_TEACHER",    // Instituteur (primaire)
-    SUBJECT_TEACHER = "SUBJECT_TEACHER" // Professeur par matière (collège/lycée)
+    SUBJECT_TEACHER = "SUBJECT_TEACHER", // Professeur par matière (collège/lycée)
+    SECONDARY = "SECONDARY"
 }
 
 export interface TeachingAssignment {

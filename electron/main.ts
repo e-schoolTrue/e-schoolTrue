@@ -39,6 +39,8 @@ import { LicenseService } from "./backend/services/licenseService";
 import { ScheduleService } from './backend/services/scheduleService';
 import { InscriptionFeeService } from "./backend/services/inscription-fee.service";
 import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
+import { ConfigNoteService } from "./backend/services/note-config-service";
+import { GradeEntryService } from "./backend/services/gradeEntryService";
 
 
 
@@ -86,6 +88,8 @@ function initializeServices() {
   global.scheduleService = new ScheduleService();
   global.inscriptionFeeService = new InscriptionFeeService();
   global.paymentAnnualConfigService = new PaymentAnnualConfigService();
+  global.configNoteService = new ConfigNoteService();
+  global.gradeEntryService = new GradeEntryService();
 }
 
 // =================================================================
@@ -125,8 +129,8 @@ async function startApplication() {
 
   console.log('--- FLUX DE DÉMARRAGE TERMINÉ ---');
 }
-async function setupAutoUpdate(){
-    // Configuration de l'auto-update
+async function setupAutoUpdate() {
+  // Configuration de l'auto-update
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
@@ -140,11 +144,11 @@ async function setupAutoUpdate(){
       },
       debug: (message: string) => console.debug(message)
     }
-    
+
     // Activer les logs détaillés en développement
     autoUpdater.forceDevUpdateConfig = true
     autoUpdater.logger.info('Mode développement: configuration de l\'auto-update')
-    
+
     // Désactiver la vérification des certificats SSL en développement
     app.commandLine.appendSwitch('ignore-certificate-errors')
   }
@@ -283,7 +287,7 @@ app.whenReady().then(async () => {
     if (app.isPackaged) {
       console.log('Vérification des mises à jour...')
       autoUpdater.checkForUpdatesAndNotify()
-      
+
       // Vérifier les mises à jour toutes les heures
       setInterval(() => {
         console.log('Vérification périodique des mises à jour...')
@@ -294,7 +298,7 @@ app.whenReady().then(async () => {
       setInterval(() => {
         console.log('Vérification des mises à jour (mode développement)...')
         autoUpdater.checkForUpdatesAndNotify()
-      }, 5 * 60 * 1000) 
+      }, 5 * 60 * 1000)
     }
     await startApplication();
   } catch (error) {
