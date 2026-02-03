@@ -609,8 +609,16 @@ export class PaymentService {
     async getProfessorPayments(filters: any): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
+            const where: any = {};
+            if (filters?.month) {
+                where.month = filters.month;
+            }
+            if (filters?.status) {
+                where.isPaid = filters.status === 'paid';
+            }
+
             const payments = await this.professorPaymentRepository.find({
-                where: filters,
+                where,
                 relations: ['professor'],
                 order: { month: 'DESC' }
             });

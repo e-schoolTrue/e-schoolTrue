@@ -24,7 +24,9 @@ function openUpdateCourseForm(course: Course) {
     id: course.id,
     name: course.name,
     code: course.code,
-    coefficient: course.coefficient || 1
+    coefficient: course.coefficient || 1,
+    grades: course.grades,
+    gradeId: course.grade?.id
   });
 }
 
