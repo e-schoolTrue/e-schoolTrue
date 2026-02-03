@@ -46,6 +46,7 @@ export class CourseCommand extends SettingCommand {
     declare coefficient: number;
     declare groupementId?: number;
     declare gradeId?: number;
+    declare gradeIds?: number[];
     groupement?: SubCourseCommand;
     declare isInGroupement?: boolean;
 }

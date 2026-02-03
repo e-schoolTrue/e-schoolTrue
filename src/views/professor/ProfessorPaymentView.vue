@@ -52,7 +52,7 @@
                 placeholder="Mois"
                 format="MMMM YYYY"
                 value-format="YYYY-MM"
-                @change="handleFilter"
+                @change="loadData"
                 class="filter-date"
               />
             </div>
@@ -342,6 +342,7 @@ const loadData = async () => {
 
     if (paymentsResult?.success) {
       payments.value = paymentsResult.data || [];
+      handleFilter();
     }
   } catch (error) {
     console.error('Erreur lors du chargement des données:', error);

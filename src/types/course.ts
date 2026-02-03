@@ -5,6 +5,7 @@ export interface ICourseBase {
     code: string;
     coefficient: number;
     gradeId?: number;
+    gradeIds?: number[];
 }
 
 // Type principal pour les matières
@@ -13,6 +14,11 @@ export interface ICourse extends ICourseBase {
     groupementId?: number;
     groupement?: ICourse;    // Matière parente
     courses?: ICourse[];     // Sous-matières
+    grades?: {
+        id?: number;
+        name?: string;
+        code?: string;
+    }[];
     grade?: {
         id?: number;
         name?: string;

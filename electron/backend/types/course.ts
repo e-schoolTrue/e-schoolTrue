@@ -26,6 +26,7 @@ export interface ICourseServiceParams {
         coefficient: number;
         code: string;
         gradeId?: number;
+        gradeIds?: number[];
     };
     addCourseToGroupement: {
         name: string;
@@ -33,6 +34,7 @@ export interface ICourseServiceParams {
         code: string;
         groupementId?: number;
         gradeId?: number;
+        gradeIds?: number[];
     };
     updateCourse: {
         id: number;
@@ -41,6 +43,7 @@ export interface ICourseServiceParams {
             coefficient: number;
             code: string;
             gradeId?: number;
+            gradeIds?: number[];
         };
     };
 }

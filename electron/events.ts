@@ -208,7 +208,18 @@ export function registerIpcHandlers() {
   // --- Cours ---
   ipcMain.handle("course:new", async (_, command: CourseCommand) => global.courseService.newCourse(command));
   ipcMain.handle("courseGroup:add", async (_, command: CourseCommand) => global.courseService.addCourseToGroupement(command));
-  ipcMain.handle("course:update", async (_, command: CourseCommand) => global.courseService.updateCourse({ id: command.id!, data: { name: command.name!, coefficient: command.coefficient, code: command.code!, gradeId: command.gradeId } }));
+  ipcMain.handle("course:update", async (_, command: CourseCommand) =>
+    global.courseService.updateCourse({
+      id: command.id!,
+      data: {
+        name: command.name!,
+        coefficient: command.coefficient,
+        code: command.code!,
+        gradeId: command.gradeId,
+        gradeIds: command.gradeIds
+      }
+    })
+  );
   ipcMain.handle("course:delete", async (_, id: number) => global.courseService.deleteCourse(id));
   ipcMain.handle("course:all", async () => global.courseService.getAllCourse());
   ipcMain.handle("course:getByGrade", async (_, gradeId: number) => global.courseService.getCoursesByGrade(gradeId));
