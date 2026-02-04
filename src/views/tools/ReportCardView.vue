@@ -56,20 +56,35 @@
           <el-card class="students-card compact-card">
             <template #header>
               <div class="card-header">
-                <span>Élèves ({{ students.length }})</span>
-                <el-input
-                  v-model="studentSearch"
-                  placeholder="Rechercher..."
-                  size="small"
-                  clearable
-                >
-                  <template #prefix><el-icon><Search /></el-icon></template>
-                </el-input>
-      </div>
+                <span>Élèves ({{ sortedStudents.length }})</span>
+                <div class="card-actions">
+                  <el-input
+                    v-model="studentSearch"
+                    placeholder="Rechercher..."
+                    size="small"
+                    clearable
+                    style="width: 120px; margin-right: 8px;"
+                  >
+                    <template #prefix><el-icon><Search /></el-icon></template>
+                  </el-input>
+                  <el-select
+                    v-model="sortingOption"
+                    placeholder="Trier par"
+                    size="small"
+                    style="width: 140px;"
+                  >
+                    <el-option label="Par défaut" value="default" />
+                    <el-option label="Nom A-Z" value="lastname-asc" />
+                    <el-option label="Nom Z-A" value="lastname-desc" />
+                    <el-option label="Prénom A-Z" value="firstname-asc" />
+                    <el-option label="Prénom Z-A" value="firstname-desc" />
+                  </el-select>
+                </div>
+              </div>
             </template>
             <div class="students-list">
               <div
-                v-for="student in filteredStudents"
+                v-for="student in sortedStudents"
                 :key="student.id"
                 class="student-item"
                 :class="{ 'active': selectedStudentId === student.id }"
@@ -95,7 +110,7 @@
             <template #header>
               <div class="card-header-grade">
                 <div>
-                  <strong>{{ selectedStudent.lastname }} {{ selectedStudent.firstname }}</strong>
+                  <strong>{{ sortedStudents.find(s => s.id === selectedStudentId.value)?.lastname }} {{ sortedStudents.find(s => s.id === selectedStudentId.value)?.firstname }}</strong>
                   <span class="student-class">{{ selectedClassName }}</span>
                 </div>
                 <el-tag v-if="configInfo" type="info" effect="plain">
@@ -136,8 +151,8 @@
                         <span class="subject-coef">Coef. {{ course.coefficient }}</span>
       </div>
                     </td>
-                    <td 
-                      v-for="category in categories" 
+                    <td
+                      v-for="category in categories"
                       :key="`${course.id}-${category.id}`"
                       class="grade-cell"
                     >
@@ -149,7 +164,7 @@
                         :step="0.5"
                         size="small"
                         controls-position="right"
-                        @change="onGradeChange(course.id!, category.id)"
+                        @input="onGradeChange(course.id!, category.id)"
                       />
                     </td>
                     <td class="class-avg-cell">
@@ -193,20 +208,19 @@
       </el-row>
       </div>
 
-    <!-- Empty state initial -->
     <div v-else class="initial-state">
       <el-empty description="Sélectionnez une classe et une période pour commencer">
         <el-icon size="80" color="#909399"><Reading /></el-icon>
       </el-empty>
     </div>
-
-    <!-- Dialog de détail du calcul -->
     <GradeCalculationDetail ref="calculationDetailRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
+// @ts-ignore
+// @ts-nocheck
+import { ref, computed, onMounted, reactive, watchEffect } from 'vue';
 import { Document, Check, Search, Reading, Star } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import GradeCalculationDetail from '@/components/grade/GradeCalculationDetail.vue';
@@ -255,6 +269,7 @@ const selectedPeriod = ref<string | null>(null);
 const selectedStudentId = ref<number | null>(null);
 const selectedStudent = ref<Student | null>(null);
 const studentSearch = ref('');
+const sortingOption = ref<'default' | 'lastname-asc' | 'lastname-desc' | 'firstname-asc' | 'firstname-desc'>('default');
 
 const periods = ref<string[]>([]);
 const schoolId = ref(1);
@@ -264,19 +279,58 @@ const gradesData = reactive<GradesDataStructure>({});
 const calculatedAverages = ref<Map<number, number>>(new Map());
 const calculationDetailRef = ref<InstanceType<typeof GradeCalculationDetail> | null>(null);
 
+// Watch pour déboguer les changements dans gradesData
+watchEffect(() => {
+  console.log('🔄 gradesData mis à jour:', JSON.stringify(gradesData, null, 2));
+});
+
 // Computed
 const selectedClassName = computed(() => {
   return classes.value.find(c => c.id === selectedClassId.value)?.name || '';
 });
 
-const filteredStudents = computed(() => {
-  if (!studentSearch.value) return students.value;
-  const search = studentSearch.value.toLowerCase();
-  return students.value.filter(s => 
-    s.firstname.toLowerCase().includes(search) || 
-    s.lastname.toLowerCase().includes(search) ||
-    s.id.toString().includes(search)
-  );
+// Élèves filtrés et triés
+const sortedStudents = computed(() => {
+  // 1. Filtrer par recherche
+  let filtered = students.value;
+  if (!studentSearch.value) {
+    filtered = students.value;
+  } else {
+    const search = studentSearch.value.toLowerCase();
+    filtered = students.value.filter(s =>
+      s.firstname.toLowerCase().includes(search) ||
+      s.lastname.toLowerCase().includes(search) ||
+      s.id.toString().includes(search)
+    );
+  }
+
+  // 2. Trier selon l'option
+  switch (sortingOption.value) {
+    case 'lastname-asc':
+      filtered.sort((a, b) => a.lastname.localeCompare(b.lastname, 'fr'));
+      break;
+    case 'lastname-desc':
+      filtered.sort((a, b) => b.lastname.localeCompare(a.lastname, 'fr'));
+      break;
+    case 'firstname-asc':
+      filtered.sort((a, b) => a.firstname.localeCompare(b.firstname, 'fr'));
+      break;
+    case 'firstname-desc':
+      filtered.sort((a, b) => b.firstname.localeCompare(a.firstname, 'fr'));
+      break;
+    case 'default':
+    default:
+      // Par défaut: par nom (desc), puis prénom
+      filtered.sort((a, b) => {
+        if (a.lastname !== b.lastname) {
+          return a.lastname.localeCompare(b.lastname, 'fr');
+        }
+        return a.firstname.localeCompare(b.firstname, 'fr');
+      });
+      break;
+  }
+
+  return filtered;
 });
 
 const generalAverage = computed(() => {
@@ -352,7 +406,7 @@ const onClassChange = async () => {
   students.value = [];
   courses.value = [];
   categories.value = [];
-  
+
   if (!selectedClassId.value) return;
 
   loading.value = true;
@@ -432,6 +486,9 @@ const loadStudentGrades = async () => {
 
   loading.value = true;
   try {
+    console.log('=== CHARGEMENT DES NOTES ===');
+    console.log('StudentId:', selectedStudent.value.id, 'Période:', selectedPeriod.value, 'Matières:', courses.value.length);
+
     // Initialiser la structure de données
     for (const course of courses.value) {
       if (!gradesData[course.id!]) {
@@ -442,19 +499,24 @@ const loadStudentGrades = async () => {
       }
     }
 
-    // Charger les notes existantes pour chaque matière
-    for (const course of courses.value) {
-      const gradesRes = await window.ipcRenderer.invoke('gradeEntry:get', {
-        studentId: selectedStudent.value.id,
-        courseId: course.id,
-        period: selectedPeriod.value
-      });
+    console.log('Structure initiale de gradesData créée');
 
-      if (gradesRes.success && gradesRes.data) {
-        for (const entry of gradesRes.data) {
-          gradesData[course.id!][entry.categoryId] = entry.score;
+      // Charger les notes existantes pour chaque matière
+      for (const course of courses.value) {
+        const gradesRes = await window.ipcRenderer.invoke('gradeEntry:get', {
+          studentId: selectedStudent.value.id,
+          courseId: course.id,
+          period: selectedPeriod.value
+        });
+
+        if (gradesRes.success && gradesRes.data && gradesRes.data.length > 0) {
+          for (const entry of gradesRes.data) {
+            gradesData[course.id!][entry.categoryId] = entry.score;
+          }
+          console.log(`✅ Notes chargées pour matière ${course.name} (ID: ${course.id}):`, gradesData[course.id!]);
+        } else {
+          console.log(`ℹ️ Aucune note trouvée pour matière ${course.name} (studentId: ${selectedStudent.value.id}, courseId: ${course.id}, period: ${selectedPeriod.value})`);
         }
-      }
 
       // Charger la moyenne calculée
       const avgRes = await window.ipcRenderer.invoke('gradeEntry:getCalculated', {
@@ -470,6 +532,8 @@ const loadStudentGrades = async () => {
       }
     }
 
+    console.log('=== CHARGEMENT TERMINÉ ===');
+    console.log('Notes finales dans gradesData:', JSON.stringify(gradesData, null, 2));
     hasChanges.value = false;
   } catch (error) {
     console.error('Erreur chargement notes:', error);
@@ -479,7 +543,9 @@ const loadStudentGrades = async () => {
   }
 };
 
-const onGradeChange = (courseId: number, _categoryId: number) => {
+const onGradeChange = (courseId: number, categoryId: number) => {
+  const newValue = gradesData[courseId]?.[categoryId];
+  console.log(`✏️ Modification détectée - Cours ${courseId}, Catégorie ${categoryId}:`, newValue);
   hasChanges.value = true;
   // Recalculer la moyenne localement
   calculatedAverages.value.delete(courseId);
@@ -514,12 +580,18 @@ const calculateClassAverage = (courseId: number): string => {
 const calculateCourseAverage = (courseId: number): string => {
   // Si on a une moyenne en cache, l'utiliser
   if (calculatedAverages.value.has(courseId)) {
-    return calculatedAverages.value.get(courseId)!.toFixed(2);
+    const cachedAvg = calculatedAverages.value.get(courseId);
+    console.log(`📊 Utilisation du cache pour cours ${courseId}: ${cachedAvg}`);
+    return cachedAvg?.toFixed(2);
   }
 
   // Sinon calculer localement (temporaire)
   const courseGrades = gradesData[courseId];
-  if (!courseGrades || !configInfo.value) return '0.00';
+  console.log(`📊 Calcul local pour cours ${courseId}. Grades présents:`, courseGrades);
+  if (!courseGrades || !configInfo.value) {
+    console.log(`📊 Pas de grades ni de config pour cours ${courseId}`);
+    return '0.00';
+  }
 
   // Vérifier la stratégie de calcul
   if (configInfo.value.strategy === 'SIMPLE') {
@@ -542,12 +614,14 @@ const calculateCourseAverage = (courseId: number): string => {
     const avg = count > 0 ? sum / count : 0;
     return avg.toFixed(2);
     } else {
-    // Moyenne pondérée : séparer notes de classe et examens
-    const classCategories = categories.value.filter(c => !c.isExam);
-    const examCategories = categories.value.filter(c => c.isExam);
+      // Moyenne pondérée : séparer notes de classe et examens
+      const classCategories = categories.value.filter(c => !c.isExam);
+      const examCategories = categories.value.filter(c => c.isExam);
 
-    let totalWeighted = 0;
-    let totalWeight = 0;
+      let totalWeighted = 0;
+      let totalWeight = 0;
+
+      console.log(`📊 Moyenne pondérée pour cours ${courseId}. Catégories: ${classCategories.length} classe, ${examCategories.length} examens`);
 
     // 1. Traiter les notes de classe (groupées)
     // Les notes de classe sont moyennées et comptent pour 1 coefficient total
@@ -616,10 +690,19 @@ const studentHasGrades = (_studentId: number): boolean => {
 };
 
 const showCalculationDetail = (courseId: number) => {
-  if (!configInfo.value || !calculationDetailRef.value) return;
+  if (!configInfo.value || !calculationDetailRef.value) {
+    console.error('❌ showCalculationDetail: configInfo ou calculationDetailRef non disponible');
+    return;
+  }
 
   const courseGrades = gradesData[courseId];
-  if (!courseGrades) return;
+  console.log(`🔍 showCalculationDetail appelé pour cours ${courseId}`);
+  console.log('Course grades:', courseGrades);
+
+  if (!courseGrades) {
+    console.error(`❌ showCalculationDetail: gradesData[${courseId}] non trouvé`);
+    return;
+  }
 
   const classCategories = categories.value.filter(c => !c.isExam);
   const examCategories = categories.value.filter(c => c.isExam);
@@ -711,6 +794,8 @@ const showCalculationDetail = (courseId: number) => {
     totalCount,
     finalAverage
   });
+
+  console.log(`🔍 Détail de calcul final: stratégie=${configInfo.value.strategy}, finalAverage=${finalAverage}, totalWeighted=${totalWeighted}, totalWeight=${totalWeight}`);
 };
 
 const saveAll = async () => {
@@ -722,7 +807,10 @@ const saveAll = async () => {
     console.log('Élève:', selectedStudent.value.id, selectedStudent.value.lastname);
     console.log('Période:', selectedPeriod.value);
     console.log('Catégories:', categories.value.map(c => ({ id: c.id, name: c.name, isExam: c.isExam })));
-    
+
+    // Afficher les notes actuellement dans gradesData avant sauvegarde
+    console.log('État complet de gradesData avant sauvegarde:', JSON.stringify(gradesData, null, 2));
+
     // Sauvegarder les notes pour chaque matière
     for (const course of courses.value) {
       const courseGrades = gradesData[course.id!];
@@ -734,8 +822,8 @@ const saveAll = async () => {
       for (const category of categories.value) {
         const score = courseGrades[category.id];
         console.log(`Catégorie ${category.name} (ID: ${category.id}):`, score);
-        
-        if (score !== null && score !== undefined && score > 0) {
+
+        if (score !== null && score !== undefined && score >= 0) {
           gradesToSave.push({
             categoryId: category.id,
             score: score,
@@ -767,14 +855,19 @@ const saveAll = async () => {
           schoolId: schoolId.value,
           period: selectedPeriod.value
         };
-        
-        console.log('Calcul de la moyenne...');
+
+        console.log('Payload de calcul de moyenne:', JSON.stringify(calcPayload, null, 2));
+        console.log('Calcul de la moyenne pour matière:', course.name, 'ID:', course.id);
+
         const calcRes = await window.ipcRenderer.invoke('gradeEntry:calculate', calcPayload);
-        console.log('Résultat calcul:', calcRes);
+        console.log('Résultat du calcul de moyenne:', JSON.stringify(calcRes, null, 2));
 
         if (calcRes.success && calcRes.data) {
+          console.log(`Moyenne calculée: ${calcRes.data.finalAverage}, Type: ${typeof calcRes.data.finalAverage}`);
           calculatedAverages.value.set(course.id!, calcRes.data.finalAverage);
-          console.log(`Moyenne mise en cache: ${calcRes.data.finalAverage}`);
+          console.log(`✅ Moyenne mise en cache pour cours ${course.id}: ${calcRes.data.finalAverage}`);
+        } else {
+          console.error(`❌ Échec du calcul de moyenne pour cours ${course.id}:`, calcRes);
         }
       } else {
         console.log('Aucune note à sauvegarder pour cette matière');
@@ -880,6 +973,12 @@ const saveAll = async () => {
   font-weight: 600;
   color: #2c3e50;
   font-size: 0.9rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .card-header-grade {

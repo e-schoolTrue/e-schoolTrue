@@ -43,5 +43,10 @@ export const fileRoutes = [
         path: '/note-config',
         name: "Configuration de la notation",
         component: () => import('@/views/file/NoteConfigView.vue')
+    },
+    {
+        path: '/centralized-notes',
+        name: "Fiche de centralisation",
+        component: () => import('@/views/tools/CentralizedGradesView.vue')
     }
 ]

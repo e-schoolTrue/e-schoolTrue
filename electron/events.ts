@@ -194,6 +194,22 @@ export function registerIpcHandlers() {
 
   // --- Grades & Salles de classe ---
   ipcMain.handle("grade:all", async () => global.gradeService.getGrades());
+  ipcMain.handle("grade:getAllGrades", async () => {
+    try {
+      return await global.gradeService.getGrades();
+    } catch (error) {
+      return handleError(error, "grade:getAllGrades");
+    }
+  });
+ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
+    try {
+      const allClassrooms = await global.gradeService.getClassRooms();
+      const filteredClassrooms = allClassrooms.filter((c: any) => c.gradeId === gradeId);
+      return { success: true, data: filteredClassrooms };
+    } catch (error) {
+      return handleError(error, "classroom:getByGradeId");
+    }
+  });
   ipcMain.handle("grade:new", async (_, command: GradeCommand) => global.gradeService.newGrade(command));
   ipcMain.handle("grade:update", async (_, command: GradeCommand) => global.gradeService.updateGrade(command));
   ipcMain.handle("grade:delete", async (_, id: number) => global.gradeService.deleteGrade(id));
@@ -204,6 +220,23 @@ export function registerIpcHandlers() {
   ipcMain.handle("branch:new", async (_, command: BranchCommand) => global.gradeService.newBranch(command));
   ipcMain.handle("branch:update", async (_, command: BranchCommand) => global.gradeService.updateBranch(command));
   ipcMain.handle("branch:delete", async (_, id: number) => global.gradeService.deleteBranch(id));
+
+
+  ipcMain.handle("student-grades", async (_, params: { studentId: number; period?: string }) => {
+    try {
+      return undefined;
+    } catch (error) {
+      return handleError(error, "student-grades");
+    }
+  });
+
+  ipcMain.handle("centralization-report", async (_, params: { classId?: number; schoolId?: number; schoolYear?: string }) => {
+    try {
+      return undefined;
+    } catch (error) {
+      return handleError(error, "centralization-report");
+    }
+  });
 
   // --- Cours ---
   ipcMain.handle("course:new", async (_, command: CourseCommand) => global.courseService.newCourse(command));
@@ -1003,7 +1036,20 @@ export function registerIpcHandlers() {
   // Sauvegarder une note individuelle
   ipcMain.handle('gradeEntry:save', async (_event, input) => {
     try {
-      return await global.gradeEntryService.saveGradeEntry(input);
+      const result = await global.gradeEntryService.saveGradeEntry(input);
+
+      if (result.success) {
+        // Recalculer automatiquement les moyennes après la sauvegarde
+        await global.gradeEntryService.recalculateStudentGrades(
+          input.studentId,
+          input.courseId,
+          (input as any).classId || 0,
+          (input as any).schoolId || 0,
+          input.period
+        );
+      }
+
+      return result;
     } catch (error) {
       return handleError(error, "gradeEntry:save");
     }
@@ -1012,7 +1058,22 @@ export function registerIpcHandlers() {
   // Sauvegarder plusieurs notes
   ipcMain.handle('gradeEntry:bulkSave', async (_event, input) => {
     try {
-      return await global.gradeEntryService.bulkSaveGrades(input);
+      const result = await global.gradeEntryService.bulkSaveGrades(input);
+
+      if (result.success) {
+        // Recalculer automatiquement les moyennes pour chaque étudiant
+        for (const grade of input.grades) {
+          await global.gradeEntryService.recalculateStudentGrades(
+            input.studentId,
+            input.courseId,
+            (input as any).classId || 0,
+            (input as any).schoolId || 0,
+            input.period
+          );
+        }
+      }
+
+      return result;
     } catch (error) {
       return handleError(error, "gradeEntry:bulkSave");
     }
@@ -1063,7 +1124,7 @@ export function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle('gradeEntry:getClassRankings', async (_event, { classId, schoolId, period }) => {
+    ipcMain.handle('gradeEntry:getClassRankings', async (_event, { classId, schoolId, period }) => {
     try {
       return await global.gradeEntryService.getClassRankings(classId, schoolId, period);
     } catch (error) {
@@ -1076,6 +1137,15 @@ export function registerIpcHandlers() {
       return await global.gradeEntryService.getStudentRank(studentId, classId, schoolId, period);
     } catch (error) {
       return handleError(error, "gradeEntry:getStudentRank");
+    }
+  });
+
+  // Handler pour obtenir les classements centralisés
+  ipcMain.handle('gradeEntry:getCentralizedRankings', async (_event, filters) => {
+    try {
+      return await global.gradeEntryService.getCentralizedRankings(filters);
+    } catch (error) {
+      return handleError(error, "gradeEntry:getCentralizedRankings");
     }
   });
 

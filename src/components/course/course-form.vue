@@ -55,7 +55,7 @@ const rules = reactive<FormRules>({
       required: true, 
       message: 'Au moins une classe est requise', 
       trigger: 'change',
-      validator: (rule, value, callback) => {
+      validator: (_, value, callback) => {
         if (!value || value.length === 0) {
           callback(new Error('Au moins une classe est requise'));
         } else {

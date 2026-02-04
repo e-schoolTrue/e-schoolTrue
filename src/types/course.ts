@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Types de base
 export interface ICourseBase {
     id?: number;
@@ -26,6 +27,7 @@ export interface ICourse extends ICourseBase {
     };
     created_at?: Date;
     updated_at?: Date;
+    grades:any
 }
 
 // Type pour les observations

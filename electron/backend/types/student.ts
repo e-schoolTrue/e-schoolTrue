@@ -177,3 +177,31 @@ export interface IStudentRelations {
     payments?: IPaymentRelation[];
     scholarship?: IScholarshipRelation[];
 }
+
+// Types pour le classement des notes
+export interface IStudentRank {
+    rank: number;
+    student: {
+        id?: number;
+        firstname?: string;
+        lastname?: string;
+        matricule?: string;
+        photo?: {
+            id?: number;
+            url?: string;
+            optimizedUrl?: string;
+        };
+    };
+    average: number;
+    subjectCount: number;
+}
+
+export interface IGradesCentralization {
+    classId?: number;
+    schoolId?: number;
+    schoolYear?: string;
+    classLevel?: string;
+    classLevelNumber?: number;
+    totalStudents: number;
+    students: IStudentRank[];
+}

@@ -151,6 +151,13 @@ export const AppItems: MenuItem[] = [
                 ]
             },
             {
+                id: "submenu-5-1-3",
+                title: "Fiche de Centralisation",
+                icon: "mdi:chart-bar",
+                route: "/centralized-notes",
+                description: "Visualisation et classement des notes"
+            },
+            {
                 id: "submenu-5-2",
                 title: "Documents Scolaires",
                 icon: "fluent-emoji:file-folder",

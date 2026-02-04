@@ -96,6 +96,7 @@ function addNewSubModule(subModuleFormRef: FormInstance | undefined, subModuleFo
   subModuleFormRef.validate((valid, _fields) => {
       if (valid) {
       const newCourseData: Course = {
+        grades:undefined,
         name: subModuleFormData.name,
         code: subModuleFormData.code,
         coefficient: subModuleFormData.coefficient,

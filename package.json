@@ -1,11 +1,12 @@
 {
   "name": "e-school",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.11",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build && electron-builder  --publish always",
+    "build": "vue-tsc --noEmit && vite build && electron-builder --win --linux --publish always",
     "preview": "vite preview",
+    "dev:debug": "electron . --remote-debugging-port=9222",
     "test:unit": "vitest --environment jsdom",
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
   },

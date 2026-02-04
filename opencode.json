@@ -1,0 +1,22 @@
+{
+  "mcp": {
+    "supabase": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.supabase.com/mcp?project_ref=xebukndcynlvjpguwrcb"
+    },
+    "electron-playwright-mcp": {
+      "enabled": true,
+      "environment": {
+        "SECURITY_LEVEL": "balanced",
+        "SCREENSHOT_ENCRYPTION_KEY":"ff125da8e0e6a0faeb32d7d705538bc8a0986a21b9270062bb07a56e8c1d5976"
+      },
+      "command":[
+        "npx",
+        "-y", "electron-mcp-server"
+      ],
+      "type": "local"
+    }
+  },
+  "$schema": "https://opencode.ai/config.json"
+}

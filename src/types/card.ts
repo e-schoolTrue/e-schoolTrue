@@ -38,4 +38,30 @@ export interface SchoolInfo {
   phone?: string;
   email?: string;
   address?: string;
+}
+
+export interface IStudentRank {
+  rank: number;
+  student: {
+    id?: number;
+    firstname?: string;
+    lastname?: string;
+    matricule?: string;
+    photo?: {
+      url?: string;
+      optimizedUrl?: string;
+    };
+  };
+  average: number;
+  subjectCount: number;
+}
+
+export interface IGradesCentralization {
+  classId?: number;
+  schoolId?: number;
+  schoolYear?: string;
+  classLevel?: string;
+  classLevelNumber?: number;
+  totalStudents: number;
+  students: IStudentRank[];
 } 

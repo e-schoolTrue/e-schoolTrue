@@ -27,6 +27,6 @@
   ],
   "exclude": [ // Optionnel: exclure les fichiers de test ou autres si nécessaire
     "node_modules",
-    "dist" 
+    "dist"
   ]
 }
