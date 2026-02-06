@@ -29,17 +29,19 @@ interface GetGradesInput {
     period: string;
 }
 
-interface BulkSaveGradesInput {
-    studentId: number;
-    courseId: number;
-    period: string;
-    grades: Array<{
-        categoryId: number;
-        score: number;
-        maxScore: number;
-        label?: string;
-    }>;
-}
+    interface BulkSaveGradesInput {
+        studentId: number;
+        courseId: number;
+        period: string;
+        grades: Array<{
+            categoryId: number;
+            score: number;
+            maxScore: number;
+            label?: string;
+            evaluationDate?: string;
+            comment?: string;
+        }>;
+    }
 
 export class GradeEntryService {
     private gradeEntryRepository: Repository<GradeEntryEntity>;
@@ -86,6 +88,58 @@ export class GradeEntryService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la sauvegarde",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    /**
+     * Sauvegarde plusieurs notes pour une matière en une seule transaction
+     */
+    async bulkSaveGrades(input: BulkSaveGradesInput): Promise<ResultType<any>> {
+        try {
+            console.log(`\n=== BULK SAVE GRADES ===`);
+            console.log('Input:', input);
+
+            const { studentId, courseId, period, grades } = input;
+
+            // D'abord, supprimer les notes existantes pour cet étudiant, matière et période
+            await this.gradeEntryRepository.delete({
+                studentId,
+                courseId,
+                period
+            });
+
+            // Sauvegarder les nouvelles notes
+            for (const grade of grades) {
+                const entry = new GradeEntryEntity();
+                entry.studentId = studentId;
+                entry.courseId = courseId;
+                entry.categoryId = grade.categoryId;
+                entry.period = period;
+                entry.score = grade.score;
+                entry.maxScore = grade.maxScore;
+                entry.label = grade.label || null;
+                entry.evaluationDate = grade.evaluationDate ? new Date(grade.evaluationDate) : new Date();
+                entry.comment = grade.comment || null;
+
+                await this.gradeEntryRepository.save(entry);
+            }
+
+            console.log(`✅ Notes sauvegardées avec succès pour étudiant ${studentId}, matière ${courseId}`);
+
+            return {
+                success: true,
+                data: { savedCount: grades.length },
+                message: `${grades.length} note(s) sauvegardée(s)`,
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur bulkSaveGrades:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la sauvegarde en bloc",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }
@@ -765,6 +819,7 @@ export class GradeEntryService {
             // Pour chaque élève, calculer sa note finale
             const studentResults: Array<{
                 studentId: number;
+                matricule: string;
                 firstname: string;
                 lastname: string;
                 generalAverage: number;
@@ -776,6 +831,7 @@ export class GradeEntryService {
                     courseName: string;
                     score: number;
                     coefficient: number;
+                    weightedScore: number;
                 }>;
             }> = [];
 
@@ -796,13 +852,15 @@ export class GradeEntryService {
                     courseName: string;
                     score: number;
                     coefficient: number;
+                    weightedScore: number;
                 }> = [];
 
                 for (const avg of averages) {
                     const course = courseMap.get(avg.courseId);
                     const coefficient = course?.coefficient || 1;
-                    
-                    totalWeightedValue += avg.finalAverage * coefficient;
+                    const weightedScore = avg.finalAverage * coefficient;
+
+                    totalWeightedValue += weightedScore;
                     totalCoefficients += coefficient;
                     averageScores += avg.finalAverage;
                     scoreCount += 1;
@@ -810,7 +868,8 @@ export class GradeEntryService {
                         courseId: avg.courseId,
                         courseName: course?.name || '',
                         score: avg.finalAverage,
-                        coefficient: coefficient
+                        coefficient: coefficient,
+                        weightedScore: weightedScore
                     });
                 }
 
@@ -820,9 +879,10 @@ export class GradeEntryService {
                 const unweightedAverage = scoreCount > 0
                     ? Math.round((averageScores / scoreCount) * 100) / 100
                     : 0;
-                console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): ${generalAverage}/20 (${averages.length} matières)`);
+                console.log(`Élève ${student.id} (${student.matricule} ${student.firstname} ${student.lastname}): ${generalAverage}/20 (${averages.length} matières)`);
                 studentResults.push({
                     studentId: student.id,
+                    matricule: student.matricule || '',
                     firstname: student.firstname,
                     lastname: student.lastname,
                     generalAverage,

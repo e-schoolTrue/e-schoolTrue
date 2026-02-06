@@ -847,7 +847,7 @@ const saveAll = async () => {
         const saveRes = await window.ipcRenderer.invoke('gradeEntry:bulkSave', savePayload);
         console.log('Résultat sauvegarde:', saveRes);
 
-        // Recalculer et mettre en cache
+        // Recalculer et mettre en cache la moyenne
         const calcPayload = {
           studentId: selectedStudent.value.id,
           courseId: course.id,
@@ -859,15 +859,19 @@ const saveAll = async () => {
         console.log('Payload de calcul de moyenne:', JSON.stringify(calcPayload, null, 2));
         console.log('Calcul de la moyenne pour matière:', course.name, 'ID:', course.id);
 
-        const calcRes = await window.ipcRenderer.invoke('gradeEntry:calculate', calcPayload);
-        console.log('Résultat du calcul de moyenne:', JSON.stringify(calcRes, null, 2));
+        try {
+          const calcRes = await window.ipcRenderer.invoke('gradeEntry:calculate', calcPayload);
+          console.log('Résultat du calcul de moyenne:', JSON.stringify(calcRes, null, 2));
 
-        if (calcRes.success && calcRes.data) {
-          console.log(`Moyenne calculée: ${calcRes.data.finalAverage}, Type: ${typeof calcRes.data.finalAverage}`);
-          calculatedAverages.value.set(course.id!, calcRes.data.finalAverage);
-          console.log(`✅ Moyenne mise en cache pour cours ${course.id}: ${calcRes.data.finalAverage}`);
-        } else {
-          console.error(`❌ Échec du calcul de moyenne pour cours ${course.id}:`, calcRes);
+          if (calcRes.success && calcRes.data) {
+            console.log(`✅ Moyenne calculée: ${calcRes.data.finalAverage}`);
+            calculatedAverages.value.set(course.id!, calcRes.data.finalAverage);
+            console.log(`✅ Moyenne mise en cache pour cours ${course.id}: ${calcRes.data.finalAverage}`);
+          } else {
+            console.error(`❌ Échec du calcul de moyenne pour cours ${course.id}:`, calcRes);
+          }
+        } catch (error) {
+          console.error(`❌ Erreur lors du calcul de moyenne pour cours ${course.id}:`, error);
         }
       } else {
         console.log('Aucune note à sauvegarder pour cette matière');

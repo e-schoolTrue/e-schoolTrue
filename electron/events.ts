@@ -1058,11 +1058,17 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   // Sauvegarder plusieurs notes
   ipcMain.handle('gradeEntry:bulkSave', async (_event, input) => {
     try {
+      console.log('=== IPC: gradeEntry:bulkSave called ===');
+      console.log('Input:', input);
+
       const result = await global.gradeEntryService.bulkSaveGrades(input);
+      console.log('Result from bulkSaveGrades:', result);
 
       if (result.success) {
+        console.log('✅ Notes sauvegardées, maintenant recalcul des moyennes...');
         // Recalculer automatiquement les moyennes pour chaque étudiant
         for (const grade of input.grades) {
+          console.log(`Recalcul pour étudiant ${input.studentId}, matière ${input.courseId}...`);
           await global.gradeEntryService.recalculateStudentGrades(
             input.studentId,
             input.courseId,
@@ -1071,10 +1077,14 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
             input.period
           );
         }
+        console.log('✅ Recalcul terminé');
+      } else {
+        console.error('❌ Erreur dans bulkSaveGrades:', result.error);
       }
 
       return result;
     } catch (error) {
+      console.error('❌ IPC Error in gradeEntry:bulkSave:', error);
       return handleError(error, "gradeEntry:bulkSave");
     }
   });

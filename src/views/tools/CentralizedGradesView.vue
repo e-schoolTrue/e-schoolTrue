@@ -75,7 +75,7 @@
 
     <!-- Table -->
     <div class="table-container">
-      
+
       <div v-if="loading" class="loading-state">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>Chargement des données...</span>
@@ -92,11 +92,6 @@
         <small>Ajoutez des matières au niveau scolaire pour afficher les résultats</small>
       </div>
 
-      <div v-if="loading" class="loading-state">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>Chargement des données...</span>
-      </div>
-
       <div v-else-if="rankings && rankings.length === 0 && courses.length > 0 && !loading" class="empty-state">
         <el-icon><Warning /></el-icon>
         <p>Aucune donnée trouvée avec ces filtres</p>
@@ -105,107 +100,96 @@
 
       <div v-else-if="rankings && rankings.length > 0 && !loading" class="centralized-table">
 
-        <!-- Table Header -->
-        <div class="table-header">
-          <div class="header-cell rank-cell">Rang</div>
-          <div class="header-cell name-cell">Prénom</div>
-          <div class="header-cell name-cell">Nom</div>
-          <div
-            v-for="course in courses"
-            :key="course.id"
-            class="header-cell course-cell"
-          >
-            {{ course.name }}
-          </div>
-          <div v-if="courses.length > 0" class="header-cell total-cell">Total</div>
-          <div class="header-cell">Moy. Gén.</div>
-          <div class="header-cell">Observation</div>
-        </div>
-
-        <!-- Class Info Row -->
-        <div class="class-info-row">
-          <div class="class-info-item">
-            <span class="info-label">Classe:</span>
-            <span class="info-value">{{ currentClass?.name || '-' }}</span>
-          </div>
-          <div class="class-info-item">
-            <span class="info-label">Base notation:</span>
-            <span class="info-value">{{ classConfig?.finalGradeBase || 20 }}</span>
-          </div>
-        </div>
-
-        <!-- Table Body -->
-        <div class="table-body">
-          <!-- Afficher les lignes si des données existent -->
-          <div
-            v-if="rankings.length > 0"
-            v-for="(student, index) in rankings"
-            :key="student.studentId"
-            class="table-row"
-            :class="{ 'top-3': index < 3 }"
-          >
-            <div class="cell rank-cell">{{ student.rank }}</div>
-            <div class="cell name-cell">{{ student.firstname }}</div>
-            <div class="cell name-cell">{{ student.lastname }}</div>
-
+        <!-- Scrollable Table Container -->
+        <div class="table-scroll-container">
+          <!-- Table Header -->
+          <div class="table-header">
+            <div class="header-cell rank-cell">Rang</div>
+            <div class="header-cell matricule-cell">Matricule</div>
+            <div class="header-cell name-cell">Prénom</div>
+            <div class="header-cell name-cell">Nom</div>
             <div
               v-for="course in courses"
               :key="course.id"
-              class="cell course-cell"
+              class="header-cell course-cell"
             >
-              <span :class="{ 'missing-score': !getStudentScore(student, course.id) }">
-                {{ getStudentScore(student, course.id) || '-' }}
-              </span>
+              {{ course.name }} (Coef {{ course.coefficient }})
             </div>
-            <div v-if="courses.length > 0" class="cell total-cell">{{ student.averageScores.toFixed(1) }}</div>
-            <div class="cell rank-cell">{{ student.generalAverage.toFixed(2) }} / {{ classConfig?.finalGradeBase || 20 }}</div>
-            <div class="cell observation-cell">-</div>
-
+            <div v-if="courses.length > 0" class="header-cell coef-total-cell">Coef</div>
+            <div class="header-cell average-cell">Moyenne</div>
+            <div class="header-cell">Observation</div>
           </div>
 
-<!--          &lt;!&ndash; Afficher un message si aucune donnée mais qu'il y a des cours &ndash;&gt;-->
-<!--          <div v-if="displayRankings.length === 0 && courses.length > 0" class="no-data-message">-->
-<!--            <div class="no-data-content">-->
-<!--              <el-icon><Warning /></el-icon>-->
-<!--              <p>Aucune donnée trouvée</p>-->
-<!--              <small>Le classement centralisé nécessite des notes saisies dans le système</small>-->
-<!--            </div>-->
-<!--          </div>-->
+          <!-- Class Info Row -->
+          <div class="class-info-row">
+            <div class="class-info-item">
+              <span class="info-label">Classe:</span>
+              <span class="info-value">{{ currentClass?.name || '-' }}</span>
+            </div>
+            <div class="class-info-item">
+              <span class="info-label">Base notation:</span>
+              <span class="info-value">{{ classConfig?.finalGradeBase || 20 }}</span>
+            </div>
+          </div>
 
-<!--          &lt;!&ndash; Afficher un message si pas de données et pas de cours &ndash;&gt;-->
-<!--          <div v-else-if="displayRankings.length === 0 && courses.length === 0" class="no-data-message">-->
-<!--            <div class="no-data-content">-->
-<!--              <el-icon><Warning /></el-icon>-->
-<!--              <p>Aucun élève avec des notes</p>-->
-<!--              <small>Saisissez des notes dans le système pour voir les classements</small>-->
-<!--            </div>-->
-<!--          </div>-->
-        </div>
+          <!-- Table Body -->
+          <div class="table-body">
+            <!-- Afficher les lignes si des données existent -->
+            <div
+              v-if="rankings.length > 0"
+              v-for="(student, index) in rankings"
+              :key="student.studentId"
+              class="table-row"
+              :class="{ 'top-3': index < 3 }"
+            >
+              <div class="cell rank-cell">{{ student.rank }}</div>
+              <div class="cell matricule-cell">{{ student.matricule || '-' }}</div>
+              <div class="cell name-cell">{{ student.firstname }}</div>
+              <div class="cell name-cell">{{ student.lastname }}</div>
 
-        <!-- Pagination -->
-        <div v-if="courses.length > 0" class="pagination">
-          <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
-            :total="rankings.length"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            @current-change="loadData"
-          />
+              <div
+                v-for="course in courses"
+                :key="course.id"
+                class="cell"
+              >
+                <span :class="{ 'missing-score': !getStudentScore(student, course.id) }">
+                  {{ getWeightedScore(student, course.id) || '-' }}
+                </span>
+              </div>
+              <div v-if="courses.length > 0" class="cell coef-total-cell">{{ getTotalCoef(student) }}</div>
+              <div class="cell average-cell">{{ getWeightedAverage(student).replace(/,/g, '.') }}</div>
+              <div class="cell observation-cell">-</div>
+
+            </div>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="courses.length > 0" class="pagination">
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :total="rankings.length"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next, jumper"
+              @current-change="loadData"
+            />
+          </div>
         </div>
       </div>
-    </div>
+   </div>
   </div>
 </template>
 
 <script setup lang="ts">
 // @ts-nocheck
 import {ref, computed, onMounted, watch} from 'vue';
+import * as XLSX from 'xlsx';
 import { ElMessage } from 'element-plus';
 import { Document, Download, Loading, Warning } from '@element-plus/icons-vue';
 
 interface CentralizedRanking {
   studentId: number;
+  matricule: string;
   firstname: string;
   lastname: string;
   generalAverage: number;
@@ -217,6 +201,7 @@ interface CentralizedRanking {
     courseName: string;
     score: number;
     coefficient: number;
+    weightedScore: number;
   }>;
 }
 
@@ -288,7 +273,15 @@ const loadPeriods = async () => {
 };
 
 watch(rankings, ()=>{
-  console.log("rankins: ", rankings)
+  console.log("=== RANKINGS UPDATED ===");
+  console.log("Rankings length:", rankings.value.length);
+  console.log("Rankings data:", JSON.stringify(rankings.value, null, 2));
+
+  if (rankings.value.length > 0) {
+    console.log("First student matricule:", rankings.value[0].matricule);
+    console.log("First student matricule type:", typeof rankings.value[0].matricule);
+    console.log("First student matricule length:", (rankings.value[0].matricule || '').length);
+  }
 })
 
 // Charger les données depuis le service backend
@@ -305,7 +298,11 @@ const loadData = async () => {
     const result = await window.ipcRenderer.invoke('gradeEntry:getCentralizedRankings', requestData);
     console.log('Résultat du backend:', result);
     if (result.success && result.data) {
-      console.log('Données reçues:', result.data);
+      console.log('=== DONNÉES DU BACKEND ===');
+      console.log('Total students:', result.data.length);
+      console.log('First student:', result.data[0]);
+      console.log('Matricule du premier étudiant:', result.data[0]?.matricule);
+      console.log('=== END DONNÉES ===');
       rankings.value = result.data;
 
       const coursesResult = await window.ipcRenderer.invoke('course:getByGrade', filters.value.gradeId);
@@ -345,6 +342,35 @@ const getStudentScore = (student: CentralizedRanking, courseId: number): string 
     return scoreData.score ? scoreData.score.toFixed(1) : null;
   }
   return null;
+};
+
+const getWeightedScore = (student: CentralizedRanking, courseId: number): string | null => {
+  const scoreData = student.scores?.find((s) => s.courseId === courseId);
+  if (scoreData && scoreData.score && scoreData.coefficient) {
+    const weighted = scoreData.score * scoreData.coefficient;
+    return weighted.toFixed(1);
+  }
+  return null;
+};
+
+const getTotalCoef = (student: CentralizedRanking): string => {
+  let totalCoef = 0;
+  student.scores?.forEach((score) => {
+    totalCoef += score.coefficient || 0;
+  });
+  return totalCoef.toString();
+};
+
+const getWeightedAverage = (student: CentralizedRanking): string => {
+  let totalWeightedValue = 0;
+  let totalCoef = 0;
+  student.scores?.forEach((score) => {
+    totalWeightedValue += score.score * score.coefficient;
+    totalCoef += score.coefficient || 0;
+  });
+  const weightedAverage = totalCoef > 0 ? (totalWeightedValue / totalCoef) : 0;
+  const formatted = weightedAverage.toFixed(2).replace(/,/g, '.').replace(/\.0$/, '').replace(/\.00$/, '');
+  return formatted;
 };
 
 const loadGrades = async () => {
@@ -493,39 +519,71 @@ const exportToExcel = async () => {
     const base = classConfig?.finalGradeBase || 20;
     const className = currentClass?.name || (filters.value.gradeId ? grades.value.find(g => g.id === filters.value.gradeId)?.name : 'Toutes');
 
-    const wsData = [
-      // En-têtes
-      ['Fiche de Centralisation des Notes', '', '', '', '', ''],
-      ['', 'Moyenne de classe:', classAverage.value.toFixed(2) + '/' + base, '', '', ''],
-      ['Classe', className, '', '', '', ''],
-      ['Période', filters.value.period || 'Toutes', '', '', '', ''],
-      [],
-      ['Nom de l\'élève', 'Rang', 'Moyenne', ...courses.value.map(c => c.name), 'Total'],
-      // Données
-      ...rankings.value.map(student => [
-        `${student.firstname} ${student.lastname}`,
-        student.rank,
-        student.generalAverage.toFixed(2),
-        ...courses.value.map(course => {
-          const score = getStudentScore(student, course.id);
-          return score
-        }),
-        student.averageScores.toFixed(1)
-      ])
+    // Créer la structure des données pour le tableau centralisé
+    // Créer un tableau avec des colonnes avec les coefficients affichés
+    const coursesWithCoeff = courses.value.map(c => ({
+      name: c.name,
+      coefficient: c.coefficient,
+      header: `${c.name} (Coef ${c.coefficient})`
+    }));
+
+    const columns = [
+      { header: 'Rang', key: 'rang', width: 8 },
+      { header: 'Matricule', key: 'matricule', width: 15 },
+      { header: 'Prénom', key: 'prenom', width: 15 },
+      { header: 'Nom', key: 'nom', width: 15 },
+      ...coursesWithCoeff.map(c => ({ header: c.header, key: c.name, width: 18 })),
+      { header: 'Coef', key: 'coef', width: 10 },
+      { header: 'Moyenne', key: 'moyenne', width: 12 },
+      { header: 'Observation', key: 'observation', width: 20 }
     ];
 
+    // Construire le tableau de données correctement
+    const wsData: any[] = [];
+
+    // Ajouter l'en-tête principal
+    wsData.push(['FICHE DE CENTRALISATION DES NOTES']);
+    wsData.push([]); // Ligne vide
+
+    // Ajouter les informations générales
+    wsData.push(['Classe', className]);
+    wsData.push(['Base de notation', base]);
+    wsData.push(['Période', filters.value.period || 'Toutes']);
+    wsData.push([]); // Ligne vide
+
+    // Créer un tableau avec tous les en-têtes sur une seule ligne
+    const headersRow: any[] = ['Rang', 'Matricule', 'Prénom', 'Nom'];
+    coursesWithCoeff.forEach(c => {
+      headersRow.push(c.header);
+    });
+    headersRow.push('Coef', 'Moyenne', 'Observation');
+    wsData.push(headersRow);
+
+    // Créer un tableau avec toutes les données
+    const dataRows: any[] = [];
+    rankings.value.forEach(student => {
+      const rowData: any[] = [
+        student.rank,
+        student.matricule || '-',
+        student.firstname,
+        student.lastname
+      ];
+      coursesWithCoeff.forEach(c => {
+        const score = getWeightedScore(student, c.name);
+        rowData.push(score || '-');
+      });
+      rowData.push(getTotalCoef(student));
+      rowData.push(getWeightedAverage(student));
+      rowData.push('-');
+      dataRows.push(rowData);
+    });
+    wsData.push(...dataRows);
+
     // Créer le fichier Excel avec xlsx library
-    const XLSX = (await import('xlsx')).default;
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
     // Ajuster la largeur des colonnes
-    ws['!cols'] = [
-      { wch: 25 },
-      { wch: 8 },
-      { wch: 10 },
-      ...courses.value.map(() => ({ wch: 15 })),
-      { wch: 10 }
-    ];
+    ws['!cols'] = columns.map(col => col.width);
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Centralisation Notes');
@@ -672,9 +730,10 @@ onMounted(async () => {
 .table-header {
   display: grid;
   grid-template-columns:
-    60px 120px 120px
-    repeat(5, minmax(120px, 150px))
-    100px 120px;
+    60px 100px 100px 100px
+    minmax(180px, 200px)
+    minmax(180px, 200px)
+    60px 80px 80px;
   gap: 8px;
   padding: 12px;
   background: #f5f5f5;
@@ -682,6 +741,53 @@ onMounted(async () => {
   font-weight: 600;
   color: #606266;
   border-bottom: 2px solid #ebeef5;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.course-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.coef-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #909399;
+  margin-top: 2px;
+}
+
+.average-cell {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.total-cell {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.coef-total-cell {
+  color: #e6a23c;
+  font-weight: 600;
+}
+
+.course-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.coef-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #909399;
+  margin-top: 2px;
 }
 
 .class-info-row {
@@ -714,9 +820,14 @@ onMounted(async () => {
 .header-cell {
   padding: 8px;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+}
+
+.matricule-cell {
+  text-align: left;
+  font-weight: 600;
+  padding-left: 12px;
 }
 
 .name-cell {
@@ -731,10 +842,23 @@ onMounted(async () => {
 
 .course-cell {
   color: #303133;
+  font-size: 0.9rem;
+  overflow: visible;
+  white-space: normal;
+}
+
+.average-cell {
+  color: #409eff;
+  font-weight: 600;
 }
 
 .total-cell {
   color: #67c23a;
+  font-weight: 600;
+}
+
+.coef-total-cell {
+  color: #e6a23c;
   font-weight: 600;
 }
 
@@ -751,9 +875,10 @@ onMounted(async () => {
 .table-row {
   display: grid;
   grid-template-columns:
-    60px 120px 120px
-    repeat(5, minmax(120px, 150px))
-    100px 120px;
+    60px 100px 100px 100px
+    minmax(180px, 200px)
+    minmax(180px, 200px)
+    60px 80px 80px;
   gap: 8px;
   padding: 10px 12px;
   align-items: center;
@@ -773,9 +898,17 @@ onMounted(async () => {
 .cell {
   padding: 4px 8px;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+}
+
+.matricule-cell {
+  text-align: left;
+  font-weight: 500;
+  padding-left: 8px;
+  color: #e6a23c;
+  font-family: monospace;
+  font-size: 0.9rem;
 }
 
 .name-cell {
@@ -783,8 +916,36 @@ onMounted(async () => {
   font-weight: 500;
 }
 
-.student-name {
-  color: #303133;
+.missing-score {
+  color: #909399;
+  font-style: italic;
+}
+
+.pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.name-cell {
+  text-align: left;
+  font-weight: 500;
+}
+
+.rank-cell {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.average-cell {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.observation-cell {
+  text-align: left;
+  font-style: italic;
+  color: #909399;
 }
 
 .missing-score {
@@ -807,13 +968,36 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
+.table-scroll-container {
+  overflow-x: auto;
+  width: 100%;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: white;
+}
+
+.table-scroll-container::-webkit-scrollbar {
+  height: 8px;
+  background: #f5f5f5;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 4px;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #a0a4aa;
+}
+
 @media (max-width: 1200px) {
   .table-header,
   .table-row {
     grid-template-columns:
-      60px 100px 100px
-      repeat(4, minmax(100px, 120px))
-      80px 100px 120px;
+      50px 85px 85px 85px
+      minmax(120px, 140px)
+      minmax(120px, 140px)
+      50px 70px 90px;
   }
 }
 
@@ -821,53 +1005,10 @@ onMounted(async () => {
   .table-header,
   .table-row {
     grid-template-columns:
-      50px 80px 80px
-      repeat(2, minmax(80px, 100px))
-      60px 80px 100px;
-  }
-}
-
-.student-name {
-  color: #303133;
-}
-
-.missing-score {
-  color: #909399;
-  font-style: italic;
-}
-
-.total-row {
-  font-weight: 600;
-  background-color: #f9fafc;
-
-  .total-cell {
-    color: #67c23a;
-  }
-}
-
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-@media (max-width: 1200px) {
-  .table-header,
-  .table-row {
-    grid-template-columns:
-      60px 100px 100px
-      repeat(4, minmax(100px, 120px))
-      80px 100px 120px;
-  }
-}
-
-@media (max-width: 768px) {
-  .table-header,
-  .table-row {
-    grid-template-columns:
-      50px 80px 80px
-      repeat(2, minmax(80px, 100px))
-      60px 80px 100px;
+      40px 60px 60px 60px
+      minmax(90px, 100px)
+      minmax(90px, 100px)
+      50px 60px 70px;
   }
 }
 </style>
