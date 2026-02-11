@@ -1,8 +1,8 @@
 <template>
   <div class="bulletin-template-two" :style="containerStyle">
-    <!-- Header officiel -->
+    <!-- En-tête : Deux blocs gauche/droite -->
     <header class="header">
-      <div class="header-left">
+      <div class="header-block header-left-block">
         <div class="logo-box">
           <div class="logo-circle" v-if="schoolInfo?.logo?.url">
             <img :src="schoolInfo.logo.url" alt="Logo" />
@@ -11,30 +11,39 @@
             <span>LOGO</span>
           </div>
         </div>
+        <h2 class="school-name" :style="{ color: options.primaryColor }">{{ schoolInfo?.name || 'Nom de l\'École' }}</h2>
+        <p class="school-detail">{{ schoolInfo?.address }}</p>
+        <p class="school-detail" v-if="schoolInfo?.town">{{ schoolInfo.town }}</p>
+        <p class="school-detail" v-if="schoolInfo?.phone">Tél : {{ schoolInfo.phone }}</p>
+        <p class="school-detail" v-if="schoolInfo?.email">Email : {{ schoolInfo.email }}</p>
       </div>
-      <div class="header-center">
-        <h1 class="school-name" :style="{ color: options.primaryColor }">{{ schoolInfo?.name || 'Nom de l\'École' }}</h1>
+      <div class="header-block header-right-block">
+        <h2 class="country-name">{{ countryData.countryName }}</h2>
+        <p class="country-motto">{{ countryData.motto }}</p>
+        <p class="ministry-text">{{ countryData.ministry }}</p>
+        <p class="inspection-text">{{ countryData.inspection }}</p>
       </div>
     </header>
 
-    <!-- Titre du Bulletin -->
+    <!-- Titre Central et Année Scolaire -->
     <div class="bulletin-title-box" :style="{ backgroundColor: options.secondaryColor + '30' }">
-      <h1>Bulletin de Notes</h1>
-      <h3>{{ periodLabel }}</h3>
+      <h1>BULLETIN DE NOTES DU {{ periodLabel.toUpperCase() }}</h1>
+      <p class="school-year-line">Année scolaire : {{ currentYear }}</p>
     </div>
 
     <!-- Informations de l'élève -->
     <div class="student-info" :style="{ borderColor: options.primaryColor }">
       <div class="row">
-        <div class="cell label">Année Scolaire : {{ currentYear }}</div>
-        <div class="cell label">Classe : {{ student?.grade?.name || '-' }}</div>
-      </div>
-      <div class="row">
-        <div class="cell"><strong>Prénoms :</strong> {{ student?.firstname || '-' }}</div>
         <div class="cell"><strong>Nom :</strong> {{ student?.lastname || '-' }}</div>
+        <div class="cell"><strong>Prénoms :</strong> {{ student?.firstname || '-' }}</div>
       </div>
       <div class="row">
         <div class="cell"><strong>N° Matricule :</strong> {{ student?.matricule || '-' }}</div>
+        <div class="cell"><strong>Classe :</strong> {{ student?.grade?.name || '-' }}</div>
+      </div>
+      <div class="row">
+        <div class="cell"><strong>Date de naissance :</strong> {{ formatBirthDay(student?.birthDay) }}</div>
+        <div class="cell"><strong>Genre :</strong> {{ student?.sex === 'male' ? 'Masculin' : student?.sex === 'female' ? 'Féminin' : '-' }}</div>
       </div>
     </div>
 
@@ -91,7 +100,7 @@
             <span class="value">{{ fmt(classAverage) }} /20</span>
           </div>
           <div class="signature">
-            Le Professeur Principal
+            {{ signatoryLeftLabel }}
             <div class="signature-space"></div>
           </div>
         </div>
@@ -111,7 +120,7 @@
             </div>
           </div>
           <div class="signature">
-            Le Directeur
+            {{ signatoryRightLabel }}
             <div class="signature-space"></div>
           </div>
         </div>
@@ -131,6 +140,8 @@ interface Props {
   options?: {
     primaryColor: string;
     secondaryColor: string;
+    signatoryLeft?: string;
+    signatoryRight?: string;
   };
   currentYear?: string;
   rank?: number;
@@ -144,7 +155,9 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   options: () => ({
     primaryColor: '#1a237e',
-    secondaryColor: '#3f51b5'
+    secondaryColor: '#3f51b5',
+    signatoryLeft: 'Le Professeur Principal',
+    signatoryRight: 'Le Directeur'
   }),
   currentYear: () => new Date().getFullYear().toString() + ' - ' + (new Date().getFullYear() + 1).toString(),
   grades: () => [],
@@ -154,6 +167,53 @@ const props = withDefaults(defineProps<Props>(), {
   absences: 0,
   highestAverage: 0,
   lowestAverage: 0
+});
+
+const countryHeaderMap: Record<string, { countryName: string; motto: string; ministry: string; inspection: string }> = {
+  'GIN': {
+    countryName: 'REPUBLIQUE DE GUINEE',
+    motto: 'Travail - Justice - Solidarité',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE ET DE L'ALPHABETISATION",
+    inspection: "INSPECTION REGIONALE DE L'EDUCATION"
+  },
+  'SEN': {
+    countryName: 'REPUBLIQUE DU SENEGAL',
+    motto: 'Un Peuple - Un But - Une Foi',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE ET DE L'ALPHABETISATION",
+    inspection: "INSPECTION REGIONALE DE L'EDUCATION"
+  },
+  'MAR': {
+    countryName: 'ROYAUME DU MAROC',
+    motto: 'Dieu, La Patrie, Le Roi',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE, DU PRESCOLAIRE ET DES SPORTS",
+    inspection: "DIRECTION PROVINCIALE DE L'EDUCATION"
+  },
+  'CAF': {
+    countryName: 'REPUBLIQUE CENTRAFRICAINE',
+    motto: 'Unité - Dignité - Travail',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE",
+    inspection: "INSPECTION ACADEMIQUE"
+  }
+};
+
+const formatBirthDay = (date: string | Date | undefined): string => {
+  if (!date) return '-';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '-';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const countryData = computed(() => {
+  const code = props.schoolInfo?.country || 'SEN';
+  const data = countryHeaderMap[code] || countryHeaderMap['SEN'];
+  const town = props.schoolInfo?.town || '';
+  return {
+    ...data,
+    inspection: town ? `${data.inspection} DE ${town.toUpperCase()}` : data.inspection
+  };
 });
 
 const containerStyle = computed(() => ({
@@ -200,6 +260,9 @@ const generalAverage = computed(() => {
   return totalWeightedPoints.value / totalCoefficients.value;
 });
 
+const signatoryLeftLabel = computed(() => props.options?.signatoryLeft || 'Le Professeur Principal');
+const signatoryRightLabel = computed(() => props.options?.signatoryRight || 'Le Directeur');
+
 const getGradeClass = (grade: number) => {
   if (grade < 10) return 'grade-low';
   if (grade >= 16) return 'grade-excellent';
@@ -232,24 +295,35 @@ const getAppreciation = (note: number) => {
 /* Header */
 .header {
   display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 8px;
   border-bottom: 2px solid #2c3e50;
   padding-bottom: 8px;
 }
 
-.header-left {
-  width: 15%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.header-block {
+  width: 48%;
+}
+
+.header-left-block {
+  text-align: left;
+}
+
+.header-right-block {
+  text-align: right;
+}
+
+.logo-box {
+  margin-bottom: 4px;
 }
 
 .logo-circle {
-  width: 70px;
-  height: 70px;
+  width: 60px;
+  height: 60px;
   border: 2px solid #1a237e;
   border-radius: 50%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -267,38 +341,45 @@ const getAppreciation = (note: number) => {
   color: #1a237e;
 }
 
-.header-center {
-  width: 85%;
-  text-align: center;
-}
-
-.header-center h2 {
-  font-size: 14px;
-  margin: 0;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.motto {
-  font-size: 10px;
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-.red { color: #d32f2f; }
-.yellow { color: #fbc02d; }
-.green { color: #388e3c; }
-
-.ministry, .inspection {
-  font-size: 9px;
-  margin: 1px 0;
-  text-transform: uppercase;
-}
-
 .school-name {
-  font-size: 16px;
-  margin: 5px 0 0 0;
+  font-size: 14px;
+  margin: 4px 0 2px 0;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.school-detail {
+  margin: 1px 0;
+  font-size: 10px;
+  color: #444;
+}
+
+.country-name {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0 0 2px;
+}
+
+.country-motto {
+  font-size: 10px;
+  font-style: italic;
+  margin: 0 0 4px;
+  color: #333;
+}
+
+.ministry-text {
+  font-size: 9px;
+  text-transform: uppercase;
+  margin: 1px 0;
+  color: #222;
+}
+
+.inspection-text {
+  font-size: 9px;
+  text-transform: uppercase;
+  margin: 1px 0;
+  color: #222;
 }
 
 /* Titre */
@@ -311,14 +392,18 @@ const getAppreciation = (note: number) => {
 
 .bulletin-title-box h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-family: "Times New Roman", serif;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
-.bulletin-title-box h3 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: normal;
+.school-year-line {
+  font-size: 11px;
+  margin: 4px 0 0;
+  text-align: right;
+  padding-right: 10px;
+  color: #444;
 }
 
 /* Info Élève */

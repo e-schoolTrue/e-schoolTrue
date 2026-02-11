@@ -86,6 +86,26 @@
 
       <el-divider />
 
+      <!-- Signataires -->
+      <div class="section">
+        <h3 class="section-title">
+          <el-icon><Document /></el-icon>
+          Signataires
+        </h3>
+        <div class="signatories-row">
+          <div class="signatory-group">
+            <label>Signataire gauche</label>
+            <el-input v-model="localColorOptions.signatoryLeft" placeholder="Ex: Le Professeur Principal" />
+          </div>
+          <div class="signatory-group">
+            <label>Signataire droite</label>
+            <el-input v-model="localColorOptions.signatoryRight" placeholder="Ex: Le Directeur" />
+          </div>
+        </div>
+      </div>
+
+      <el-divider />
+
       <!-- Aperçu en direct -->
       <div class="section">
         <h3 class="section-title">
@@ -133,7 +153,7 @@ import BulletinTemplateTwo from '@/components/bulletin/templates/BulletinTemplat
 interface Props {
   modelValue: boolean;
   templateId: string;
-  colorOptions: { primaryColor: string; secondaryColor: string };
+  colorOptions: { primaryColor: string; secondaryColor: string; signatoryLeft: string; signatoryRight: string };
   schoolInfo: any;
   period: string;
   currentYear: string;
@@ -144,7 +164,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   'update:templateId': [value: string];
-  'update:colorOptions': [value: { primaryColor: string; secondaryColor: string }];
+  'update:colorOptions': [value: { primaryColor: string; secondaryColor: string; signatoryLeft: string; signatoryRight: string }];
   'save': [];
 }>();
 
@@ -178,7 +198,9 @@ const colorPresets = [
 const selectedTemplate = ref(props.templateId);
 const localColorOptions = reactive({
   primaryColor: props.colorOptions.primaryColor,
-  secondaryColor: props.colorOptions.secondaryColor
+  secondaryColor: props.colorOptions.secondaryColor,
+  signatoryLeft: props.colorOptions.signatoryLeft || 'Le Professeur Principal',
+  signatoryRight: props.colorOptions.signatoryRight || 'Le Directeur'
 });
 
 // Données d'exemple pour l'aperçu
@@ -214,6 +236,8 @@ watch(() => props.templateId, (newVal) => {
 watch(() => props.colorOptions, (newVal) => {
   localColorOptions.primaryColor = newVal.primaryColor;
   localColorOptions.secondaryColor = newVal.secondaryColor;
+  localColorOptions.signatoryLeft = newVal.signatoryLeft || 'Le Professeur Principal';
+  localColorOptions.signatoryRight = newVal.signatoryRight || 'Le Directeur';
 }, { deep: true });
 
 // Methods
@@ -413,6 +437,23 @@ const saveAndClose = () => {
 
 .preset-btn:hover {
   transform: scale(1.15);
+}
+
+/* Signatories */
+.signatories-row {
+  display: flex;
+  gap: 30px;
+}
+
+.signatory-group {
+  flex: 1;
+}
+
+.signatory-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 13px;
 }
 
 /* Live Preview */

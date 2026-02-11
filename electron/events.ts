@@ -2,35 +2,13 @@ import { ipcMain, dialog, shell } from 'electron';
 import path from "path";
 import { ResultType } from "./command/index";
 import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "./command/settingsCommand";
-import { CloudSyncService, SyncConfig, SyncHistory } from './backend/services/backupService';
+import { SyncConfig, SyncHistory } from './backend/services/backupService';
 import { ScheduleCommand } from "#electron/command/scheduleCommand";
 import fs from 'fs/promises';
-import { AuthService } from './backend/services/authService';
-import { GradeService } from './backend/services/gradeService';
-import { CourseService } from './backend/services/courseService';
-import { StudentService } from './backend/services/studentService';
-import { FileService } from './backend/services/fileService';
-import { PaymentService } from './backend/services/paymentService';
-import { AbsenceService } from './backend/services/absenceService';
-import { SchoolService } from './backend/services/schoolService';
-import { YearRepartitionService } from './backend/services/yearService';
-import { ProfessorService } from './backend/services/professorService';
-import { DashboardService } from './backend/services/dashboardService';
-import { HomeworkService } from './backend/services/homeworkService';
-import { VacationService } from './backend/services/vacationService';
-import { ScholarshipService } from './backend/services/scholarshipService';
-import { ReportCardService } from './backend/services/reportCardService';
-import { GradeConfigService } from './backend/services/gradeConfigService';
-import { PreferenceService } from './backend/services/preferenceService';
-import { LicenseService } from './backend/services/licenseService';
 import { ConfigService } from './backend/services/configService';
-import { ScheduleService } from './backend/services/scheduleService';
-import { InscriptionFeeService } from './backend/services/inscription-fee.service';
-import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 import { documentContentService } from './backend/services/document-content-service';
-import { ICreateConfigParams, IGetConfigParams } from './backend/types/note';
-import { ConfigNoteService } from './backend/services/note-config-service';
+import { ICreateConfigParams } from './backend/types/note';
 
 
 
