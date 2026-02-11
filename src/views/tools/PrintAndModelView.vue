@@ -311,9 +311,9 @@ interface Student {
   lastname: string;
   matricule: string;
   photo?: { id?: number; url?: string };
-  dateOfBirth?: string;
+  birthDay?: string;
   grade?: { id: number; name: string };
-  gender?: string;
+  sex?: string;
 }
 
 interface GradeData {
@@ -386,7 +386,9 @@ const studentRankings = ref<Map<number, RankingData>>(new Map());
 const selectedTemplateId = ref('template1');
 const colorOptions = reactive({
   primaryColor: '#2c3e50',
-  secondaryColor: '#3498db'
+  secondaryColor: '#3498db',
+  signatoryLeft: 'Le Professeur Principal',
+  signatoryRight: 'Le Directeur'
 });
 
 const templates = [
@@ -701,6 +703,54 @@ const getAppreciation = (note: number): string => {
   return "Félicitations";
 };
 
+const formatBirthDay = (date: string | Date | undefined): string => {
+  if (!date) return '-';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '-';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// --- Country Header Data ---
+const countryHeaderMap: Record<string, { countryName: string; motto: string; ministry: string; inspection: string }> = {
+  'GIN': {
+    countryName: 'REPUBLIQUE DE GUINEE',
+    motto: 'Travail - Justice - Solidarité',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE ET DE L'ALPHABETISATION",
+    inspection: "INSPECTION REGIONALE DE L'EDUCATION"
+  },
+  'SEN': {
+    countryName: 'REPUBLIQUE DU SENEGAL',
+    motto: 'Un Peuple - Un But - Une Foi',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE ET DE L'ALPHABETISATION",
+    inspection: "INSPECTION REGIONALE DE L'EDUCATION"
+  },
+  'MAR': {
+    countryName: 'ROYAUME DU MAROC',
+    motto: 'Dieu, La Patrie, Le Roi',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE, DU PRESCOLAIRE ET DES SPORTS",
+    inspection: "DIRECTION PROVINCIALE DE L'EDUCATION"
+  },
+  'CAF': {
+    countryName: 'REPUBLIQUE CENTRAFRICAINE',
+    motto: 'Unité - Dignité - Travail',
+    ministry: "MINISTERE DE L'EDUCATION NATIONALE",
+    inspection: "INSPECTION ACADEMIQUE"
+  }
+};
+
+const getCountryData = () => {
+  const code = schoolInfo.value?.country || 'SEN';
+  const data = countryHeaderMap[code] || countryHeaderMap['SEN'];
+  const town = schoolInfo.value?.town || '';
+  return {
+    ...data,
+    inspection: town ? `${data.inspection} DE ${town.toUpperCase()}` : data.inspection
+  };
+};
+
 // --- Impression ---
 
 const generateBulletinsHtml = async (studentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }[]) => {
@@ -837,6 +887,7 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
 };
 
 const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0) => {
+  const cData = getCountryData();
   return `
     <div class="bulletin-page">
       <style>
@@ -851,47 +902,37 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 20px;
+          margin-bottom: 10px;
           border-bottom: 2px solid #eee;
-          padding-bottom: 15px;
+          padding-bottom: 10px;
         }
         
-        .school-logo img {
-          max-width: 100px;
-          max-height: 100px;
-        }
+        .header-block { width: 48%; }
+        .header-left { text-align: left; }
+        .header-right { text-align: right; }
         
-        .school-info h1 {
-          font-size: 24px;
-          margin: 0 0 5px;
+        .school-logo { margin-bottom: 6px; }
+        .school-logo img { max-width: 80px; max-height: 80px; }
+        
+        .school-name {
+          font-size: 16px; margin: 0 0 4px;
+          text-transform: uppercase; font-weight: 700;
           color: ${primaryColor};
         }
+        .school-detail { margin: 1px 0; font-size: 11px; color: #555; }
         
-        .school-info p {
-          margin: 2px 0;
-          font-size: 12px;
-          color: #666;
-        }
+        .country-name { font-size: 14px; font-weight: 700; text-transform: uppercase; margin: 0 0 2px; }
+        .country-motto { font-size: 11px; font-style: italic; margin: 0 0 6px; color: #444; }
+        .ministry { font-size: 10px; text-transform: uppercase; margin: 1px 0; color: #333; }
+        .inspection { font-size: 10px; text-transform: uppercase; margin: 1px 0; color: #333; }
         
-        .academic-year {
-          text-align: right;
+        .bulletin-title-section { text-align: center; margin-bottom: 12px; }
+        .bulletin-title {
+          font-size: 18px; font-weight: 700; text-transform: uppercase;
+          margin: 0 0 4px; padding: 6px 16px; display: inline-block;
+          border: 2px solid ${primaryColor}; color: ${primaryColor};
         }
-        
-        .academic-year h3 {
-          font-size: 14px;
-          color: #666;
-          margin: 0;
-        }
-        
-        .academic-year p {
-          font-size: 18px;
-          margin: 5px 0 0;
-        }
-        
-        .academic-year h4 {
-          color: ${secondaryColor};
-          margin: 5px 0 0;
-        }
+        .school-year-line { font-size: 12px; margin: 6px 0 0; text-align: right; color: #555; }
         
         .student-info-section {
           display: flex;
@@ -915,23 +956,25 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           flex: 1;
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 10px;
+          gap: 8px;
         }
         
         .detail-row {
           display: flex;
-          flex-direction: column;
+          align-items: baseline;
+          gap: 6px;
         }
         
         .detail-row .label {
           font-size: 11px;
-          color: #888;
-          text-transform: uppercase;
+          color: #666;
+          white-space: nowrap;
+          font-weight: 600;
         }
         
         .detail-row .value {
-          font-size: 14px;
-          font-weight: 600;
+          font-size: 13px;
+          font-weight: 500;
         }
         
         .grades-table {
@@ -1021,34 +1064,49 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
       </style>
       
       <div class="header">
-        ${logoUrl ? `<div class="school-logo"><img src="${logoUrl}" alt="Logo École" /></div>` : ''}
-        <div class="school-info">
-          <h1>${schoolInfo.value?.name || ''}</h1>
-          <p>${schoolInfo.value?.address || ''}</p>
-          ${schoolInfo.value?.email ? `<p>Email: ${schoolInfo.value.email}</p>` : ''}
-          ${schoolInfo.value?.phone ? `<p>Tél: ${schoolInfo.value.phone}</p>` : ''}
+        <div class="header-block header-left">
+          ${logoUrl ? `<div class="school-logo"><img src="${logoUrl}" alt="Logo École" /></div>` : ''}
+          <h2 class="school-name">${schoolInfo.value?.name || ''}</h2>
+          <p class="school-detail">${schoolInfo.value?.address || ''}</p>
+          ${schoolInfo.value?.town ? `<p class="school-detail">${schoolInfo.value.town}</p>` : ''}
+          ${schoolInfo.value?.phone ? `<p class="school-detail">Tél : ${schoolInfo.value.phone}</p>` : ''}
+          ${schoolInfo.value?.email ? `<p class="school-detail">Email : ${schoolInfo.value.email}</p>` : ''}
         </div>
-        <div class="academic-year">
-          <h3>Année Scolaire</h3>
-          <p>${currentYear.value}</p>
-          <h4>${periodLabel}</h4>
+        <div class="header-block header-right">
+          <h2 class="country-name">${cData.countryName}</h2>
+          <p class="country-motto">${cData.motto}</p>
+          <p class="ministry">${cData.ministry}</p>
+          <p class="inspection">${cData.inspection}</p>
         </div>
+      </div>
+      
+      <div class="bulletin-title-section">
+        <h1 class="bulletin-title">BULLETIN DE NOTES DU ${periodLabel.toUpperCase()}</h1>
+        <p class="school-year-line">Année scolaire : ${currentYear.value}</p>
       </div>
       
       <div class="student-info-section">
         ${student.photo?.url ? `<div class="student-photo"><img src="${student.photo.url}" alt="Photo Élève" /></div>` : ''}
         <div class="student-details">
           <div class="detail-row">
-            <span class="label">Nom & Prénom:</span>
-            <span class="value">${student.firstname} ${student.lastname}</span>
+            <span class="label">Nom & Prénom :</span>
+            <span class="value">${student.lastname} ${student.firstname}</span>
           </div>
           <div class="detail-row">
-            <span class="label">Matricule:</span>
+            <span class="label">Matricule :</span>
             <span class="value">${student.matricule}</span>
           </div>
           <div class="detail-row">
-            <span class="label">Classe:</span>
+            <span class="label">Classe :</span>
             <span class="value">${student.grade?.name || ''}</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Date de naissance :</span>
+            <span class="value">${formatBirthDay(student.birthDay)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="label">Genre :</span>
+            <span class="value">${student.sex === 'male' ? 'Masculin' : student.sex === 'female' ? 'Féminin' : '-'}</span>
           </div>
         </div>
       </div>
@@ -1108,11 +1166,11 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
       
       <div class="signatures">
         <div class="signature-box">
-          <p>Le Professeur Principal</p>
+          <p>${colorOptions.signatoryLeft}</p>
           <div class="signature-space"></div>
         </div>
         <div class="signature-box">
-          <p>Le Directeur</p>
+          <p>${colorOptions.signatoryRight}</p>
           <div class="signature-space"></div>
         </div>
       </div>
@@ -1121,6 +1179,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
 };
 
 const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0) => {
+  const cData = getCountryData();
   const getGradeClass = (grade: number) => {
     if (grade < 10) return 'grade-low';
     if (grade >= 16) return 'grade-excellent';
@@ -1138,24 +1197,25 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         
         .header {
           display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
           margin-bottom: 8px;
           border-bottom: 2px solid #2c3e50;
           padding-bottom: 8px;
         }
         
-        .header-left {
-          width: 15%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+        .header-block { width: 48%; }
+        .header-left-block { text-align: left; }
+        .header-right-block { text-align: right; }
+        
+        .logo-box { margin-bottom: 4px; }
         
         .logo-circle {
-          width: 70px;
-          height: 70px;
+          width: 60px;
+          height: 60px;
           border: 2px solid ${primaryColor};
           border-radius: 50%;
-          display: flex;
+          display: inline-flex;
           align-items: center;
           justify-content: center;
           overflow: hidden;
@@ -1167,42 +1227,19 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
           object-fit: contain;
         }
         
-        .header-center {
-          width: 85%;
-          text-align: center;
-        }
-        
-        .header-center h2 {
-          font-size: 14px;
-          margin: 0;
-          font-weight: bold;
-          text-transform: uppercase;
-          color: ${primaryColor};
-        }
-        
-        .motto {
-          font-size: 10px;
-          font-weight: bold;
-          margin-bottom: 4px;
-        }
-        
-        .red { color: #d32f2f; }
-        .yellow { color: #fbc02d; }
-        .green { color: #388e3c; }
-        
-        .ministry, .inspection {
-          font-size: 9px;
-          margin: 1px 0;
-          text-transform: uppercase;
-        }
-        
         .school-name {
-          font-size: 16px;
-          margin: 5px 0 0 0;
+          font-size: 14px;
+          margin: 4px 0 2px 0;
           font-weight: 900;
           text-transform: uppercase;
           color: ${primaryColor};
         }
+        .school-detail { margin: 1px 0; font-size: 10px; color: #444; }
+        
+        .country-name { font-size: 13px; font-weight: 700; text-transform: uppercase; margin: 0 0 2px; }
+        .country-motto { font-size: 10px; font-style: italic; margin: 0 0 4px; color: #333; }
+        .ministry-text { font-size: 9px; text-transform: uppercase; margin: 1px 0; color: #222; }
+        .inspection-text { font-size: 9px; text-transform: uppercase; margin: 1px 0; color: #222; }
         
         .bulletin-title-box {
           text-align: center;
@@ -1214,14 +1251,18 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         
         .bulletin-title-box h1 {
           margin: 0;
-          font-size: 22px;
+          font-size: 20px;
           font-family: "Times New Roman", serif;
+          font-weight: 700;
+          text-transform: uppercase;
         }
         
-        .bulletin-title-box h3 {
-          margin: 0;
-          font-size: 13px;
-          font-weight: normal;
+        .school-year-line {
+          font-size: 11px;
+          margin: 4px 0 0;
+          text-align: right;
+          padding-right: 10px;
+          color: #444;
         }
         
         .student-info {
@@ -1383,36 +1424,45 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
       </style>
       
       <div class="header">
-        <div class="header-left">
-          ${logoUrl ? `
-            <div class="logo-circle">
-              <img src="${logoUrl}" alt="Logo" />
-            </div>
-          ` : ''}
+        <div class="header-block header-left-block">
+          <div class="logo-box">
+            ${logoUrl ? `
+              <div class="logo-circle">
+                <img src="${logoUrl}" alt="Logo" />
+              </div>
+            ` : ''}
+          </div>
+          <h2 class="school-name">${schoolInfo.value?.name || 'Nom de l\'École'}</h2>
+          <p class="school-detail">${schoolInfo.value?.address || ''}</p>
+          ${schoolInfo.value?.town ? `<p class="school-detail">${schoolInfo.value.town}</p>` : ''}
+          ${schoolInfo.value?.phone ? `<p class="school-detail">Tél : ${schoolInfo.value.phone}</p>` : ''}
+          ${schoolInfo.value?.email ? `<p class="school-detail">Email : ${schoolInfo.value.email}</p>` : ''}
         </div>
-        <div class="header-center">
-          <div class="motto">
-          <h1 class="school-name">${schoolInfo.value?.name || 'Nom de l\'École'}</h1>
+        <div class="header-block header-right-block">
+          <h2 class="country-name">${cData.countryName}</h2>
+          <p class="country-motto">${cData.motto}</p>
+          <p class="ministry-text">${cData.ministry}</p>
+          <p class="inspection-text">${cData.inspection}</p>
         </div>
       </div>
       
       <div class="bulletin-title-box">
-        <h1>Bulletin de Notes</h1>
-        <h3>${periodLabel}</h3>
+        <h1>BULLETIN DE NOTES DU ${periodLabel.toUpperCase()}</h1>
+        <p class="school-year-line">Année scolaire : ${currentYear.value}</p>
       </div>
       
       <div class="student-info">
         <div class="row">
-          <div class="cell label">Année Scolaire : ${currentYear.value}</div>
-          <div class="cell label">Classe : ${student.grade?.name || '-'}</div>
-        </div>
-        <div class="row">
-          <div class="cell"><strong>Prénoms :</strong> ${student.firstname || '-'}</div>
           <div class="cell"><strong>Nom :</strong> ${student.lastname || '-'}</div>
+          <div class="cell"><strong>Prénoms :</strong> ${student.firstname || '-'}</div>
         </div>
         <div class="row">
           <div class="cell"><strong>N° Matricule :</strong> ${student.matricule || '-'}</div>
-          <div class="cell"><strong>Sexe :</strong> ${student.gender || '-'}</div>
+          <div class="cell"><strong>Classe :</strong> ${student.grade?.name || '-'}</div>
+        </div>
+        <div class="row">
+          <div class="cell"><strong>Date de naissance :</strong> ${formatBirthDay(student.birthDay)}</div>
+          <div class="cell"><strong>Genre :</strong> ${student.sex === 'male' ? 'Masculin' : student.sex === 'female' ? 'Féminin' : '-'}</div>
         </div>
       </div>
       
@@ -1467,7 +1517,7 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
               <span class="value">${formatNumber(classAverage)} /20</span>
             </div>
             <div class="signature">
-              Le Professeur Principal
+              ${colorOptions.signatoryLeft}
               <div class="signature-space"></div>
             </div>
           </div>
@@ -1483,7 +1533,7 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
               </div>
             </div>
             <div class="signature">
-              Le Directeur
+              ${colorOptions.signatoryRight}
               <div class="signature-space"></div>
             </div>
           </div>
