@@ -9,6 +9,13 @@ export interface ICourseBase {
     gradeIds?: number[];
 }
 
+// Type pour la rétrocompatibilité
+export interface Type1 {
+    id?: number;
+    username?: string;
+    tel?: string;
+}
+
 // Type principal pour les matières
 export interface ICourse extends ICourseBase {
     isInGroupement?: boolean;

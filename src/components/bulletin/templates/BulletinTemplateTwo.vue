@@ -48,11 +48,15 @@
     </div>
 
     <!-- Tableau des notes -->
-    <table class="notes-table">
+    <div v-if="processedGrades.length === 0" class="no-grades-message">
+      <p>Aucune note disponible pour cette période</p>
+    </div>
+    <table v-else class="notes-table">
       <thead>
         <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
           <th class="col-matiere">Matières</th>
           <th class="col-coeff">Coeff</th>
+          <th class="col-note">Note de cours</th>
           <th class="col-note">Moyenne</th>
           <th class="col-note">Points</th>
           <th>Appréciation</th>
@@ -63,31 +67,60 @@
         <tr v-for="(grade, index) in processedGrades" :key="index" :class="{ 'row-even': index % 2 === 0 }">
           <td class="text-left">{{ grade.courseName }}</td>
           <td>{{ grade.coefficient }}</td>
+          <td :class="getGradeClass(grade.classAverage)">{{ fmt(grade.classAverage) }}</td>
           <td :class="getGradeClass(grade.average)">{{ fmt(grade.average) }}</td>
           <td class="bg-gray">{{ fmt(grade.weightedValue) }}</td>
           <td class="appreciation">{{ grade.appreciation || getAppreciation(grade.average) }}</td>
           <td class="professor-name">{{ grade.professorName || '-' }}</td>
         </tr>
       </tbody>
-      <tfoot>
-        <tr class="total-row">
-          <td class="text-left font-bold">TOTAL</td>
-          <td class="font-bold">{{ totalCoefficients }}</td>
-          <td></td>
-          <td class="bg-gray font-bold">{{ fmt(totalWeightedPoints) }}</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr class="moyenne-generale-row" :style="{ backgroundColor: options.secondaryColor + '20' }">
-          <td colspan="2" class="label-moyenne">Moyenne Générale</td>
-          <td colspan="4" class="value-moyenne" :style="{ color: options.primaryColor }">
-            {{ fmt(generalAverage) }} / 20
-          </td>
-        </tr>
-      </tfoot>
-    </table>
+       <tfoot>
+          <tr class="total-row">
+            <td class="text-left font-bold">TOTAL</td>
+            <td class="font-bold">{{ totalCoefficients }}</td>
+            <td></td>
+            <td class="bg-gray font-bold">{{ fmt(totalWeightedPoints) }}</td>
+            <td colspan="3"></td>
+          </tr>
+          <tr class="moyenne-generale-row" :style="{ backgroundColor: options.secondaryColor + '20' }">
+            <td colspan="3" class="label-moyenne">Moyenne Générale</td>
+            <td colspan="4" class="value-moyenne" :style="{ color: options.primaryColor }">
+              {{ fmt(generalAverage) }} / 20
+            </td>
+          </tr>
+        </tfoot>
+     </table>
 
-    <!-- Résumé et Statistiques -->
+     <!-- Détails des notes de cours -->
+     <div v-if="hasCourseNotes" class="course-notes-section">
+       <div class="section-title">
+         Détails des Notes de Cours
+       </div>
+       <div v-for="grade in processedGrades" :key="grade.courseId" class="course-notes-block">
+         <div class="course-header">
+           <span class="course-title">{{ grade.courseName }}</span>
+           <span class="course-average">Moyenne : {{ fmt(grade.average) }} / 20</span>
+         </div>
+         <div v-for="(cat, catIndex) in getCourseCategoryNotes(grade)" :key="catIndex" class="note-category">
+           <div class="category-header">
+             <span class="category-name">{{ cat.categoryName }}</span>
+             <span class="category-grades-count">{{ cat.gradesCount }} note(s)</span>
+           </div>
+           <div class="grades-list">
+             <div v-for="(gradeItem, itemIndex) in cat.grades" :key="itemIndex" class="grade-item">
+               <span class="grade-text">{{ fmt(gradeItem.score) }}</span>
+               <span class="grade-max">/ {{ fmt(gradeItem.maxScore) }}</span>
+             </div>
+           </div>
+           <div class="category-summary">
+             <span class="summary-label">Moyenne catégorie :</span>
+             <span class="summary-value">{{ fmt(cat.average) }} / 20</span>
+           </div>
+         </div>
+       </div>
+     </div>
+
+     <!-- Résumé et Statistiques -->
     <div class="footer-summary">
       <div class="summary-grid">
         <div class="summary-left">
@@ -270,16 +303,39 @@ const getGradeClass = (grade: number) => {
   return '';
 };
 
-const getAppreciation = (note: number) => {
-  if (note < 5) return "Très Insuffisant";
-  if (note < 8) return "Insuffisant";
-  if (note < 10) return "Passable";
-  if (note < 12) return "Assez Bien";
-  if (note < 14) return "Bien";
-  if (note < 16) return "Très Bien";
-  if (note < 18) return "Excellent";
-  return "Félicitations";
-};
+ const getAppreciation = (note: number) => {
+   if (note < 5) return "Très Insuffisant";
+   if (note < 8) return "Insuffisant";
+   if (note < 10) return "Passable";
+   if (note < 12) return "Assez Bien";
+   if (note < 14) return "Bien";
+   if (note < 16) return "Très Bien";
+   if (note < 18) return "Excellent";
+   return "Félicitations";
+ };
+
+  const hasCourseNotes = computed(() => {
+    return processedGrades.value.some(g => {
+      if (!g.categoryBreakdown) return false;
+      const breakdown = Array.isArray(g.categoryBreakdown) 
+        ? g.categoryBreakdown 
+        : Object.values(g.categoryBreakdown);
+      return breakdown.length > 0;
+    });
+  });
+
+  const getCourseCategoryNotes = (grade: any) => {
+    if (!grade.categoryBreakdown) return [];
+    const breakdown = Array.isArray(grade.categoryBreakdown) 
+      ? grade.categoryBreakdown 
+      : Object.values(grade.categoryBreakdown);
+    return breakdown.map((cat: any) => ({
+      categoryName: cat.categoryName,
+      gradesCount: cat.gradesCount,
+      grades: cat.grades || [],
+      average: cat.average
+    })).filter((cat: any) => cat.gradesCount > 0);
+  };
 </script>
 
 <style scoped>
@@ -431,6 +487,13 @@ const getAppreciation = (note: number) => {
   border-right: none;
 }
 
+.no-grades-message {
+  text-align: center;
+  padding: 30px;
+  color: #909399;
+  font-size: 14px;
+}
+
 /* Tableau */
 .notes-table {
   width: 100%;
@@ -452,10 +515,10 @@ const getAppreciation = (note: number) => {
   letter-spacing: 0.3px;
 }
 
-.col-matiere { width: 25%; text-align: left; padding-left: 8px !important; }
-.col-coeff { width: 8%; }
-.col-note { width: 12%; }
-.col-prof { width: 20%; }
+ .col-matiere { width: 22%; text-align: left; padding-left: 8px !important; }
+ .col-coeff { width: 7%; }
+ .col-note { width: 10%; }
+ .col-prof { width: 18%; }
 
 .text-left { text-align: left; padding-left: 8px; }
 .bg-gray { background-color: #e8e8e8; }
@@ -552,13 +615,129 @@ const getAppreciation = (note: number) => {
   font-weight: bold;
 }
 
-.signature-space {
-  height: 50px;
-  border-bottom: 1px solid #000;
-  margin-top: 5px;
-}
+ .signature-space {
+   height: 50px;
+   border-bottom: 1px solid #000;
+   margin-top: 5px;
+ }
 
-@media print {
+ .course-notes-section {
+   border: 2px solid #000;
+   background-color: #f5f5f5;
+   padding: 10px;
+   margin-bottom: 10px;
+ }
+
+ .section-title {
+   font-weight: 700;
+   font-size: 12px;
+   text-transform: uppercase;
+   margin-bottom: 8px;
+   padding-bottom: 5px;
+   border-bottom: 1px solid #000;
+ }
+
+ .course-notes-block {
+   border: 1px solid #000;
+   margin-bottom: 10px;
+   padding: 8px;
+   background-color: #fff;
+ }
+
+ .course-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   padding: 6px 8px;
+   background-color: #f0f0f0;
+   border-bottom: 1px solid #000;
+   font-size: 11px;
+   font-weight: 700;
+ }
+
+ .course-title {
+   text-transform: uppercase;
+ }
+
+ .course-average {
+   font-weight: 700;
+   color: #333;
+ }
+
+ .note-category {
+   border: 1px solid #ccc;
+   border-radius: 4px;
+   padding: 6px;
+   margin-bottom: 8px;
+   background-color: #fafafa;
+ }
+
+ .category-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   margin-bottom: 6px;
+   font-size: 10px;
+   font-weight: 700;
+   text-transform: uppercase;
+ }
+
+ .category-name {
+   color: #000;
+ }
+
+ .category-grades-count {
+   color: #666;
+ }
+
+ .grades-list {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 6px;
+   margin-bottom: 6px;
+ }
+
+ .grade-item {
+   display: flex;
+   align-items: baseline;
+   gap: 2px;
+   font-size: 10px;
+   background-color: #e8e8e8;
+   padding: 3px 6px;
+   border-radius: 3px;
+ }
+
+ .grade-text {
+   font-weight: 700;
+   color: #000;
+ }
+
+ .grade-max {
+   color: #666;
+   font-size: 9px;
+ }
+
+ .category-summary {
+   display: flex;
+   justify-content: flex-end;
+   align-items: center;
+   gap: 6px;
+   font-size: 10px;
+   padding-top: 6px;
+   border-top: 1px solid #ccc;
+ }
+
+ .summary-label {
+   font-weight: 700;
+   color: #333;
+ }
+
+ .summary-value {
+   font-weight: 700;
+   color: #000;
+ }
+
+ @media print {
   .bulletin-template-two {
     width: 100%;
     height: 100%;

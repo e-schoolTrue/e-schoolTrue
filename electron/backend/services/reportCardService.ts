@@ -19,6 +19,7 @@ import * as path from 'path';
 import { app, BrowserWindow } from "electron";
 import { SchoolService } from "./schoolService";
 import { YearRepartitionService } from "./yearService";
+import { FileService } from "./fileService";
 
 export class ReportCardService {
     private reportRepository: Repository<ReportCardEntity>;
@@ -26,6 +27,7 @@ export class ReportCardService {
     private studentRepository: Repository<StudentEntity>;
     private schoolService: SchoolService;
     private yearService: YearRepartitionService;
+    private fileService: FileService;
 
     constructor() {
         this.reportRepository = AppDataSource.getInstance().getRepository(ReportCardEntity);
@@ -33,32 +35,85 @@ export class ReportCardService {
         this.studentRepository = AppDataSource.getInstance().getRepository(StudentEntity);
         this.schoolService = new SchoolService();
         this.yearService = new YearRepartitionService();
+        this.fileService = new FileService();
+    }
+
+    private async getSchoolLogo(): Promise<string | null> {
+        try {
+            const schoolResult = await this.schoolService.getSchool();
+            if (schoolResult.success && schoolResult.data?.logo) {
+                const logoData = schoolResult.data.logo;
+                if (logoData.id) {
+                    const logoFile = await this.fileService.getFileById({ fileId: logoData.id });
+                    if (logoFile && logoFile.content) {
+                        const base64 = logoFile.content.toString('base64');
+                        return `data:${logoFile.type};base64,${base64}`;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Erreur récupération logo école:', error);
+        }
+        return null;
+    }
+
+    private async getStudentPhoto(studentId: number): Promise<string | null> {
+        try {
+            const student = await this.studentRepository.findOne({ 
+                where: { id: studentId }, 
+                relations: ['photo'] 
+            });
+            if (student?.photoId) {
+                const photoFile = await this.fileService.getFileById({ fileId: student.photoId });
+                if (photoFile && photoFile.content) {
+                    const base64 = photoFile.content.toString('base64');
+                    return `data:${photoFile.type};base64,${base64}`;
+                }
+            }
+        } catch (error) {
+            console.error('Erreur récupération photo étudiant:', error);
+        }
+        return null;
     }
 
     async generateReportCards(data: GenerateReportCardsInput): Promise<ResultType<any>> {
         try {
             const templatePath = path.join(app.getAppPath(), 'dist-electron', 'templates', 'report-card.html');
             const templateHtml = await fs.readFile(templatePath, 'utf-8');
+            
+            // Register Handlebars helpers
+            handlebars.registerHelper('lt', function(a, b) {
+                return a < b;
+            });
+            
             const template = handlebars.compile(templateHtml);
 
             const schoolInfo = await this.schoolService.getSchool();
             const currentYear = await this.yearService.getCurrentYearRepartition();
+            const schoolLogo = await this.getSchoolLogo();
 
             for (const studentId of data.studentIds) {
-                const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
+                const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade', 'photo'] });
                 if (!student) continue;
 
                 const gradesResult = await this.getStudentGrades(studentId, data.period);
                 if (!gradesResult.success || !gradesResult.data) continue;
 
+                const studentPhoto = await this.getStudentPhoto(studentId);
+
                 const reportData = {
                     schoolName: schoolInfo.data?.name || 'Mon École',
+                    schoolAddress: schoolInfo.data?.address || '',
+                    schoolPhone: schoolInfo.data?.phone || '',
                     schoolYear: currentYear.data?.schoolYear || '2024-2025',
                     period: data.period,
                     studentName: `${student.firstname} ${student.lastname}`,
+                    studentMatricule: student.matricule || '',
                     gradeName: student.grade.name,
                     grades: gradesResult.data.grades,
-                    generalAverage: gradesResult.data.generalAverage
+                    generalAverage: gradesResult.data.generalAverage,
+                    schoolLogo: schoolLogo,
+                    studentPhoto: studentPhoto
                 };
 
                 const htmlContent = template(reportData);

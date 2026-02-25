@@ -96,8 +96,8 @@ export class AppDataSource {
             database: dbPath,
             logging: false,
             entities: entities,
-            migrations: [path.join(__dirname, 'migrations', '*.{ts,js}')],
-            migrationsRun: true,
+            // migrations: [path.join(__dirname, 'migrations', '*.{ts,js}')],
+            // migrationsRun: true,
             subscribers: [],
             cache: false
         });

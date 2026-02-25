@@ -134,6 +134,7 @@ export class ConfigNoteService {
                 }
 
                 // Créer les nouvelles catégories
+                console.log('💾 Sauvegarde catégories - isExam values:', params.categories.map(c => ({ name: c.name, isExam: c.isExam })));
                 const newCategories = params.categories.map((catDto, index) => {
                     const cat = new EvaluationCategoryEntity();
                     cat.name = catDto.name.trim();
@@ -145,6 +146,7 @@ export class ConfigNoteService {
                     cat.color = catDto.color || this.getDefaultColor(index);
                     cat.displayOrder = catDto.displayOrder ?? index;
                     cat.isExam = catDto.isExam ?? false;
+                    console.log(`💾 Catégorie ${cat.name}: isExam = ${cat.isExam}`);
                     return cat;
                 });
 

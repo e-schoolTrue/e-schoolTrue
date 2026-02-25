@@ -41,6 +41,7 @@ import { InscriptionFeeService } from "./backend/services/inscription-fee.servic
 import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 import { ConfigNoteService } from "./backend/services/note-config-service";
 import { GradeEntryService } from "./backend/services/gradeEntryService";
+import { CentralizedPdfService } from "./backend/services/centralizedPdfService";
 
 
 
@@ -90,6 +91,7 @@ function initializeServices() {
   global.paymentAnnualConfigService = new PaymentAnnualConfigService();
   global.configNoteService = new ConfigNoteService();
   global.gradeEntryService = new GradeEntryService();
+  global.centralizedPdfService = new CentralizedPdfService();
 }
 
 // =================================================================

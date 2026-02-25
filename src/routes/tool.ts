@@ -24,5 +24,10 @@ export const toolRoutes = [
       path: "/tools/documents/scolarity",
       name: "DocumentEditor",
       component: () => import("@/views/tools/DocumentsView.vue"),
+    },
+    {
+      path: "/centralized-notes",
+      name: "CentralizedGrades",
+      component: () => import("@/views/tools/CentralizedGradesView.vue"),
     }
   ]; 

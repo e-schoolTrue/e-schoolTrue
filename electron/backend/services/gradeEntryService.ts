@@ -2,7 +2,8 @@ import { Repository, In } from "typeorm";
 import { AppDataSource } from "../../data-source";
 import { GradeEntryEntity, CalculatedGradeEntity } from "../entities/gradeEntry";
 import { ConfigNoteService } from "./note-config-service";
-import {CourseEntity} from "#electron/backend/entities/course";
+import {CourseEntity} from "../entities/course";
+import {StudentEntity} from "../entities/students";
 
 interface ResultType<T> {
     success: boolean;
@@ -261,6 +262,22 @@ export class GradeEntryService {
                 gradesByCategory.set(entry.categoryId, existing);
             }
 
+            console.log('=== CALCUL MOYENNE ===');
+            console.log(`Student: ${studentId}, Course: ${courseId}, Period: ${period}`);
+            console.log(`Config ID: ${config.id}, Strategy: ${config.calculationStrategy}`);
+            console.log(`Catégories dans la config:`, config.categories.map((c: any) => ({ id: c.id, name: c.name, isExam: c.isExam })));
+            console.log(`Notes par catégorie (gradesByCategory):`);
+            gradesByCategory.forEach((grades, catId) => {
+                console.log(`  Catégorie ${catId}: ${grades.length} notes`, grades);
+            });
+            
+            // Vérifier la correspondance
+            const configCategoryIds = new Set(config.categories.map((c: any) => c.id));
+            const noteCategoryIds = Array.from(gradesByCategory.keys());
+            console.log(`📊 IDs config:`, Array.from(configCategoryIds));
+            console.log(`📊 IDs notes:`, noteCategoryIds);
+            console.log(`📊 Correspondance:`, noteCategoryIds.every(id => configCategoryIds.has(id)));
+            
             // Séparer les catégories: notes de classe vs examens
             const classCategories: any[] = [];
             const examCategories: any[] = [];
@@ -281,7 +298,6 @@ export class GradeEntryService {
             let totalWeight = 0;
 
             // 1. Traiter les notes de classe (groupées)
-            // Les notes de classe sont moyennées et comptent pour 1 coefficient total
             if (classCategories.length > 0) {
                 const allClassNormalizedScores: number[] = [];
                 
@@ -301,7 +317,6 @@ export class GradeEntryService {
                         continue;
                     }
 
-                    // Normaliser les notes
                     const normalizedScores = categoryGrades.map(g => {
                         if (config.normalizeScores) {
                             return (g.score / g.maxScore) * config.finalGradeBase;
@@ -324,17 +339,14 @@ export class GradeEntryService {
                         weight: category.weight,
                         gradesCount: categoryGrades.length,
                         grades: categoryGrades,
-                        isExam: false
+                        isExam: category.isExam || false
                     };
 
-                    // Ajouter la moyenne de cette catégorie aux notes de classe
                     allClassNormalizedScores.push(categoryAverage);
                 }
 
-                // Calculer la moyenne globale des notes de classe
                 if (allClassNormalizedScores.length > 0) {
                     const classGlobalAverage = allClassNormalizedScores.reduce((a, b) => a + b, 0) / allClassNormalizedScores.length;
-                    // CORRECTION: Les notes de classe comptent pour 1 coefficient total, pas la somme
                     const classCoefficient = 1;
                     const classWeightedValue = classGlobalAverage * classCoefficient;
                     
@@ -356,13 +368,13 @@ export class GradeEntryService {
                         average: 0,
                         weight: category.weight,
                         gradesCount: 0,
+                        grades: [],
                         isExam: true
                     };
                     console.log(`Examen "${category.name}" (coef ${category.weight}): Aucune note - ignoré`);
                     continue;
                 }
 
-                // Normaliser et calculer la moyenne
                 const normalizedScores = categoryGrades.map(g => {
                     if (config.normalizeScores) {
                         return (g.score / g.maxScore) * config.finalGradeBase;
@@ -387,7 +399,7 @@ export class GradeEntryService {
                     weight: category.weight,
                     gradesCount: categoryGrades.length,
                     grades: categoryGrades,
-                    isExam: true
+                    isExam: category.isExam || false
                 };
 
                 totalWeightedValue += weightedValue;
@@ -395,8 +407,6 @@ export class GradeEntryService {
             }
 
             console.log(`Calcul final: ${totalWeightedValue.toFixed(2)} / ${totalWeight} = ${(totalWeightedValue / totalWeight).toFixed(2)}`);
-
-            // Calculer la moyenne finale
             let finalAverage: number;
             if (config.calculationStrategy === 'SIMPLE') {
                 console.log('Stratégie: SIMPLE (moyenne de toutes les notes sans coefficients)');
@@ -434,6 +444,8 @@ export class GradeEntryService {
             calculated.finalAverage = finalAverage;
             calculated.configId = config.id;
             calculated.categoryBreakdown = categoryBreakdown;
+
+            console.log('💾 Sauvegarde categoryBreakdown:', JSON.stringify(categoryBreakdown));
 
             await this.calculatedGradeRepository.save(calculated);
 
@@ -533,6 +545,46 @@ export class GradeEntryService {
     }
 
     /**
+     * Invalide le cache des moyennes pour une classe et période
+     */
+    async invalidateCacheByClass(classId: number, period: string): Promise<ResultType<{ deleted: number }>> {
+        try {
+            // Récupérer les étudiants de la classe
+            const { StudentEntity } = await import("../entities/students");
+            const dataSource = AppDataSource.getInstance();
+            const students = await dataSource.getRepository(StudentEntity)
+                .createQueryBuilder('student')
+                .innerJoin('student.grade', 'grade')
+                .where('grade.id = :classId', { classId })
+                .select(['student.id'])
+                .getMany();
+            
+            let deletedCount = 0;
+            for (const student of students) {
+                const result = await this.calculatedGradeRepository.delete({ studentId: student.id, period });
+                deletedCount += result.affected || 0;
+            }
+            
+            console.log(`✅ Cache invalidé: ${deletedCount} moyennes supprimées pour la classe ${classId}, période ${period}`);
+            
+            return {
+                success: true,
+                data: { deleted: deletedCount },
+                message: `${deletedCount} moyennes recalculées`,
+                error: null
+            };
+        } catch (error) {
+            console.error("Erreur invalidation cache par classe:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de l'invalidation du cache",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    /**
      * Récupère toutes les moyennes d'un élève pour une période
      */
     async getStudentAverages(
@@ -587,15 +639,13 @@ export class GradeEntryService {
             console.log(`Classe: ${classId}, Période: ${period}`);
 
             const dataSource = AppDataSource.getInstance();
-            
-            // Récupérer tous les élèves de la classe
-            const studentRepo = dataSource.getRepository('StudentEntity');
+
+            // Récupérer tous les élèves de la classe - utiliser la classe directement
+            const studentRepo = dataSource.getRepository(StudentEntity);
             const students = await studentRepo.find({
                 where: { grade: { id: classId } },
                 relations: ['grade']
             });
-            
-            console.log(`Nombre d'élèves trouvés: ${students.length}`);
 
             if (students.length === 0) {
                 return {
@@ -607,12 +657,10 @@ export class GradeEntryService {
             }
 
             // Récupérer les cours de la classe avec leurs coefficients
-            const courseRepo = dataSource.getRepository('CourseEntity');
+            const courseRepo = dataSource.getRepository(CourseEntity);
             const courses = await courseRepo.find({
                 where: { grade: { id: classId } }
             });
-
-            console.log(`Nombre de matières: ${courses.length}`);
 
             // Créer un map des coefficients par courseId
             const courseCoefficients = new Map<number, number>();
@@ -626,6 +674,7 @@ export class GradeEntryService {
                 studentName: string;
                 generalAverage: number;
                 totalCoefficients: number;
+                hasGrades: boolean;
             }> = [];
 
             for (const student of students) {
@@ -637,40 +686,56 @@ export class GradeEntryService {
                     }
                 });
 
-                if (averages.length === 0) {
-                    console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): Aucune note`);
-                    continue; // Ignorer les élèves sans notes
-                }
-
-                // Calculer la moyenne générale pondérée
+                // Calculer la moyenne générale pondérée (même sans notes)
                 let totalWeightedValue = 0;
                 let totalCoefficients = 0;
 
-                for (const avg of averages) {
-                    const coefficient = courseCoefficients.get(avg.courseId) || 1;
-                    totalWeightedValue += avg.finalAverage * coefficient;
-                    totalCoefficients += coefficient;
+                if (averages.length > 0) {
+                    for (const avg of averages) {
+                        const coefficient = courseCoefficients.get(avg.courseId) || 1;
+                        totalWeightedValue += avg.finalAverage * coefficient;
+                        totalCoefficients += coefficient;
+                    }
+
+                    console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): ${(totalWeightedValue / totalCoefficients).toFixed(2)}/20 (${averages.length} matières)`);
+                } else {
+                    console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): Aucune note`);
                 }
 
                 const generalAverage = totalCoefficients > 0 
                     ? Math.round((totalWeightedValue / totalCoefficients) * 100) / 100 
                     : 0;
 
-                console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): ${generalAverage}/20 (${averages.length} matières)`);
-
                 studentAverages.push({
                     studentId: student.id,
                     studentName: `${student.firstname} ${student.lastname}`,
                     generalAverage,
-                    totalCoefficients
+                    totalCoefficients,
+                    hasGrades: averages.length > 0
                 });
             }
 
-            // Trier par moyenne décroissante
-            studentAverages.sort((a, b) => b.generalAverage - a.generalAverage);
+            // Trier par moyenne décroissante (les élèves sans notes à la fin)
+            studentAverages.sort((a, b) => {
+                // Si un élève n'a pas de notes, il est classé après ceux qui en ont
+                if (!a.hasGrades && b.hasGrades) return 1;
+                if (a.hasGrades && !b.hasGrades) return -1;
+                return b.generalAverage - a.generalAverage;
+            });
 
             // Attribuer les rangs (gérer les ex-aequo)
             const rankings = studentAverages.map((student, index, array) => {
+                // Les élèves sans notes n'ont pas de rang
+                if (!student.hasGrades) {
+                    return {
+                        studentId: student.studentId,
+                        studentName: student.studentName,
+                        generalAverage: student.generalAverage,
+                        totalCoefficients: student.totalCoefficients,
+                        rank: null
+                    };
+                }
+
                 let rank = index + 1;
                 
                 // Si la moyenne est identique à celle du précédent, même rang
@@ -679,7 +744,10 @@ export class GradeEntryService {
                 }
                 
                 return {
-                    ...student,
+                    studentId: student.studentId,
+                    studentName: student.studentName,
+                    generalAverage: student.generalAverage,
+                    totalCoefficients: student.totalCoefficients,
                     rank
                 };
             });
@@ -789,31 +857,45 @@ export class GradeEntryService {
         averageScores: number;
     }>>> {
         try {
-            console.log('\n===CALCUL CLASSEMENT CENTRALISÉ ===');
-            console.log('Filtres appliqués:', filters || { message: "aucun" });
-            
+            if (!filters || typeof filters !== 'object') {
+                throw new Error('Filtres non valides');
+            }
+
+            if (!filters.gradeId || typeof filters.gradeId !== 'number' || isNaN(filters.gradeId) || filters.gradeId <= 0) {
+                throw new Error(`gradeId invalide: ${filters.gradeId}`);
+            }
+
             const dataSource = AppDataSource.getInstance();
-            const studentRepo = dataSource.getRepository('StudentEntity');
-            const courseRepo:Repository<CourseEntity> = dataSource.getRepository('CourseEntity');
-            
+            const studentRepo = dataSource.getRepository(StudentEntity);
+            const courseRepo:Repository<CourseEntity> = dataSource.getRepository(CourseEntity);
+
             let students: any[] = [];
-            students = await studentRepo.find({
-                where: { grade: { id: filters.gradeId } },
-                relations: ['grade']
-            });
-            console.log(`Nombre d'élèves trouvés: ${students.length}`);
+            try {
+                students = await studentRepo.find({
+                    where: { grade: { id: filters.gradeId } },
+                    relations: ['grade']
+                });
+            } catch (studentError) {
+                throw new Error(`Erreur lors de la récupération des étudiants: ${studentError instanceof Error ? studentError.message : 'Unknown error'}`);
+            }
+
             let courses: any[];
-            const gradeId = filters.gradeId
-            courses = await courseRepo.createQueryBuilder('course')
-                .leftJoinAndSelect('course.grades', 'grades')
-                .leftJoinAndSelect('course.grade', 'grade')
-                .leftJoinAndSelect('course.courses', 'courses')
-                .where('grades.id = :gradeId OR grade.id = :gradeId', { gradeId })
-                .getMany();
-            console.log(`Nombre de matières: ${courses.length}`);
+            try {
+                courses = await courseRepo.createQueryBuilder('course')
+                    .leftJoinAndSelect('course.grades', 'grades')
+                    .leftJoinAndSelect('course.grade', 'grade')
+                    .leftJoinAndSelect('course.courses', 'courses')
+                    .where('grades.id = :gradeId OR grade.id = :gradeId', { gradeId: filters.gradeId })
+                    .getMany();
+            } catch (courseError) {
+                throw new Error(`Erreur lors de la récupération des matières: ${courseError instanceof Error ? courseError.message : 'Unknown error'}`);
+            }
+
             const courseMap = new Map<number, any>();
             courses.forEach(course => {
-                courseMap.set(course.id, course);
+                if (course && course.id) {
+                    courseMap.set(course.id, course);
+                }
             });
 
             // Pour chaque élève, calculer sa note finale
@@ -835,63 +917,102 @@ export class GradeEntryService {
                 }>;
             }> = [];
 
+            console.log(`=== DÉBUT TRAITEMENT ÉLÈVES (${students.length} étudiants) ===`);
+            
             for (const student of students) {
-                let totalWeightedValue = 0;
-                let totalCoefficients = 0;
-                let averageScores = 0;
-                let scoreCount = 0;
-                const averages = await this.calculatedGradeRepository.find({
-                    where: {
-                        studentId: student.id,
-                        courseId: In(Array.from(courseMap.keys())),
-                        period: filters?.period || undefined
-                    }
-                });
-                const studentScores: Array<{
-                    courseId: number;
-                    courseName: string;
-                    score: number;
-                    coefficient: number;
-                    weightedScore: number;
-                }> = [];
-
-                for (const avg of averages) {
-                    const course = courseMap.get(avg.courseId);
-                    const coefficient = course?.coefficient || 1;
-                    const weightedScore = avg.finalAverage * coefficient;
-
-                    totalWeightedValue += weightedScore;
-                    totalCoefficients += coefficient;
-                    averageScores += avg.finalAverage;
-                    scoreCount += 1;
-                    studentScores.push({
-                        courseId: avg.courseId,
-                        courseName: course?.name || '',
-                        score: avg.finalAverage,
-                        coefficient: coefficient,
-                        weightedScore: weightedScore
+                try {
+                    console.log(`\n--- Traitement étudiant ${student.id} ---`);
+                    console.log('Données étudiant avant:', {
+                        id: student.id,
+                        matricule: student.matricule,
+                        firstname: student.firstname,
+                        lastname: student.lastname,
+                        gradeId: student.grade?.id
                     });
-                }
+                    
+                    // Vérification du matricule
+                    if (!student.matricule) {
+                        console.warn(`⚠️ Aucun matricule trouvé pour l'étudiant ${student.id}`);
+                    }
+                    
+                    let totalWeightedValue = 0;
+                    let totalCoefficients = 0;
+                    let averageScores = 0;
+                    let scoreCount = 0;
+                    
+                    const courseIds = Array.from(courseMap.keys());
+                    const averages = await this.calculatedGradeRepository.find({
+                        where: {
+                            studentId: student.id,
+                            courseId: In(courseIds),
+                            period: filters?.period || undefined
+                        }
+                    });
+                    
+                    console.log(`Élève ${student.id}: ${averages.length} moyennes trouvées pour les ${courseMap.size} matières`);
+                    
+                    const studentScores: Array<{
+                        courseId: number;
+                        courseName: string;
+                        score: number;
+                        coefficient: number;
+                        weightedScore: number;
+                    }> = [];
 
-                const generalAverage = totalCoefficients > 0 
-                    ? Math.round((totalWeightedValue / totalCoefficients) * 100) / 100 
-                    : 0;
-                const unweightedAverage = scoreCount > 0
-                    ? Math.round((averageScores / scoreCount) * 100) / 100
-                    : 0;
-                console.log(`Élève ${student.id} (${student.matricule} ${student.firstname} ${student.lastname}): ${generalAverage}/20 (${averages.length} matières)`);
-                studentResults.push({
-                    studentId: student.id,
-                    matricule: student.matricule || '',
-                    firstname: student.firstname,
-                    lastname: student.lastname,
-                    generalAverage,
-                    rank: 0, // sera calculé après
-                    totalScores: totalCoefficients,
-                    averageScores: unweightedAverage,
-                    scores: studentScores
-                });
+                    for (const avg of averages) {
+                        if (!avg.courseId) {
+                            console.warn(`⚠️ Aucun courseId trouvé dans la moyenne pour l'étudiant ${student.id}`);
+                            continue;
+                        }
+                        const course = courseMap.get(avg.courseId);
+                        if (!course) {
+                            console.warn(`⚠️ Matière non trouvée dans le map pour courseId ${avg.courseId}`);
+                            continue;
+                        }
+                        
+                        const coefficient = course?.coefficient || 1;
+                        const weightedScore = avg.finalAverage * coefficient;
+                        
+                        totalWeightedValue += weightedScore;
+                        totalCoefficients += coefficient;
+                        averageScores += avg.finalAverage;
+                        scoreCount += 1;
+                        studentScores.push({
+                            courseId: avg.courseId,
+                            courseName: course?.name || '',
+                            score: avg.finalAverage,
+                            coefficient: coefficient,
+                            weightedScore: weightedScore
+                        });
+                    }
+
+                    const generalAverage = totalCoefficients > 0 
+                        ? Math.round((totalWeightedValue / totalCoefficients) * 100) / 100 
+                        : 0;
+                    const unweightedAverage = scoreCount > 0
+                        ? Math.round((averageScores / scoreCount) * 100) / 100
+                        : 0;
+                    
+                    console.log(`✅ Élève ${student.id} (${student.matricule || 'sans matricule'} ${student.firstname} ${student.lastname}): ${generalAverage}/20 (${averages.length} matières)`);
+                    
+                    studentResults.push({
+                        studentId: student.id,
+                        matricule: student.matricule || '',
+                        firstname: student.firstname,
+                        lastname: student.lastname,
+                        generalAverage,
+                        rank: 0, // sera calculé après
+                        totalScores: totalCoefficients,
+                        averageScores: unweightedAverage,
+                        scores: studentScores
+                    });
+                } catch (studentLoopError) {
+                    console.error(`❌ Erreur lors du traitement de l'étudiant ${student.id}:`, studentLoopError);
+                    // Continuer avec les autres étudiants même si un échoue
+                }
             }
+
+            console.log(`=== FIN TRAITEMENT ÉLÈVES ===\n`);
 
             // Trier par moyenne générale décroissante
             studentResults.sort((a, b) => b.generalAverage - a.generalAverage);
@@ -915,10 +1036,29 @@ export class GradeEntryService {
 
             console.log('Classement final:');
             rankings.forEach(r => {
-                console.log(`ranking ${r.rank}. ${r.firstname} ${r.lastname}: ${r.generalAverage}/20`);
+                console.log(`ranking ${r.rank}. ${r.firstname} ${r.lastname}: ${r.generalAverage}/20 (matricule: ${r.matricule || 'sans matricule'})`);
             });
             console.log(`Moyenne de classe: ${classAverage}`);
             console.log('=== FIN CALCUL CLASSEMENT CENTRALISÉ ===\n');
+
+            // Vérifier que les données sont valides
+            if (!rankings || !Array.isArray(rankings)) {
+                throw new Error('Les données de classement ne sont pas valides (pas un tableau)');
+            }
+
+            // Vérifier que chaque élève a les champs requis
+            const invalidStudents = rankings.filter((r: any) => 
+                !r.studentId || 
+                r.firstname === undefined || 
+                r.lastname === undefined ||
+                r.generalAverage === undefined
+            );
+
+            if (invalidStudents.length > 0) {
+                console.error('⚠️ Étudiants avec des données invalides:', invalidStudents);
+            }
+
+            console.log(`✅ Classement généré avec succès pour ${rankings.length} étudiants`);
 
             return {
                 success: true,
@@ -927,12 +1067,14 @@ export class GradeEntryService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur getCentralizedRankings:", error);
+            console.error('❌ ERREUR CRITIQUE DANS getCentralizedRankings:', error);
+            console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+            const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
             return {
                 success: false,
                 data: null,
-                message: "Erreur lors du calcul du classement centralisé",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
+                message: `Erreur lors du calcul du classement centralisé: ${errorMessage}`,
+                error: errorMessage
             };
         }
     }

@@ -316,14 +316,23 @@ interface Student {
   sex?: string;
 }
 
-interface GradeData {
-  courseId: number;
-  courseName: string;
-  coefficient: number;
-  average: number;
-  appreciation?: string;
-  professorName?: string;
-}
+ interface GradeData {
+    courseId: number;
+    courseName: string;
+    coefficient: number;
+    average: number;
+    classAverage?: number;
+    examAverage?: number;
+    appreciation?: string;
+    professorName?: string;
+    categoryGrades?: {
+      name: string;
+      code: string;
+      average: number;
+      isExam: boolean;
+      gradesCount: number;
+    }[];
+  }
 
 // --- State ---
 const loading = ref(false);
@@ -380,7 +389,7 @@ interface RankingData {
   totalStudents: number;
   classAverage: number;
 }
-const studentRankings = ref<Map<number, RankingData>>(new Map());
+const studentRankings = ref<Map<any, RankingData>>(new Map());
 
 // Template & Couleurs
 const selectedTemplateId = ref('template1');
@@ -483,7 +492,11 @@ const onClassChange = async () => {
     ]);
 
     if (studentsRes.success) students.value = studentsRes.data || [];
-    if (coursesRes.success) courses.value = coursesRes.data || [];
+    if (coursesRes.success) {
+      courses.value = (coursesRes.data || []).sort((a: any, b: any) => 
+        (a.name || '').localeCompare(b.name || '')
+      );
+    }
 
   } catch (error) {
     console.error('Erreur chargement:', error);
@@ -533,7 +546,12 @@ const onPeriodChange = async () => {
 };
 
 const loadStudentRankings = async () => {
-  if (!selectedClassId.value || !selectedPeriod.value) return;
+  if (!selectedClassId.value || !selectedPeriod.value) {
+    console.error('Cannot load rankings: missing classId or period', { classId: selectedClassId.value, period: selectedPeriod.value });
+    return;
+  }
+  
+  console.log('Loading rankings for:', { classId: selectedClassId.value, schoolId: schoolInfo.value?.id || schoolId.value, period: selectedPeriod.value });
   
   try {
     const rankingsRes = await window.ipcRenderer.invoke('gradeEntry:getClassRankings', {
@@ -542,8 +560,10 @@ const loadStudentRankings = async () => {
       period: selectedPeriod.value
     });
     
+      console.log('Rankings response:', rankingsRes);
+      
     if (rankingsRes.success && rankingsRes.data) {
-      const newMap = new Map<number, RankingData>();
+      const newMap = new Map<any, RankingData>();
       
       // Calculer la moyenne de classe et le nombre total d'élèves
       const totalStudents = rankingsRes.data.length;
@@ -552,15 +572,23 @@ const loadStudentRankings = async () => {
         : 0;
       
       // Stocker les données de classement pour chaque élève
+      console.log('Storing rankings with data:', rankingsRes.data.map((r: any) => ({ studentId: r.studentId, rank: r.rank })));
       rankingsRes.data.forEach((r: any) => {
-        newMap.set(r.studentId, {
-          studentId: r.studentId,
+        const studentId = Number(r.studentId);
+        const rankingData = {
+          studentId: studentId,
           rank: r.rank,
           generalAverage: r.generalAverage,
           totalStudents: totalStudents,
           classAverage: Math.round(classAvg * 100) / 100
-        });
+        };
+        // Store with number key
+        newMap.set(studentId, rankingData);
+        // Store with string key as fallback
+        newMap.set(String(r.studentId), rankingData);
       });
+      
+      console.log('Final map keys:', Array.from(newMap.keys()));
       
       studentRankings.value = newMap;
       
@@ -568,6 +596,9 @@ const loadStudentRankings = async () => {
       classAverage.value = Math.round(classAvg * 100) / 100;
       
       console.log(`Classement chargé: ${totalStudents} élèves, moyenne de classe: ${classAvg.toFixed(2)}`);
+      console.log('Student rankings map:', studentRankings.value);
+    } else {
+      console.error('Failed to load rankings:', rankingsRes);
     }
   } catch (error) {
     console.error('Erreur chargement classement:', error);
@@ -630,48 +661,76 @@ const loadStudentGradesForPreview = async (student: Student) => {
     // Récupérer les moyennes calculées pour chaque matière
     const gradesResults: GradeData[] = [];
     
-    for (const course of courses.value) {
-      // Récupérer la moyenne calculée (si elle existe)
-      const avgRes = await window.ipcRenderer.invoke('gradeEntry:getCalculated', {
-        studentId: student.id,
-        courseId: course.id,
-        classId: selectedClassId.value,
-        schoolId: schoolInfo.value?.id || schoolId.value,
-        period: selectedPeriod.value
-      });
-
-      if (avgRes.success && avgRes.data) {
-        // Récupérer le professeur enseignant cette matière dans cette classe
-        let professorName = '';
-        try {
-          console.log(`🔍 Recherche professeur pour matière: ${course.name} (id=${course.id}), classe: ${selectedClassId.value}`);
-          const profRes = await window.ipcRenderer.invoke('professor:getByCourseAndGrade', {
-            courseId: course.id,
-            gradeId: selectedClassId.value
-          });
-          
-          console.log('Réponse professeur:', profRes);
-          
-          if (profRes.success && profRes.data) {
-            professorName = `${profRes.data.firstname} ${profRes.data.lastname}`;
-            console.log(`✅ Professeur trouvé: ${professorName}`);
-          } else {
-            console.log(`⚠️ Aucun professeur affecté pour ${course.name}: ${profRes.message}`);
-          }
-        } catch (error) {
-          console.error('❌ Erreur récupération professeur:', error);
-        }
-
-        gradesResults.push({
+     for (const course of courses.value) {
+        // Recalculer la moyenne (sans cache)
+        const avgRes = await window.ipcRenderer.invoke('gradeEntry:calculate', {
+          studentId: student.id,
           courseId: course.id,
-          courseName: course.name,
-          coefficient: course.coefficient || 1,
-          average: avgRes.data.finalAverage,
-          appreciation: getAppreciation(avgRes.data.finalAverage),
-          professorName
+          classId: selectedClassId.value,
+          schoolId: schoolInfo.value?.id || schoolId.value,
+          period: selectedPeriod.value
         });
-      }
-    }
+
+       if (avgRes.success && avgRes.data) {
+         // Récupérer le professeur enseignant cette matière dans cette classe
+         let professorName = '';
+         try {
+           console.log(`🔍 Recherche professeur pour matière: ${course.name} (id=${course.id}), classe: ${selectedClassId.value}`);
+           const profRes = await window.ipcRenderer.invoke('professor:getByCourseAndGrade', {
+             courseId: course.id,
+             gradeId: selectedClassId.value
+           });
+
+           console.log('Réponse professeur:', profRes);
+
+           if (profRes.success && profRes.data) {
+             professorName = `${profRes.data.firstname} ${profRes.data.lastname}`;
+             console.log(`✅ Professeur trouvé: ${professorName}`);
+           } else {
+             console.log(`⚠️ Aucun professeur affecté pour ${course.name}: ${profRes.message}`);
+           }
+         } catch (error) {
+           console.error('❌ Erreur récupération professeur:', error);
+         }
+
+          // Calculer la note de cours (moyenne des catégories qui ne sont pas des exams)
+          const classAverage = calculateClassAverage(avgRes.data);
+          const examAverage = calculateExamAverage(avgRes.data);
+          console.log(`📝 Moyenne de cours pour ${course.name}: ${classAverage}`);
+          console.log(`📝 Moyenne de composition pour ${course.name}: ${examAverage}`);
+
+          // Extraire les notes par catégorie
+          let categoryGrades: GradeData['categoryGrades'] = [];
+          if (avgRes.data && avgRes.data.categoryBreakdown) {
+            console.log(`📊 Category breakdown pour ${course.name}:`, avgRes.data.categoryBreakdown);
+            const breakdown = Array.isArray(avgRes.data.categoryBreakdown) 
+              ? avgRes.data.categoryBreakdown 
+              : Object.values(avgRes.data.categoryBreakdown);
+            categoryGrades = breakdown.map((cat: any) => ({
+              name: cat.categoryName,
+              code: cat.categoryCode,
+              average: cat.average || 0,
+              isExam: cat.isExam || false,
+              gradesCount: cat.gradesCount || 0
+            }));
+            console.log(`📊 Category grades pour ${course.name}:`, categoryGrades);
+          } else {
+            console.log(`⚠️ Pas de categoryBreakdown pour ${course.name}:`, avgRes.data);
+          }
+
+          gradesResults.push({
+            courseId: course.id,
+            courseName: course.name,
+            coefficient: course.coefficient || 1,
+            average: avgRes.data.finalAverage,
+            classAverage: classAverage,
+            examAverage: examAverage,
+            appreciation: getAppreciation(avgRes.data.finalAverage),
+            professorName,
+            categoryGrades
+          });
+       }
+     }
     
     previewGradesData.value = gradesResults;
     
@@ -680,7 +739,19 @@ const loadStudentGradesForPreview = async (student: Student) => {
     previewAbsences.value = studentAbsence?.totalHours || 0;
     
     // Récupérer le rang de l'élève
-    const ranking = studentRankings.value.get(student.id);
+    const studentId = Number(student.id);
+    let ranking = studentRankings.value.get(studentId);
+    if (!ranking) {
+      ranking = studentRankings.value.get(String(student.id));
+    }
+    if (!ranking) {
+      for (const [key, value] of studentRankings.value.entries()) {
+        if (Number(key) === studentId || Number(value.studentId) === studentId) {
+          ranking = value;
+          break;
+        }
+      }
+    }
     previewRank.value = ranking?.rank || 0;
     classAverage.value = ranking?.classAverage || 0;
 
@@ -690,9 +761,40 @@ const loadStudentGradesForPreview = async (student: Student) => {
   } finally {
     loadingPreview.value = false;
   }
-};
+ };
 
-const getAppreciation = (note: number): string => {
+  const calculateClassAverage = (calculatedData: any): number => {
+    let classAverage = 0;
+    if (calculatedData && calculatedData.categoryBreakdown) {
+      // categoryBreakdown peut être un objet ou un tableau
+      const breakdown = Array.isArray(calculatedData.categoryBreakdown) 
+        ? calculatedData.categoryBreakdown 
+        : Object.values(calculatedData.categoryBreakdown);
+      
+      console.log('📊 breakdown pour calculateClassAverage:', breakdown.map((c: any) => ({ name: c.categoryName, isExam: c.isExam, average: c.average })));
+      
+      // Calculer la moyenne uniquement des catégories qui ne sont pas des examens
+      let categoriesToUse = breakdown.filter((cat: any) => cat.isExam === false);
+      console.log('📊 Catégories non-examen:', categoriesToUse.length, categoriesToUse.map((c: any) => ({ name: c.categoryName, average: c.average })));
+      
+      // Fallback: si aucune catégorie non-examen, utiliser toutes les catégories
+      if (categoriesToUse.length === 0 && breakdown.length > 0) {
+        categoriesToUse = breakdown;
+        console.log('📊 Utilisation fallback - toutes les catégories');
+      }
+      
+      if (categoriesToUse.length > 0) {
+        const totalAvg = categoriesToUse.reduce((sum: number, cat: any) => sum + (cat.average || 0), 0);
+        classAverage = Math.round((totalAvg / categoriesToUse.length) * 100) / 100;
+        console.log('📊 Moyenne calculée:', classAverage, 'total:', totalAvg, 'nb:', categoriesToUse.length);
+      }
+    } else {
+      console.log('📊 Pas de categoryBreakdown');
+    }
+    return classAverage;
+  };
+
+ const getAppreciation = (note: number): string => {
   if (note < 5) return "Très Insuffisant";
   if (note < 8) return "Insuffisant";
   if (note < 10) return "Passable";
@@ -702,6 +804,23 @@ const getAppreciation = (note: number): string => {
   if (note < 18) return "Excellent";
   return "Félicitations";
 };
+
+  const calculateExamAverage = (calculatedData: any): number => {
+    let examAverage = 0;
+    if (calculatedData && calculatedData.categoryBreakdown) {
+      const breakdown = Array.isArray(calculatedData.categoryBreakdown) 
+        ? calculatedData.categoryBreakdown 
+        : Object.values(calculatedData.categoryBreakdown);
+      
+      const examCategories = breakdown.filter((cat: any) => cat.isExam === true);
+      
+      if (examCategories.length > 0) {
+        const totalAvg = examCategories.reduce((sum: number, cat: any) => sum + (cat.average || 0), 0);
+        examAverage = Math.round((totalAvg / examCategories.length) * 100) / 100;
+      }
+    }
+    return examAverage;
+  };
 
 const formatBirthDay = (date: string | Date | undefined): string => {
   if (!date) return '-';
@@ -754,6 +873,9 @@ const getCountryData = () => {
 // --- Impression ---
 
 const generateBulletinsHtml = async (studentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }[]) => {
+  console.log('📄 generateBulletinsHtml appelé avec', studentsData.length, 'élèves');
+  console.log('📄 Données des élèves avec rank:', studentsData.map(d => ({ id: d.student.id, name: d.student.firstname, rank: d.rank, totalStudents: d.totalStudents })));
+  
   const bulletinPages = await Promise.all(
     studentsData.map(data => generateBulletinHtml(data))
   );
@@ -784,9 +906,10 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
           page-break-after: always;
           width: 210mm;
           min-height: 297mm;
-          padding: 15mm;
+          padding: 10mm;
           background: white;
           position: relative;
+          box-sizing: border-box;
         }
         
         .bulletin-page:last-child {
@@ -798,15 +921,24 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
         }
         
         @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          
           body {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            background: white !important;
           }
           
           .bulletin-page {
             page-break-after: always;
             margin: 0;
-            padding: 15mm;
+            padding: 10mm;
+            background: white !important;
+            box-shadow: none !important;
           }
           
           .bulletin-page:last-child {
@@ -815,6 +947,45 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
           
           .no-print {
             display: none !important;
+          }
+          
+          .header {
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+          
+          .grades-table th {
+            background-color: #1a237e !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+          
+          .grades-table tbody tr:nth-child(even) {
+            background-color: #fafafa !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+          
+          .student-info-section {
+            background-color: #f8f9fa !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+          
+          .stat-box {
+            background: #f8f9fa !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+          
+          .footer-summary {
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+          
+          .summary-grid {
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
           }
         }
         
@@ -862,11 +1033,49 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
 const generateBulletinHtml = async (data: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }) => {
   const { student, grades, absences, rank, totalStudents, classAverage } = data;
   
+  console.log('🎯 generateBulletinHtml - student:', student.id, student.firstname, 'rank:', rank, 'totalStudents:', totalStudents);
+  
+  console.log('🎯 generateBulletinHtml appelé avec', grades.length, 'matières');
+  console.log('🎯 grades[0] brut:', JSON.stringify(grades[0]));
+  console.log('🎯 Première matière categoryGrades:', grades[0]?.categoryGrades);
+  console.log('🎯 Première matière categoryGrades détail:', grades[0]?.categoryGrades?.map((c: any) => ({ code: c.code, isExam: c.isExam, average: c.average })));
+  
   // Calculer les données nécessaires
   const processedGrades = grades.map(g => ({
     ...g,
     weightedValue: g.average * (g.coefficient || 1)
   }));
+  
+  console.log('🎯 classAverage dans grades:', grades.map(g => ({ course: g.courseName, classAvg: g.classAverage })));
+  
+  // Extraire toutes les catégories uniques
+  const allCategories = new Map<string, { name: string; isExam: boolean }>();
+  for (const g of grades) {
+    if (g.categoryGrades) {
+      for (const cat of g.categoryGrades) {
+        if (!allCategories.has(cat.code)) {
+          allCategories.set(cat.code, { name: cat.name, isExam: cat.isExam });
+        }
+      }
+    }
+  }
+  const categoryColumns = Array.from(allCategories.entries()).map(([code, info]) => ({
+    code,
+    name: info.name,
+    isExam: info.isExam
+  }));
+  
+  console.log('📋 Catégories trouvées:', categoryColumns);
+  console.log('📋 isExam de chaque catégorie:', categoryColumns.map(c => ({ code: c.code, isExam: c.isExam })));
+  console.log('📋 Nombre de catégories:', categoryColumns.length);
+  
+  // Filtrer uniquement les catégories non-examen pour les colonnes
+  const nonExamCategories = categoryColumns.filter(c => c.isExam === false);
+  console.log('📋 Catégories non-examen:', nonExamCategories);
+  
+  // Fallback: si pas de catégories non-examen, ne pas afficher de colonnes
+  const finalCategories = nonExamCategories.length > 0 ? nonExamCategories : [];
+  console.log('📋 Catégories finales (non-exam):', finalCategories);
   
   const totalCoefficients = processedGrades.reduce((sum, g) => sum + (g.coefficient || 1), 0);
   const totalWeightedPoints = processedGrades.reduce((sum, g) => sum + g.weightedValue, 0);
@@ -880,13 +1089,13 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
   
   // Générer le HTML selon le template sélectionné
   if (selectedTemplateId.value === 'template2') {
-    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage);
+    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories);
   } else {
-    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage);
+    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories);
   }
 };
 
-const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0) => {
+const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = []) => {
   const cData = getCountryData();
   return `
     <div class="bulletin-page">
@@ -981,25 +1190,35 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           width: 100%;
           border-collapse: collapse;
           margin-bottom: 20px;
+          table-layout: fixed;
+          word-wrap: break-word;
         }
         
         .grades-table th,
         .grades-table td {
-          padding: 8px 10px;
+          padding: 4px 3px;
           border: 1px solid #e0e0e0;
-          font-size: 13px;
+          font-size: 10px;
+          text-align: center;
         }
         
         .grades-table th {
           background-color: ${primaryColor};
           color: #fff;
           text-transform: uppercase;
-          font-size: 11px;
-          letter-spacing: 0.5px;
+          font-size: 9px;
+          font-weight: 600;
+          letter-spacing: 0.3px;
         }
         
         .grades-table tbody tr:nth-child(even) {
           background-color: #fafafa;
+        }
+        
+        .grades-table .course-name {
+          text-align: left;
+          font-size: 9px;
+          padding-left: 4px;
         }
         
         .text-center { text-align: center; }
@@ -1057,9 +1276,16 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           padding-bottom: 5px;
           margin-bottom: 15px;
         }
-        
+
         .signature-space {
           height: 80px;
+        }
+
+        .no-grades-message {
+          text-align: center;
+          padding: 30px;
+          color: #909399;
+          font-size: 14px;
         }
       </style>
       
@@ -1110,49 +1336,79 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           </div>
         </div>
       </div>
-      
-      <table class="grades-table">
-        <thead>
-          <tr>
-            <th>Matière</th>
-            <th class="text-center">Coef.</th>
-            <th class="text-center">Moyenne / 20</th>
-            <th class="text-center">Note Pondérée</th>
-            <th class="text-center">Appréciation</th>
-            <th>Professeur</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${processedGrades.map(grade => `
-            <tr>
-              <td class="course-name">${grade.courseName}</td>
-              <td class="text-center">${grade.coefficient}</td>
-              <td class="text-center font-bold ${grade.average < 10 ? 'text-red-600' : grade.average >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.average)}</td>
-              <td class="text-center font-bold">${formatNumber(grade.weightedValue)}</td>
-              <td class="text-center text-sm italic">${grade.appreciation || getAppreciation(grade.average)}</td>
-              <td class="text-sm">${grade.professorName || '-'}</td>
+
+      ${processedGrades.length === 0 ? `
+        <div class="no-grades-message">
+          <p>Aucune note disponible pour cette période</p>
+        </div>
+      ` : `
+        <table class="grades-table">
+           <thead>
+             <tr>
+               <th>Matière</th>
+               <th class="text-center">Coef.</th>
+               ${categoryColumns.map((cat: any) => `<th class="text-center">${cat.name}</th>`).join('')}
+               <th class="text-center">Moyenne de cours</th>
+               <th class="text-center">Moyenne de composition</th>
+               <th class="text-center">Moyenne / 20</th>
+               <th class="text-center">Note Pondérée</th>
+               <th class="text-center">Appréciation</th>
+               <th>Professeur</th>
+             </tr>
+           </thead>
+           <tbody>
+             ${processedGrades.map(grade => {
+               // Créer un map des notes par catégorie
+               const gradeByCategory = new Map();
+               if (grade.categoryGrades) {
+                 for (const cat of grade.categoryGrades) {
+                   gradeByCategory.set(cat.code, cat);
+                 }
+               }
+               return `
+                <tr>
+                  <td class="course-name">${grade.courseName}</td>
+                  <td class="text-center">${grade.coefficient}</td>
+                  ${categoryColumns.map((cat: any) => {
+                    const catGrade = gradeByCategory.get(cat.code);
+                    const note = catGrade ? formatNumber(catGrade.average) : '-';
+                    return `<td class="text-center">${note}</td>`;
+                  }).join('')}
+                  <td class="text-center font-bold ${grade.classAverage < 10 ? 'text-red-600' : grade.classAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.classAverage)}</td>
+                  <td class="text-center font-bold ${grade.examAverage < 10 ? 'text-red-600' : grade.examAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.examAverage)}</td>
+                  <td class="text-center font-bold ${grade.average < 10 ? 'text-red-600' : grade.average >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.average)}</td>
+                  <td class="text-center font-bold">${formatNumber(grade.weightedValue)}</td>
+                  <td class="text-center text-sm italic">${grade.appreciation || getAppreciation(grade.average)}</td>
+                  <td class="text-sm">${grade.professorName || '-'}</td>
+                </tr>
+              `}).join('')}
+           </tbody>
+        </table>
+      `}
+          <tfoot>
+            <tr style="background-color: ${secondaryColor}20">
+              <td class="font-bold">TOTAL</td>
+              <td class="text-center font-bold">${totalCoefficients}</td>
+              ${categoryColumns.map(() => '<td></td>').join('')}
+              <td></td>
+              <td></td>
+              <td class="text-center font-bold">${formatNumber(totalWeightedPoints)}</td>
+              <td colspan="3"></td>
             </tr>
-          `).join('')}
-        </tbody>
-        <tfoot>
-          <tr style="background-color: ${secondaryColor}20">
-            <td class="font-bold">TOTAL</td>
-            <td class="text-center font-bold">${totalCoefficients}</td>
-            <td></td>
-            <td class="text-center font-bold">${formatNumber(totalWeightedPoints)}</td>
-            <td colspan="2"></td>
-          </tr>
-          <tr style="background-color: ${primaryColor}10">
-            <td colspan="2" class="text-right font-bold" style="font-size: 14px;">MOYENNE GÉNÉRALE</td>
-            <td colspan="4" class="text-left font-bold" style="font-size: 16px; color: ${primaryColor};">${formatNumber(generalAverage)} / 20</td>
-          </tr>
-        </tfoot>
+            <tr style="background-color: ${primaryColor}10">
+              <td colspan="2" class="text-right font-bold" style="font-size: 14px;">MOYENNE GÉNÉRALE</td>
+              ${categoryColumns.map(() => '<td></td>').join('')}
+              <td colspan="2"></td>
+              <td colspan="2" class="text-left font-bold" style="font-size: 16px; color: ${primaryColor};">${formatNumber(generalAverage)} / 20</td>
+              <td colspan="3"></td>
+            </tr>
+          </tfoot>
       </table>
       
       <div class="footer-stats">
         <div class="stat-box">
           <h4>Classement</h4>
-          <p class="stat-value">${rank ? rank + (rank === 1 ? 'er' : 'ème') : '-'} / ${totalStudents}</p>
+          <p class="stat-value">${(rank != null && rank > 0) ? rank + (rank === 1 ? 'er' : 'ème') : 'Non classé'} / ${totalStudents}</p>
         </div>
         <div class="stat-box">
           <h4>Moyenne Classe</h4>
@@ -1178,7 +1434,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
   `;
 };
 
-const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0) => {
+const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = []) => {
   const cData = getCountryData();
   const getGradeClass = (grade: number) => {
     if (grade < 10) return 'grade-low';
@@ -1294,29 +1550,30 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .notes-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 11px;
+          font-size: 10px;
           border: 2px solid #000;
           margin-bottom: 10px;
         }
         
         .notes-table th, .notes-table td {
           border: 1px solid #000;
-          padding: 5px 4px;
+          padding: 4px 3px;
           text-align: center;
+          font-size: 9px;
         }
         
         .notes-table thead th {
           background-color: ${primaryColor};
           color: #fff;
-          font-size: 10px;
+          font-size: 9px;
           text-transform: uppercase;
-          letter-spacing: 0.3px;
+          letter-spacing: 0.2px;
         }
         
-        .col-matiere { width: 25%; text-align: left; padding-left: 8px !important; }
-        .col-coeff { width: 8%; }
-        .col-note { width: 12%; }
-        .col-prof { width: 20%; }
+        .col-matiere { width: 18%; text-align: left; padding-left: 4px !important; }
+        .col-coeff { width: 6%; }
+        .col-note { width: 8%; }
+        .col-prof { width: 15%; }
         
         .text-left { text-align: left; padding-left: 8px; }
         .bg-gray { background-color: #e8e8e8; }
@@ -1467,42 +1724,60 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
       </div>
       
       <table class="notes-table">
-        <thead>
-          <tr>
-            <th class="col-matiere">Matières</th>
-            <th class="col-coeff">Coeff</th>
-            <th class="col-note">Moyenne</th>
-            <th class="col-note">Points</th>
-            <th>Appréciation</th>
-            <th class="col-prof">Professeur</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${processedGrades.map((grade, index) => `
-            <tr class="${index % 2 === 0 ? 'row-even' : ''}">
-              <td class="text-left">${grade.courseName}</td>
-              <td>${grade.coefficient}</td>
-              <td class="${getGradeClass(grade.average)}">${formatNumber(grade.average)}</td>
-              <td class="bg-gray">${formatNumber(grade.weightedValue)}</td>
-              <td class="appreciation">${grade.appreciation || getAppreciation(grade.average)}</td>
-              <td class="professor-name">${grade.professorName || '-'}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-        <tfoot>
-          <tr class="total-row">
-            <td class="text-left font-bold">TOTAL</td>
-            <td class="font-bold">${totalCoefficients}</td>
-            <td></td>
-            <td class="bg-gray font-bold">${formatNumber(totalWeightedPoints)}</td>
-            <td></td>
-            <td></td>
-          </tr>
-          <tr class="moyenne-generale-row">
-            <td colspan="2" class="label-moyenne">Moyenne Générale</td>
-            <td colspan="4" class="value-moyenne">${formatNumber(generalAverage)} / 20</td>
-          </tr>
-        </tfoot>
+         <thead>
+           <tr>
+             <th class="col-matiere">Matières</th>
+             <th class="col-coeff">Coeff</th>
+             ${categoryColumns.map((cat: any) => `<th class="col-note">${cat.name}</th>`).join('')}
+             <th class="col-note">Moyenne de cours</th>
+             <th class="col-note">Moyenne de composition</th>
+             <th class="col-note">Moyenne</th>
+             <th class="col-note">Points</th>
+             <th>Appréciation</th>
+             <th class="col-prof">Professeur</th>
+           </tr>
+         </thead>
+         <tbody>
+           ${processedGrades.map((grade, index) => {
+             const gradeByCategory = new Map();
+             if (grade.categoryGrades) {
+               for (const cat of grade.categoryGrades) {
+                 gradeByCategory.set(cat.code, cat);
+               }
+             }
+              return `
+              <tr class="${index % 2 === 0 ? 'row-even' : ''}">
+                <td class="text-left">${grade.courseName}</td>
+                <td>${grade.coefficient}</td>
+                ${categoryColumns.map((cat: any) => {
+                  const catGrade = gradeByCategory.get(cat.code);
+                  const note = catGrade ? formatNumber(catGrade.average) : '-';
+                  return `<td class="${catGrade ? getGradeClass(catGrade.average) : ''}">${note}</td>`;
+                }).join('')}
+                <td class="${getGradeClass(grade.classAverage)}">${formatNumber(grade.classAverage)}</td>
+                <td class="${getGradeClass(grade.examAverage)}">${formatNumber(grade.examAverage)}</td>
+                <td class="${getGradeClass(grade.average)}">${formatNumber(grade.average)}</td>
+                <td class="bg-gray">${formatNumber(grade.weightedValue)}</td>
+                <td class="appreciation">${grade.appreciation || getAppreciation(grade.average)}</td>
+                <td class="professor-name">${grade.professorName || '-'}</td>
+              </tr>
+            `}).join('')}
+         </tbody>
+           <tfoot>
+            <tr class="total-row">
+              <td class="text-left font-bold">TOTAL</td>
+              <td class="font-bold">${totalCoefficients}</td>
+              ${categoryColumns.map(() => '<td></td>').join('')}
+              <td></td>
+              <td></td>
+              <td class="bg-gray font-bold">${formatNumber(totalWeightedPoints)}</td>
+              <td colspan="3"></td>
+           </tr>
+           <tr class="moyenne-generale-row">
+             <td colspan="${3 + categoryColumns.length}" class="label-moyenne">Moyenne Générale</td>
+             <td colspan="${6 - categoryColumns.length}" class="value-moyenne">${formatNumber(generalAverage)} / 20</td>
+           </tr>
+         </tfoot>
       </table>
       
       <div class="footer-summary">
@@ -1524,7 +1799,7 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
           
           <div class="summary-right">
             <div class="rank-line">
-              Rang : <strong>${rank ? rank + (rank === 1 ? 'er' : 'ème') : '-'}</strong> / ${totalStudents} élèves
+              Rang : <strong>${(rank != null && rank > 0) ? rank + (rank === 1 ? 'er' : 'ème') : 'Non classé'}</strong> / ${totalStudents} élèves
             </div>
             <div class="stats-box">
               <div class="stat-row">
@@ -1546,12 +1821,34 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
 const handlePrint = async () => {
   if (selectedStudents.value.length === 0) return;
 
+  // Charger les informations de l'école si pas encore chargées
+  if (!schoolInfo.value?.id) {
+    await loadInitialData();
+  }
+
   printing.value = true;
   showProgressDialog.value = true;
   progressPercentage.value = 0;
   progressMessage.value = 'Validation des données...';
   progressStatus.value = '';
   validationErrors.value = [];
+
+  // Charger les classements des élèves avant la validation
+  progressMessage.value = 'Chargement des classements...';
+  
+  console.log('Loading rankings - classId:', selectedClassId.value, 'period:', selectedPeriod.value, 'schoolId:', schoolInfo.value?.id || schoolId.value);
+  
+  if (!selectedPeriod.value) {
+    console.error('Période non sélectionnée!');
+    ElMessage.error('Veuillez sélectionner une période');
+    printing.value = false;
+    showProgressDialog.value = false;
+    return;
+  }
+  
+  await loadStudentRankings();
+  
+  console.log('After loading rankings, studentRankings:', studentRankings.value);
 
   const studentsToPrint = selectedStudents.value;
   const validStudentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }[] = [];
@@ -1566,9 +1863,9 @@ const handlePrint = async () => {
       const studentGrades: GradeData[] = [];
       let missingCourses = 0;
 
-      // Récupérer les moyennes pour chaque matière
+      // Recalculer les moyennes pour chaque matière (sans cache)
       for (const course of courses.value) {
-        const avgRes = await window.ipcRenderer.invoke('gradeEntry:getCalculated', {
+        const avgRes = await window.ipcRenderer.invoke('gradeEntry:calculate', {
           studentId: student.id,
           courseId: course.id,
           classId: selectedClassId.value,
@@ -1585,21 +1882,45 @@ const handlePrint = async () => {
               gradeId: selectedClassId.value
             });
             
-            if (profRes.success && profRes.data) {
-              professorName = `${profRes.data.firstname} ${profRes.data.lastname}`;
-            }
-          } catch (error) {
-            console.error('Erreur récupération professeur:', error);
-          }
+             if (profRes.success && profRes.data) {
+               professorName = `${profRes.data.firstname} ${profRes.data.lastname}`;
+             }
+           } catch (error) {
+             console.error('Erreur récupération professeur:', error);
+           }
 
-          studentGrades.push({
-            courseId: course.id,
-            courseName: course.name,
-            coefficient: course.coefficient || 1,
-            average: avgRes.data.finalAverage,
-            appreciation: getAppreciation(avgRes.data.finalAverage),
-            professorName
-          });
+            // Calculer la note de cours (moyenne des catégories qui ne sont pas des exams)
+             const classAverage = calculateClassAverage(avgRes.data);
+             const examAverage = calculateExamAverage(avgRes.data);
+
+            // Extraire les notes par catégorie
+            let categoryGrades: GradeData['categoryGrades'] = [];
+            if (avgRes.data.categoryBreakdown) {
+              const breakdown = Array.isArray(avgRes.data.categoryBreakdown) 
+                ? avgRes.data.categoryBreakdown 
+                : Object.values(avgRes.data.categoryBreakdown);
+              console.log('💾 Extraction categoryGrades AVANT breakdown:', breakdown);
+              categoryGrades = breakdown.map((cat: any) => ({
+                name: cat.categoryName,
+                code: cat.categoryCode,
+                average: cat.average || 0,
+                isExam: cat.isExam || false,
+                gradesCount: cat.gradesCount || 0
+              }));
+              console.log('💾 Extraction categoryGrades APRÈS:', categoryGrades);
+            }
+
+            studentGrades.push({
+              courseId: course.id,
+              courseName: course.name,
+              coefficient: course.coefficient || 1,
+              average: avgRes.data.finalAverage,
+              classAverage: classAverage,
+              examAverage: examAverage,
+              appreciation: getAppreciation(avgRes.data.finalAverage),
+              professorName,
+              categoryGrades
+            });
         } else {
           missingCourses++;
         }
@@ -1624,21 +1945,39 @@ const handlePrint = async () => {
       const totalAbsenceHours = studentAbsence?.totalHours || 0;
 
       // Récupérer le rang de l'élève
-      const ranking = studentRankings.value.get(student.id);
+      const studentId = Number(student.id);
+      
+      // Chercher dans toutes les valeurs du Map
+      let ranking = null;
+      for (const entry of studentRankings.value.entries()) {
+        const value = entry[1];
+        if (Number(value.studentId) === studentId) {
+          ranking = value;
+          break;
+        }
+      }
+
+      const studentRank = ranking?.rank ?? undefined;
+      const studentTotalStudents = ranking?.totalStudents ?? students.value.length;
+      const studentClassAverage = ranking?.classAverage ?? classAverage.value;
+      
+      console.log(`Student ${student.id} final rank:`, studentRank, 'totalStudents:', studentTotalStudents);
 
       validStudentsData.push({ 
         student, 
         grades: studentGrades, 
         absences: totalAbsenceHours,
-        rank: ranking?.rank || 0,
-        totalStudents: ranking?.totalStudents || students.value.length,
-        classAverage: ranking?.classAverage || classAverage.value
+        rank: studentRank,
+        totalStudents: studentTotalStudents,
+        classAverage: studentClassAverage
       });
 
     } catch (e) {
       validationErrors.value.push(`${student.firstname} ${student.lastname}: Erreur technique.`);
     }
   }
+
+  console.log('validStudentsData with ranks:', validStudentsData.map(d => ({ student: d.student.id, rank: d.rank, totalStudents: d.totalStudents })));
 
   // Si erreurs de validation
   if (validationErrors.value.length > 0) {

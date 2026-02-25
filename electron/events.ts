@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import path from "path";
 import { ResultType } from "./command/index";
 import { GradeCommand, BranchCommand, ClassRoomCommand, CourseCommand } from "./command/settingsCommand";
@@ -9,6 +9,7 @@ import { ConfigService } from './backend/services/configService';
 import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 import { documentContentService } from './backend/services/document-content-service';
 import { ICreateConfigParams } from './backend/types/note';
+import { CentralizedPdfService } from './backend/services/centralizedPdfService';
 
 
 
@@ -1128,12 +1129,50 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
 
+  // Invalider le cache des moyennes calculées
+  ipcMain.handle('gradeEntry:invalidateCache', async (_event, { classId, period }) => {
+    try {
+      return await global.gradeEntryService.invalidateCacheByClass(classId, period);
+    } catch (error) {
+      return handleError(error, "gradeEntry:invalidateCache");
+    }
+  });
+
   // Handler pour obtenir les classements centralisés
   ipcMain.handle('gradeEntry:getCentralizedRankings', async (_event, filters) => {
     try {
-      return await global.gradeEntryService.getCentralizedRankings(filters);
+      if (!filters || typeof filters !== 'object') {
+        throw new Error('Filtres non valides');
+      }
+
+      if (filters.gradeId === undefined || filters.gradeId === null || isNaN(filters.gradeId)) {
+        throw new Error('gradeId est requis et doit être un nombre valide');
+      }
+
+      const result = await global.gradeEntryService.getCentralizedRankings(filters);
+
+      if (!result.success) {
+        return result;
+      }
+
+      if (result.data && result.data.length === 0) {
+        return {
+          success: true,
+          data: [],
+          message: 'Aucun classement disponible pour les filtres sélectionnés',
+          error: null
+        };
+      }
+
+      return result;
     } catch (error) {
-      return handleError(error, "gradeEntry:getCentralizedRankings");
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      return {
+        success: false,
+        data: null,
+        message: `Erreur lors du calcul du classement centralisé: ${errorMessage}`,
+        error: errorMessage
+      };
     }
   });
 
@@ -1146,6 +1185,176 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       return {
         success: false,
         message: 'Erreur serveur lors de la vérification des conflits',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  });
+
+  // --- Centralized Grades PDF ---
+  ipcMain.handle('centralized-grades:generatePDF', async (event, data) => {
+    try {
+      return await global.centralizedPdfService.generateCentralizedGradesPdf(data, {
+         generatePdfWithPrintDialog: async (htmlContent: string) => {
+          const win = new BrowserWindow({
+            width: 1600,
+            height: 950,
+            show: true,
+            webPreferences: {
+              nodeIntegration: true,
+              contextIsolation: false
+            }
+          });
+
+          const htmlWithPrintButton = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Fiche de Centralisation des Notes</title>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                  background: #f5f5f5;
+                }
+                .page {
+                  background: white;
+                  padding: 8px;
+                  min-height: 100vh;
+                  page-break-after: always;
+                }
+                .page:last-child {
+                  page-break-after: avoid;
+                }
+                .header {
+                  text-align: center;
+                  margin-bottom: 20px;
+                  border-bottom: 2px solid #333;
+                  padding-bottom: 15px;
+                }
+                .header h1 {
+                  color: #333;
+                  font-size: 20px;
+                  margin-bottom: 8px;
+                }
+                .header-info {
+                  color: #666;
+                  font-size: 13px;
+                }
+                table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  margin-bottom: 15px;
+                }
+                th, td {
+                  border: 1px solid #ddd;
+                  padding: 8px;
+                  text-align: center;
+                  font-size: 10px;
+                }
+                th {
+                  background-color: #2c3e50;
+                  color: white;
+                  font-weight: 600;
+                }
+                .rank-cell {
+                  background-color: #2c3e50 !important;
+                  color: white !important;
+                  font-weight: bold;
+                }
+                .average-row td {
+                  background-color: #e8f4f8;
+                  font-weight: bold;
+                  color: #2c3e50;
+                }
+                .print-section {
+                  margin-top: 20px;
+                  padding: 15px;
+                  background: #f9f9f9;
+                  border: 2px dashed #ccc;
+                  border-radius: 4px;
+                  text-align: center;
+                }
+                .print-btn {
+                  background: #4CAF50;
+                  color: white;
+                  border: none;
+                  padding: 12px 24px;
+                  font-size: 14px;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  font-weight: 600;
+                }
+                .print-btn:hover {
+                  background: #45a049;
+                }
+                .page-info {
+                  font-size: 11px;
+                  color: #666;
+                  margin-top: 8px;
+                }
+                @media print {
+                  @page {
+                    size: landscape;
+                    margin: 5mm;
+                  }
+                  body {
+                    background: white;
+                    padding: 0;
+                  }
+                  .page {
+                    box-shadow: none;
+                    border-radius: 0;
+                    padding: 5mm;
+                    min-height: auto;
+                  }
+                  .print-section {
+                    display: none;
+                  }
+                  thead {
+                    display: table-header-group;
+                  }
+                  tfoot {
+                    display: table-footer-group;
+                  }
+                  tr {
+                    page-break-inside: avoid;
+                  }
+                  th, td {
+                    padding: 4px;
+                    font-size: 9px;
+                  }
+                }
+              </style>
+            </head>
+            <body>
+              ${htmlContent}
+              <div class="print-section">
+                <button class="print-btn" onclick="window.print()">🖨️ Imprimer le PDF</button>
+              </div>
+            </body>
+            <script>
+              window.onload = function() {
+                setTimeout(() => {
+                  window.print();
+                }, 500);
+              };
+
+              window.onafterprint = function() {
+                setTimeout(() => { window.close(); }, 500);
+              };
+            </script>
+          `;
+
+          await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlWithPrintButton)}`);
+        }
+      });
+    } catch (error) {
+      console.error('Error in centralized-grades:generatePDF handler:', error);
+      return {
+        success: false,
+        message: 'Erreur serveur lors de la génération du PDF',
         data: null,
         error: error instanceof Error ? error.message : 'Unknown error'
       };

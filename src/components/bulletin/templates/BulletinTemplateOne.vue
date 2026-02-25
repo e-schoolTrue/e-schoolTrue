@@ -62,6 +62,7 @@
           <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
             <th>Matière</th>
             <th class="text-center">Coef.</th>
+            <th class="text-center">Note de cours</th>
             <th class="text-center">Moyenne / 20</th>
             <th class="text-center">Note Pondérée</th>
             <th class="text-center">Appréciation</th>
@@ -72,6 +73,9 @@
           <tr v-for="grade in processedGrades" :key="grade.courseId">
             <td class="course-name">{{ grade.courseName }}</td>
             <td class="text-center">{{ grade.coefficient }}</td>
+            <td class="text-center font-bold" :class="getGradeColorClass(grade.classAverage)">
+              {{ formatNumber(grade.classAverage) }}
+            </td>
             <td class="text-center font-bold" :class="getGradeColorClass(grade.average)">
               {{ formatNumber(grade.average) }}
             </td>
@@ -88,13 +92,14 @@
             <td class="text-center font-bold">{{ totalCoefficients }}</td>
             <td></td>
             <td class="text-center font-bold">{{ formatNumber(totalWeightedPoints) }}</td>
-            <td colspan="2"></td>
+            <td colspan="3"></td>
           </tr>
           <tr class="average-row" :style="{ backgroundColor: options.primaryColor + '10' }">
             <td colspan="2" class="text-right font-bold text-lg">MOYENNE GÉNÉRALE</td>
-            <td colspan="4" class="text-left font-bold text-xl" :style="{ color: options.primaryColor }">
+            <td colspan="3" class="text-left font-bold text-xl" :style="{ color: options.primaryColor }">
               {{ formatNumber(generalAverage) }} / 20
             </td>
+            <td></td>
           </tr>
         </tfoot>
       </table>
