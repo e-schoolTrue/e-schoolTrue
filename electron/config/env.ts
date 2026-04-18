@@ -13,9 +13,7 @@ if (app.isPackaged) {
     // Si le fichier n'existe pas, le créer avec un template
     if (!fs.existsSync(envPath)) {
         const template = `# Configuration Supabase
-SUPABASE_URL=https://xebukndcynlvjpguwrcb.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlYnVrbmRjeW5sdmpwZ3V3cmNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Njc0NDk4NywiZXhwIjoyMDYyMzIwOTg3fQ.0zfw4ZM_5SdqNgLzh9PnA4fTqA9IyKdZJRnKUDpyFTQ
-GEMINI_API_KEY=AIzaSyD_fQ5PmD0eGq_cXPtiZFzTlg6c3vCcVVU
+
 `;
         fs.writeFileSync(envPath, template);
         console.log(`[ENV] Fichier .env créé à : ${envPath}`);
