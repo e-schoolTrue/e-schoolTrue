@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, Index } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, Index, DeleteDateColumn } from "typeorm";
 
 /**
  * Stratégie de calcul pour la moyenne
@@ -19,6 +19,9 @@ export enum CalculationStrategy {
 export class GradingConfigEntity {
     @PrimaryGeneratedColumn()
     id: number;
+
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
 
     @Column({ type: 'integer' })
     schoolId: number;
@@ -66,6 +69,9 @@ export class GradingConfigEntity {
 export class EvaluationCategoryEntity {
     @PrimaryGeneratedColumn()
     id: number;
+
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
 
     @Column({ type: 'varchar', length: 100 })
     name: string; // "Devoir", "Composition", "TP"

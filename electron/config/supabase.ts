@@ -2,8 +2,8 @@ import { ENV } from './env';
 
 // Configuration pour Supabase
 export const supabaseConfig = {
-    url: ENV.SUPABASE_URL,
-    key: ENV.SUPABASE_KEY,
+    url: ENV.SUPABASE_URL || 'https://xebukndcynlvjpguwrcb.supabase.co',
+    key: ENV.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlYnVrbmRjeW5sdmpwZ3V3cmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY3NDQ5ODcsImV4cCI6MjA2MjMyMDk4N30.N6avpTRmQ-OPAoLuWviaKJVMJ7Eq-Q7j5sjDY04tEVE',
     bucket: 'school', // Le nom de votre bucket pour les sauvegardes
     options: {
         auth: {

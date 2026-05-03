@@ -20,6 +20,52 @@ const sortedHistory = computed(() => {
   );
 });
 
+// --- Dictionnaire noms de tables -> français ---
+const tableLabels: Record<string, string> = {
+  grade: 'Classes',
+  diploma: 'Diplômes',
+  qualification: 'Qualifications',
+  year_repartition: 'Années scolaires',
+  payment_config: 'Config. paiements',
+  grading_config: 'Config. notation',
+  branch: 'Filières',
+  course: 'Matières',
+  course_grades: 'Matières-Classes',
+  professor: 'Professeurs',
+  student: 'Élèves',
+  inscription_fee: 'Frais d\'inscription',
+  payment_annual_config: 'Config. annuelle',
+  grade_config: 'Config. classes',
+  evaluation_category: 'Catégories d\'évaluation',
+  class_room: 'Salles de classe',
+  file: 'Fichiers',
+  observation: 'Observations',
+  teaching_assignment: 'Affectations',
+  vacation: 'Congés',
+  scholarship: 'Bourses',
+  payment: 'Paiements',
+  professor_payment: 'Salaires',
+  absence: 'Absences',
+  homework: 'Devoirs',
+  schedule: 'Emploi du temps',
+  grade_entry: 'Notes',
+  calculated_grade: 'Moyennes',
+  tranch_config: 'Config. tranches',
+  mensuality_tranch: 'Mensualités',
+  document_content: 'Documents',
+};
+
+const getTableLabel = (tableName: string): string => tableLabels[tableName] || tableName;
+
+const parseErrorTables = (errorMessage: string): string[] => {
+  const matches = errorMessage.match(/\[L->C\] (\w+):|c->L\] (\w+):/gi);
+  if (!matches) return [];
+  return [...new Set(matches.map(m => {
+    const name = m.replace(/\[.*\]\s*/, '').replace(':', '');
+    return getTableLabel(name);
+  }))];
+};
+
 // --- Fonctions Utilitaires ---
 
 // Retourne une icône et une couleur basées sur le statut de la synchronisation
@@ -91,17 +137,23 @@ const getTimeAgo = (dateString: string | undefined) => {
       <el-table-column type="expand">
         <template #default="{ row }">
           <div class="sync-details">
-            <p><strong>ID de la session :</strong> {{ row.id }}</p>
             <p v-if="row.tables_processed?.length">
-              <strong>Tables traitées :</strong> 
+              <strong>Données traitées :</strong>
               <el-tag v-for="table in row.tables_processed" :key="table" size="small" class="mr-1">
-                {{ table }}
+                {{ getTableLabel(table) }}
               </el-tag>
             </p>
-            <p v-if="row.error_message">
-              <strong>Message d'erreur :</strong>
-              <el-alert :title="row.error_message" type="error" :closable="false" show-icon />
+            <p v-if="row.error_message && parseErrorTables(row.error_message).length">
+              <strong>Erreur sur :</strong>
+              <el-tag v-for="t in parseErrorTables(row.error_message)" :key="t" size="small" type="danger" class="mr-1">
+                {{ t }}
+              </el-tag>
             </p>
+            <el-collapse v-if="row.error_message" class="tech-collapse">
+              <el-collapse-item title="Détails techniques">
+                <pre class="tech-details">{{ row.error_message }}</pre>
+              </el-collapse-item>
+            </el-collapse>
           </div>
         </template>
       </el-table-column>
@@ -226,6 +278,27 @@ const getTimeAgo = (dateString: string | undefined) => {
 .sync-details strong {
   margin-right: 8px;
   color: #303133;
+}
+.tech-collapse {
+  margin-top: 8px;
+}
+.tech-collapse :deep(.el-collapse-item__header) {
+  font-size: 12px;
+  color: #909399;
+  height: 32px;
+  line-height: 32px;
+}
+.tech-details {
+  font-size: 11px;
+  color: #909399;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  max-height: 120px;
+  overflow-y: auto;
 }
 .empty-state {
   text-align: center;

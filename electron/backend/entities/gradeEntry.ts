@@ -12,6 +12,9 @@ export class GradeEntryEntity {
     @PrimaryGeneratedColumn()
     id: number;
 
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+
     @Column({ type: 'int' })
     studentId: number;
 
@@ -62,6 +65,9 @@ export class GradeEntryEntity {
 export class CalculatedGradeEntity {
     @PrimaryGeneratedColumn()
     id: number;
+
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
 
     @Column({ type: 'int' })
     studentId: number;

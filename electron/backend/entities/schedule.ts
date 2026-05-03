@@ -20,6 +20,9 @@ export class ScheduleEntity {
     @PrimaryGeneratedColumn()
     id: number;
 
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+
     @Column({ 
         name: 'professor_id', 
         type: 'int',
@@ -84,10 +87,10 @@ export class ScheduleEntity {
     course: CourseEntity;
 
     @ManyToOne(() => GradeEntity, gradeEntity => gradeEntity.schedules, {
-        onDelete: 'CASCADE', // Si une classe est supprimée, supprimer son emploi du temps
+        onDelete: 'CASCADE',
         eager: false
     })
-    @JoinColumn({ name: 'grade_id' })
+    @JoinColumn({ name: 'class_id' })
     class: GradeEntity;
 }
 

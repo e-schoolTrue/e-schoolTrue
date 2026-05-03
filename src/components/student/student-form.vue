@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, defineAsyncComponent, PropType, defineEmits, onMounted, watch} from 'vue';
+import { ref, reactive, defineAsyncComponent, PropType, onMounted, watch} from 'vue';
 import { ElMessage } from 'element-plus';
 import type { IStudentData } from '@/types/student';
 

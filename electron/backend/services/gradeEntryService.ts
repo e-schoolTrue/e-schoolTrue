@@ -657,18 +657,27 @@ export class GradeEntryService {
             }
 
             // Récupérer les cours de la classe avec leurs coefficients
+            // IMPORTANT: utiliser la même requête que getCentralizedRankings pour
+            // assurer la cohérence entre le classement du bulletin et celui de la
+            // fiche de centralisation. CourseEntity expose deux relations vers
+            // GradeEntity: `grades` (ManyToMany, relation actuelle) et `grade`
+            // (ManyToOne, relation legacy). Il faut considérer les deux.
             const courseRepo = dataSource.getRepository(CourseEntity);
-            const courses = await courseRepo.find({
-                where: { grade: { id: classId } }
-            });
+            const courses = await courseRepo
+                .createQueryBuilder('course')
+                .leftJoinAndSelect('course.grades', 'grades')
+                .leftJoinAndSelect('course.grade', 'grade')
+                .where('grades.id = :classId OR grade.id = :classId', { classId })
+                .getMany();
 
-            // Créer un map des coefficients par courseId
             const courseCoefficients = new Map<number, number>();
             courses.forEach(course => {
-                courseCoefficients.set(course.id, course.coefficient || 1);
+                if (course && course.id != null) {
+                    courseCoefficients.set(course.id, course.coefficient || 1);
+                }
             });
+            const courseIds = Array.from(courseCoefficients.keys());
 
-            // Calculer la moyenne générale de chaque élève
             const studentAverages: Array<{
                 studentId: number;
                 studentName: string;
@@ -678,26 +687,32 @@ export class GradeEntryService {
             }> = [];
 
             for (const student of students) {
-                // Récupérer toutes les moyennes calculées pour cet élève
-                const averages = await this.calculatedGradeRepository.find({
-                    where: { 
-                        studentId: student.id, 
-                        period 
-                    }
-                });
+                // Restreindre aux moyennes des matières effectivement rattachées
+                // à la classe. Sans ce filtre, des moyennes orphelines (ex: matière
+                // détachée de la classe) pourraient être prises en compte avec un
+                // coefficient de 1, faussant la moyenne générale et donc le rang.
+                const averages = courseIds.length > 0
+                    ? await this.calculatedGradeRepository.find({
+                        where: {
+                            studentId: student.id,
+                            courseId: In(courseIds),
+                            period
+                        }
+                    })
+                    : [];
 
-                // Calculer la moyenne générale pondérée (même sans notes)
                 let totalWeightedValue = 0;
                 let totalCoefficients = 0;
 
                 if (averages.length > 0) {
                     for (const avg of averages) {
-                        const coefficient = courseCoefficients.get(avg.courseId) || 1;
+                        const coefficient = courseCoefficients.get(avg.courseId);
+                        if (coefficient === undefined) continue;
                         totalWeightedValue += avg.finalAverage * coefficient;
                         totalCoefficients += coefficient;
                     }
 
-                    console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): ${(totalWeightedValue / totalCoefficients).toFixed(2)}/20 (${averages.length} matières)`);
+                    console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): ${totalCoefficients > 0 ? (totalWeightedValue / totalCoefficients).toFixed(2) : '0.00'}/20 (${averages.length} matières)`);
                 } else {
                     console.log(`Élève ${student.id} (${student.firstname} ${student.lastname}): Aucune note`);
                 }

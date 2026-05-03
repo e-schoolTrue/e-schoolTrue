@@ -279,22 +279,33 @@ const handleSync = async () => {
   }
 
   isSyncing.value = true;
-  ElMessage.info("Synchronisation en cours...");
+  ElMessage({ message: 'Synchronisation en cours...', type: 'info', duration: 0, showClose: true });
   try {
     const { success, data, error } = await window.ipcRenderer.invoke("sync:now");
+    ElMessage.closeAll();
     if (success) {
+      const up = data.records_synced_up || 0;
+      const down = data.records_synced_down || 0;
       const conflicts = data.conflict_count || 0;
+      const parts: string[] = [];
+      if (up > 0) parts.push(`${up} envoyé${up > 1 ? 's' : ''}`);
+      if (down > 0) parts.push(`${down} reçu${down > 1 ? 's' : ''}`);
+      if (conflicts > 0) parts.push(`${conflicts} conflit${conflicts > 1 ? 's' : ''}`);
+
+      const summary = parts.length > 0 ? parts.join(', ') : 'tout est à jour';
+
       if (conflicts > 0) {
-        ElMessage.warning(`Synchronisation terminée avec ${conflicts} conflit(s) résolu(s).`);
+        ElMessage.warning(`Synchronisation terminée : ${summary}.`);
       } else {
-        ElMessage.success('Synchronisation terminée avec succès.');
+        ElMessage.success(`Synchronisation réussie : ${summary}.`);
       }
       await loadSyncHistory();
     } else {
-      ElMessage.error(`Échec de la synchronisation: ${error}`);
+      ElMessage.error('La synchronisation a rencontré des erreurs. Consultez le journal pour plus de détails.');
     }
   } catch (err) {
-    ElMessage.error(`Erreur IPC: ${(err as Error).message}`);
+    ElMessage.closeAll();
+    ElMessage.error('La synchronisation a échoué. Vérifiez votre connexion et réessayez.');
   } finally {
     isSyncing.value = false;
   }

@@ -75,8 +75,11 @@ export class SchoolEntity {
 
     @Column({ type: "varchar", length: 255 })
     email: string = '';
-       @Column({ type: "varchar", length: 36, nullable: true, unique: true })
-         remote_id?: string;
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
+
+    @Column({ type: "varchar", length: 100, nullable: true })
+    schema_name?: string;
 
     @Column({
         type: "varchar",

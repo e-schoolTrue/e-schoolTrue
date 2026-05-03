@@ -1,27 +1,36 @@
 // src/lib/session.ts
 let currentSupabaseUserId: string | null = null;
+let currentSchemaName: string | null = null;
 
 export function getCurrentSupabaseUserId(): string | null {
-  console.log('[Session] 🔍 Récupération de l\'ID utilisateur Supabase:', {
-    currentId: currentSupabaseUserId,
-    hasValue: !!currentSupabaseUserId
-  });
   return currentSupabaseUserId;
 }
 
 export function setCurrentSupabaseUserId(userId: string | null): void {
   currentSupabaseUserId = userId;
-  if(userId) {
-    console.log(`[Session State] ID utilisateur Supabase défini sur : ${userId}`);
+  if (userId) {
+    console.log(`[Session] ID utilisateur Supabase defini: ${userId}`);
   } else {
-    console.log(`[Session State] ID utilisateur Supabase nettoyé.`);
+    console.log(`[Session] ID utilisateur Supabase nettoye.`);
+    currentSchemaName = null;
   }
 }
 
-export function onSchoolSelected(schoolId: string) {
-  // Stocker l'ID de l'école active
-  global.activeSchoolId = schoolId; 
+export function getCurrentSchemaName(): string | null {
+  return currentSchemaName;
+}
 
-  // Potentiellement, informer le service de synchronisation
-  global.cloudSyncService.setActiveSchool(schoolId);
+export function setCurrentSchemaName(schemaName: string | null): void {
+  currentSchemaName = schemaName;
+  console.log(`[Session] Schema actif: ${schemaName ?? '(aucun)'}`);
+}
+
+export function onSchoolSelected(schoolId: string, schemaName?: string) {
+  global.activeSchoolId = schoolId;
+
+  if (schemaName) {
+    setCurrentSchemaName(schemaName);
+  }
+
+  global.backupService?.setActiveSchool(schoolId, schemaName);
 }

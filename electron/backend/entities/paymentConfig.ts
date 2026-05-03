@@ -43,6 +43,8 @@ export class PaymentConfigEntity {
 export class InscriptionFeeEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
     @Column({ type: "decimal", precision: 10, scale: 2 })
     inscriptionFeeAmount?: number;
     @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
@@ -55,6 +57,8 @@ export class InscriptionFeeEntity {
 export class PaymentAnnualConfigEntity{
     @PrimaryGeneratedColumn()
     id?: number;
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
     @Column({ type: "numeric"})
     trancheCount?: number;
     @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
@@ -69,6 +73,8 @@ export class PaymentAnnualConfigEntity{
 export class TranchConfigEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
     @Column({ type: "varchar"})
     tranchName?: string;
     @Column({ type: "decimal", precision: 10, scale: 2, default: 0 })
@@ -85,6 +91,8 @@ export class TranchConfigEntity {
 export class TrancheEntryEntity {
     @PrimaryGeneratedColumn()
     id?: number;
+    @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+    remote_id?: string;
     @Column({ type: "date"})
     startDate?: Date;
     @Column({ type: "date"})

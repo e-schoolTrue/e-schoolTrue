@@ -98,6 +98,28 @@ export function registerIpcHandlers() {
   });
 
   // --- Sauvegarde / Synchro (Backup) ---
+
+  ipcMain.handle('sync:provisionSchool', async (_event, schoolName: string): Promise<{ success: boolean; data?: any; error?: string }> => {
+    try {
+      const result = await global.backupService.provisionSchoolSchema(schoolName);
+      if (!result) {
+        return { success: false, error: 'Impossible de provisionner le schema.' };
+      }
+      return { success: true, data: result };
+    } catch (error) {
+      return handleError(error, "sync:provisionSchool");
+    }
+  });
+
+  ipcMain.handle('sync:getMySchools', async (): Promise<{ success: boolean; data?: any[]; error?: string }> => {
+    try {
+      const schools = await global.backupService.getMySchools();
+      return { success: true, data: schools };
+    } catch (error) {
+      return handleError(error, "sync:getMySchools");
+    }
+  });
+
   ipcMain.handle('sync:now', async (): Promise<{ success: boolean; data?: SyncHistory; error?: string }> => {
     try {
       const user = await global.backupService.getSupabaseAuthUser();

@@ -12,6 +12,9 @@ export class DocumentContentEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
+  @Column({ type: "varchar", length: 36, nullable: true, unique: true })
+  remote_id?: string;
+
   @Column({ type: "text", nullable: true })
   inscription: string;
 
