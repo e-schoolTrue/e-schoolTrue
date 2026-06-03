@@ -105,6 +105,70 @@
       </table>
     </section>
 
+    <!-- Section Moyenne Annuelle -->
+    <section v-if="showAnnualSection" class="annual-summary-section" :style="{ borderColor: options.primaryColor }">
+      <div class="annual-title" :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
+        MOYENNE ANNUELLE
+      </div>
+
+      <table class="annual-table">
+        <thead>
+          <tr :style="{ backgroundColor: options.secondaryColor + '20' }">
+            <th colspan="2">Blocs de Synthèse des Moyennes</th>
+            <th colspan="3">Annuelle</th>
+          </tr>
+          <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
+            <th>1er SEMESTRE</th>
+            <th>2ème SEMESTRE</th>
+            <th>Du plus Fort</th>
+            <th>De l'Élève</th>
+            <th>Du Plus Faible</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="font-bold">{{ formatNumber(semester1Average) }}</td>
+            <td class="font-bold">{{ formatNumber(semester2Average) }}</td>
+            <td class="font-bold">{{ formatNumber(classHighestAnnual) }}</td>
+            <td class="font-bold annual-highlight" :style="{ color: options.primaryColor }">{{ formatNumber(computedAnnualAverage) }}</td>
+            <td class="font-bold">{{ formatNumber(classLowestAnnual) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="annual-info-grid">
+        <div class="annual-info-box" :style="{ borderColor: options.primaryColor }">
+          <span class="info-label">Rang :</span>
+          <span class="info-value font-bold">{{ annualRank ? annualRank + (annualRank === 1 ? 'er' : 'ème') : '-' }}</span>
+        </div>
+        <div class="annual-info-box" :style="{ borderColor: options.primaryColor }">
+          <span class="info-label">Effectifs :</span>
+          <span class="info-value font-bold">{{ totalStudents }}</span>
+        </div>
+      </div>
+
+      <div class="annual-decisions">
+        <div class="decisions-title" :style="{ color: options.primaryColor }">Décisions du Conseil de Classe</div>
+        <div class="decisions-grid">
+          <div
+            v-for="(label, key) in decisionLabels"
+            :key="key"
+            class="decision-item"
+            :class="{ 'decision-active': decisionState[key as keyof typeof decisionState] }"
+          >
+            <span class="checkbox">
+              <span v-if="decisionState[key as keyof typeof decisionState]" class="checkmark">✓</span>
+            </span>
+            <span class="decision-label">{{ label }}</span>
+          </div>
+        </div>
+        <div class="appreciation-box">
+          <div class="appreciation-title">Appréciation Globale</div>
+          <div class="appreciation-value">{{ annualAppreciation || getAppreciation(computedAnnualAverage) }}</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Évaluations du comportement / Stats -->
     <section class="footer-stats">
       <div class="stat-box">
@@ -138,6 +202,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+interface AnnualDecision {
+  honors: boolean;
+  admitted: boolean;
+  session: boolean;
+  repeat: boolean;
+  excluded: boolean;
+}
+
 interface Props {
   student: any;
   schoolInfo: any;
@@ -154,6 +226,15 @@ interface Props {
   totalStudents?: number;
   classAverage?: number;
   absences?: number;
+  semester1Average?: number;
+  semester2Average?: number;
+  annualAverage?: number;
+  annualRank?: number;
+  classHighestAnnual?: number;
+  classLowestAnnual?: number;
+  decisions?: AnnualDecision;
+  annualAppreciation?: string;
+  isFinalPeriod?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -168,7 +249,16 @@ const props = withDefaults(defineProps<Props>(), {
   rank: 0,
   totalStudents: 0,
   classAverage: 0,
-  absences: 0
+  absences: 0,
+  semester1Average: undefined,
+  semester2Average: undefined,
+  annualAverage: undefined,
+  annualRank: undefined,
+  classHighestAnnual: undefined,
+  classLowestAnnual: undefined,
+  decisions: undefined,
+  annualAppreciation: undefined,
+  isFinalPeriod: false
 });
 
 const countryHeaderMap: Record<string, { countryName: string; motto: string; ministry: string; inspection: string }> = {
@@ -232,6 +322,36 @@ const periodLabel = computed(() => {
   };
   return map[props.period] || props.period;
 });
+
+const showAnnualSection = computed(() => {
+  return props.isFinalPeriod || (props.semester1Average !== undefined && props.semester1Average !== null);
+});
+
+const computedAnnualAverage = computed(() => {
+  if (props.annualAverage !== undefined && props.annualAverage !== null) {
+    return props.annualAverage;
+  }
+  if (props.semester1Average != null && props.semester2Average != null) {
+    return (props.semester1Average + props.semester2Average) / 2;
+  }
+  return 0;
+});
+
+const decisionLabels: Record<string, string> = {
+  honors: 'Tableau d\'honneur',
+  admitted: 'Admis(e) en classe Sup',
+  session: 'Session',
+  repeat: 'Redouble',
+  excluded: 'Exclusion'
+};
+
+const decisionState = computed(() => ({
+  honors: props.decisions?.honors || false,
+  admitted: props.decisions?.admitted || false,
+  session: props.decisions?.session || false,
+  repeat: props.decisions?.repeat || false,
+  excluded: props.decisions?.excluded || false
+}));
 
 const processedGrades = computed(() => {
   return props.grades.map(g => ({
@@ -507,6 +627,161 @@ const getAppreciation = (note: number) => {
 
 .signature-space {
   height: 80px;
+}
+
+/* Annual Summary Section */
+.annual-summary-section {
+  border: 2px solid;
+  margin-bottom: 20px;
+  background-color: #fff;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.annual-title {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 8px 0;
+  letter-spacing: 0.5px;
+}
+
+.annual-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.annual-table th,
+.annual-table td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.annual-table thead th {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 11px;
+}
+
+.annual-highlight {
+  font-size: 14px;
+}
+
+.annual-info-grid {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+  gap: 10px;
+}
+
+.annual-info-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  border: 1px solid;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: white;
+  flex: 1;
+  justify-content: center;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #555;
+}
+
+.info-value {
+  font-size: 14px;
+}
+
+.annual-decisions {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.decisions-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.decisions-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.decision-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+.decision-item.decision-active {
+  background-color: #d1fae5;
+  border-color: #16a34a;
+  font-weight: 700;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #555;
+  background: #fff;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+
+.checkmark {
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.appreciation-box {
+  border: 2px solid #e0e0e0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 70px;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+.appreciation-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.appreciation-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000;
+  text-align: center;
 }
 
 @media print {

@@ -205,19 +205,28 @@
 
             <div class="preview-container">
               <div class="preview-scaler">
-                <component
-                  :is="currentTemplateComponent"
-                  :student="previewStudent"
-                  :school-info="schoolInfo"
-                  :grades="previewGradesData"
-                  :period="selectedPeriod"
-                  :options="colorOptions"
-                  :current-year="currentYear"
-                  :rank="previewRank"
-                  :total-students="students.length"
-                  :class-average="classAverage"
-                  :absences="previewAbsences"
-                />
+            <component
+              :is="currentTemplateComponent"
+              :student="previewStudent"
+              :school-info="schoolInfo"
+              :grades="previewGradesData"
+              :period="selectedPeriod"
+              :options="colorOptions"
+              :current-year="currentYear"
+              :rank="previewRank"
+              :total-students="students.length"
+              :class-average="classAverage"
+              :absences="previewAbsences"
+              :semester1-average="previewSemester1Average"
+              :semester2-average="previewSemester2Average"
+              :annual-average="previewAnnualAverage"
+              :annual-rank="previewAnnualRank"
+              :class-highest-annual="previewClassHighestAnnual"
+              :class-lowest-annual="previewClassLowestAnnual"
+              :decisions="previewDecisions"
+              :annual-appreciation="previewAnnualAppreciation"
+              :is-final-period="isFinalPeriod"
+            />
               </div>
             </div>
           </el-card>
@@ -370,6 +379,22 @@ const studentGradesStatus = reactive<Record<number, 'none' | 'partial' | 'comple
 const courses = ref<any[]>([]); // Liste des matières de la classe
 const schoolId = ref(1);
 
+// Données de synthèse annuelle
+const previewSemester1Average = ref<number | undefined>(undefined);
+const previewSemester2Average = ref<number | undefined>(undefined);
+const previewAnnualAverage = ref<number | undefined>(undefined);
+const previewAnnualRank = ref<number | undefined>(undefined);
+const previewClassHighestAnnual = ref<number | undefined>(undefined);
+const previewClassLowestAnnual = ref<number | undefined>(undefined);
+const previewAnnualAppreciation = ref<string | undefined>(undefined);
+const previewDecisions = ref<{
+  honors: boolean;
+  admitted: boolean;
+  session: boolean;
+  repeat: boolean;
+  excluded: boolean;
+} | undefined>(undefined);
+
 // Absences totales groupées par élève
 interface AbsenceData {
   studentId: number;
@@ -434,6 +459,12 @@ const isIndeterminate = computed(() =>
 const currentTemplateComponent = computed(() => {
   const tmpl = templates.find(t => t.id === selectedTemplateId.value);
   return tmpl ? tmpl.component : BulletinTemplateOne;
+});
+
+const isFinalPeriod = computed(() => {
+  if (!selectedPeriod.value) return false;
+  const p = selectedPeriod.value.toLowerCase();
+  return p.includes('2') || p.includes('deuxième') || p.includes('deuxieme') || p.includes('3') || p.includes('troisième') || p.includes('troisieme') || p.includes('annuelle') || p.includes('annuel');
 });
 
 // --- Methods ---
@@ -755,13 +786,157 @@ const loadStudentGradesForPreview = async (student: Student) => {
     previewRank.value = ranking?.rank || 0;
     classAverage.value = ranking?.classAverage || 0;
 
-  } catch (error) {
+    // Charger les données du semestre précédent pour la synthèse annuelle
+    if (isFinalPeriod.value && selectedPeriod.value && courses.value.length > 0) {
+      await loadAnnualData(student, gradesResults);
+    } else {
+      previewSemester1Average.value = undefined;
+      previewSemester2Average.value = undefined;
+      previewAnnualAverage.value = undefined;
+      previewAnnualRank.value = undefined;
+      previewClassHighestAnnual.value = undefined;
+      previewClassLowestAnnual.value = undefined;
+      previewAnnualAppreciation.value = undefined;
+      previewDecisions.value = undefined;
+    }
+
+   } catch (error) {
     console.error('Erreur chargement aperçu:', error);
     previewGradesData.value = [];
   } finally {
     loadingPreview.value = false;
   }
  };
+
+const findPreviousPeriod = (current: string): string | null => {
+  const idx = periods.value.indexOf(current);
+  if (idx > 0) {
+    return periods.value[idx - 1];
+  }
+  const fallback = periods.value.find(p => {
+    const lower = p.toLowerCase();
+    return lower.includes('1') || lower.includes('premier');
+  });
+  return fallback || null;
+};
+
+const loadAnnualData = async (student: Student, currentGrades: GradeData[]) => {
+  try {
+    // 1. Calculer la moyenne générale du S2 (période actuelle)
+    const s2TotalWeighted = currentGrades.reduce((sum, g) => sum + g.average * (g.coefficient || 1), 0);
+    const s2TotalCoef = currentGrades.reduce((sum, g) => sum + (g.coefficient || 1), 0);
+    const s2Average = s2TotalCoef > 0 ? s2TotalWeighted / s2TotalCoef : 0;
+    previewSemester2Average.value = Math.round(s2Average * 100) / 100;
+
+    // 2. Trouver la période précédente
+    const prevPeriod = findPreviousPeriod(selectedPeriod.value!);
+    if (!prevPeriod) {
+      previewSemester1Average.value = undefined;
+      previewAnnualAverage.value = previewSemester2Average.value;
+      previewAnnualRank.value = previewRank.value;
+      return;
+    }
+
+    // 3. Charger les notes du S1 pour l'élève
+    const s1Grades: GradeData[] = [];
+    for (const course of courses.value) {
+      const avgRes = await window.ipcRenderer.invoke('gradeEntry:calculate', {
+        studentId: student.id,
+        courseId: course.id,
+        classId: selectedClassId.value,
+        schoolId: schoolInfo.value?.id || schoolId.value,
+        period: prevPeriod
+      });
+      if (avgRes.success && avgRes.data && avgRes.data.finalAverage > 0) {
+        s1Grades.push({
+          courseId: course.id,
+          courseName: course.name,
+          coefficient: course.coefficient || 1,
+          average: avgRes.data.finalAverage,
+          classAverage: 0,
+          examAverage: 0,
+          appreciation: '',
+          professorName: '',
+          categoryGrades: []
+        });
+      }
+    }
+
+    // 4. Calculer la moyenne générale du S1
+    const s1TotalWeighted = s1Grades.reduce((sum, g) => sum + g.average * (g.coefficient || 1), 0);
+    const s1TotalCoef = s1Grades.reduce((sum, g) => sum + (g.coefficient || 1), 0);
+    const s1Average = s1TotalCoef > 0 ? s1TotalWeighted / s1TotalCoef : 0;
+    previewSemester1Average.value = Math.round(s1Average * 100) / 100;
+
+    // 5. Calculer la moyenne annuelle
+    const annualAvg = (s1Average + s2Average) / 2;
+    previewAnnualAverage.value = Math.round(annualAvg * 100) / 100;
+
+    // 6. Charger les classements des deux périodes
+    const [s1RankingsRes, s2RankingsRes] = await Promise.all([
+      window.ipcRenderer.invoke('gradeEntry:getClassRankings', {
+        classId: selectedClassId.value,
+        schoolId: schoolInfo.value?.id || schoolId.value,
+        period: prevPeriod
+      }),
+      window.ipcRenderer.invoke('gradeEntry:getClassRankings', {
+        classId: selectedClassId.value,
+        schoolId: schoolInfo.value?.id || schoolId.value,
+        period: selectedPeriod.value
+      })
+    ]);
+
+    // 7. Calculer le rang annuel approximatif
+    if (s1RankingsRes.success && s1RankingsRes.data && s2RankingsRes.success && s2RankingsRes.data) {
+      const annualAverages = new Map<number, number>();
+
+      for (const r1 of s1RankingsRes.data) {
+        const sid = Number(r1.studentId);
+        const r2 = s2RankingsRes.data.find((r: any) => Number(r.studentId) === sid);
+        if (r2) {
+          annualAverages.set(sid, (r1.generalAverage + r2.generalAverage) / 2);
+        } else {
+          annualAverages.set(sid, r1.generalAverage);
+        }
+      }
+
+      for (const r2 of s2RankingsRes.data) {
+        const sid = Number(r2.studentId);
+        if (!annualAverages.has(sid)) {
+          annualAverages.set(sid, r2.generalAverage);
+        }
+      }
+
+      const sorted = Array.from(annualAverages.entries()).sort((a, b) => b[1] - a[1]);
+      const studentId = Number(student.id);
+      const annualRankIndex = sorted.findIndex(([sid]) => sid === studentId);
+      if (annualRankIndex >= 0) {
+        previewAnnualRank.value = annualRankIndex + 1;
+      }
+
+      if (sorted.length > 0) {
+        previewClassHighestAnnual.value = Math.round(sorted[0][1] * 100) / 100;
+        previewClassLowestAnnual.value = Math.round(sorted[sorted.length - 1][1] * 100) / 100;
+      }
+    }
+
+    // 8. Déterminer les décisions du conseil de classe
+    previewAnnualAppreciation.value = getAppreciation(annualAvg);
+    previewDecisions.value = {
+      honors: annualAvg >= 16,
+      admitted: annualAvg >= 10,
+      session: annualAvg >= 8 && annualAvg < 10,
+      repeat: annualAvg < 8,
+      excluded: annualAvg < 5
+    };
+  } catch (error) {
+    console.error('Erreur chargement données annuelles:', error);
+    previewSemester1Average.value = undefined;
+    previewAnnualAverage.value = previewSemester2Average.value;
+    previewAnnualRank.value = previewRank.value;
+    previewDecisions.value = undefined;
+  }
+};
 
   const calculateClassAverage = (calculatedData: any): number => {
     let classAverage = 0;
@@ -872,7 +1047,7 @@ const getCountryData = () => {
 
 // --- Impression ---
 
-const generateBulletinsHtml = async (studentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }[]) => {
+const generateBulletinsHtml = async (studentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number; semester1Average?: number; semester2Average?: number; annualAverage?: number; annualRank?: number; classHighestAnnual?: number; classLowestAnnual?: number; decisions?: { honors: boolean; admitted: boolean; session: boolean; repeat: boolean; excluded: boolean }; annualAppreciation?: string; isFinalPeriod?: boolean }[]) => {
   console.log('📄 generateBulletinsHtml appelé avec', studentsData.length, 'élèves');
   console.log('📄 Données des élèves avec rank:', studentsData.map(d => ({ id: d.student.id, name: d.student.firstname, rank: d.rank, totalStudents: d.totalStudents })));
   
@@ -1030,24 +1205,24 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
   `;
 };
 
-const generateBulletinHtml = async (data: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }) => {
-  const { student, grades, absences, rank, totalStudents, classAverage } = data;
-  
+const generateBulletinHtml = async (data: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number; semester1Average?: number; semester2Average?: number; annualAverage?: number; annualRank?: number; classHighestAnnual?: number; classLowestAnnual?: number; decisions?: { honors: boolean; admitted: boolean; session: boolean; repeat: boolean; excluded: boolean }; annualAppreciation?: string; isFinalPeriod?: boolean }) => {
+  const { student, grades, absences, rank, totalStudents, classAverage, semester1Average, semester2Average, annualAverage, annualRank, classHighestAnnual, classLowestAnnual, decisions, annualAppreciation, isFinalPeriod } = data;
+
   console.log('🎯 generateBulletinHtml - student:', student.id, student.firstname, 'rank:', rank, 'totalStudents:', totalStudents);
-  
+
   console.log('🎯 generateBulletinHtml appelé avec', grades.length, 'matières');
   console.log('🎯 grades[0] brut:', JSON.stringify(grades[0]));
   console.log('🎯 Première matière categoryGrades:', grades[0]?.categoryGrades);
   console.log('🎯 Première matière categoryGrades détail:', grades[0]?.categoryGrades?.map((c: any) => ({ code: c.code, isExam: c.isExam, average: c.average })));
-  
+
   // Calculer les données nécessaires
   const processedGrades = grades.map(g => ({
     ...g,
     weightedValue: g.average * (g.coefficient || 1)
   }));
-  
+
   console.log('🎯 classAverage dans grades:', grades.map(g => ({ course: g.courseName, classAvg: g.classAverage })));
-  
+
   // Extraire toutes les catégories uniques
   const allCategories = new Map<string, { name: string; isExam: boolean }>();
   for (const g of grades) {
@@ -1064,38 +1239,56 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
     name: info.name,
     isExam: info.isExam
   }));
-  
+
   console.log('📋 Catégories trouvées:', categoryColumns);
   console.log('📋 isExam de chaque catégorie:', categoryColumns.map(c => ({ code: c.code, isExam: c.isExam })));
   console.log('📋 Nombre de catégories:', categoryColumns.length);
-  
+
   // Filtrer uniquement les catégories non-examen pour les colonnes
   const nonExamCategories = categoryColumns.filter(c => c.isExam === false);
   console.log('📋 Catégories non-examen:', nonExamCategories);
-  
+
   // Fallback: si pas de catégories non-examen, ne pas afficher de colonnes
   const finalCategories = nonExamCategories.length > 0 ? nonExamCategories : [];
   console.log('📋 Catégories finales (non-exam):', finalCategories);
-  
+
   const totalCoefficients = processedGrades.reduce((sum, g) => sum + (g.coefficient || 1), 0);
   const totalWeightedPoints = processedGrades.reduce((sum, g) => sum + g.weightedValue, 0);
   const generalAverage = totalCoefficients > 0 ? totalWeightedPoints / totalCoefficients : 0;
-  
+
   const formatNumber = (num: number) => num ? num.toFixed(2) : '0.00';
   const primaryColor = colorOptions.primaryColor;
   const secondaryColor = colorOptions.secondaryColor;
   const periodLabel = selectedPeriod.value || 'Période';
   const logoUrl = schoolInfo.value?.logo?.url || '';
-  
+
+  const showAnnual = isFinalPeriod || (semester1Average !== undefined && semester1Average !== null);
+  const computedAnnualAvg = annualAverage !== undefined && annualAverage !== null ? annualAverage : ((semester1Average || 0) + (semester2Average || 0)) / 2;
+  const annualDecisionState = {
+    honors: decisions?.honors || false,
+    admitted: decisions?.admitted || false,
+    session: decisions?.session || false,
+    repeat: decisions?.repeat || false,
+    excluded: decisions?.excluded || false
+  };
+  const decisionLabelsMap: Record<string, string> = {
+    honors: 'Tableau d\'honneur',
+    admitted: 'Admis(e) en classe Sup',
+    session: 'Session',
+    repeat: 'Redouble',
+    excluded: 'Exclusion'
+  };
+  const getAnnualAppreciation = () => annualAppreciation || getAppreciation(computedAnnualAvg);
+
   // Générer le HTML selon le template sélectionné
   if (selectedTemplateId.value === 'template2') {
-    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories);
+    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
   } else {
-    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories);
+    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
   }
 };
 
-const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = []) => {
+const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
   const cData = getCountryData();
   return `
     <div class="bulletin-page">
@@ -1287,6 +1480,160 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           color: #909399;
           font-size: 14px;
         }
+
+        .annual-summary-section {
+          border: 2px solid;
+          margin-bottom: 20px;
+          background-color: #fff;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+
+        .annual-title {
+          text-align: center;
+          font-size: 14px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 8px 0;
+          letter-spacing: 0.5px;
+        }
+
+        .annual-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+
+        .annual-table th,
+        .annual-table td {
+          border: 1px solid #e0e0e0;
+          padding: 8px 6px;
+          text-align: center;
+        }
+
+        .annual-table thead th {
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          font-size: 11px;
+        }
+
+        .annual-highlight {
+          font-size: 14px;
+        }
+
+        .annual-info-grid {
+          display: flex;
+          justify-content: space-around;
+          padding: 10px;
+          border-top: 1px solid #e0e0e0;
+          background-color: #f8f9fa;
+          gap: 10px;
+        }
+
+        .annual-info-box {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          font-size: 12px;
+          border: 1px solid;
+          padding: 6px 12px;
+          border-radius: 4px;
+          background: white;
+          flex: 1;
+          justify-content: center;
+        }
+
+        .info-label {
+          font-weight: 600;
+          color: #555;
+        }
+
+        .info-value {
+          font-size: 14px;
+        }
+
+        .annual-decisions {
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .decisions-title {
+          font-size: 12px;
+          font-weight: 700;
+          text-transform: uppercase;
+          text-align: center;
+          margin-bottom: 2px;
+        }
+
+        .decisions-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 8px;
+        }
+
+        .decision-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 10px;
+          padding: 6px 8px;
+          border: 1px solid #ccc;
+          background-color: #fafafa;
+          border-radius: 4px;
+        }
+
+        .decision-item.decision-active {
+          background-color: #d1fae5;
+          border-color: #16a34a;
+          font-weight: 700;
+        }
+
+        .checkbox {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          border: 1px solid #555;
+          background: #fff;
+          flex-shrink: 0;
+          border-radius: 3px;
+        }
+
+        .checkmark {
+          color: #16a34a;
+          font-weight: 700;
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        .appreciation-box {
+          border: 2px solid #e0e0e0;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          min-height: 70px;
+          background-color: #fafafa;
+          border-radius: 4px;
+        }
+
+        .appreciation-title {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: #666;
+        }
+
+        .appreciation-value {
+          font-size: 16px;
+          font-weight: 700;
+          color: #000;
+          text-align: center;
+        }
       </style>
       
       <div class="header">
@@ -1405,6 +1752,62 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           </tfoot>
       </table>
       
+      ${showAnnual ? `
+      <div class="annual-summary-section" style="border-color: ${primaryColor};">
+        <div class="annual-title" style="background-color: ${primaryColor}; color: #fff;">
+          MOYENNE ANNUELLE
+        </div>
+        <table class="annual-table">
+          <thead>
+            <tr style="background-color: ${secondaryColor}20;">
+              <th colspan="2">Blocs de Synthèse des Moyennes</th>
+              <th colspan="3">Annuelle</th>
+            </tr>
+            <tr style="background-color: ${primaryColor}; color: #fff;">
+              <th>1er SEMESTRE</th>
+              <th>2ème SEMESTRE</th>
+              <th>Du plus Fort</th>
+              <th>De l'Élève</th>
+              <th>Du Plus Faible</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-bold">${formatNumber(semester1Average || 0)}</td>
+              <td class="font-bold">${formatNumber(semester2Average || 0)}</td>
+              <td class="font-bold">${formatNumber(classHighestAnnual || 0)}</td>
+              <td class="font-bold annual-highlight" style="color: ${primaryColor};">${formatNumber(computedAnnualAvg)}</td>
+              <td class="font-bold">${formatNumber(classLowestAnnual || 0)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="annual-info-grid">
+          <div class="annual-info-box" style="border-color: ${primaryColor};">
+            <span class="info-label">Rang :</span>
+            <span class="info-value font-bold">${annualRank ? annualRank + (annualRank === 1 ? 'er' : 'ème') : '-'} / ${totalStudents}</span>
+          </div>
+          <div class="annual-info-box" style="border-color: ${primaryColor};">
+            <span class="info-label">Effectifs :</span>
+            <span class="info-value font-bold">${totalStudents}</span>
+          </div>
+        </div>
+        <div class="annual-decisions">
+          <div class="decisions-title" style="color: ${primaryColor};">Décisions du Conseil de Classe</div>
+          <div class="decisions-grid">
+            ${Object.entries(decisionLabelsMap || {}).map(([key, label]) => `
+            <div class="decision-item ${annualDecisionState?.[key] ? 'decision-active' : ''}">
+              <span class="checkbox"><span class="checkmark">${annualDecisionState?.[key] ? '✓' : ''}</span></span>
+              <span class="decision-label">${label}</span>
+            </div>
+            `).join('')}
+          </div>
+          <div class="appreciation-box">
+            <div class="appreciation-title">Appréciation Globale</div>
+            <div class="appreciation-value">${getAnnualAppreciation ? getAnnualAppreciation() : '-'}</div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
       <div class="footer-stats">
         <div class="stat-box">
           <h4>Classement</h4>
@@ -1434,7 +1837,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
   `;
 };
 
-const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = []) => {
+const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
   const cData = getCountryData();
   const getGradeClass = (grade: number) => {
     if (grade < 10) return 'grade-low';
@@ -1678,6 +2081,149 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
           border-bottom: 1px solid #000;
           margin-top: 5px;
         }
+
+        .annual-summary-section {
+          border: 2px solid #000;
+          margin-bottom: 10px;
+          background-color: #fff;
+        }
+
+        .annual-title {
+          text-align: center;
+          font-size: 14px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 6px 0;
+          letter-spacing: 0.5px;
+        }
+
+        .annual-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11px;
+          border-bottom: 2px solid #000;
+        }
+
+        .annual-table th,
+        .annual-table td {
+          border: 1px solid #000;
+          padding: 6px 4px;
+          text-align: center;
+          font-size: 10px;
+        }
+
+        .annual-table thead th {
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        .annual-highlight {
+          font-size: 13px;
+        }
+
+        .annual-info-grid {
+          display: flex;
+          justify-content: space-around;
+          padding: 8px;
+          border-bottom: 1px solid #000;
+          background-color: #f5f5f5;
+        }
+
+        .annual-info-box {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          font-size: 11px;
+        }
+
+        .info-label {
+          font-weight: 600;
+        }
+
+        .info-value {
+          font-size: 13px;
+        }
+
+        .annual-decisions {
+          padding: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .decisions-title {
+          font-size: 12px;
+          font-weight: 700;
+          text-transform: uppercase;
+          text-align: center;
+          margin-bottom: 4px;
+        }
+
+        .decisions-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 6px;
+        }
+
+        .decision-item {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 9px;
+          padding: 4px 6px;
+          border: 1px solid #999;
+          background-color: #fafafa;
+          border-radius: 3px;
+        }
+
+        .decision-item.decision-active {
+          background-color: #e8f5e9;
+          border-color: #2e7d32;
+          font-weight: 700;
+        }
+
+        .checkbox {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 14px;
+          height: 14px;
+          border: 1px solid #555;
+          background: #fff;
+          flex-shrink: 0;
+        }
+
+        .checkmark {
+          color: #2e7d32;
+          font-weight: 700;
+          font-size: 11px;
+          line-height: 1;
+        }
+
+        .appreciation-box {
+          border: 2px solid #000;
+          padding: 10px;
+          margin-top: 4px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-height: 60px;
+        }
+
+        .appreciation-title {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: #555;
+        }
+
+        .appreciation-value {
+          font-size: 14px;
+          font-weight: 700;
+          color: #000;
+          text-align: center;
+        }
       </style>
       
       <div class="header">
@@ -1778,22 +2324,79 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
              <td colspan="${6 - categoryColumns.length}" class="value-moyenne">${formatNumber(generalAverage)} / 20</td>
            </tr>
          </tfoot>
-      </table>
-      
-      <div class="footer-summary">
-        <div class="summary-grid">
-          <div class="summary-left">
-            <div class="summary-line">
-              <span>Moyenne Trimestrielle :</span>
-              <span class="value">${formatNumber(generalAverage)} /20</span>
-            </div>
-            <div class="summary-line">
-              <span>Moyenne de la Classe :</span>
-              <span class="value">${formatNumber(classAverage)} /20</span>
-            </div>
-            <div class="signature">
-              ${colorOptions.signatoryLeft}
-              <div class="signature-space"></div>
+       </table>
+
+       ${showAnnual ? `
+       <div class="annual-summary-section">
+         <div class="annual-title" style="background-color: ${primaryColor}; color: #fff;">
+           MOYENNE ANNUELLE
+         </div>
+         <table class="annual-table">
+           <thead>
+             <tr>
+               <th colspan="2" style="background-color: ${secondaryColor}30;">Blocs de Synthèse des Moyennes</th>
+               <th colspan="3" style="background-color: ${secondaryColor}30;">Annuelle</th>
+             </tr>
+             <tr style="background-color: ${primaryColor}; color: #fff;">
+               <th>1er SEMESTRE</th>
+               <th>2ème SEMESTRE</th>
+               <th>Du plus Fort</th>
+               <th>De l'Élève</th>
+               <th>Du Plus Faible</th>
+             </tr>
+           </thead>
+           <tbody>
+             <tr>
+               <td class="font-bold">${formatNumber(semester1Average || 0)}</td>
+               <td class="font-bold">${formatNumber(semester2Average || 0)}</td>
+               <td class="font-bold">${formatNumber(classHighestAnnual || 0)}</td>
+               <td class="font-bold annual-highlight" style="color: ${primaryColor};">${formatNumber(computedAnnualAvg)}</td>
+               <td class="font-bold">${formatNumber(classLowestAnnual || 0)}</td>
+             </tr>
+           </tbody>
+         </table>
+         <div class="annual-info-grid">
+           <div class="annual-info-box">
+             <span class="info-label">Rang :</span>
+             <span class="info-value font-bold">${annualRank ? annualRank + (annualRank === 1 ? 'er' : 'ème') : '-'} / ${totalStudents}</span>
+           </div>
+           <div class="annual-info-box">
+             <span class="info-label">Effectifs :</span>
+             <span class="info-value font-bold">${totalStudents}</span>
+           </div>
+         </div>
+         <div class="annual-decisions">
+           <div class="decisions-title" style="color: ${primaryColor};">Décisions du Conseil de Classe</div>
+           <div class="decisions-grid">
+             ${Object.entries(decisionLabelsMap || {}).map(([key, label]) => `
+             <div class="decision-item ${annualDecisionState?.[key] ? 'decision-active' : ''}">
+               <span class="checkbox"><span class="checkmark">${annualDecisionState?.[key] ? '✓' : ''}</span></span>
+               <span class="decision-label">${label}</span>
+             </div>
+             `).join('')}
+           </div>
+           <div class="appreciation-box">
+             <div class="appreciation-title">Appréciation Globale</div>
+             <div class="appreciation-value">${getAnnualAppreciation ? getAnnualAppreciation() : '-'}</div>
+           </div>
+         </div>
+       </div>
+       ` : ''}
+       
+       <div class="footer-summary">
+         <div class="summary-grid">
+           <div class="summary-left">
+             <div class="summary-line">
+               <span>Moyenne Trimestrielle :</span>
+               <span class="value">${formatNumber(generalAverage)} /20</span>
+             </div>
+             <div class="summary-line">
+               <span>Moyenne de la Classe :</span>
+               <span class="value">${formatNumber(classAverage)} /20</span>
+             </div>
+             <div class="signature">
+               ${colorOptions.signatoryLeft}
+               <div class="signature-space"></div>
             </div>
           </div>
           
@@ -1851,7 +2454,7 @@ const handlePrint = async () => {
   console.log('After loading rankings, studentRankings:', studentRankings.value);
 
   const studentsToPrint = selectedStudents.value;
-  const validStudentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number }[] = [];
+  const validStudentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number; semester1Average?: number; semester2Average?: number; annualAverage?: number; annualRank?: number; classHighestAnnual?: number; classLowestAnnual?: number; decisions?: { honors: boolean; admitted: boolean; session: boolean; repeat: boolean; excluded: boolean }; annualAppreciation?: string; isFinalPeriod?: boolean }[] = [];
 
   // Validation : Vérifier que chaque élève a TOUTES ses notes
   for (let i = 0; i < studentsToPrint.length; i++) {
@@ -1963,13 +2566,51 @@ const handlePrint = async () => {
       
       console.log(`Student ${student.id} final rank:`, studentRank, 'totalStudents:', studentTotalStudents);
 
+      // Charger les données annuelles si période finale
+      let annualData: any = {};
+      if (isFinalPeriod.value && selectedPeriod.value) {
+        const savedS1 = previewSemester1Average.value;
+        const savedS2 = previewSemester2Average.value;
+        const savedAnnual = previewAnnualAverage.value;
+        const savedAnnualRank = previewAnnualRank.value;
+        const savedHighest = previewClassHighestAnnual.value;
+        const savedLowest = previewClassLowestAnnual.value;
+        const savedAppreciation = previewAnnualAppreciation.value;
+        const savedDecisions = previewDecisions.value;
+
+        await loadAnnualData(student, studentGrades);
+
+        annualData = {
+          semester1Average: previewSemester1Average.value,
+          semester2Average: previewSemester2Average.value,
+          annualAverage: previewAnnualAverage.value,
+          annualRank: previewAnnualRank.value,
+          classHighestAnnual: previewClassHighestAnnual.value,
+          classLowestAnnual: previewClassLowestAnnual.value,
+          annualAppreciation: previewAnnualAppreciation.value,
+          decisions: previewDecisions.value ? { ...previewDecisions.value } : undefined,
+          isFinalPeriod: true
+        };
+
+        // Restaurer les refs de l'aperçu
+        previewSemester1Average.value = savedS1;
+        previewSemester2Average.value = savedS2;
+        previewAnnualAverage.value = savedAnnual;
+        previewAnnualRank.value = savedAnnualRank;
+        previewClassHighestAnnual.value = savedHighest;
+        previewClassLowestAnnual.value = savedLowest;
+        previewAnnualAppreciation.value = savedAppreciation;
+        previewDecisions.value = savedDecisions;
+      }
+
       validStudentsData.push({ 
         student, 
         grades: studentGrades, 
         absences: totalAbsenceHours,
         rank: studentRank,
         totalStudents: studentTotalStudents,
-        classAverage: studentClassAverage
+        classAverage: studentClassAverage,
+        ...annualData
       });
 
     } catch (e) {

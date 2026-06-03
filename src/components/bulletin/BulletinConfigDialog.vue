@@ -126,6 +126,15 @@
               :total-students="25"
               :class-average="12.5"
               :absences="4"
+              :semester1-average="13.5"
+              :semester2-average="14.2"
+              :annual-average="13.85"
+              :annual-rank="3"
+              :class-highest-annual="16.5"
+              :class-lowest-annual="8.2"
+              :decisions="{ honors: false, admitted: true, session: false, repeat: false, excluded: false }"
+              :annual-appreciation="'Bien'"
+              :is-final-period="true"
             />
           </div>
         </div>

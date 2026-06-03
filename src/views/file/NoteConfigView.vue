@@ -38,6 +38,22 @@
             />
           </el-select>
 
+          <el-select
+            v-if="context.classId"
+            v-model="selectedPeriod"
+            placeholder="Toutes les périodes"
+            clearable
+            @change="loadConfig"
+            style="width: 180px"
+          >
+            <el-option
+              v-for="period in periods"
+              :key="period"
+              :label="period"
+              :value="period"
+            />
+          </el-select>
+
           <el-tag v-if="existingConfig" type="success" effect="light">
             <el-icon><SuccessFilled /></el-icon>
             Config trouvée
@@ -250,6 +266,8 @@ const context = reactive({
 const classesList = ref<{ id: number; name: string; code: string }[]>([]);
 const subjectsList = ref<{ id: number; name: string; coefficient: number }[]>([]);
 const existingConfig = ref<ExistingConfig | null>(null);
+const periods = ref<string[]>([]);
+const selectedPeriod = ref<string | null>(null);
 
 const presetColors = [
   '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
@@ -268,7 +286,19 @@ const form = reactive<ConfigForm>({
 onMounted(async () => {
   await loadSchoolInfo();
   await loadReferenceData();
+  await loadPeriods();
 });
+
+const loadPeriods = async () => {
+  try {
+    const yearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+    if (yearRes.success && yearRes.data) {
+      periods.value = yearRes.data.periodConfigurations?.map((p: any) => p.name) || [];
+    }
+  } catch (error) {
+    console.error('Erreur chargement périodes:', error);
+  }
+};
 
 const loadSchoolInfo = async () => {
   try {
@@ -294,6 +324,7 @@ const loadReferenceData = async () => {
 
 const onClassChange = async () => {
   context.subjectId = null;
+  selectedPeriod.value = null;
   
   // Charger les matières de la classe
   if (context.classId) {
@@ -318,7 +349,8 @@ const loadConfig = async () => {
     const response = await window.ipcRenderer.invoke('grade-config:get', {
       schoolId: context.schoolId,
       classId: context.classId,
-      subjectId: context.subjectId
+      subjectId: context.subjectId,
+      period: selectedPeriod.value
     });
 
     if (response.success && response.data) {
@@ -386,6 +418,7 @@ const saveConfig = async () => {
       schoolId: context.schoolId,
       classId: context.classId,
       subjectId: context.subjectId,
+      period: selectedPeriod.value,
       finalGradeBase: form.finalGradeBase,
       calculationStrategy: form.calculationStrategy,
       normalizeScores: form.normalizeScores,

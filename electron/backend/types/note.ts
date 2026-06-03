@@ -27,6 +27,7 @@ export interface ICreateConfigParams {
     schoolId: number;
     classId?: number | null;
     subjectId?: number | null;
+    period?: string | null; // Période spécifique (ex: "Trimestre 1") ou null pour toutes
     finalGradeBase: number;
     calculationStrategy?: CalculationStrategy;
     normalizeScores?: boolean;
@@ -41,6 +42,7 @@ export interface IGetConfigParams {
     schoolId: number;
     classId?: number | null;
     subjectId?: number | null;
+    period?: string | null; // Période spécifique ou null (toutes périodes)
 }
 
 // ===================================================================
@@ -65,6 +67,7 @@ export interface IFormattedConfig {
     schoolId: number;
     classId: number | null;
     subjectId: number | null;
+    period: string | null; // Période spécifique ou null (toutes périodes)
     finalGradeBase: number;
     calculationStrategy: CalculationStrategy;
     normalizeScores: boolean;

@@ -4,6 +4,9 @@ import { GradeEntryEntity, CalculatedGradeEntity } from "../entities/gradeEntry"
 import { ConfigNoteService } from "./note-config-service";
 import {CourseEntity} from "../entities/course";
 import {StudentEntity} from "../entities/students";
+import { TeachingAssignmentEntity } from "../entities/teaching";
+import { ProfessorEntity } from "../entities/professor";
+import { TEACHING_TYPE } from "../../command";
 
 interface ResultType<T> {
     success: boolean;
@@ -241,10 +244,12 @@ export class GradeEntryService {
 
             const entries = entriesResult.data;
 
-            // Récupérer la configuration applicable
+            // Récupérer la configuration applicable (avec période pour configs par trimestre)
             const configResult = await this.configNoteService.getApplicableConfig({
                 schoolId,
-                classId
+                classId,
+                subjectId: courseId,
+                period
             });
 
             if (!configResult.success || !configResult.data) {
@@ -1089,6 +1094,206 @@ export class GradeEntryService {
                 success: false,
                 data: null,
                 message: `Erreur lors du calcul du classement centralisé: ${errorMessage}`,
+                error: errorMessage
+            };
+        }
+    }
+
+    async getAnnualRankings(
+        filters?: {
+            gradeId: number;
+            schoolYear?: string;
+        }
+    ): Promise<ResultType<Array<{
+        studentId: number;
+        matricule: string;
+        firstname: string;
+        lastname: string;
+        sex: 'male' | 'female';
+        trim1Average: number;
+        trim2Average: number;
+        trim3Average: number;
+        annualAverage: number;
+        rank: number;
+        totalScores: number;
+        averageScores: number;
+        distinctions: {
+            tableauHonneur: boolean;
+            encouragements: boolean;
+            felicitations: boolean;
+        };
+        discipline: {
+            avertissementTravail: boolean;
+            blameTravail: boolean;
+            avertissementConduite: boolean;
+            blameConduite: boolean;
+            exclusionTemporaire: boolean;
+        };
+        finalDecision: string;
+    }>>> {
+        try {
+            if (!filters || typeof filters !== 'object') {
+                throw new Error('Filtres non valides');
+            }
+
+            if (!filters.gradeId || typeof filters.gradeId !== 'number' || isNaN(filters.gradeId) || filters.gradeId <= 0) {
+                throw new Error(`gradeId invalide: ${filters.gradeId}`);
+            }
+
+            const dataSource = AppDataSource.getInstance();
+            const studentRepo = dataSource.getRepository(StudentEntity);
+            const courseRepo: Repository<CourseEntity> = dataSource.getRepository(CourseEntity);
+
+            const students = await studentRepo.find({
+                where: { grade: { id: filters.gradeId } },
+                relations: ['grade']
+            });
+
+            const courses = await courseRepo.createQueryBuilder('course')
+                .leftJoinAndSelect('course.grades', 'grades')
+                .leftJoinAndSelect('course.grade', 'grade')
+                .leftJoinAndSelect('course.courses', 'courses')
+                .where('grades.id = :gradeId OR grade.id = :gradeId', { gradeId: filters.gradeId })
+                .getMany();
+
+            const courseMap = new Map<number, any>();
+            courses.forEach(course => {
+                if (course && course.id) {
+                    courseMap.set(course.id, course);
+                }
+            });
+
+            const periods = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];
+            const courseIds = Array.from(courseMap.keys());
+
+            const studentResults: Array<{
+                studentId: number;
+                matricule: string;
+                firstname: string;
+                lastname: string;
+                sex: 'male' | 'female';
+                trim1Average: number;
+                trim2Average: number;
+                trim3Average: number;
+                annualAverage: number;
+                rank: number;
+                totalScores: number;
+                averageScores: number;
+                distinctions: {
+                    tableauHonneur: boolean;
+                    encouragements: boolean;
+                    felicitations: boolean;
+                };
+                discipline: {
+                    avertissementTravail: boolean;
+                    blameTravail: boolean;
+                    avertissementConduite: boolean;
+                    blameConduite: boolean;
+                    exclusionTemporaire: boolean;
+                };
+                finalDecision: string;
+            }> = [];
+
+            for (const student of students) {
+                try {
+                    const trimAverages: number[] = [];
+
+                    for (const period of periods) {
+                        const averages = await this.calculatedGradeRepository.find({
+                            where: {
+                                studentId: student.id,
+                                courseId: In(courseIds),
+                                period: period
+                            }
+                        });
+
+                        let totalWeightedValue = 0;
+                        let totalCoefficients = 0;
+                        let averageScores = 0;
+                        let scoreCount = 0;
+
+                        for (const avg of averages) {
+                            const course = courseMap.get(avg.courseId);
+                            if (!course) continue;
+                            const coefficient = course?.coefficient || 1;
+                            totalWeightedValue += avg.finalAverage * coefficient;
+                            totalCoefficients += coefficient;
+                            averageScores += avg.finalAverage;
+                            scoreCount += 1;
+                        }
+
+                        const periodAverage = totalCoefficients > 0
+                            ? Math.round((totalWeightedValue / totalCoefficients) * 100) / 100
+                            : 0;
+                        trimAverages.push(periodAverage);
+                    }
+
+                    const annualAverage = trimAverages.length > 0
+                        ? Math.round((trimAverages.reduce((sum, val) => sum + val, 0) / trimAverages.length) * 100) / 100
+                        : 0;
+
+                    const sex = (student.sex === 'male' || student.sex === 'female') ? student.sex : 'male';
+
+                    const distinctions = {
+                        tableauHonneur: annualAverage >= 16,
+                        felicitations: annualAverage >= 14 && annualAverage < 16,
+                        encouragements: annualAverage >= 12 && annualAverage < 14
+                    };
+
+                    const discipline = {
+                        avertissementTravail: annualAverage < 10 && annualAverage >= 8,
+                        blameTravail: annualAverage < 8,
+                        avertissementConduite: false,
+                        blameConduite: false,
+                        exclusionTemporaire: false
+                    };
+
+                    const finalDecision = annualAverage >= 10 ? 'Admis' : 'Redouble';
+
+                    studentResults.push({
+                        studentId: student.id,
+                        matricule: student.matricule || '',
+                        firstname: student.firstname || '',
+                        lastname: student.lastname || '',
+                        sex: sex as 'male' | 'female',
+                        trim1Average: trimAverages[0] || 0,
+                        trim2Average: trimAverages[1] || 0,
+                        trim3Average: trimAverages[2] || 0,
+                        annualAverage,
+                        rank: 0,
+                        totalScores: 0,
+                        averageScores: 0,
+                        distinctions,
+                        discipline,
+                        finalDecision
+                    });
+                } catch (studentLoopError) {
+                    console.error(`Erreur lors du traitement de l'étudiant ${student.id}:`, studentLoopError);
+                }
+            }
+
+            studentResults.sort((a, b) => b.annualAverage - a.annualAverage);
+
+            const rankings = studentResults.map((student, index, array) => {
+                let rank = index + 1;
+                if (index > 0 && student.annualAverage === array[index - 1].annualAverage) {
+                    rank = array[index - 1].rank;
+                }
+                return { ...student, rank };
+            });
+
+            return {
+                success: true,
+                data: rankings,
+                message: `Classement annuel calculé pour ${rankings.length} élèves`,
+                error: null
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
+            return {
+                success: false,
+                data: null,
+                message: `Erreur lors du calcul du classement annuel: ${errorMessage}`,
                 error: errorMessage
             };
         }

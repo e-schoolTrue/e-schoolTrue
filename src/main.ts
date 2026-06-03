@@ -17,7 +17,5 @@ app.use(pinia)
 app.use(ElementPlus, { locale: fr })
 app.use(router)
 app.component('Icon', Icon);
-localStorage.removeItem('user');
-sessionStorage.removeItem('user');
 
 app.mount('#app')

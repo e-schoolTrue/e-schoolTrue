@@ -158,6 +158,13 @@ export const AppItems: MenuItem[] = [
                 description: "Visualisation et classement des notes"
             },
             {
+                id: "submenu-5-1-4",
+                title: "Procès-Verbal Annuel",
+                icon: "mdi:file-document-outline",
+                route: "/centralisation/proces-verbal-annuel",
+                description: "Synthèse annuelle des résultats"
+            },
+            {
                 id: "submenu-5-2",
                 title: "Documents Scolaires",
                 icon: "fluent-emoji:file-folder",

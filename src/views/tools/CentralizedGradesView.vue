@@ -440,7 +440,8 @@ const loadGradeConfig = async (gradeId: number) => {
       }
       const configResult = await window.ipcRenderer.invoke('grade-config:get', {
         schoolId: schoolId,
-        classId: gradeId
+        classId: gradeId,
+        period: filters.value.period
       });
 
       if (configResult.success && configResult.data) {
@@ -470,7 +471,8 @@ const loadGradeConfigForPDF = async (gradeId: number) => {
       }
       const configResult = await window.ipcRenderer.invoke('grade-config:get', {
         schoolId: schoolId,
-        classId: gradeId
+        classId: gradeId,
+        period: filters.value.period
       });
 
       if (configResult.success && configResult.data) {

@@ -29,5 +29,10 @@ export const toolRoutes = [
       path: "/centralized-notes",
       name: "CentralizedGrades",
       component: () => import("@/views/tools/CentralizedGradesView.vue"),
+    },
+    {
+      path: "/centralisation/proces-verbal-annuel",
+      name: "AnnualPV",
+      component: () => import("@/views/tools/AnnualPVView.vue"),
     }
   ]; 

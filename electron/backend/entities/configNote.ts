@@ -15,7 +15,7 @@ export enum CalculationStrategy {
  * Hiérarchie de priorité: Matière > Classe > École (défaut)
  */
 @Entity("grading_config")
-@Index(["schoolId", "classId", "subjectId"], { unique: true })
+@Index(["schoolId", "classId", "subjectId", "period"], { unique: true })
 export class GradingConfigEntity {
     @PrimaryGeneratedColumn()
     id: number;
@@ -31,6 +31,9 @@ export class GradingConfigEntity {
 
     @Column({ type: 'integer', nullable: true })
     subjectId: number | null; // Null = Config pour toutes les matières de la classe
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    period: string | null; // Null = Config pour toutes les périodes, ex: "Trimestre 1"
 
     @Column({ type: "float", default: 20 })
     finalGradeBase: number; // Base de la note finale (ex: 20, 10, 100)

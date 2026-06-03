@@ -433,7 +433,8 @@ const onClassChange = async () => {
   }
 };
 
-const onPeriodChange = () => {
+const onPeriodChange = async () => {
+  await loadConfig();
   if (selectedStudent.value) {
     loadStudentGrades();
   }
@@ -445,7 +446,9 @@ const loadConfig = async () => {
   try {
     const configRes = await window.ipcRenderer.invoke('grade-config:get', {
       schoolId: schoolId.value,
-      classId: selectedClassId.value
+      classId: selectedClassId.value,
+      subjectId: null,
+      period: selectedPeriod.value
     });
 
     if (configRes.success && configRes.data) {

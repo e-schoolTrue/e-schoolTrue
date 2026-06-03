@@ -104,12 +104,13 @@ export class ConfigNoteService {
             const dataSource = AppDataSource.getInstance();
 
             const result = await dataSource.transaction(async (manager) => {
-                // Chercher config existante pour ce contexte précis
+                // Chercher config existante pour ce contexte précis (incluant la période)
                 let existingConfig = await manager.findOne(GradingConfigEntity, {
                     where: {
                         schoolId: params.schoolId,
                         classId: params.classId ?? IsNull(),
-                        subjectId: params.subjectId ?? IsNull()
+                        subjectId: params.subjectId ?? IsNull(),
+                        period: params.period ?? IsNull()
                     },
                     relations: ["categories"]
                 });
@@ -120,6 +121,7 @@ export class ConfigNoteService {
                     existingConfig.schoolId = params.schoolId;
                     existingConfig.classId = params.classId ?? null;
                     existingConfig.subjectId = params.subjectId ?? null;
+                    existingConfig.period = params.period ?? null;
                 }
 
                 // Mise à jour des champs
@@ -176,21 +178,36 @@ export class ConfigNoteService {
     /**
      * Récupère la configuration applicable selon la hiérarchie (Cascade)
      * Priorité: Matière+Classe > Classe > École
+     * Pour chaque niveau: d'abord avec période spécifique, puis sans période
      */
     async getApplicableConfig(params: IGetConfigParams): Promise<IConfigServiceResponse<IFormattedConfig>> {
         try {
             let config: GradingConfigEntity | null = null;
             let contextLevel: 'school' | 'class' | 'subject' = 'school';
 
+            // Helper: cherche config avec period en priorité, fallback sans period
+            const findConfig = async (where: any): Promise<GradingConfigEntity | null> => {
+                // Essayer avec la période spécifique d'abord
+                if (params.period) {
+                    const withPeriod = await this.configRepository.findOne({
+                        where: { ...where, period: params.period },
+                        relations: ["categories"]
+                    });
+                    if (withPeriod) return withPeriod;
+                }
+                // Fallback: config sans période (compatible avec anciennes configs)
+                return await this.configRepository.findOne({
+                    where: { ...where, period: IsNull() },
+                    relations: ["categories"]
+                });
+            };
+
             // A. Priorité 1: Config spécifique Matière + Classe
             if (params.subjectId && params.classId) {
-                config = await this.configRepository.findOne({
-                    where: { 
-                        schoolId: params.schoolId, 
-                        classId: params.classId, 
-                        subjectId: params.subjectId 
-                    },
-                    relations: ["categories"]
+                config = await findConfig({
+                    schoolId: params.schoolId,
+                    classId: params.classId,
+                    subjectId: params.subjectId
                 });
                 if (config) {
                     contextLevel = 'subject';
@@ -199,13 +216,10 @@ export class ConfigNoteService {
 
             // B. Priorité 2: Config de la Classe (toutes matières)
             if (!config && params.classId) {
-                config = await this.configRepository.findOne({
-                    where: { 
-                        schoolId: params.schoolId, 
-                        classId: params.classId, 
-                        subjectId: IsNull() 
-                    },
-                    relations: ["categories"]
+                config = await findConfig({
+                    schoolId: params.schoolId,
+                    classId: params.classId,
+                    subjectId: IsNull()
                 });
                 if (config) {
                     contextLevel = 'class';
@@ -214,13 +228,10 @@ export class ConfigNoteService {
 
             // C. Priorité 3: Config de l'École par défaut
             if (!config) {
-                config = await this.configRepository.findOne({
-                    where: { 
-                        schoolId: params.schoolId, 
-                        classId: IsNull(), 
-                        subjectId: IsNull() 
-                    },
-                    relations: ["categories"]
+                config = await findConfig({
+                    schoolId: params.schoolId,
+                    classId: IsNull(),
+                    subjectId: IsNull()
                 });
                 if (config) {
                     contextLevel = 'school';
@@ -267,7 +278,8 @@ export class ConfigNoteService {
                 where: {
                     schoolId: params.schoolId,
                     classId: params.classId ?? IsNull(),
-                    subjectId: params.subjectId ?? IsNull()
+                    subjectId: params.subjectId ?? IsNull(),
+                    period: params.period ?? IsNull()
                 },
                 relations: ["categories"]
             });
@@ -535,6 +547,7 @@ export class ConfigNoteService {
             schoolId: config.schoolId,
             classId: config.classId,
             subjectId: config.subjectId,
+            period: config.period,
             finalGradeBase: config.finalGradeBase,
             calculationStrategy: config.calculationStrategy,
             normalizeScores: config.normalizeScores,

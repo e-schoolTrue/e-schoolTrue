@@ -984,18 +984,18 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   });
 
   // Récupérer la configuration applicable (avec cascade)
-  ipcMain.handle('grade-config:get', async (_event, { schoolId, classId, subjectId }) => {
+  ipcMain.handle('grade-config:get', async (_event, { schoolId, classId, subjectId, period }) => {
     try {
-      return await global.configNoteService.getApplicableConfig({ schoolId, classId, subjectId });
+      return await global.configNoteService.getApplicableConfig({ schoolId, classId, subjectId, period });
     } catch (error) {
       return handleError(error, "grade-config:get");
     }
   });
 
   // Récupérer la configuration exacte (sans cascade)
-  ipcMain.handle('grade-config:getExact', async (_event, { schoolId, classId, subjectId }) => {
+  ipcMain.handle('grade-config:getExact', async (_event, { schoolId, classId, subjectId, period }) => {
     try {
-      return await global.configNoteService.getExactConfig({ schoolId, classId, subjectId });
+      return await global.configNoteService.getExactConfig({ schoolId, classId, subjectId, period });
     } catch (error) {
       return handleError(error, "grade-config:getExact");
     }
@@ -1193,6 +1193,44 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
         success: false,
         data: null,
         message: `Erreur lors du calcul du classement centralisé: ${errorMessage}`,
+        error: errorMessage
+      };
+    }
+  });
+
+  // Handler pour obtenir les classements annuels (Procès-Verbal Annuel)
+  ipcMain.handle('gradeEntry:getAnnualRankings', async (_event, filters) => {
+    try {
+      if (!filters || typeof filters !== 'object') {
+        throw new Error('Filtres non valides');
+      }
+
+      if (filters.gradeId === undefined || filters.gradeId === null || isNaN(filters.gradeId)) {
+        throw new Error('gradeId est requis et doit être un nombre valide');
+      }
+
+      const result = await global.gradeEntryService.getAnnualRankings(filters);
+
+      if (!result.success) {
+        return result;
+      }
+
+      if (result.data && result.data.length === 0) {
+        return {
+          success: true,
+          data: [],
+          message: 'Aucun classement annuel disponible pour les filtres sélectionnés',
+          error: null
+        };
+      }
+
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      return {
+        success: false,
+        data: null,
+        message: `Erreur lors du calcul du classement annuel: ${errorMessage}`,
         error: errorMessage
       };
     }

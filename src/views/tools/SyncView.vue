@@ -281,7 +281,7 @@ const handleSync = async () => {
   isSyncing.value = true;
   ElMessage({ message: 'Synchronisation en cours...', type: 'info', duration: 0, showClose: true });
   try {
-    const { success, data, error } = await window.ipcRenderer.invoke("sync:now");
+    const { success, data } = await window.ipcRenderer.invoke("sync:now");
     ElMessage.closeAll();
     if (success) {
       const up = data.records_synced_up || 0;
