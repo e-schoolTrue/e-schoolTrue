@@ -837,12 +837,37 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   ipcMain.handle("scholarship:getActiveByStudent", async (_, studentId) => global.paymentService.getActiveByStudent(studentId));
 
   // --- Licence ---
+  // ====================================================================
+  // LICENSE BYPASS — Désactive temporairement la vérification de licence
+  // Mettre à false ou supprimer ce bloc pour réactiver la vérification
+  // ====================================================================
+  const LICENSE_BYPASS = true;
+
   ipcMain.handle("license:generateMachineId", async () => ({ success: true, data: global.licenseService.generateMachineId() }));
   ipcMain.handle("license:activate", async (_, licenseCode) => global.licenseService.activateLicense(licenseCode));
-  ipcMain.handle("license:isValid", async () => ({ success: true, data: await global.licenseService.getLicenseStatus() }));
+  ipcMain.handle("license:isValid", async () => {
+    if (LICENSE_BYPASS) {
+      return {
+        success: true,
+        data: {
+          isValid: true,
+          daysRemaining: null,
+          machineId: 'BYPASS-MODE',
+          licenseCode: 'BYPASS-ACTIVE',
+          licenseType: 'development',
+          expiryDate: null,
+          activatedAt: new Date().toISOString(),
+        }
+      };
+    }
+    return { success: true, data: await global.licenseService.getLicenseStatus() };
+  });
 
   // Correction pour getLicenseDetails - ne prend aucun paramètre
   ipcMain.handle("license:getDetails", async () => {
+    if (LICENSE_BYPASS) {
+      return { success: true, data: { maxActivations: 10, usedActivations: 1 } };
+    }
     try {
       const details = await global.licenseService.getLicenseDetails();
       return {
