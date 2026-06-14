@@ -771,6 +771,22 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   ipcMain.handle("gradeConfig:get", async (_, { gradeId }) => global.gradeConfigService.getConfigurationByGrade(gradeId));
   ipcMain.handle("preference:saveTemplate", async (_, templateId) => global.preferenceService.saveTemplatePreference(templateId));
   ipcMain.handle("preference:getTemplate", async () => global.preferenceService.getTemplatePreference());
+  ipcMain.handle("preference:get", async (_, key: string) => {
+    try {
+      const data = await global.preferenceService.getPreference(key);
+      return { success: true, data, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: String(error) };
+    }
+  });
+  ipcMain.handle("preference:set", async (_, { key, value }: { key: string; value: string }) => {
+    try {
+      const data = await global.preferenceService.setPreference(key, value);
+      return { success: true, data, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: String(error) };
+    }
+  });
   ipcMain.handle('is-first-launch', () => {
     const isFirst = ConfigService.getInstance().isFirstLaunch();
     console.log(`[IPC] Réponse à 'is-first-launch': ${isFirst}`);

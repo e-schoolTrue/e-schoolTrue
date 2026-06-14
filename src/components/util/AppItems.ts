@@ -272,6 +272,12 @@ export const AppItems: MenuItem[] = [
                         route: "/license-status",
                     }
                 ]
+            },
+            {
+                id: "submenu-6-4",
+                title: "Apparence",
+                icon: "mdi:palette",
+                route: "/apparence",
             }
         ]
     }

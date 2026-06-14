@@ -9,8 +9,14 @@ html , #app {
     --el-color-warning: #4B0082;
     --el-color-danger: #ff4500;
     --el-color-success: #32CD32;
+    --el-color-info: #909399;
     --el-page-title-primary-color: #007BFF;
     --button-hover-bg-color: #014d95;
     --button-hover-text-color: #fff;
-    --button-text-color:var(--el-color-success) ;
+    --button-text-color: var(--el-color-success);
+    --app-menu-bg-color: #003366;
+    --app-menu-text-color: #ffffff;
+    --app-menu-active-text-color: #ff4500;
+    --app-menu-hover-bg-color: #004080;
+    --app-page-bg-color: #f5f5f5;
 }

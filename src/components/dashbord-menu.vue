@@ -1,15 +1,18 @@
 <script lang="ts" setup>
 import { AppItems } from "@/components/util/AppItems.ts";
 import { Icon } from "@iconify/vue";
+import { useThemeStore } from '@/stores/themeStore'
+
+const themeStore = useThemeStore()
 </script>
 
 <template>
   <el-menu
     ellipsis
     mode="horizontal"
-    background-color="#003366"
-    active-text-color="#ff4500"
-    text-color="#fff"
+    :background-color="themeStore.colors.menuBg"
+    :active-text-color="themeStore.colors.menuActiveText"
+    :text-color="themeStore.colors.menuText"
     :popper-offset="0"
     router
     :default-active="$route.path"
@@ -73,14 +76,14 @@ import { Icon } from "@iconify/vue";
 
 :deep(.el-menu--popup) {
   min-width: 200px;
-  background-color: #003366;
+  background-color: var(--app-menu-bg-color);
 }
 
 :deep(.el-menu--popup .el-menu-item) {
-  color: #fff;
+  color: var(--app-menu-text-color);
 }
 
 :deep(.el-menu--popup .el-menu-item:hover) {
-  background-color: #004080;
+  background-color: var(--app-menu-hover-bg-color);
 }
 </style>

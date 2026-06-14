@@ -13,4 +13,4 @@ export interface PreferenceUpdateInput {
     value: string;
 }
 
-export type PreferenceKey = 'reportTemplate' | string;
+export type PreferenceKey = 'reportTemplate' | 'appTheme';

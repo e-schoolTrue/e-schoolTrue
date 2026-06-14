@@ -48,5 +48,10 @@ export const fileRoutes = [
         path: '/centralized-notes',
         name: "Fiche de centralisation",
         component: () => import('@/views/tools/CentralizedGradesView.vue')
+    },
+    {
+        path: '/apparence',
+        name: 'Apparence',
+        component: () => import('@/views/settings/ApparenceView.vue')
     }
 ]
