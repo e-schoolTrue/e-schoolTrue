@@ -1,21 +1,11 @@
 // @ts-nocheck
 import "reflect-metadata";
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { autoUpdater } from 'electron-updater'
-import path from 'node:path'
-import { AppDataSource } from "#electron/data-source.ts";
-import './events'
-import { registerReportEvents } from './events';
-process.env.DIST = path.join(__dirname, '../dist')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
-
-import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
-import dotenv from 'dotenv';
+import { AppDataSource } from "#electron/data-source.ts";
 import './config/env';
-
-import { AppDataSource } from "./data-source";
+import { registerIpcHandlers } from './events';
 import { ConfigService } from './backend/services/configService';
 import { AuthService } from './backend/services/authService';
 import { CloudSyncService } from './backend/services/backupService';
@@ -46,14 +36,9 @@ import { CentralizedPdfService } from "./backend/services/centralizedPdfService"
 
 
 
-// --- Handlers IPC ---
-import { registerIpcHandlers } from './events';
-
-
 // =================================================================
 // INITIALISATION DE L'ENVIRONNEMENT
 // =================================================================
-dotenv.config();
 console.log('Démarrage de l\'application...');
 
 process.env.DIST = path.join(__dirname, '../dist');

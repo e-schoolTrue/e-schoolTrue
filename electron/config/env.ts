@@ -13,7 +13,10 @@ if (app.isPackaged) {
     // Si le fichier n'existe pas, le créer avec un template
     if (!fs.existsSync(envPath)) {
         const template = `# Configuration Supabase
-
+# Décommentez et configurez ces valeurs pour activer les fonctionnalités cloud (synchronisation, sauvegarde, licence).
+# SUPABASE_URL=votre_url_supabase
+# SUPABASE_KEY=votre_cle_supabase
+# GEMINI_API_KEY=votre_cle_gemini
 `;
         fs.writeFileSync(envPath, template);
         console.log(`[ENV] Fichier .env créé à : ${envPath}`);
@@ -43,10 +46,9 @@ export const ENV = {
 };
 // Valider les variables requises
 if (!ENV.SUPABASE_URL || !ENV.SUPABASE_KEY) {
-    const errorMessage = `Variables d'environnement manquantes. Veuillez configurer le fichier .env à l'emplacement : ${envPath}`;
-    console.error(errorMessage);
-    console.error('Variables requises : SUPABASE_URL, SUPABASE_KEY');
-    throw new Error(errorMessage);
+    console.warn('[ENV] Supabase non configuré. Les fonctionnalités cloud (synchronisation, licence cloud) seront désactivées.');
+    console.warn(`[ENV] Pour activer le cloud, configurez SUPABASE_URL et SUPABASE_KEY dans : ${envPath}`);
+    // Ne pas throw — supabase.ts a des credentials de fallback et tous les services gèrent le mode dégradé
 }
 
 if (!ENV.GEMINI_API_KEY) {

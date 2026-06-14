@@ -23,7 +23,7 @@ const themeStore = useThemeStore()
       <template #title>
         <el-space>
           <Icon :icon="item.icon"/>
-          <el-text type="success">{{item.title}}</el-text>
+          <span class="menu-text">{{item.title}}</span>
         </el-space>
       </template>
       
@@ -33,7 +33,7 @@ const themeStore = useThemeStore()
           <template #title>
             <el-space>
               <Icon :icon="subItem.icon" />
-              <el-text type="success">{{subItem.title}}</el-text>
+              <span class="menu-text">{{subItem.title}}</span>
             </el-space>
           </template>
           
@@ -44,7 +44,7 @@ const themeStore = useThemeStore()
           >
             <el-space>
               <Icon :icon="childItem.icon" />
-              <el-text type="success">{{childItem.title}}</el-text>
+              <span class="menu-text">{{childItem.title}}</span>
             </el-space>
           </el-menu-item>
         </el-sub-menu>
@@ -56,7 +56,7 @@ const themeStore = useThemeStore()
         >
           <el-space>
             <Icon :icon="subItem.icon" />
-            <el-text type="success">{{subItem.title}}</el-text>
+            <span class="menu-text">{{subItem.title}}</span>
           </el-space>
         </el-menu-item>
       </template>
@@ -81,6 +81,10 @@ const themeStore = useThemeStore()
 
 :deep(.el-menu--popup .el-menu-item) {
   color: var(--app-menu-text-color);
+}
+
+.menu-text {
+  color: inherit;
 }
 
 :deep(.el-menu--popup .el-menu-item:hover) {

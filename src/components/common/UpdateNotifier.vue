@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, computed, reactive } from 'vue'
 
-// Définir les interfaces pour les événements de mise à jour
 interface UpdateInfo {
   version: string;
   releaseNotes?: string;
@@ -48,15 +47,13 @@ const isUpdateDownloaded = computed(() => {
 })
 
 const onUpdateAvailable = (info: UpdateInfo) => {
-  // Mettre à jour l'état de manière atomique
   Object.assign(state, {
     showUpdateAvailable: true,
     isDownloading: true,
     updateInfo: info,
     updateType: 'info' as const
   })
-  
-  // Simuler la progression du téléchargement pour le débogage
+
   if (!import.meta.env.PROD) {
     let progress = 0
     const interval = setInterval(() => {
@@ -64,16 +61,16 @@ const onUpdateAvailable = (info: UpdateInfo) => {
       if (progress >= 100) {
         clearInterval(interval)
         setTimeout(() => {
-          onUpdateDownloaded({ 
+          onUpdateDownloaded({
             version: info.version,
             releaseNotes: info.releaseNotes,
             releaseDate: new Date().toISOString()
           } as UpdateInfo)
         }, 500)
       } else {
-        onDownloadProgress({ 
+        onDownloadProgress({
           percent: progress,
-          bytesPerSecond: 1000000, // 1MB/s
+          bytesPerSecond: 1000000,
           total: 100,
           transferred: progress
         } as DownloadProgress)
@@ -87,7 +84,6 @@ const onDownloadProgress = (progressObj: DownloadProgress) => {
 }
 
 const onUpdateDownloaded = (info: UpdateInfo) => {
-  // Mettre à jour l'état de manière atomique
   state.isDownloading = false
   state.updateInfo = { ...(state.updateInfo || {}), ...info, downloaded: true }
   state.updateType = 'success'
@@ -99,14 +95,13 @@ const restartApp = async () => {
     try {
       await window.electronAPI.autoUpdater.installUpdate()
     } catch (_error) {
-      console.error('Erreur lors de l\'installation de la mise à jour:', _error)
+      console.error("Erreur lors de l'installation de la mise à jour:", _error)
       const errorMessage = _error instanceof Error ? _error.message : 'Erreur inconnue'
       state.updateType = 'error'
       state.error = errorMessage
       state.isRestarting = false
     }
   } else {
-    // Si la mise à jour n'est pas encore téléchargée, la télécharger
     state.isDownloading = true
     try {
       await window.electronAPI.autoUpdater.downloadUpdate()
@@ -125,10 +120,8 @@ const dismissUpdate = () => {
 }
 
 onMounted(() => {
-  // Écouter les événements de mise à jour
   const { autoUpdater } = window.electronAPI
-  
-  // Configurer les écouteurs d'événements
+
   const cleanupCallbacks = [
     autoUpdater.onUpdateAvailable(onUpdateAvailable),
     autoUpdater.onUpdateDownloaded(onUpdateDownloaded),
@@ -137,107 +130,183 @@ onMounted(() => {
       console.error('Erreur de mise à jour:', error)
     })
   ]
-  
-  // Vérifier les mises à jour au chargement du composant
+
   autoUpdater.checkForUpdates()
-  
-  // Nettoyer les écouteurs lors du démontage du composant
+
   onBeforeUnmount(() => {
     cleanupCallbacks.forEach(cleanup => cleanup())
   })
 })
-
-// La gestion du nettoyage est maintenant dans onMounted
 </script>
 
 <template>
   <div v-if="state.showUpdateAvailable" class="update-notification">
-    <el-alert
-      :title="updateTitle"
-      :type="state.updateType"
-      :closable="false"
-      show-icon
-      :effect="'dark'"
-    >
-      <template #default>
-        <div class="update-message">
-          <p>{{ updateMessage }}</p>
+    <div class="update-card">
+      <div class="update-header">
+        <div class="update-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6" />
+            <path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
         </div>
-        <div class="update-actions">
-          <el-button 
-            v-if="isUpdateDownloaded" 
-            type="primary" 
-            :loading="state.isRestarting"
-            @click="restartApp">
-            Redémarrer maintenant
-          </el-button>
-          <el-button 
-            v-else 
-            type="primary" 
-            :loading="state.isDownloading"
-            @click="restartApp">
-            Télécharger et installer
-          </el-button>
-          <el-button 
-            v-if="!state.isDownloading && !state.isRestarting" 
-            @click="dismissUpdate">
-            Plus tard
-          </el-button>
+        <div class="update-header-text">
+          <h4 class="update-title">{{ updateTitle }}</h4>
+          <p class="update-version" v-if="state.updateInfo">v{{ state.updateInfo.version }}</p>
         </div>
-        <el-progress 
-          v-if="state.isDownloading && !isUpdateDownloaded" 
-          :percentage="state.downloadProgress" 
-          :stroke-width="2"
+        <button class="update-close" @click="dismissUpdate">&times;</button>
+      </div>
+
+      <div class="update-body">
+        <p class="update-message">{{ updateMessage }}</p>
+
+        <el-progress
+          v-if="state.isDownloading && !isUpdateDownloaded"
+          :percentage="state.downloadProgress"
+          :stroke-width="4"
           :format="(p: number) => `${p}%`"
           class="update-progress"
         />
-      </template>
-    </el-alert>
+
+        <div class="update-actions">
+          <el-button
+            v-if="isUpdateDownloaded"
+            type="primary"
+            :loading="state.isRestarting"
+            @click="restartApp"
+            size="small"
+          >
+            Redémarrer maintenant
+          </el-button>
+          <el-button
+            v-else
+            type="primary"
+            :loading="state.isDownloading"
+            @click="restartApp"
+            size="small"
+          >
+            Télécharger et installer
+          </el-button>
+          <el-button
+            v-if="!state.isDownloading && !state.isRestarting"
+            @click="dismissUpdate"
+            size="small"
+          >
+            Plus tard
+          </el-button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .update-notification {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 350px;
+  bottom: 24px;
+  right: 24px;
+  width: 380px;
   z-index: 9999;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.update-card {
+  background: var(--el-bg-color, #ffffff);
+  border: 1px solid var(--el-border-color-light, #e4e7ed);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.update-message {
-  margin-bottom: 12px;
+.update-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+.update-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--el-color-primary, #409EFF) 10%, transparent);
+  color: var(--el-color-primary, #409EFF);
+  flex-shrink: 0;
+}
+
+.update-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-title {
+  margin: 0;
   font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, #303133);
+  line-height: 1.4;
+}
+
+.update-version {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+}
+
+.update-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--el-text-color-placeholder, #C0C4CC);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.update-close:hover {
+  background: var(--el-fill-color-light, #f0f0f0);
+  color: var(--el-text-color-primary, #303133);
+}
+
+.update-body {
+  padding: 12px 20px 16px;
+}
+
+.update-message {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--el-text-color-regular, #606266);
   line-height: 1.5;
+}
+
+.update-progress {
+  margin-bottom: 12px;
 }
 
 .update-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.download-progress {
-  margin-top: 12px;
-}
-
-.progress-text {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #606266;
-  text-align: center;
-}
-
-:deep(.el-alert) {
-  padding: 16px;
-}
-
-:deep(.el-alert__title) {
-  font-weight: 600;
-  font-size: 15px;
+  gap: 8px;
 }
 </style>

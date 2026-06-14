@@ -33,7 +33,7 @@ export const useThemeStore = defineStore('theme', () => {
     try {
       const result = await window.ipcRenderer.invoke('preference:get', 'appTheme')
       if (result?.success && result.data) {
-        const saved: Partial<AppTheme> = JSON.parse(result.data)
+        const saved: Partial<AppTheme> = typeof result.data === 'string' ? JSON.parse(result.data) : result.data
         const merged: AppTheme = { ...DEFAULT_APP_THEME, ...saved }
         applyTheme(merged)
       } else {

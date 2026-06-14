@@ -21,9 +21,3 @@ export const supabaseConfig = {
         }
     }
 }; 
-
-// Validation de la configuration
-if (!supabaseConfig.url || !supabaseConfig.key) {
-    console.error('Erreur: Configuration Supabase manquante');
-    throw new Error('Configuration Supabase invalide - Veuillez configurer les variables d\'environnement SUPABASE_URL et SUPABASE_KEY');
-}

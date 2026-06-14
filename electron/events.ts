@@ -773,16 +773,16 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   ipcMain.handle("preference:getTemplate", async () => global.preferenceService.getTemplatePreference());
   ipcMain.handle("preference:get", async (_, key: string) => {
     try {
-      const data = await global.preferenceService.getPreference(key);
-      return { success: true, data, error: null };
+      const result = await global.preferenceService.getPreference(key);
+      return { success: result.success, data: result.data, error: result.error };
     } catch (error) {
       return { success: false, data: null, error: String(error) };
     }
   });
   ipcMain.handle("preference:set", async (_, { key, value }: { key: string; value: string }) => {
     try {
-      const data = await global.preferenceService.setPreference(key, value);
-      return { success: true, data, error: null };
+      const result = await global.preferenceService.setPreference(key, value);
+      return { success: result.success, data: result.data, error: result.error };
     } catch (error) {
       return { success: false, data: null, error: String(error) };
     }
