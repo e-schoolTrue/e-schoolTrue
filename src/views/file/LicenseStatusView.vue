@@ -215,6 +215,10 @@ onMounted(() => {
                   <Icon icon="mdi:calendar" :width="20" :height="20" />
                   <span>{{ daysRemaining }} jours restants</span>
                 </div>
+                <div class="status-item" v-else>
+                  <Icon icon="mdi:infinity" :width="20" :height="20" />
+                  <span>Illimitée</span>
+                </div>
               </el-col>
             </el-row>
 
