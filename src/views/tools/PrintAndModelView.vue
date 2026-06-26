@@ -314,6 +314,16 @@ import BulletinTemplateTwo from '@/components/bulletin/templates/BulletinTemplat
 import BulletinConfigDialog from '@/components/bulletin/BulletinConfigDialog.vue';
 import { getAppreciation, formatNumber } from '@/utils/grade';
 
+// --- Helpers ---
+const escapeHtml = (str: string): string => {
+  if (!str) return ''
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 // --- Types ---
 interface Student {
   id: number;
@@ -1679,22 +1689,22 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
       <div class="header">
         <div class="header-block header-left">
           ${logoUrl ? `<div class="school-logo"><img src="${logoUrl}" alt="Logo École" /></div>` : ''}
-          <h2 class="school-name">${schoolInfo.value?.name || ''}</h2>
-          <p class="school-detail">${schoolInfo.value?.address || ''}</p>
-          ${schoolInfo.value?.town ? `<p class="school-detail">${schoolInfo.value.town}</p>` : ''}
-          ${schoolInfo.value?.phone ? `<p class="school-detail">Tél : ${schoolInfo.value.phone}</p>` : ''}
-          ${schoolInfo.value?.email ? `<p class="school-detail">Email : ${schoolInfo.value.email}</p>` : ''}
+          <h2 class="school-name">${escapeHtml(schoolInfo.value?.name || '')}</h2>
+          <p class="school-detail">${escapeHtml(schoolInfo.value?.address || '')}</p>
+          ${schoolInfo.value?.town ? `<p class="school-detail">${escapeHtml(schoolInfo.value.town)}</p>` : ''}
+          ${schoolInfo.value?.phone ? `<p class="school-detail">Tél : ${escapeHtml(schoolInfo.value.phone)}</p>` : ''}
+          ${schoolInfo.value?.email ? `<p class="school-detail">Email : ${escapeHtml(schoolInfo.value.email)}</p>` : ''}
         </div>
         <div class="header-block header-right">
-          <h2 class="country-name">${cData.countryName}</h2>
-          <p class="country-motto">${cData.motto}</p>
-          <p class="ministry">${cData.ministry}</p>
-          <p class="inspection">${cData.inspection}</p>
+          <h2 class="country-name">${escapeHtml(cData.countryName)}</h2>
+          <p class="country-motto">${escapeHtml(cData.motto)}</p>
+          <p class="ministry">${escapeHtml(cData.ministry)}</p>
+          <p class="inspection">${escapeHtml(cData.inspection)}</p>
         </div>
       </div>
       
       <div class="bulletin-title-section">
-        <h1 class="bulletin-title">BULLETIN DE NOTES DU ${periodLabel.toUpperCase()}</h1>
+        <h1 class="bulletin-title">BULLETIN DE NOTES DU ${escapeHtml(periodLabel.toUpperCase())}</h1>
         <p class="school-year-line">Année scolaire : ${currentYear.value}</p>
       </div>
       
@@ -1703,19 +1713,19 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         <div class="student-details">
           <div class="detail-row">
             <span class="label">Nom & Prénom :</span>
-            <span class="value">${student.lastname} ${student.firstname}</span>
+            <span class="value">${escapeHtml(student.lastname)} ${escapeHtml(student.firstname)}</span>
           </div>
           <div class="detail-row">
             <span class="label">Matricule :</span>
-            <span class="value">${student.matricule}</span>
+            <span class="value">${escapeHtml(student.matricule)}</span>
           </div>
           <div class="detail-row">
             <span class="label">Classe :</span>
-            <span class="value">${student.grade?.name || ''}</span>
+            <span class="value">${escapeHtml(student.grade?.name || '')}</span>
           </div>
           <div class="detail-row">
             <span class="label">Date de naissance :</span>
-            <span class="value">${formatBirthDay(student.birthDay)}</span>
+            <span class="value">${escapeHtml(formatBirthDay(student.birthDay))}</span>
           </div>
           <div class="detail-row">
             <span class="label">Genre :</span>
@@ -1734,7 +1744,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
              <tr>
                <th>Matière</th>
                <th class="text-center">Coef.</th>
-               ${categoryColumns.map((cat: any) => `<th class="text-center">${cat.name}</th>`).join('')}
+               ${categoryColumns.map((cat: any) => `<th class="text-center">${escapeHtml(cat.name)}</th>`).join('')}
                <th class="text-center">Moyenne de cours</th>
                <th class="text-center">Moyenne de composition</th>
                <th class="text-center">Moyenne / 20</th>
@@ -1754,19 +1764,19 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
                }
                return `
                 <tr>
-                  <td class="course-name">${grade.courseName}</td>
-                  <td class="text-center">${grade.coefficient}</td>
-                  ${categoryColumns.map((cat: any) => {
-                    const catGrade = gradeByCategory.get(cat.code);
-                    const note = catGrade ? formatNumber(catGrade.average) : '-';
-                    return `<td class="text-center">${note}</td>`;
-                  }).join('')}
-                  <td class="text-center font-bold ${grade.classAverage < 10 ? 'text-red-600' : grade.classAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.classAverage)}</td>
-                  <td class="text-center font-bold ${grade.examAverage < 10 ? 'text-red-600' : grade.examAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.examAverage)}</td>
-                  <td class="text-center font-bold ${grade.average < 10 ? 'text-red-600' : grade.average >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.average)}</td>
-                  <td class="text-center font-bold">${formatNumber(grade.weightedValue)}</td>
-                  <td class="text-center text-sm italic">${grade.appreciation || getAppreciation(grade.average)}</td>
-                  <td class="text-sm">${grade.professorName || '-'}</td>
+                   <td class="course-name">${escapeHtml(grade.courseName)}</td>
+                   <td class="text-center">${grade.coefficient}</td>
+                   ${categoryColumns.map((cat: any) => {
+                     const catGrade = gradeByCategory.get(cat.code);
+                     const note = catGrade ? formatNumber(catGrade.average) : '-';
+                     return `<td class="text-center">${note}</td>`;
+                   }).join('')}
+                   <td class="text-center font-bold ${grade.classAverage < 10 ? 'text-red-600' : grade.classAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.classAverage)}</td>
+                   <td class="text-center font-bold ${grade.examAverage < 10 ? 'text-red-600' : grade.examAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.examAverage)}</td>
+                   <td class="text-center font-bold ${grade.average < 10 ? 'text-red-600' : grade.average >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.average)}</td>
+                   <td class="text-center font-bold">${formatNumber(grade.weightedValue)}</td>
+                   <td class="text-center text-sm italic">${escapeHtml(grade.appreciation || getAppreciation(grade.average))}</td>
+                   <td class="text-sm">${escapeHtml(grade.professorName || '-')}</td>
                 </tr>
               `}).join('')}
            </tbody>
@@ -1836,13 +1846,13 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
             ${Object.entries(decisionLabelsMap || {}).map(([key, label]) => `
             <div class="decision-item ${annualDecisionState?.[key] ? 'decision-active' : ''}">
               <span class="checkbox"><span class="checkmark">${annualDecisionState?.[key] ? '✓' : ''}</span></span>
-              <span class="decision-label">${label}</span>
+              <span class="decision-label">${escapeHtml(label)}</span>
             </div>
             `).join('')}
           </div>
           <div class="appreciation-box">
             <div class="appreciation-title">Appréciation Globale</div>
-            <div class="appreciation-value">${getAnnualAppreciation ? getAnnualAppreciation() : '-'}</div>
+            <div class="appreciation-value">${escapeHtml(getAnnualAppreciation ? getAnnualAppreciation() : '-')}</div>
           </div>
         </div>
       </div>
@@ -1864,11 +1874,11 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
       
       <div class="signatures">
         <div class="signature-box">
-          <p>${colorOptions.signatoryLeft}</p>
+          <p>${escapeHtml(colorOptions.signatoryLeft)}</p>
           <div class="signature-space"></div>
         </div>
         <div class="signature-box">
-          <p>${colorOptions.signatoryRight}</p>
+          <p>${escapeHtml(colorOptions.signatoryRight)}</p>
           <div class="signature-space"></div>
         </div>
       </div>
@@ -2340,36 +2350,36 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
               </div>
             ` : ''}
           </div>
-          <h2 class="school-name">${schoolInfo.value?.name || 'Nom de l\'École'}</h2>
-          <p class="school-detail">${schoolInfo.value?.address || ''}</p>
-          ${schoolInfo.value?.town ? `<p class="school-detail">${schoolInfo.value.town}</p>` : ''}
-          ${schoolInfo.value?.phone ? `<p class="school-detail">Tél : ${schoolInfo.value.phone}</p>` : ''}
-          ${schoolInfo.value?.email ? `<p class="school-detail">Email : ${schoolInfo.value.email}</p>` : ''}
+          <h2 class="school-name">${escapeHtml(schoolInfo.value?.name || 'Nom de l\'École')}</h2>
+          <p class="school-detail">${escapeHtml(schoolInfo.value?.address || '')}</p>
+          ${schoolInfo.value?.town ? `<p class="school-detail">${escapeHtml(schoolInfo.value.town)}</p>` : ''}
+          ${schoolInfo.value?.phone ? `<p class="school-detail">Tél : ${escapeHtml(schoolInfo.value.phone)}</p>` : ''}
+          ${schoolInfo.value?.email ? `<p class="school-detail">Email : ${escapeHtml(schoolInfo.value.email)}</p>` : ''}
         </div>
         <div class="header-block header-right-block">
-          <h2 class="country-name">${cData.countryName}</h2>
-          <p class="country-motto">${cData.motto}</p>
-          <p class="ministry-text">${cData.ministry}</p>
-          <p class="inspection-text">${cData.inspection}</p>
+          <h2 class="country-name">${escapeHtml(cData.countryName)}</h2>
+          <p class="country-motto">${escapeHtml(cData.motto)}</p>
+          <p class="ministry-text">${escapeHtml(cData.ministry)}</p>
+          <p class="inspection-text">${escapeHtml(cData.inspection)}</p>
         </div>
       </div>
       
       <div class="bulletin-title-box">
-        <h1>BULLETIN DE NOTES DU ${periodLabel.toUpperCase()}</h1>
+        <h1>BULLETIN DE NOTES DU ${escapeHtml(periodLabel.toUpperCase())}</h1>
         <p class="school-year-line">Année scolaire : ${currentYear.value}</p>
       </div>
       
       <div class="student-info">
         <div class="row">
-          <div class="cell"><strong>Nom :</strong> ${student.lastname || '-'}</div>
-          <div class="cell"><strong>Prénoms :</strong> ${student.firstname || '-'}</div>
+          <div class="cell"><strong>Nom :</strong> ${escapeHtml(student.lastname || '-')}</div>
+          <div class="cell"><strong>Prénoms :</strong> ${escapeHtml(student.firstname || '-')}</div>
         </div>
         <div class="row">
-          <div class="cell"><strong>N° Matricule :</strong> ${student.matricule || '-'}</div>
-          <div class="cell"><strong>Classe :</strong> ${student.grade?.name || '-'}</div>
+          <div class="cell"><strong>N° Matricule :</strong> ${escapeHtml(student.matricule || '-')}</div>
+          <div class="cell"><strong>Classe :</strong> ${escapeHtml(student.grade?.name || '-')}</div>
         </div>
         <div class="row">
-          <div class="cell"><strong>Date de naissance :</strong> ${formatBirthDay(student.birthDay)}</div>
+          <div class="cell"><strong>Date de naissance :</strong> ${escapeHtml(formatBirthDay(student.birthDay))}</div>
           <div class="cell"><strong>Genre :</strong> ${student.sex === 'male' ? 'Masculin' : student.sex === 'female' ? 'Féminin' : '-'}</div>
         </div>
       </div>
@@ -2379,7 +2389,7 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
            <tr>
              <th class="col-matiere">Matières</th>
              <th class="col-coeff">Coeff</th>
-             ${categoryColumns.map((cat: any) => `<th class="col-note">${cat.name}</th>`).join('')}
+             ${categoryColumns.map((cat: any) => `<th class="col-note">${escapeHtml(cat.name)}</th>`).join('')}
              <th class="col-note">Moyenne de cours</th>
              <th class="col-note">Moyenne de composition</th>
              <th class="col-note">Moyenne</th>
@@ -2398,19 +2408,19 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
              }
               return `
               <tr class="${index % 2 === 0 ? 'row-even' : ''}">
-                <td class="text-left">${grade.courseName}</td>
-                <td>${grade.coefficient}</td>
-                ${categoryColumns.map((cat: any) => {
-                  const catGrade = gradeByCategory.get(cat.code);
-                  const note = catGrade ? formatNumber(catGrade.average) : '-';
-                  return `<td class="${catGrade ? getGradeClass(catGrade.average) : ''}">${note}</td>`;
-                }).join('')}
-                <td class="${getGradeClass(grade.classAverage)}">${formatNumber(grade.classAverage)}</td>
-                <td class="${getGradeClass(grade.examAverage)}">${formatNumber(grade.examAverage)}</td>
-                <td class="${getGradeClass(grade.average)}">${formatNumber(grade.average)}</td>
-                <td class="bg-gray">${formatNumber(grade.weightedValue)}</td>
-                <td class="appreciation">${grade.appreciation || getAppreciation(grade.average)}</td>
-                <td class="professor-name">${grade.professorName || '-'}</td>
+               <td class="text-left">${escapeHtml(grade.courseName)}</td>
+               <td>${grade.coefficient}</td>
+               ${categoryColumns.map((cat: any) => {
+                 const catGrade = gradeByCategory.get(cat.code);
+                 const note = catGrade ? formatNumber(catGrade.average) : '-';
+                 return `<td class="${catGrade ? getGradeClass(catGrade.average) : ''}">${note}</td>`;
+               }).join('')}
+               <td class="${getGradeClass(grade.classAverage)}">${formatNumber(grade.classAverage)}</td>
+               <td class="${getGradeClass(grade.examAverage)}">${formatNumber(grade.examAverage)}</td>
+               <td class="${getGradeClass(grade.average)}">${formatNumber(grade.average)}</td>
+               <td class="bg-gray">${formatNumber(grade.weightedValue)}</td>
+               <td class="appreciation">${escapeHtml(grade.appreciation || getAppreciation(grade.average))}</td>
+               <td class="professor-name">${escapeHtml(grade.professorName || '-')}</td>
               </tr>
             `}).join('')}
          </tbody>
@@ -2473,16 +2483,16 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
          <div class="annual-decisions">
            <div class="decisions-title" style="color: ${primaryColor};">Décisions du Conseil de Classe</div>
            <div class="decisions-grid">
-             ${Object.entries(decisionLabelsMap || {}).map(([key, label]) => `
-             <div class="decision-item ${annualDecisionState?.[key] ? 'decision-active' : ''}">
-               <span class="checkbox"><span class="checkmark">${annualDecisionState?.[key] ? '✓' : ''}</span></span>
-               <span class="decision-label">${label}</span>
-             </div>
-             `).join('')}
-           </div>
-           <div class="appreciation-box">
-             <div class="appreciation-title">Appréciation Globale</div>
-             <div class="appreciation-value">${getAnnualAppreciation ? getAnnualAppreciation() : '-'}</div>
+              ${Object.entries(decisionLabelsMap || {}).map(([key, label]) => `
+              <div class="decision-item ${annualDecisionState?.[key] ? 'decision-active' : ''}">
+                <span class="checkbox"><span class="checkmark">${annualDecisionState?.[key] ? '✓' : ''}</span></span>
+                <span class="decision-label">${escapeHtml(label)}</span>
+              </div>
+              `).join('')}
+            </div>
+            <div class="appreciation-box">
+              <div class="appreciation-title">Appréciation Globale</div>
+              <div class="appreciation-value">${escapeHtml(getAnnualAppreciation ? getAnnualAppreciation() : '-')}</div>
            </div>
          </div>
        </div>
@@ -2500,23 +2510,23 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
                <span class="value">${formatNumber(classAverage)} /20</span>
              </div>
              <div class="signature">
-               ${colorOptions.signatoryLeft}
-               <div class="signature-space"></div>
-            </div>
-          </div>
-          
-          <div class="summary-right">
-            <div class="rank-line">
-              Rang : <strong>${(rank != null && rank > 0) ? rank + (rank === 1 ? 'er' : 'ème') : 'Non classé'}</strong> / ${totalStudents} élèves
-            </div>
-            <div class="stats-box">
-              <div class="stat-row">
-                <span>Absences :</span>
-                <span class="val">${absences} h</span>
-              </div>
-            </div>
-            <div class="signature">
-              ${colorOptions.signatoryRight}
+                ${escapeHtml(colorOptions.signatoryLeft)}
+                <div class="signature-space"></div>
+             </div>
+           </div>
+           
+           <div class="summary-right">
+             <div class="rank-line">
+               Rang : <strong>${(rank != null && rank > 0) ? rank + (rank === 1 ? 'er' : 'ème') : 'Non classé'}</strong> / ${totalStudents} élèves
+             </div>
+             <div class="stats-box">
+               <div class="stat-row">
+                 <span>Absences :</span>
+                 <span class="val">${absences} h</span>
+               </div>
+             </div>
+             <div class="signature">
+               ${escapeHtml(colorOptions.signatoryRight)}
               <div class="signature-space"></div>
             </div>
           </div>

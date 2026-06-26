@@ -257,10 +257,11 @@ export class GradeEntryService {
             }
 
             // Récupérer la configuration applicable (avec période pour configs par trimestre)
+            // NOTE: subjectId: null → utilise la config de niveau classe, comme le fait le frontend
             const configResult = await this.configNoteService.getApplicableConfig({
                 schoolId,
                 classId,
-                subjectId: courseId,
+                subjectId: null,
                 period
             });
 

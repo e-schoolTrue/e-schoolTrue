@@ -278,7 +278,6 @@ const schoolId = ref(1);
 
 const configInfo = ref<any>(null);
 const gradesData = reactive<GradesDataStructure>({});
-const calculatedAverages = ref<Map<number, number>>(new Map());
 const calculationDetailRef = ref<InstanceType<typeof GradeCalculationDetail> | null>(null);
 
 // Watch pour déboguer les changements dans gradesData
@@ -497,9 +496,6 @@ const loadStudentGrades = async () => {
     console.log('=== CHARGEMENT DES NOTES ===');
     console.log('StudentId:', selectedStudent.value.id, 'Période:', selectedPeriod.value, 'Matières:', courses.value.length);
 
-    // Vider le cache des moyennes précédentes
-    calculatedAverages.value = new Map();
-
     console.log('Structure initiale de gradesData créée');
 
     // Charger les notes existantes pour chaque matière
@@ -531,21 +527,6 @@ const loadStudentGrades = async () => {
       } else {
         console.log(`ℹ️ Aucune note trouvée pour matière ${course.name} (studentId: ${selectedStudent.value.id}, courseId: ${course.id}, period: ${selectedPeriod.value})`);
       }
-
-      // Charger la moyenne calculée
-      const avgRes = await window.ipcRenderer.invoke('gradeEntry:getCalculated', {
-        studentId: selectedStudent.value.id,
-        courseId: course.id,
-        classId: selectedClassId.value,
-        schoolId: schoolId.value,
-        period: selectedPeriod.value
-      });
-
-      if (generation !== loadGeneration) return;
-
-      if (avgRes.success && avgRes.data) {
-        calculatedAverages.value.set(course.id!, avgRes.data.finalAverage);
-      }
     }
 
     if (generation !== loadGeneration) return;
@@ -566,8 +547,6 @@ const onGradeChange = (courseId: number, categoryId: number) => {
   const newValue = gradesData[courseId]?.[categoryId];
   console.log(`✏️ Modification détectée - Cours ${courseId}, Catégorie ${categoryId}:`, newValue);
   hasChanges.value = true;
-  // Recalculer la moyenne localement
-  calculatedAverages.value.delete(courseId);
 };
 
 const calculateClassAverage = (courseId: number): string => {
@@ -597,14 +576,7 @@ const calculateClassAverage = (courseId: number): string => {
 };
 
 const calculateCourseAverage = (courseId: number): string => {
-  // Si on a une moyenne en cache, l'utiliser
-  if (calculatedAverages.value.has(courseId)) {
-    const cachedAvg = calculatedAverages.value.get(courseId);
-    console.log(`📊 Utilisation du cache pour cours ${courseId}: ${cachedAvg}`);
-    return cachedAvg?.toFixed(2);
-  }
-
-  // Sinon calculer localement (temporaire)
+  // Toujours recalculer à partir des notes brutes dans gradesData
   const courseGrades = gradesData[courseId];
   console.log(`📊 Calcul local pour cours ${courseId}. Grades présents:`, courseGrades);
   if (!courseGrades || !configInfo.value) {
@@ -876,35 +848,6 @@ const saveAll = async () => {
         }
 
         savedAtLeastOne = true;
-
-        // Recalculer et mettre en cache la moyenne
-        const calcPayload = {
-          studentId: selectedStudent.value.id,
-          courseId: course.id,
-          classId: selectedClassId.value,
-          schoolId: schoolId.value,
-          period: selectedPeriod.value
-        };
-
-        console.log('Payload de calcul de moyenne:', JSON.stringify(calcPayload, null, 2));
-        console.log('Calcul de la moyenne pour matière:', course.name, 'ID:', course.id);
-
-        try {
-          const calcRes = await window.ipcRenderer.invoke('gradeEntry:calculate', calcPayload);
-          console.log('Résultat du calcul de moyenne:', JSON.stringify(calcRes, null, 2));
-
-          if (calcRes.success && calcRes.data) {
-            console.log(`✅ Moyenne calculée: ${calcRes.data.finalAverage}`);
-            calculatedAverages.value.set(course.id!, calcRes.data.finalAverage);
-            console.log(`✅ Moyenne mise en cache pour cours ${course.id}: ${calcRes.data.finalAverage}`);
-          } else {
-            allSuccess = false;
-            console.error(`❌ Échec du calcul de moyenne pour cours ${course.id}:`, calcRes);
-          }
-        } catch (error) {
-          allSuccess = false;
-          console.error(`❌ Erreur lors du calcul de moyenne pour cours ${course.id}:`, error);
-        }
       } else {
         console.log('Aucune note à sauvegarder pour cette matière');
       }
