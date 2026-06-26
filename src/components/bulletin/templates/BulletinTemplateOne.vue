@@ -91,15 +91,16 @@
             <td class="font-bold">TOTAL</td>
             <td class="text-center font-bold">{{ totalCoefficients }}</td>
             <td></td>
+            <td class="text-center font-bold">{{ formatNumber(totalAveragePoints) }}</td>
             <td class="text-center font-bold">{{ formatNumber(totalWeightedPoints) }}</td>
-            <td colspan="3"></td>
+            <td colspan="2"></td>
           </tr>
           <tr class="average-row" :style="{ backgroundColor: options.primaryColor + '10' }">
             <td colspan="2" class="text-right font-bold text-lg">MOYENNE GÉNÉRALE</td>
-            <td colspan="3" class="text-left font-bold text-xl" :style="{ color: options.primaryColor }">
+            <td colspan="2" class="text-left font-bold text-xl" :style="{ color: options.primaryColor }">
               {{ formatNumber(generalAverage) }} / 20
             </td>
-            <td></td>
+            <td colspan="3"></td>
           </tr>
         </tfoot>
       </table>
@@ -367,6 +368,10 @@ const totalCoefficients = computed(() => {
 
 const totalWeightedPoints = computed(() => {
   return processedGrades.value.reduce((sum, g) => sum + g.weightedValue, 0);
+});
+
+const totalAveragePoints = computed(() => {
+  return processedGrades.value.reduce((sum, g) => sum + g.average, 0);
 });
 
 const generalAverage = computed(() => {
@@ -778,6 +783,11 @@ const signatoryRightLabel = computed(() => props.options?.signatoryRight || 'Le 
     width: 100%;
     height: 100%;
     padding: 0;
+  }
+
+  .decision-item {
+    white-space: nowrap;
+    font-size: 7px;
   }
 }
 </style>

@@ -79,14 +79,16 @@
             <td class="text-left font-bold">TOTAL</td>
             <td class="font-bold">{{ totalCoefficients }}</td>
             <td></td>
+            <td class="bg-gray font-bold">{{ formatNumber(totalAveragePoints) }}</td>
             <td class="bg-gray font-bold">{{ formatNumber(totalWeightedPoints) }}</td>
-            <td colspan="3"></td>
+            <td colspan="2"></td>
           </tr>
           <tr class="moyenne-generale-row" :style="{ backgroundColor: options.secondaryColor + '20' }">
-            <td colspan="3" class="label-moyenne">Moyenne Générale</td>
-            <td colspan="4" class="value-moyenne" :style="{ color: options.primaryColor }">
+            <td colspan="2" class="label-moyenne">Moyenne Générale</td>
+            <td colspan="2" class="value-moyenne" :style="{ color: options.primaryColor }">
               {{ formatNumber(generalAverage) }} / 20
             </td>
+            <td colspan="3"></td>
           </tr>
         </tfoot>
      </table>
@@ -402,6 +404,10 @@ const totalCoefficients = computed(() => {
 
 const totalWeightedPoints = computed(() => {
   return processedGrades.value.reduce((sum, g) => sum + g.weightedValue, 0);
+});
+
+const totalAveragePoints = computed(() => {
+  return processedGrades.value.reduce((sum, g) => sum + g.average, 0);
 });
 
 const generalAverage = computed(() => {
@@ -995,6 +1001,11 @@ const getGradeClass = (grade: number) => {
      width: 100%;
      height: 100%;
      padding: 5mm;
+   }
+
+   .decision-item {
+     white-space: nowrap;
+     font-size: 7px;
    }
 }
 </style>

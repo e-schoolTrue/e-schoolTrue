@@ -1099,6 +1099,10 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
         }
         
         @media print {
+          @page { size: A4 portrait; margin: 10mm; }
+          body { width: 100%; margin: 0; padding: 0; font-size: 12px; }
+          .bulletin-page { max-height: 275mm; overflow: hidden; }
+          
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -1164,6 +1168,11 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
           .summary-grid {
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
+          }
+          
+          .decision-item {
+            white-space: nowrap;
+            font-size: 7px;
           }
         }
         
@@ -1257,6 +1266,7 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
 
   const totalCoefficients = processedGrades.reduce((sum, g) => sum + (g.coefficient || 1), 0);
   const totalWeightedPoints = processedGrades.reduce((sum, g) => sum + g.weightedValue, 0);
+  const totalAveragePoints = processedGrades.reduce((sum, g) => sum + g.average, 0);
   const generalAverage = totalCoefficients > 0 ? totalWeightedPoints / totalCoefficients : 0;
 
   const primaryColor = colorOptions.primaryColor;
@@ -1284,20 +1294,20 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
 
   // Générer le HTML selon le template sélectionné
   if (selectedTemplateId.value === 'template2') {
-    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
+    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, totalAveragePoints, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
   } else {
-    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
+    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, totalAveragePoints, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
   }
 };
 
-const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
+const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, totalAveragePoints: number = 0, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
   const cData = getCountryData();
   return `
     <div class="bulletin-page">
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
-        .bulletin-page * {
+        .bulletin-page {
           font-family: 'Inter', sans-serif;
           color: #333;
         }
@@ -1740,39 +1750,24 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         </div>
       ` : `
         <table class="grades-table">
-           <thead>
-             <tr>
-               <th>Matière</th>
-               <th class="text-center">Coef.</th>
-               ${categoryColumns.map((cat: any) => `<th class="text-center">${escapeHtml(cat.name)}</th>`).join('')}
-               <th class="text-center">Moyenne de cours</th>
-               <th class="text-center">Moyenne de composition</th>
-               <th class="text-center">Moyenne / 20</th>
-               <th class="text-center">Note Pondérée</th>
-               <th class="text-center">Appréciation</th>
-               <th>Professeur</th>
-             </tr>
-           </thead>
+             <thead>
+               <tr>
+                 <th>Matière</th>
+                 <th class="text-center">Coef.</th>
+                 <th class="text-center">Note de cours</th>
+                 <th class="text-center">Moyenne / 20</th>
+                 <th class="text-center">Note Pondérée</th>
+                 <th class="text-center">Appréciation</th>
+                 <th>Professeur</th>
+               </tr>
+             </thead>
            <tbody>
              ${processedGrades.map(grade => {
-               // Créer un map des notes par catégorie
-               const gradeByCategory = new Map();
-               if (grade.categoryGrades) {
-                 for (const cat of grade.categoryGrades) {
-                   gradeByCategory.set(cat.code, cat);
-                 }
-               }
                return `
                 <tr>
                    <td class="course-name">${escapeHtml(grade.courseName)}</td>
                    <td class="text-center">${grade.coefficient}</td>
-                   ${categoryColumns.map((cat: any) => {
-                     const catGrade = gradeByCategory.get(cat.code);
-                     const note = catGrade ? formatNumber(catGrade.average) : '-';
-                     return `<td class="text-center">${note}</td>`;
-                   }).join('')}
                    <td class="text-center font-bold ${grade.classAverage < 10 ? 'text-red-600' : grade.classAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.classAverage)}</td>
-                   <td class="text-center font-bold ${grade.examAverage < 10 ? 'text-red-600' : grade.examAverage >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.examAverage)}</td>
                    <td class="text-center font-bold ${grade.average < 10 ? 'text-red-600' : grade.average >= 16 ? 'text-green-600' : ''}">${formatNumber(grade.average)}</td>
                    <td class="text-center font-bold">${formatNumber(grade.weightedValue)}</td>
                    <td class="text-center text-sm italic">${escapeHtml(grade.appreciation || getAppreciation(grade.average))}</td>
@@ -1781,23 +1776,21 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
               `}).join('')}
            </tbody>
            <tfoot>
-             <tr style="background-color: ${secondaryColor}20">
-               <td class="font-bold">TOTAL</td>
-               <td class="text-center font-bold">${totalCoefficients}</td>
-               ${categoryColumns.map(() => '<td></td>').join('')}
-               <td></td>
-               <td></td>
-               <td class="text-center font-bold">${formatNumber(totalWeightedPoints)}</td>
-               <td colspan="3"></td>
-             </tr>
-             <tr style="background-color: ${primaryColor}10">
-               <td colspan="2" class="text-right font-bold" style="font-size: 14px;">MOYENNE GÉNÉRALE</td>
-               ${categoryColumns.map(() => '<td></td>').join('')}
-               <td colspan="2"></td>
-               <td colspan="2" class="text-left font-bold" style="font-size: 16px; color: ${primaryColor};">${formatNumber(generalAverage)} / 20</td>
-               <td colspan="3"></td>
-             </tr>
-           </tfoot>
+              <tr style="background-color: ${secondaryColor}20">
+                <td class="font-bold">TOTAL</td>
+                <td class="text-center font-bold">${totalCoefficients}</td>
+                <td></td>
+                <td class="text-center font-bold">${formatNumber(totalAveragePoints)}</td>
+                <td class="text-center font-bold">${formatNumber(totalWeightedPoints)}</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr style="background-color: ${primaryColor}10">
+                <td colspan="2" class="text-right font-bold" style="font-size: 14px;">MOYENNE GÉNÉRALE</td>
+                <td colspan="2" class="text-left font-bold" style="font-size: 16px; color: ${primaryColor};">${formatNumber(generalAverage)} / 20</td>
+                <td colspan="3"></td>
+              </tr>
+            </tfoot>
          </table>
        `}
       
@@ -1886,7 +1879,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
   `;
 };
 
-const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
+const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, totalAveragePoints: number = 0, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
   const cData = getCountryData();
   const getGradeClass = (grade: number) => {
     if (grade < 10) return 'grade-low';
@@ -1898,7 +1891,7 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
   return `
     <div class="bulletin-page">
       <style>
-        .bulletin-page * {
+        .bulletin-page {
           font-family: 'Arial Narrow', Arial, sans-serif;
           color: #000;
         }
@@ -2339,6 +2332,25 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .annual-separator {
           border-left: 3px solid ${primaryColor} !important;
         }
+
+        .checkbox {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          border: 1px solid #555;
+          background: #fff;
+          flex-shrink: 0;
+          border-radius: 3px;
+        }
+
+        .checkmark {
+          color: #16a34a;
+          font-weight: 700;
+          font-size: 12px;
+          line-height: 1;
+        }
       </style>
       
       <div class="header">
@@ -2385,60 +2397,46 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
       </div>
       
       <table class="notes-table">
-         <thead>
-           <tr>
-             <th class="col-matiere">Matières</th>
-             <th class="col-coeff">Coeff</th>
-             ${categoryColumns.map((cat: any) => `<th class="col-note">${escapeHtml(cat.name)}</th>`).join('')}
-             <th class="col-note">Moyenne de cours</th>
-             <th class="col-note">Moyenne de composition</th>
-             <th class="col-note">Moyenne</th>
-             <th class="col-note">Points</th>
-             <th>Appréciation</th>
-             <th class="col-prof">Professeur</th>
-           </tr>
-         </thead>
+          <thead>
+            <tr>
+              <th class="col-matiere">Matières</th>
+              <th class="col-coeff">Coeff</th>
+              <th class="col-note">Note de cours</th>
+              <th class="col-note">Moyenne</th>
+              <th class="col-note">Points</th>
+              <th>Appréciation</th>
+              <th class="col-prof">Professeur</th>
+            </tr>
+          </thead>
          <tbody>
-           ${processedGrades.map((grade, index) => {
-             const gradeByCategory = new Map();
-             if (grade.categoryGrades) {
-               for (const cat of grade.categoryGrades) {
-                 gradeByCategory.set(cat.code, cat);
-               }
-             }
-              return `
-              <tr class="${index % 2 === 0 ? 'row-even' : ''}">
-               <td class="text-left">${escapeHtml(grade.courseName)}</td>
-               <td>${grade.coefficient}</td>
-               ${categoryColumns.map((cat: any) => {
-                 const catGrade = gradeByCategory.get(cat.code);
-                 const note = catGrade ? formatNumber(catGrade.average) : '-';
-                 return `<td class="${catGrade ? getGradeClass(catGrade.average) : ''}">${note}</td>`;
-               }).join('')}
-               <td class="${getGradeClass(grade.classAverage)}">${formatNumber(grade.classAverage)}</td>
-               <td class="${getGradeClass(grade.examAverage)}">${formatNumber(grade.examAverage)}</td>
-               <td class="${getGradeClass(grade.average)}">${formatNumber(grade.average)}</td>
-               <td class="bg-gray">${formatNumber(grade.weightedValue)}</td>
-               <td class="appreciation">${escapeHtml(grade.appreciation || getAppreciation(grade.average))}</td>
-               <td class="professor-name">${escapeHtml(grade.professorName || '-')}</td>
-              </tr>
-            `}).join('')}
-         </tbody>
+            ${processedGrades.map((grade, index) => {
+               return `
+               <tr class="${index % 2 === 0 ? 'row-even' : ''}">
+                <td class="text-left">${escapeHtml(grade.courseName)}</td>
+                <td>${grade.coefficient}</td>
+                <td class="${getGradeClass(grade.classAverage)}">${formatNumber(grade.classAverage)}</td>
+                <td class="${getGradeClass(grade.average)}">${formatNumber(grade.average)}</td>
+                <td class="bg-gray">${formatNumber(grade.weightedValue)}</td>
+                <td class="appreciation">${escapeHtml(grade.appreciation || getAppreciation(grade.average))}</td>
+                <td class="professor-name">${escapeHtml(grade.professorName || '-')}</td>
+               </tr>
+             `}).join('')}
+          </tbody>
            <tfoot>
             <tr class="total-row">
               <td class="text-left font-bold">TOTAL</td>
               <td class="font-bold">${totalCoefficients}</td>
-              ${categoryColumns.map(() => '<td></td>').join('')}
               <td></td>
-              <td></td>
+              <td class="bg-gray font-bold">${formatNumber(totalAveragePoints)}</td>
               <td class="bg-gray font-bold">${formatNumber(totalWeightedPoints)}</td>
+              <td colspan="2"></td>
+            </tr>
+            <tr class="moyenne-generale-row">
+              <td colspan="2" class="label-moyenne">Moyenne Générale</td>
+              <td colspan="2" class="value-moyenne">${formatNumber(generalAverage)} / 20</td>
               <td colspan="3"></td>
-           </tr>
-           <tr class="moyenne-generale-row">
-             <td colspan="${3 + categoryColumns.length}" class="label-moyenne">Moyenne Générale</td>
-             <td colspan="${6 - categoryColumns.length}" class="value-moyenne">${formatNumber(generalAverage)} / 20</td>
-           </tr>
-         </tfoot>
+            </tr>
+          </tfoot>
        </table>
 
        ${showAnnual ? `
