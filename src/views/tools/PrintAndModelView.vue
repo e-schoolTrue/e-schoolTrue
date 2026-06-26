@@ -1421,16 +1421,16 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         .grades-table td {
           padding: 2px 3px;
           border: 1px solid #e0e0e0;
-          font-size: 7px;
+          font-size: 9px;
           text-align: center;
-          line-height: 1.2;
+          line-height: 1.3;
         }
         
         .grades-table th {
           background-color: ${primaryColor};
           color: #fff;
           text-transform: uppercase;
-          font-size: 6px;
+          font-size: 8px;
           font-weight: 600;
           letter-spacing: 0.2px;
         }
@@ -1441,7 +1441,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         
         .grades-table .course-name {
           text-align: left;
-          font-size: 6px;
+          font-size: 8px;
           padding-left: 3px;
         }
         
@@ -2041,15 +2041,15 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         
         .notes-table th, .notes-table td {
           border: 1px solid #000;
-          padding: 1px 2px;
+          padding: 2px 3px;
           text-align: center;
-          font-size: 6px;
+          font-size: 9px;
         }
         
         .notes-table thead th {
           background-color: ${primaryColor};
           color: #fff;
-          font-size: 6px;
+          font-size: 8px;
           text-transform: uppercase;
           letter-spacing: 0.2px;
         }
@@ -2068,8 +2068,8 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .grade-good { color: #2e7d32; }
         .grade-excellent { color: #1565c0; font-weight: bold; }
         
-        .appreciation { font-size: 6px; font-style: italic; }
-        .professor-name { font-size: 6px; text-align: left; padding-left: 3px; }
+        .appreciation { font-size: 8px; font-style: italic; }
+        .professor-name { font-size: 8px; text-align: left; padding-left: 3px; }
         
         .total-row td {
           border-top: 2px solid #000;
