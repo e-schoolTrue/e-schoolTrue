@@ -56,7 +56,9 @@
         <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
           <th class="col-matiere">Matières</th>
           <th class="col-coeff">Coeff</th>
-          <th class="col-note">Note de cours</th>
+          <th v-for="cat in categories" :key="cat.code" class="col-note">{{ cat.name }}</th>
+          <th class="col-note">Moy. cours</th>
+          <th class="col-note">Moy. comp</th>
           <th class="col-note">Moyenne</th>
           <th class="col-note">Points</th>
           <th>Appréciation</th>
@@ -67,7 +69,11 @@
         <tr v-for="(grade, index) in processedGrades" :key="index" :class="{ 'row-even': index % 2 === 0 }">
           <td class="text-left">{{ grade.courseName }}</td>
           <td>{{ grade.coefficient }}</td>
+          <td v-for="cat in categories" :key="cat.code" class="col-note">
+            {{ getCategoryAverage(grade, cat.code) }}
+          </td>
           <td :class="getGradeClass(grade.classAverage)">{{ formatNumber(grade.classAverage) }}</td>
+          <td :class="getGradeClass(grade.examAverage)">{{ formatNumber(grade.examAverage) }}</td>
           <td :class="getGradeClass(grade.average)">{{ formatNumber(grade.average) }}</td>
           <td class="bg-gray">{{ formatNumber(grade.weightedValue) }}</td>
           <td class="appreciation">{{ grade.appreciation || getAppreciation(grade.average) }}</td>
@@ -78,17 +84,22 @@
           <tr class="total-row">
             <td class="text-left font-bold">TOTAL</td>
             <td class="font-bold">{{ totalCoefficients }}</td>
+            <td v-for="cat in categories" :key="cat.code"></td>
+            <td></td>
             <td></td>
             <td class="bg-gray font-bold">{{ formatNumber(totalAveragePoints) }}</td>
             <td class="bg-gray font-bold">{{ formatNumber(totalWeightedPoints) }}</td>
-            <td colspan="2"></td>
+            <td></td>
+            <td></td>
           </tr>
           <tr class="moyenne-generale-row" :style="{ backgroundColor: options.secondaryColor + '20' }">
-            <td colspan="2" class="label-moyenne">Moyenne Générale</td>
+            <td colspan="2" class="label-moyenne" style="white-space: nowrap;">Moyenne Générale</td>
+            <td v-for="cat in categories" :key="cat.code"></td>
+            <td colspan="2"></td>
             <td colspan="2" class="value-moyenne" :style="{ color: options.primaryColor }">
               {{ formatNumber(generalAverage) }} / 20
             </td>
-            <td colspan="3"></td>
+            <td colspan="2"></td>
           </tr>
         </tfoot>
      </table>
@@ -267,6 +278,7 @@ interface Props {
   decisions?: AnnualDecision;
   annualAppreciation?: string;
   isFinalPeriod?: boolean;
+  categories?: { code: string; name: string; isExam: boolean }[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -292,7 +304,8 @@ const props = withDefaults(defineProps<Props>(), {
   classLowestAnnual: undefined,
   decisions: undefined,
   annualAppreciation: undefined,
-  isFinalPeriod: false
+  isFinalPeriod: false,
+  categories: () => []
 });
 
 const countryHeaderMap: Record<string, { countryName: string; motto: string; ministry: string; inspection: string }> = {
@@ -423,6 +436,14 @@ const getGradeClass = (grade: number) => {
   if (grade >= 16) return 'grade-excellent';
   if (grade >= 14) return 'grade-good';
   return '';
+};
+
+const getCategoryAverage = (grade: any, code: string) => {
+  if (grade.categoryGrades) {
+    const cat = grade.categoryGrades.find((c: any) => c.code === code);
+    if (cat) return formatNumber(cat.average);
+  }
+  return '-';
 };
 
   const hasCourseNotes = computed(() => {
