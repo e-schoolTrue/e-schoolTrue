@@ -3,7 +3,8 @@ import {
     CreateDateColumn,
     DeleteDateColumn,
     Entity, JoinColumn,
-    ManyToOne, OneToMany,
+    ManyToOne, ManyToMany,
+    OneToMany,
     OneToOne,
     PrimaryGeneratedColumn,
     UpdateDateColumn
@@ -62,7 +63,7 @@ export class GradeEntity {
     @OneToMany(() => ScheduleEntity, schedule => schedule.class)
     schedules!: ScheduleEntity[];
 
-    @OneToMany(() => CourseEntity, course => course.grade)
+    @ManyToMany(() => CourseEntity, (course) => course.grades)
     courses?: CourseEntity[];
 }
 

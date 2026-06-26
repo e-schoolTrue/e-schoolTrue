@@ -4,6 +4,7 @@ import { GradeEntryEntity, CalculatedGradeEntity } from "../entities/gradeEntry"
 import { ConfigNoteService } from "./note-config-service";
 import {CourseEntity} from "../entities/course";
 import {StudentEntity} from "../entities/students";
+import { SchoolEntity } from "../entities/school";
 import { TeachingAssignmentEntity } from "../entities/teaching";
 import { ProfessorEntity } from "../entities/professor";
 import { TEACHING_TYPE } from "../../command";
@@ -46,6 +47,8 @@ interface GetGradesInput {
             comment?: string;
         }>;
     }
+
+const DEFAULT_PERIODS = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'] as const;
 
 export class GradeEntryService {
     private gradeEntryRepository: Repository<GradeEntryEntity>;
@@ -101,20 +104,24 @@ export class GradeEntryService {
      * Sauvegarde plusieurs notes pour une matière en une seule transaction
      */
     async bulkSaveGrades(input: BulkSaveGradesInput): Promise<ResultType<any>> {
-        try {
-            console.log(`\n=== BULK SAVE GRADES ===`);
-            console.log('Input:', input);
+        const queryRunner = AppDataSource.getInstance().createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
+        try {
             const { studentId, courseId, period, grades } = input;
 
-            // D'abord, supprimer les notes existantes pour cet étudiant, matière et période
-            await this.gradeEntryRepository.delete({
+            // Supprimer uniquement les catégories concernées par la sauvegarde
+            // Les catégories non incluses conservent leurs anciennes valeurs
+            const categoryIds = grades.map(g => g.categoryId);
+            await queryRunner.manager.delete(GradeEntryEntity, {
                 studentId,
                 courseId,
-                period
+                period,
+                categoryId: In(categoryIds)
             });
 
-            // Sauvegarder les nouvelles notes
+            // Sauvegarder les nouvelles notes dans la transaction
             for (const grade of grades) {
                 const entry = new GradeEntryEntity();
                 entry.studentId = studentId;
@@ -127,10 +134,13 @@ export class GradeEntryService {
                 entry.evaluationDate = grade.evaluationDate ? new Date(grade.evaluationDate) : new Date();
                 entry.comment = grade.comment || null;
 
-                await this.gradeEntryRepository.save(entry);
+                await queryRunner.manager.save(entry);
             }
 
-            console.log(`✅ Notes sauvegardées avec succès pour étudiant ${studentId}, matière ${courseId}`);
+            await queryRunner.commitTransaction();
+
+            // Invalider le cache après commit réussi
+            await this.invalidateCalculatedGrade(studentId, courseId, period);
 
             return {
                 success: true,
@@ -139,6 +149,11 @@ export class GradeEntryService {
                 error: null
             };
         } catch (error) {
+            try {
+                await queryRunner.rollbackTransaction();
+            } catch (rollbackError) {
+                console.error('Rollback error:', rollbackError);
+            }
             console.error("Erreur bulkSaveGrades:", error);
             return {
                 success: false,
@@ -146,6 +161,8 @@ export class GradeEntryService {
                 message: "Erreur lors de la sauvegarde en bloc",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
+        } finally {
+            await queryRunner.release();
         }
     }
 
@@ -161,7 +178,6 @@ export class GradeEntryService {
         period: string
     ): Promise<ResultType<CalculatedGradeEntity>> {
         try {
-            console.log(`\n=== RECALCULER MOYENNES ÉLÈVE ${studentId} ===`);
             return await this.calculateAndCacheGrade(studentId, courseId, classId, schoolId, period);
         } catch (error) {
             console.error("Erreur recalculateStudentGrades:", error);
@@ -179,9 +195,6 @@ export class GradeEntryService {
      */
     async getGradeEntries(input: GetGradesInput): Promise<ResultType<GradeEntryEntity[]>> {
         try {
-            console.log('\n=== GET GRADE ENTRIES ===');
-            console.log('Recherche notes pour:', input);
-            
             const entries = await this.gradeEntryRepository.find({
                 where: {
                     studentId: input.studentId,
@@ -193,14 +206,6 @@ export class GradeEntryService {
                     createdAt: "ASC"
                 }
             });
-
-            console.log(`Trouvé ${entries.length} notes:`, entries.map(e => ({
-                id: e.id,
-                categoryId: e.categoryId,
-                score: e.score,
-                maxScore: e.maxScore
-            })));
-            console.log('=== FIN GET ENTRIES ===\n');
 
             return {
                 success: true,
@@ -230,9 +235,6 @@ export class GradeEntryService {
         period: string
     ): Promise<ResultType<CalculatedGradeEntity>> {
         try {
-            console.log(`\n=== CALCUL MOYENNE ===`);
-            console.log(`Élève: ${studentId}, Matière: ${courseId}, Période: ${period}`);
-            
             // Récupérer toutes les notes
             const entriesResult = await this.getGradeEntries({ studentId, courseId, period });
             console.log(`Nombre de notes récupérées: ${entriesResult.data?.length || 0}`);
@@ -243,6 +245,16 @@ export class GradeEntryService {
             }
 
             const entries = entriesResult.data;
+
+            if (entries.length === 0) {
+                console.log('Aucune note existante — pas de moyenne à enregistrer');
+                return {
+                    success: true,
+                    data: { finalAverage: null },
+                    message: "Aucune note à calculer",
+                    error: null
+                };
+            }
 
             // Récupérer la configuration applicable (avec période pour configs par trimestre)
             const configResult = await this.configNoteService.getApplicableConfig({
@@ -267,22 +279,9 @@ export class GradeEntryService {
                 gradesByCategory.set(entry.categoryId, existing);
             }
 
-            console.log('=== CALCUL MOYENNE ===');
-            console.log(`Student: ${studentId}, Course: ${courseId}, Period: ${period}`);
-            console.log(`Config ID: ${config.id}, Strategy: ${config.calculationStrategy}`);
-            console.log(`Catégories dans la config:`, config.categories.map((c: any) => ({ id: c.id, name: c.name, isExam: c.isExam })));
-            console.log(`Notes par catégorie (gradesByCategory):`);
-            gradesByCategory.forEach((grades, catId) => {
-                console.log(`  Catégorie ${catId}: ${grades.length} notes`, grades);
-            });
-            
             // Vérifier la correspondance
             const configCategoryIds = new Set(config.categories.map((c: any) => c.id));
             const noteCategoryIds = Array.from(gradesByCategory.keys());
-            console.log(`📊 IDs config:`, Array.from(configCategoryIds));
-            console.log(`📊 IDs notes:`, noteCategoryIds);
-            console.log(`📊 Correspondance:`, noteCategoryIds.every(id => configCategoryIds.has(id)));
-            
             // Séparer les catégories: notes de classe vs examens
             const classCategories: any[] = [];
             const examCategories: any[] = [];
@@ -294,8 +293,6 @@ export class GradeEntryService {
                     classCategories.push(category);
                 }
             }
-
-            console.log(`Séparation: ${classCategories.length} notes de classe, ${examCategories.length} examens`);
 
             // Calculer la moyenne de chaque catégorie et stocker les détails
             const categoryBreakdown: any = {};
@@ -640,9 +637,6 @@ export class GradeEntryService {
         totalCoefficients: number;
     }>>> {
         try {
-            console.log('\n=== CALCUL CLASSEMENT CLASSE ===');
-            console.log(`Classe: ${classId}, Période: ${period}`);
-
             const dataSource = AppDataSource.getInstance();
 
             // Récupérer tous les élèves de la classe - utiliser la classe directement
@@ -673,6 +667,7 @@ export class GradeEntryService {
                 .leftJoinAndSelect('course.grades', 'grades')
                 .leftJoinAndSelect('course.grade', 'grade')
                 .where('grades.id = :classId OR grade.id = :classId', { classId })
+                .distinct(true)
                 .getMany();
 
             const courseCoefficients = new Map<number, number>();
@@ -771,12 +766,6 @@ export class GradeEntryService {
                     rank
                 };
             });
-
-            console.log('Classement final:');
-            rankings.forEach(r => {
-                console.log(`  ${r.rank}. ${r.studentName}: ${r.generalAverage}/20`);
-            });
-            console.log('=== FIN CALCUL CLASSEMENT ===\n');
 
             return {
                 success: true,
@@ -888,6 +877,16 @@ export class GradeEntryService {
             const dataSource = AppDataSource.getInstance();
             const studentRepo = dataSource.getRepository(StudentEntity);
             const courseRepo:Repository<CourseEntity> = dataSource.getRepository(CourseEntity);
+            const schoolRepo = dataSource.getRepository(SchoolEntity);
+
+            // Get school ID for fallback recalculation
+            let schoolId = 0;
+            try {
+                const school = await schoolRepo.findOne({ where: {} });
+                if (school?.id) schoolId = school.id;
+            } catch (e) {
+                console.warn('Could not determine school ID for fallback recalculation', e);
+            }
 
             let students: any[] = [];
             try {
@@ -904,8 +903,8 @@ export class GradeEntryService {
                 courses = await courseRepo.createQueryBuilder('course')
                     .leftJoinAndSelect('course.grades', 'grades')
                     .leftJoinAndSelect('course.grade', 'grade')
-                    .leftJoinAndSelect('course.courses', 'courses')
                     .where('grades.id = :gradeId OR grade.id = :gradeId', { gradeId: filters.gradeId })
+                    .distinct(true)
                     .getMany();
             } catch (courseError) {
                 throw new Error(`Erreur lors de la récupération des matières: ${courseError instanceof Error ? courseError.message : 'Unknown error'}`);
@@ -937,8 +936,6 @@ export class GradeEntryService {
                 }>;
             }> = [];
 
-            console.log(`=== DÉBUT TRAITEMENT ÉLÈVES (${students.length} étudiants) ===`);
-            
             for (const student of students) {
                 try {
                     console.log(`\n--- Traitement étudiant ${student.id} ---`);
@@ -961,13 +958,58 @@ export class GradeEntryService {
                     let scoreCount = 0;
                     
                     const courseIds = Array.from(courseMap.keys());
-                    const averages = await this.calculatedGradeRepository.find({
+
+                    // Déterminer la période à utiliser (évite le triple-comptage quand filters.period est omis)
+                    let effectivePeriod = filters?.period;
+                    if (!effectivePeriod) {
+                        try {
+                            const distinctPeriods = await this.gradeEntryRepository
+                                .createQueryBuilder('ge')
+                                .select('DISTINCT ge.period', 'period')
+                                .where('ge.studentId = :studentId AND ge.courseId IN (:...courseIds)', {
+                                    studentId: student.id,
+                                    courseIds: courseIds
+                                })
+                                .getRawMany();
+                            const periods = distinctPeriods.map((r: any) => r.period).filter(Boolean);
+                            effectivePeriod = periods.length > 0 ? periods[0] : DEFAULT_PERIODS[0];
+                        } catch (e) {
+                            console.warn('Impossible de récupérer les périodes distinctes', e);
+                            effectivePeriod = DEFAULT_PERIODS[0];
+                        }
+                    }
+
+                    let averages = await this.calculatedGradeRepository.find({
                         where: {
                             studentId: student.id,
                             courseId: In(courseIds),
-                            period: filters?.period || undefined
+                            period: effectivePeriod
                         }
                     });
+
+                    // Vérifier les matières manquantes (pas de moyenne calculée)
+                    const foundCourseIds = new Set(averages.map(a => a.courseId));
+                    const missingCourseIds = courseIds.filter(cId => !foundCourseIds.has(cId));
+
+                    // Fallback: si des matières sont manquantes, tenter le recalcul
+                    if (missingCourseIds.length > 0 && courseIds.length > 0) {
+                        console.log(`⚠️ ${missingCourseIds.length} matière(s) sans moyenne calculée pour élève ${student.id} — recalcul pour période ${effectivePeriod}...`);
+                        for (const cId of missingCourseIds) {
+                            try {
+                                await this.calculateAndCacheGrade(student.id, cId, filters.gradeId, schoolId, effectivePeriod);
+                            } catch (calcErr) {
+                                console.warn(`❌ Échec recalcul élève ${student.id} matière ${cId}:`, calcErr);
+                            }
+                        }
+
+                        averages = await this.calculatedGradeRepository.find({
+                            where: {
+                                studentId: student.id,
+                                courseId: In(courseIds),
+                                period: effectivePeriod
+                            }
+                        });
+                    }
                     
                     console.log(`Élève ${student.id}: ${averages.length} moyennes trouvées pour les ${courseMap.size} matières`);
                     
@@ -1032,8 +1074,6 @@ export class GradeEntryService {
                 }
             }
 
-            console.log(`=== FIN TRAITEMENT ÉLÈVES ===\n`);
-
             // Trier par moyenne générale décroissante
             studentResults.sort((a, b) => b.generalAverage - a.generalAverage);
 
@@ -1054,13 +1094,6 @@ export class GradeEntryService {
                 ? Math.round((rankings.reduce((sum, r) => sum + r.generalAverage, 0) / rankings.length) * 100) / 100
                 : 0;
 
-            console.log('Classement final:');
-            rankings.forEach(r => {
-                console.log(`ranking ${r.rank}. ${r.firstname} ${r.lastname}: ${r.generalAverage}/20 (matricule: ${r.matricule || 'sans matricule'})`);
-            });
-            console.log(`Moyenne de classe: ${classAverage}`);
-            console.log('=== FIN CALCUL CLASSEMENT CENTRALISÉ ===\n');
-
             // Vérifier que les données sont valides
             if (!rankings || !Array.isArray(rankings)) {
                 throw new Error('Les données de classement ne sont pas valides (pas un tableau)');
@@ -1077,8 +1110,6 @@ export class GradeEntryService {
             if (invalidStudents.length > 0) {
                 console.error('⚠️ Étudiants avec des données invalides:', invalidStudents);
             }
-
-            console.log(`✅ Classement généré avec succès pour ${rankings.length} étudiants`);
 
             return {
                 success: true,
@@ -1103,6 +1134,7 @@ export class GradeEntryService {
         filters?: {
             gradeId: number;
             schoolYear?: string;
+            periods?: string[];
         }
     ): Promise<ResultType<Array<{
         studentId: number;
@@ -1117,6 +1149,8 @@ export class GradeEntryService {
         rank: number;
         totalScores: number;
         averageScores: number;
+        periodAverages: number[];
+        periods: string[];
         distinctions: {
             tableauHonneur: boolean;
             encouragements: boolean;
@@ -1143,6 +1177,16 @@ export class GradeEntryService {
             const dataSource = AppDataSource.getInstance();
             const studentRepo = dataSource.getRepository(StudentEntity);
             const courseRepo: Repository<CourseEntity> = dataSource.getRepository(CourseEntity);
+            const schoolRepo = dataSource.getRepository(SchoolEntity);
+
+            // Get school ID for fallback recalculation
+            let schoolId = 0;
+            try {
+                const school = await schoolRepo.findOne({ where: {} });
+                if (school?.id) schoolId = school.id;
+            } catch (e) {
+                console.warn('Could not determine school ID for fallback recalculation', e);
+            }
 
             const students = await studentRepo.find({
                 where: { grade: { id: filters.gradeId } },
@@ -1152,8 +1196,8 @@ export class GradeEntryService {
             const courses = await courseRepo.createQueryBuilder('course')
                 .leftJoinAndSelect('course.grades', 'grades')
                 .leftJoinAndSelect('course.grade', 'grade')
-                .leftJoinAndSelect('course.courses', 'courses')
                 .where('grades.id = :gradeId OR grade.id = :gradeId', { gradeId: filters.gradeId })
+                .distinct(true)
                 .getMany();
 
             const courseMap = new Map<number, any>();
@@ -1163,7 +1207,24 @@ export class GradeEntryService {
                 }
             });
 
-            const periods = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];
+            // Use periods from filters, or try to load from year configuration, or fallback to defaults
+            let periods = filters?.periods;
+            if (!periods || periods.length === 0) {
+                try {
+                    const { YearRepartitionEntity } = await import('../entities/yearRepartition');
+                    const yearRepo = dataSource.getRepository(YearRepartitionEntity);
+                    const currentYear = await yearRepo.findOne({ where: { isCurrent: true } });
+                    if (currentYear?.periodConfigurations?.length) {
+                        periods = currentYear.periodConfigurations.map((p: any) => p.name);
+                    }
+                } catch (e) {
+                    console.warn('Could not load year periods, using defaults', e);
+                }
+            }
+            if (!periods || periods.length === 0) {
+                periods = [...DEFAULT_PERIODS];
+            }
+
             const courseIds = Array.from(courseMap.keys());
 
             const studentResults: Array<{
@@ -1179,6 +1240,7 @@ export class GradeEntryService {
                 rank: number;
                 totalScores: number;
                 averageScores: number;
+                periodAverages: number[];
                 distinctions: {
                     tableauHonneur: boolean;
                     encouragements: boolean;
@@ -1196,10 +1258,21 @@ export class GradeEntryService {
 
             for (const student of students) {
                 try {
-                    const trimAverages: number[] = [];
+                    const periodAverages: number[] = [];
 
                     for (const period of periods) {
-                        const averages = await this.calculatedGradeRepository.find({
+                        // Check if actual grade entries exist for this period
+                        const entryCount = courseIds.length > 0
+                            ? await this.gradeEntryRepository.count({
+                                where: {
+                                    studentId: student.id,
+                                    courseId: In(courseIds),
+                                    period: period
+                                }
+                              })
+                            : 0;
+
+                        let averages = await this.calculatedGradeRepository.find({
                             where: {
                                 studentId: student.id,
                                 courseId: In(courseIds),
@@ -1207,9 +1280,27 @@ export class GradeEntryService {
                             }
                         });
 
+                        // Fallback: if no calculated averages but grade entries exist, try to recalculate
+                        if (averages.length === 0 && courseIds.length > 0 && entryCount > 0) {
+                            console.log(`⚠️ PV: Aucune moyenne calculée pour élève ${student.id} période "${period}" — tentative de recalcul...`);
+                            for (const cId of courseIds) {
+                                try {
+                                    await this.calculateAndCacheGrade(student.id, cId, filters.gradeId, schoolId, period);
+                                } catch (calcErr) {
+                                    console.warn(`❌ Échec recalcul PV élève ${student.id} matière ${cId}:`, calcErr);
+                                }
+                            }
+                            averages = await this.calculatedGradeRepository.find({
+                                where: {
+                                    studentId: student.id,
+                                    courseId: In(courseIds),
+                                    period: period
+                                }
+                            });
+                        }
+
                         let totalWeightedValue = 0;
                         let totalCoefficients = 0;
-                        let averageScores = 0;
                         let scoreCount = 0;
 
                         for (const avg of averages) {
@@ -1218,18 +1309,20 @@ export class GradeEntryService {
                             const coefficient = course?.coefficient || 1;
                             totalWeightedValue += avg.finalAverage * coefficient;
                             totalCoefficients += coefficient;
-                            averageScores += avg.finalAverage;
                             scoreCount += 1;
                         }
 
-                        const periodAverage = totalCoefficients > 0
+                        // -1 means "no data entered for this period"
+                        const periodAverage = entryCount > 0 && totalCoefficients > 0
                             ? Math.round((totalWeightedValue / totalCoefficients) * 100) / 100
-                            : 0;
-                        trimAverages.push(periodAverage);
+                            : (entryCount > 0 ? 0 : -1);
+                        periodAverages.push(periodAverage);
                     }
 
-                    const annualAverage = trimAverages.length > 0
-                        ? Math.round((trimAverages.reduce((sum, val) => sum + val, 0) / trimAverages.length) * 100) / 100
+                    // Calculate annual average from non-empty periods only
+                    const nonEmptyAverages = periodAverages.filter(a => a !== -1);
+                    const annualAverage = nonEmptyAverages.length > 0
+                        ? Math.round((nonEmptyAverages.reduce((sum, val) => sum + val, 0) / nonEmptyAverages.length) * 100) / 100
                         : 0;
 
                     const sex = (student.sex === 'male' || student.sex === 'female') ? student.sex : 'male';
@@ -1256,13 +1349,15 @@ export class GradeEntryService {
                         firstname: student.firstname || '',
                         lastname: student.lastname || '',
                         sex: sex as 'male' | 'female',
-                        trim1Average: trimAverages[0] || 0,
-                        trim2Average: trimAverages[1] || 0,
-                        trim3Average: trimAverages[2] || 0,
+                        trim1Average: periodAverages[0] !== undefined && periodAverages[0] !== -1 ? periodAverages[0] : 0,
+                        trim2Average: periodAverages[1] !== undefined && periodAverages[1] !== -1 ? periodAverages[1] : 0,
+                        trim3Average: periodAverages[2] !== undefined && periodAverages[2] !== -1 ? periodAverages[2] : 0,
                         annualAverage,
                         rank: 0,
                         totalScores: 0,
                         averageScores: 0,
+                        periodAverages,
+                        periods,
                         distinctions,
                         discipline,
                         finalDecision

@@ -102,13 +102,13 @@
         <el-table-column fixed prop="lastname" label="Nom" width="150" align="center" />
 
         <el-table-column label="TRIM 1" width="80" align="center">
-          <template #default="scope">{{ scope.row.trim1Average.toFixed(2) }}</template>
+          <template #default="scope">{{ scope.row.periodAverages?.[0] === -1 ? '-' : scope.row.trim1Average.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column label="TRIM 2" width="80" align="center">
-          <template #default="scope">{{ scope.row.trim2Average.toFixed(2) }}</template>
+          <template #default="scope">{{ scope.row.periodAverages?.[1] === -1 ? '-' : scope.row.trim2Average.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column label="TRIM 3" width="80" align="center">
-          <template #default="scope">{{ scope.row.trim3Average.toFixed(2) }}</template>
+          <template #default="scope">{{ scope.row.periodAverages?.[2] === -1 ? '-' : scope.row.trim3Average.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column label="ANNUEL" width="90" align="center">
           <template #default="scope">
@@ -219,6 +219,8 @@ interface AnnualStudentRecord {
   rank: number;
   totalScores: number;
   averageScores: number;
+  periodAverages: number[];
+  periods: string[];
   distinctions: AnnualDistinctions;
   discipline: AnnualDiscipline;
   finalDecision: string;
@@ -284,9 +286,20 @@ const onPageChange = (page: number) => {
 const loadData = async () => {
   loading.value = true;
   try {
+    let periods: string[] = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];
+    try {
+      const yearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+      if (yearRes.success && yearRes.data) {
+        periods = yearRes.data.periodConfigurations.map((p: any) => p.name);
+      }
+    } catch (e) {
+      console.warn('Could not load year repartition, using defaults', e);
+    }
+
     const requestData = {
       gradeId: filters.value.gradeId,
-      schoolYear: schoolYear.value
+      schoolYear: schoolYear.value,
+      periods
     };
 
     const result = await window.ipcRenderer.invoke('gradeEntry:getAnnualRankings', requestData);
@@ -679,9 +692,9 @@ const generatePVHtml = (data: any): string => {
             <td class="rank-cell">${r.rank}</td>
             <td>${r.firstname}</td>
             <td>${r.lastname}</td>
-            <td>${r.trim1Average.toFixed(2)}</td>
-            <td>${r.trim2Average.toFixed(2)}</td>
-            <td>${r.trim3Average.toFixed(2)}</td>
+            <td>${r.periodAverages && r.periodAverages[0] === -1 ? '-' : r.trim1Average.toFixed(2)}</td>
+            <td>${r.periodAverages && r.periodAverages[1] === -1 ? '-' : r.trim2Average.toFixed(2)}</td>
+            <td>${r.periodAverages && r.periodAverages[2] === -1 ? '-' : r.trim3Average.toFixed(2)}</td>
             <td><strong>${r.annualAverage.toFixed(2)}</strong></td>
             <td class="distinction-cell">${r.distinctions.tableauHonneur ? 'X' : ''}</td>
             <td class="distinction-cell">${r.distinctions.encouragements ? 'X' : ''}</td>

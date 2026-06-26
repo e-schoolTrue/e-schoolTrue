@@ -312,6 +312,7 @@ import {
 import BulletinTemplateOne from '@/components/bulletin/templates/BulletinTemplateOne.vue';
 import BulletinTemplateTwo from '@/components/bulletin/templates/BulletinTemplateTwo.vue';
 import BulletinConfigDialog from '@/components/bulletin/BulletinConfigDialog.vue';
+import { getAppreciation, formatNumber } from '@/utils/grade';
 
 // --- Types ---
 interface Student {
@@ -927,7 +928,7 @@ const loadAnnualData = async (student: Student, currentGrades: GradeData[]) => {
       admitted: annualAvg >= 10,
       session: annualAvg >= 8 && annualAvg < 10,
       repeat: annualAvg < 8,
-      excluded: annualAvg < 5
+      excluded: false  // Force always false - manual only
     };
   } catch (error) {
     console.error('Erreur chargement données annuelles:', error);
@@ -968,17 +969,6 @@ const loadAnnualData = async (student: Student, currentGrades: GradeData[]) => {
     }
     return classAverage;
   };
-
- const getAppreciation = (note: number): string => {
-  if (note < 5) return "Très Insuffisant";
-  if (note < 8) return "Insuffisant";
-  if (note < 10) return "Passable";
-  if (note < 12) return "Assez Bien";
-  if (note < 14) return "Bien";
-  if (note < 16) return "Très Bien";
-  if (note < 18) return "Excellent";
-  return "Félicitations";
-};
 
   const calculateExamAverage = (calculatedData: any): number => {
     let examAverage = 0;
@@ -1064,7 +1054,7 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
       <style>
         @page {
           size: A4;
-          margin: 0;
+          margin: 5mm;
         }
         
         * {
@@ -1074,17 +1064,20 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
         body {
           margin: 0;
           padding: 0;
-          font-family: 'Inter', 'Segoe UI', sans-serif;
+          font-family: 'Inter', 'Segoe UI', 'Arial', sans-serif;
+          font-size: 9pt;
+          line-height: 1.3;
         }
         
         .bulletin-page {
           page-break-after: always;
           width: 210mm;
-          min-height: 297mm;
-          padding: 10mm;
+          height: 297mm;
+          padding: 5mm 7mm;
           background: white;
           position: relative;
           box-sizing: border-box;
+          overflow: hidden;
         }
         
         .bulletin-page:last-child {
@@ -1256,7 +1249,6 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
   const totalWeightedPoints = processedGrades.reduce((sum, g) => sum + g.weightedValue, 0);
   const generalAverage = totalCoefficients > 0 ? totalWeightedPoints / totalCoefficients : 0;
 
-  const formatNumber = (num: number) => num ? num.toFixed(2) : '0.00';
   const primaryColor = colorOptions.primaryColor;
   const secondaryColor = colorOptions.secondaryColor;
   const periodLabel = selectedPeriod.value || 'Période';
@@ -1282,13 +1274,13 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
 
   // Générer le HTML selon le template sélectionné
   if (selectedTemplateId.value === 'template2') {
-    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
+    return generateTemplate2Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
   } else {
-    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, formatNumber, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
+    return generateTemplate1Html(student, processedGrades, generalAverage, totalCoefficients, totalWeightedPoints, primaryColor, secondaryColor, periodLabel, logoUrl, absences, rank, totalStudents, classAverage, finalCategories, showAnnual, semester1Average, semester2Average, computedAnnualAvg, annualRank, classHighestAnnual, classLowestAnnual, annualDecisionState, getAnnualAppreciation, decisionLabelsMap);
   }
 };
 
-const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
+const generateTemplate1Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
   const cData = getCountryData();
   return `
     <div class="bulletin-page">
@@ -1304,9 +1296,9 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 10px;
+          margin-bottom: 6px;
           border-bottom: 2px solid #eee;
-          padding-bottom: 10px;
+          padding-bottom: 5px;
         }
         
         .header-block { width: 48%; }
@@ -1314,41 +1306,41 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         .header-right { text-align: right; }
         
         .school-logo { margin-bottom: 6px; }
-        .school-logo img { max-width: 80px; max-height: 80px; }
+        .school-logo img { max-width: 55px; max-height: 55px; }
         
         .school-name {
-          font-size: 16px; margin: 0 0 4px;
+          font-size: 13px; margin: 0;
           text-transform: uppercase; font-weight: 700;
           color: ${primaryColor};
         }
-        .school-detail { margin: 1px 0; font-size: 11px; color: #555; }
+        .school-detail { margin: 0; font-size: 9px; color: #555; }
         
-        .country-name { font-size: 14px; font-weight: 700; text-transform: uppercase; margin: 0 0 2px; }
+        .country-name { font-size: 11px; font-weight: 700; text-transform: uppercase; margin: 0 0 2px; }
         .country-motto { font-size: 11px; font-style: italic; margin: 0 0 6px; color: #444; }
-        .ministry { font-size: 10px; text-transform: uppercase; margin: 1px 0; color: #333; }
-        .inspection { font-size: 10px; text-transform: uppercase; margin: 1px 0; color: #333; }
+        .ministry { font-size: 8px; text-transform: uppercase; margin: 1px 0; color: #333; }
+        .inspection { font-size: 8px; text-transform: uppercase; margin: 1px 0; color: #333; }
         
-        .bulletin-title-section { text-align: center; margin-bottom: 12px; }
+        .bulletin-title-section { text-align: center; margin-bottom: 6px; }
         .bulletin-title {
-          font-size: 18px; font-weight: 700; text-transform: uppercase;
-          margin: 0 0 4px; padding: 6px 16px; display: inline-block;
+          font-size: 14px; font-weight: 700; text-transform: uppercase;
+          margin: 0 0 4px; padding: 4px 10px; display: inline-block;
           border: 2px solid ${primaryColor}; color: ${primaryColor};
         }
         .school-year-line { font-size: 12px; margin: 6px 0 0; text-align: right; color: #555; }
         
         .student-info-section {
           display: flex;
-          gap: 20px;
+          gap: 10px;
           background-color: #f8f9fa;
-          padding: 15px;
+          padding: 8px 10px;
           border-left: 5px solid ${primaryColor};
-          margin-bottom: 20px;
+          margin-bottom: 8px;
           border-radius: 4px;
         }
         
         .student-photo img {
-          width: 80px;
-          height: 80px;
+          width: 50px;
+          height: 50px;
           object-fit: cover;
           border-radius: 4px;
           border: 1px solid #ddd;
@@ -1358,7 +1350,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           flex: 1;
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 8px;
+          gap: 4px;
         }
         
         .detail-row {
@@ -1368,38 +1360,39 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         }
         
         .detail-row .label {
-          font-size: 11px;
+          font-size: 9px;
           color: #666;
           white-space: nowrap;
           font-weight: 600;
         }
         
         .detail-row .value {
-          font-size: 13px;
+          font-size: 10px;
           font-weight: 500;
         }
         
         .grades-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          margin-bottom: 6px;
           table-layout: fixed;
           word-wrap: break-word;
         }
         
         .grades-table th,
         .grades-table td {
-          padding: 4px 3px;
+          padding: 3px 4px;
           border: 1px solid #e0e0e0;
-          font-size: 10px;
+          font-size: 8px;
           text-align: center;
+          line-height: 1.3;
         }
         
         .grades-table th {
           background-color: ${primaryColor};
           color: #fff;
           text-transform: uppercase;
-          font-size: 9px;
+          font-size: 7px;
           font-weight: 600;
           letter-spacing: 0.3px;
         }
@@ -1410,7 +1403,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         
         .grades-table .course-name {
           text-align: left;
-          font-size: 9px;
+          font-size: 7px;
           padding-left: 4px;
         }
         
@@ -1426,14 +1419,14 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         .footer-stats {
           display: flex;
           justify-content: space-between;
-          margin-bottom: 30px;
-          gap: 15px;
+          margin-bottom: 8px;
+          gap: 6px;
         }
         
         .stat-box {
           flex: 1;
           background: #f8f9fa;
-          padding: 15px;
+          padding: 6px 8px;
           text-align: center;
           border-radius: 4px;
           border: 1px solid #eee;
@@ -1441,21 +1434,21 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         
         .stat-box h4 {
           margin: 0 0 5px;
-          font-size: 12px;
+          font-size: 9px;
           text-transform: uppercase;
           color: ${secondaryColor};
         }
         
         .stat-value {
           margin: 0;
-          font-size: 20px;
+          font-size: 14px;
           font-weight: bold;
         }
         
         .signatures {
           display: flex;
           justify-content: space-between;
-          margin-top: 40px;
+          margin-top: 12px;
         }
         
         .signature-box {
@@ -1467,11 +1460,11 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           font-weight: bold;
           border-bottom: 1px solid #000;
           padding-bottom: 5px;
-          margin-bottom: 15px;
+          margin: 0 0 8px;
         }
 
         .signature-space {
-          height: 80px;
+          height: 30px;
         }
 
         .no-grades-message {
@@ -1483,7 +1476,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
 
         .annual-summary-section {
           border: 2px solid;
-          margin-bottom: 20px;
+          margin-bottom: 6px;
           background-color: #fff;
           border-radius: 4px;
           overflow: hidden;
@@ -1491,23 +1484,23 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
 
         .annual-title {
           text-align: center;
-          font-size: 14px;
+          font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
-          padding: 8px 0;
+          padding: 4px 0;
           letter-spacing: 0.5px;
         }
 
         .annual-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 12px;
+          font-size: 9px;
         }
 
         .annual-table th,
         .annual-table td {
           border: 1px solid #e0e0e0;
-          padding: 8px 6px;
+          padding: 4px;
           text-align: center;
         }
 
@@ -1515,7 +1508,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.3px;
-          font-size: 11px;
+          font-size: 8px;
         }
 
         .annual-highlight {
@@ -1525,19 +1518,19 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         .annual-info-grid {
           display: flex;
           justify-content: space-around;
-          padding: 10px;
+          padding: 6px;
           border-top: 1px solid #e0e0e0;
           background-color: #f8f9fa;
-          gap: 10px;
+          gap: 6px;
         }
 
         .annual-info-box {
           display: flex;
           gap: 8px;
           align-items: center;
-          font-size: 12px;
+          font-size: 9px;
           border: 1px solid;
-          padding: 6px 12px;
+          padding: 4px 8px;
           border-radius: 4px;
           background: white;
           flex: 1;
@@ -1554,10 +1547,53 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
         }
 
         .annual-decisions {
-          padding: 12px;
+          padding: 6px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 4px;
+        }
+
+        .decisions-title {
+          font-size: 9px;
+          font-weight: 700;
+          text-transform: uppercase;
+          text-align: center;
+          margin-bottom: 2px;
+        }
+
+        .decisions-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 4px;
+        }
+
+        .decision-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 8px;
+          padding: 3px 4px;
+          border: 1px solid #ccc;
+          background-color: #fafafa;
+          border-radius: 4px;
+        }
+
+        .appreciation-box {
+          border: 2px solid #e0e0e0;
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          min-height: 35px;
+          background-color: #fafafa;
+          border-radius: 4px;
+        }
+
+        .appreciation-value {
+          font-size: 12px;
+          font-weight: 700;
+          color: #000;
+          text-align: center;
         }
 
         .decisions-title {
@@ -1633,6 +1669,10 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           font-weight: 700;
           color: #000;
           text-align: center;
+        }
+
+        .annual-separator {
+          border-left: 3px solid ${primaryColor} !important;
         }
       </style>
       
@@ -1730,27 +1770,26 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
                 </tr>
               `}).join('')}
            </tbody>
-        </table>
-      `}
-          <tfoot>
-            <tr style="background-color: ${secondaryColor}20">
-              <td class="font-bold">TOTAL</td>
-              <td class="text-center font-bold">${totalCoefficients}</td>
-              ${categoryColumns.map(() => '<td></td>').join('')}
-              <td></td>
-              <td></td>
-              <td class="text-center font-bold">${formatNumber(totalWeightedPoints)}</td>
-              <td colspan="3"></td>
-            </tr>
-            <tr style="background-color: ${primaryColor}10">
-              <td colspan="2" class="text-right font-bold" style="font-size: 14px;">MOYENNE GÉNÉRALE</td>
-              ${categoryColumns.map(() => '<td></td>').join('')}
-              <td colspan="2"></td>
-              <td colspan="2" class="text-left font-bold" style="font-size: 16px; color: ${primaryColor};">${formatNumber(generalAverage)} / 20</td>
-              <td colspan="3"></td>
-            </tr>
-          </tfoot>
-      </table>
+           <tfoot>
+             <tr style="background-color: ${secondaryColor}20">
+               <td class="font-bold">TOTAL</td>
+               <td class="text-center font-bold">${totalCoefficients}</td>
+               ${categoryColumns.map(() => '<td></td>').join('')}
+               <td></td>
+               <td></td>
+               <td class="text-center font-bold">${formatNumber(totalWeightedPoints)}</td>
+               <td colspan="3"></td>
+             </tr>
+             <tr style="background-color: ${primaryColor}10">
+               <td colspan="2" class="text-right font-bold" style="font-size: 14px;">MOYENNE GÉNÉRALE</td>
+               ${categoryColumns.map(() => '<td></td>').join('')}
+               <td colspan="2"></td>
+               <td colspan="2" class="text-left font-bold" style="font-size: 16px; color: ${primaryColor};">${formatNumber(generalAverage)} / 20</td>
+               <td colspan="3"></td>
+             </tr>
+           </tfoot>
+         </table>
+       `}
       
       ${showAnnual ? `
       <div class="annual-summary-section" style="border-color: ${primaryColor};">
@@ -1761,12 +1800,12 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
           <thead>
             <tr style="background-color: ${secondaryColor}20;">
               <th colspan="2">Blocs de Synthèse des Moyennes</th>
-              <th colspan="3">Annuelle</th>
+              <th colspan="3" style="border-left: 3px solid ${primaryColor};">Annuelle</th>
             </tr>
             <tr style="background-color: ${primaryColor}; color: #fff;">
               <th>1er SEMESTRE</th>
               <th>2ème SEMESTRE</th>
-              <th>Du plus Fort</th>
+              <th class="annual-separator">Du plus Fort</th>
               <th>De l'Élève</th>
               <th>Du Plus Faible</th>
             </tr>
@@ -1775,7 +1814,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
             <tr>
               <td class="font-bold">${formatNumber(semester1Average || 0)}</td>
               <td class="font-bold">${formatNumber(semester2Average || 0)}</td>
-              <td class="font-bold">${formatNumber(classHighestAnnual || 0)}</td>
+              <td class="font-bold annual-separator">${formatNumber(classHighestAnnual || 0)}</td>
               <td class="font-bold annual-highlight" style="color: ${primaryColor};">${formatNumber(computedAnnualAvg)}</td>
               <td class="font-bold">${formatNumber(classLowestAnnual || 0)}</td>
             </tr>
@@ -1837,7 +1876,7 @@ const generateTemplate1Html = (student: Student, processedGrades: any[], general
   `;
 };
 
-const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, formatNumber: Function, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
+const generateTemplate2Html = (student: Student, processedGrades: any[], generalAverage: number, totalCoefficients: number, totalWeightedPoints: number, primaryColor: string, secondaryColor: string, periodLabel: string, logoUrl: string, absences: number = 0, rank: number = 0, totalStudents: number = 0, classAverage: number = 0, categoryColumns: { code: string; name: string; isExam: boolean }[] = [], showAnnual: boolean = false, semester1Average?: number, semester2Average?: number, computedAnnualAvg: number = 0, annualRank?: number, classHighestAnnual?: number, classLowestAnnual?: number, annualDecisionState?: any, getAnnualAppreciation?: () => string, decisionLabelsMap?: Record<string, string>) => {
   const cData = getCountryData();
   const getGradeClass = (grade: number) => {
     if (grade < 10) return 'grade-low';
@@ -1858,9 +1897,95 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 8px;
+          margin-bottom: 5px;
           border-bottom: 2px solid #2c3e50;
-          padding-bottom: 8px;
+          padding-bottom: 5px;
+        }
+        
+        .header-block { width: 48%; }
+        .header-left-block { text-align: left; }
+        .header-right-block { text-align: right; }
+        
+        .logo-box { margin-bottom: 2px; }
+        
+        .logo-circle {
+          width: 48px;
+          height: 48px;
+          border: 2px solid ${primaryColor};
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        
+        .logo-circle img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        
+        .school-name {
+          font-size: 11px;
+          margin: 2px 0 1px 0;
+          font-weight: 900;
+          text-transform: uppercase;
+          color: ${primaryColor};
+        }
+        .school-detail { margin: 0; font-size: 8px; color: #444; }
+        
+        .country-name { font-size: 10px; font-weight: 700; text-transform: uppercase; margin: 0 0 1px; }
+        .country-motto { font-size: 8px; font-style: italic; margin: 0 0 2px; color: #333; }
+        .ministry-text { font-size: 7px; text-transform: uppercase; margin: 0; color: #222; }
+        .inspection-text { font-size: 7px; text-transform: uppercase; margin: 0; color: #222; }
+        
+        .bulletin-title-box {
+          text-align: center;
+          border: 2px solid #2c3e50;
+          margin-bottom: 4px;
+          padding: 4px 0;
+          background-color: ${secondaryColor}30;
+        }
+        
+        .bulletin-title-box h1 {
+          margin: 0;
+          font-size: 14px;
+          font-family: "Times New Roman", serif;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        
+        .school-year-line {
+          font-size: 9px;
+          margin: 2px 0 0;
+          text-align: right;
+          padding-right: 6px;
+          color: #444;
+        }
+        
+        .student-info {
+          border: 2px solid ${primaryColor};
+          background-color: #f5f5f5;
+          margin-bottom: 4px;
+          font-size: 8px;
+        }
+        
+        .student-info .row {
+          display: flex;
+          border-bottom: 1px solid #999;
+        }
+        
+        .student-info .row:last-child {
+          border-bottom: none;
+        }
+        
+        .student-info .cell {
+          flex: 1;
+          padding: 2px 4px;
+          border-right: 1px solid #999;
+        }
+        .student-info .cell:last-child {
+          border-right: none;
         }
         
         .header-block { width: 48%; }
@@ -1953,27 +2078,27 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .notes-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 10px;
+          font-size: 8px;
           border: 2px solid #000;
-          margin-bottom: 10px;
+          margin-bottom: 4px;
         }
         
         .notes-table th, .notes-table td {
           border: 1px solid #000;
-          padding: 4px 3px;
+          padding: 2px 3px;
           text-align: center;
-          font-size: 9px;
+          font-size: 7px;
         }
         
         .notes-table thead th {
           background-color: ${primaryColor};
           color: #fff;
-          font-size: 9px;
+          font-size: 7px;
           text-transform: uppercase;
           letter-spacing: 0.2px;
         }
         
-        .col-matiere { width: 18%; text-align: left; padding-left: 4px !important; }
+        .col-matiere { width: 18%; text-align: left; padding-left: 3px !important; }
         .col-coeff { width: 6%; }
         .col-note { width: 8%; }
         .col-prof { width: 15%; }
@@ -1987,8 +2112,8 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .grade-good { color: #2e7d32; }
         .grade-excellent { color: #1565c0; font-weight: bold; }
         
-        .appreciation { font-size: 10px; font-style: italic; }
-        .professor-name { font-size: 9px; text-align: left; padding-left: 6px; }
+        .appreciation { font-size: 7px; font-style: italic; }
+        .professor-name { font-size: 7px; text-align: left; padding-left: 4px; }
         
         .total-row td {
           border-top: 2px solid #000;
@@ -1998,31 +2123,31 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .moyenne-generale-row .label-moyenne {
           background-color: ${secondaryColor}20;
           text-align: right;
-          padding-right: 15px;
+          padding-right: 8px;
           font-weight: bold;
-          font-size: 13px;
+          font-size: 9px;
         }
         
         .moyenne-generale-row .value-moyenne {
           background-color: ${secondaryColor}20;
           font-weight: bold;
-          font-size: 16px;
+          font-size: 11px;
           text-align: left;
-          padding-left: 15px;
+          padding-left: 8px;
           color: ${primaryColor};
         }
         
         .footer-summary {
           border: 2px solid #000;
           background-color: #f5f5f5;
-          padding: 10px;
-          font-size: 11px;
+          padding: 6px;
+          font-size: 8px;
         }
         
         .summary-grid {
           display: flex;
           justify-content: space-between;
-          gap: 20px;
+          gap: 10px;
         }
         
         .summary-left, .summary-right {
@@ -2032,8 +2157,8 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         .summary-line {
           display: flex;
           justify-content: space-between;
-          margin-bottom: 5px;
-          padding: 4px 0;
+          margin-bottom: 2px;
+          padding: 2px 0;
           border-bottom: 1px dotted #666;
         }
         
@@ -2043,22 +2168,22 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         
         .rank-line {
           border: 2px solid ${primaryColor};
-          padding: 6px 10px;
+          padding: 4px 6px;
           background: white;
-          margin-bottom: 10px;
+          margin-bottom: 4px;
           text-align: center;
-          font-size: 12px;
+          font-size: 9px;
         }
         
         .stats-box {
           border: 1px solid #000;
-          margin-bottom: 10px;
+          margin-bottom: 4px;
         }
         
         .stat-row {
           display: flex;
           justify-content: space-between;
-          padding: 3px 8px;
+          padding: 2px 4px;
           border-bottom: 1px solid #ccc;
         }
         
@@ -2071,45 +2196,45 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         }
         
         .signature {
-          margin-top: 15px;
+          margin-top: 8px;
           text-align: center;
           font-weight: bold;
         }
         
         .signature-space {
-          height: 50px;
+          height: 25px;
           border-bottom: 1px solid #000;
-          margin-top: 5px;
+          margin-top: 3px;
         }
 
         .annual-summary-section {
           border: 2px solid #000;
-          margin-bottom: 10px;
+          margin-bottom: 4px;
           background-color: #fff;
         }
 
         .annual-title {
           text-align: center;
-          font-size: 14px;
+          font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
-          padding: 6px 0;
+          padding: 3px 0;
           letter-spacing: 0.5px;
         }
 
         .annual-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 11px;
+          font-size: 8px;
           border-bottom: 2px solid #000;
         }
 
         .annual-table th,
         .annual-table td {
           border: 1px solid #000;
-          padding: 6px 4px;
+          padding: 3px;
           text-align: center;
-          font-size: 10px;
+          font-size: 7px;
         }
 
         .annual-table thead th {
@@ -2119,22 +2244,22 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         }
 
         .annual-highlight {
-          font-size: 13px;
+          font-size: 9px;
         }
 
         .annual-info-grid {
           display: flex;
           justify-content: space-around;
-          padding: 8px;
+          padding: 4px;
           border-bottom: 1px solid #000;
           background-color: #f5f5f5;
         }
 
         .annual-info-box {
           display: flex;
-          gap: 8px;
+          gap: 4px;
           align-items: center;
-          font-size: 11px;
+          font-size: 8px;
         }
 
         .info-label {
@@ -2146,83 +2271,63 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
         }
 
         .annual-decisions {
-          padding: 10px;
+          padding: 4px;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 3px;
         }
 
         .decisions-title {
-          font-size: 12px;
+          font-size: 8px;
           font-weight: 700;
           text-transform: uppercase;
           text-align: center;
-          margin-bottom: 4px;
+          margin-bottom: 2px;
         }
 
         .decisions-grid {
           display: grid;
           grid-template-columns: repeat(5, 1fr);
-          gap: 6px;
+          gap: 3px;
         }
 
         .decision-item {
           display: flex;
           align-items: center;
-          gap: 4px;
-          font-size: 9px;
-          padding: 4px 6px;
+          gap: 2px;
+          font-size: 7px;
+          padding: 2px 3px;
           border: 1px solid #999;
           background-color: #fafafa;
           border-radius: 3px;
         }
 
-        .decision-item.decision-active {
-          background-color: #e8f5e9;
-          border-color: #2e7d32;
-          font-weight: 700;
-        }
-
-        .checkbox {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 14px;
-          height: 14px;
-          border: 1px solid #555;
-          background: #fff;
-          flex-shrink: 0;
-        }
-
-        .checkmark {
-          color: #2e7d32;
-          font-weight: 700;
-          font-size: 11px;
-          line-height: 1;
-        }
-
         .appreciation-box {
           border: 2px solid #000;
-          padding: 10px;
-          margin-top: 4px;
+          padding: 4px;
+          margin-top: 2px;
           display: flex;
           flex-direction: column;
-          gap: 4px;
-          min-height: 60px;
+          gap: 2px;
+          min-height: 30px;
         }
 
         .appreciation-title {
-          font-size: 10px;
+          font-size: 7px;
           font-weight: 700;
           text-transform: uppercase;
           color: #555;
         }
 
         .appreciation-value {
-          font-size: 14px;
+          font-size: 10px;
           font-weight: 700;
           color: #000;
           text-align: center;
+        }
+
+        .annual-separator {
+          border-left: 3px solid ${primaryColor} !important;
         }
       </style>
       
@@ -2334,22 +2439,22 @@ const generateTemplate2Html = (student: Student, processedGrades: any[], general
          <table class="annual-table">
            <thead>
              <tr>
-               <th colspan="2" style="background-color: ${secondaryColor}30;">Blocs de Synthèse des Moyennes</th>
-               <th colspan="3" style="background-color: ${secondaryColor}30;">Annuelle</th>
-             </tr>
-             <tr style="background-color: ${primaryColor}; color: #fff;">
-               <th>1er SEMESTRE</th>
-               <th>2ème SEMESTRE</th>
-               <th>Du plus Fort</th>
-               <th>De l'Élève</th>
-               <th>Du Plus Faible</th>
-             </tr>
-           </thead>
-           <tbody>
-             <tr>
-               <td class="font-bold">${formatNumber(semester1Average || 0)}</td>
-               <td class="font-bold">${formatNumber(semester2Average || 0)}</td>
-               <td class="font-bold">${formatNumber(classHighestAnnual || 0)}</td>
+                <th colspan="2" style="background-color: ${secondaryColor}30;">Blocs de Synthèse des Moyennes</th>
+                <th colspan="3" style="background-color: ${secondaryColor}30; border-left: 3px solid ${primaryColor};">Annuelle</th>
+              </tr>
+              <tr style="background-color: ${primaryColor}; color: #fff;">
+                <th>1er SEMESTRE</th>
+                <th>2ème SEMESTRE</th>
+                <th class="annual-separator">Du plus Fort</th>
+                <th>De l'Élève</th>
+                <th>Du Plus Faible</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-bold">${formatNumber(semester1Average || 0)}</td>
+                <td class="font-bold">${formatNumber(semester2Average || 0)}</td>
+                <td class="font-bold annual-separator">${formatNumber(classHighestAnnual || 0)}</td>
                <td class="font-bold annual-highlight" style="color: ${primaryColor};">${formatNumber(computedAnnualAvg)}</td>
                <td class="font-bold">${formatNumber(classLowestAnnual || 0)}</td>
              </tr>

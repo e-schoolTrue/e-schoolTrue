@@ -67,9 +67,9 @@
         <tr v-for="(grade, index) in processedGrades" :key="index" :class="{ 'row-even': index % 2 === 0 }">
           <td class="text-left">{{ grade.courseName }}</td>
           <td>{{ grade.coefficient }}</td>
-          <td :class="getGradeClass(grade.classAverage)">{{ fmt(grade.classAverage) }}</td>
-          <td :class="getGradeClass(grade.average)">{{ fmt(grade.average) }}</td>
-          <td class="bg-gray">{{ fmt(grade.weightedValue) }}</td>
+          <td :class="getGradeClass(grade.classAverage)">{{ formatNumber(grade.classAverage) }}</td>
+          <td :class="getGradeClass(grade.average)">{{ formatNumber(grade.average) }}</td>
+          <td class="bg-gray">{{ formatNumber(grade.weightedValue) }}</td>
           <td class="appreciation">{{ grade.appreciation || getAppreciation(grade.average) }}</td>
           <td class="professor-name">{{ grade.professorName || '-' }}</td>
         </tr>
@@ -79,13 +79,13 @@
             <td class="text-left font-bold">TOTAL</td>
             <td class="font-bold">{{ totalCoefficients }}</td>
             <td></td>
-            <td class="bg-gray font-bold">{{ fmt(totalWeightedPoints) }}</td>
+            <td class="bg-gray font-bold">{{ formatNumber(totalWeightedPoints) }}</td>
             <td colspan="3"></td>
           </tr>
           <tr class="moyenne-generale-row" :style="{ backgroundColor: options.secondaryColor + '20' }">
             <td colspan="3" class="label-moyenne">Moyenne Générale</td>
             <td colspan="4" class="value-moyenne" :style="{ color: options.primaryColor }">
-              {{ fmt(generalAverage) }} / 20
+              {{ formatNumber(generalAverage) }} / 20
             </td>
           </tr>
         </tfoot>
@@ -99,7 +99,7 @@
        <div v-for="grade in processedGrades" :key="grade.courseId" class="course-notes-block">
          <div class="course-header">
            <span class="course-title">{{ grade.courseName }}</span>
-           <span class="course-average">Moyenne : {{ fmt(grade.average) }} / 20</span>
+           <span class="course-average">Moyenne : {{ formatNumber(grade.average) }} / 20</span>
          </div>
          <div v-for="(cat, catIndex) in getCourseCategoryNotes(grade)" :key="catIndex" class="note-category">
            <div class="category-header">
@@ -108,13 +108,13 @@
            </div>
            <div class="grades-list">
              <div v-for="(gradeItem, itemIndex) in cat.grades" :key="itemIndex" class="grade-item">
-               <span class="grade-text">{{ fmt(gradeItem.score) }}</span>
-               <span class="grade-max">/ {{ fmt(gradeItem.maxScore) }}</span>
+               <span class="grade-text">{{ formatNumber(gradeItem.score) }}</span>
+               <span class="grade-max">/ {{ formatNumber(gradeItem.maxScore) }}</span>
              </div>
            </div>
            <div class="category-summary">
              <span class="summary-label">Moyenne catégorie :</span>
-             <span class="summary-value">{{ fmt(cat.average) }} / 20</span>
+             <span class="summary-value">{{ formatNumber(cat.average) }} / 20</span>
            </div>
          </div>
        </div>
@@ -126,27 +126,27 @@
         MOYENNE ANNUELLE
       </div>
 
-      <table class="annual-table">
-        <thead>
-          <tr>
-            <th colspan="2" :style="{ backgroundColor: options.secondaryColor + '30' }">Blocs de Synthèse des Moyennes</th>
-            <th colspan="3" :style="{ backgroundColor: options.secondaryColor + '30' }">Annuelle</th>
-          </tr>
-          <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
-            <th>1er SEMESTRE</th>
-            <th>2ème SEMESTRE</th>
-            <th>Du plus Fort</th>
-            <th>De l'Élève</th>
-            <th>Du Plus Faible</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="font-bold">{{ fmt(semester1Average) }}</td>
-            <td class="font-bold">{{ fmt(semester2Average) }}</td>
-            <td class="font-bold">{{ fmt(classHighestAnnual) }}</td>
-            <td class="font-bold annual-highlight" :style="{ color: options.primaryColor }">{{ fmt(computedAnnualAverage) }}</td>
-            <td class="font-bold">{{ fmt(classLowestAnnual) }}</td>
+          <table class="annual-table">
+            <thead>
+              <tr>
+                <th colspan="2" :style="{ backgroundColor: options.secondaryColor + '30' }">Blocs de Synthèse des Moyennes</th>
+                <th colspan="3" :style="{ backgroundColor: options.secondaryColor + '30', borderLeft: '3px solid ' + options.primaryColor }">Annuelle</th>
+              </tr>
+              <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
+                <th>1er SEMESTRE</th>
+                <th>2ème SEMESTRE</th>
+                <th class="annual-separator">Du plus Fort</th>
+                <th>De l'Élève</th>
+                <th>Du Plus Faible</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-bold">{{ formatNumber(semester1Average) }}</td>
+                <td class="font-bold">{{ formatNumber(semester2Average) }}</td>
+                <td class="font-bold annual-separator">{{ formatNumber(classHighestAnnual) }}</td>
+            <td class="font-bold annual-highlight" :style="{ color: options.primaryColor }">{{ formatNumber(computedAnnualAverage) }}</td>
+            <td class="font-bold">{{ formatNumber(classLowestAnnual) }}</td>
           </tr>
         </tbody>
       </table>
@@ -190,11 +190,11 @@
         <div class="summary-left">
           <div class="summary-line">
             <span>Moyenne Trimestrielle :</span>
-            <span class="value">{{ fmt(generalAverage) }} /20</span>
+            <span class="value">{{ formatNumber(generalAverage) }} /20</span>
           </div>
           <div class="summary-line">
             <span>Moyenne de la Classe :</span>
-            <span class="value">{{ fmt(classAverage) }} /20</span>
+            <span class="value">{{ formatNumber(classAverage) }} /20</span>
           </div>
           <div class="signature">
             {{ signatoryLeftLabel }}
@@ -209,11 +209,11 @@
           <div class="stats-box">
             <div class="stat-row">
               <span>Moyenne plus forte :</span>
-              <span class="val">{{ fmt(highestAverage) }}</span>
+              <span class="val">{{ formatNumber(highestAverage) }}</span>
             </div>
             <div class="stat-row">
               <span>Moyenne plus faible :</span>
-              <span class="val">{{ fmt(lowestAverage) }}</span>
+              <span class="val">{{ formatNumber(lowestAverage) }}</span>
             </div>
           </div>
           <div class="signature">
@@ -228,6 +228,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getAppreciation, formatNumber } from '@/utils/grade';
 
 interface AnnualDecision {
   honors: boolean;
@@ -388,12 +389,6 @@ const decisionState = computed(() => ({
   excluded: props.decisions?.excluded || false
 }));
 
-// Formater les nombres (ex: 10.00)
-const fmt = (n: number | undefined) => {
-  if (n === null || n === undefined || isNaN(n)) return '0.00';
-  return n.toFixed(2);
-};
-
 const processedGrades = computed(() => {
   return props.grades.map(g => ({
     ...g,
@@ -423,17 +418,6 @@ const getGradeClass = (grade: number) => {
   if (grade >= 14) return 'grade-good';
   return '';
 };
-
- const getAppreciation = (note: number) => {
-   if (note < 5) return "Très Insuffisant";
-   if (note < 8) return "Insuffisant";
-   if (note < 10) return "Passable";
-   if (note < 12) return "Assez Bien";
-   if (note < 14) return "Bien";
-   if (note < 16) return "Très Bien";
-   if (note < 18) return "Excellent";
-   return "Félicitations";
- };
 
   const hasCourseNotes = computed(() => {
     return processedGrades.value.some(g => {
@@ -1000,6 +984,10 @@ const getGradeClass = (grade: number) => {
     font-weight: 700;
     color: #000;
     text-align: center;
+  }
+
+  .annual-separator {
+    border-left: 3px solid v-bind('options.primaryColor') !important;
   }
 
   @media print {

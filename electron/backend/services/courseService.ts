@@ -119,6 +119,7 @@ export class CourseService {
                     id: In(command.data.gradeIds) 
                 });
                 oldCourse.grades = gradesEntities;
+                oldCourse.grade = null;
             }
             // Support pour l'ancienne méthode (un seul gradeId)
             else if (command.data.gradeId) {
@@ -168,9 +169,9 @@ export class CourseService {
                 .createQueryBuilder('course')
                 .leftJoinAndSelect('course.grades', 'grades')
                 .leftJoinAndSelect('course.grade', 'grade')
-                .leftJoinAndSelect('course.courses', 'courses')
                 .leftJoinAndSelect('course.observations', 'observations')
                 .where('grades.id = :gradeId OR grade.id = :gradeId', { gradeId })
+                .distinct(true)
                 .getMany();
                 
             return {success: true, data: coursesWithGrade, error: null, message: ""};

@@ -1076,20 +1076,11 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   // ===================================================================
 
   // Sauvegarder une note individuelle
+  // Note: le recalcul des moyennes est déclenché par le frontend via gradeEntry:calculate
+  // qui dispose du classId et schoolId corrects
   ipcMain.handle('gradeEntry:save', async (_event, input) => {
     try {
       const result = await global.gradeEntryService.saveGradeEntry(input);
-
-      if (result.success) {
-        // Recalculer automatiquement les moyennes après la sauvegarde
-        await global.gradeEntryService.recalculateStudentGrades(
-          input.studentId,
-          input.courseId,
-          (input as any).classId || 0,
-          (input as any).schoolId || 0,
-          input.period
-        );
-      }
 
       return result;
     } catch (error) {
@@ -1106,21 +1097,7 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       const result = await global.gradeEntryService.bulkSaveGrades(input);
       console.log('Result from bulkSaveGrades:', result);
 
-      if (result.success) {
-        console.log('✅ Notes sauvegardées, maintenant recalcul des moyennes...');
-        // Recalculer automatiquement les moyennes pour chaque étudiant
-        for (const grade of input.grades) {
-          console.log(`Recalcul pour étudiant ${input.studentId}, matière ${input.courseId}...`);
-          await global.gradeEntryService.recalculateStudentGrades(
-            input.studentId,
-            input.courseId,
-            (input as any).classId || 0,
-            (input as any).schoolId || 0,
-            input.period
-          );
-        }
-        console.log('✅ Recalcul terminé');
-      } else {
+      if (!result.success) {
         console.error('❌ Erreur dans bulkSaveGrades:', result.error);
       }
 

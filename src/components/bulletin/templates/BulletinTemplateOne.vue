@@ -111,25 +111,25 @@
         MOYENNE ANNUELLE
       </div>
 
-      <table class="annual-table">
-        <thead>
-          <tr :style="{ backgroundColor: options.secondaryColor + '20' }">
-            <th colspan="2">Blocs de Synthèse des Moyennes</th>
-            <th colspan="3">Annuelle</th>
-          </tr>
-          <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
-            <th>1er SEMESTRE</th>
-            <th>2ème SEMESTRE</th>
-            <th>Du plus Fort</th>
-            <th>De l'Élève</th>
-            <th>Du Plus Faible</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="font-bold">{{ formatNumber(semester1Average) }}</td>
-            <td class="font-bold">{{ formatNumber(semester2Average) }}</td>
-            <td class="font-bold">{{ formatNumber(classHighestAnnual) }}</td>
+          <table class="annual-table">
+            <thead>
+              <tr :style="{ backgroundColor: options.secondaryColor + '20' }">
+                <th colspan="2">Blocs de Synthèse des Moyennes</th>
+                <th colspan="3" :style="{ borderLeft: '3px solid ' + options.primaryColor }">Annuelle</th>
+              </tr>
+              <tr :style="{ backgroundColor: options.primaryColor, color: '#fff' }">
+                <th>1er SEMESTRE</th>
+                <th>2ème SEMESTRE</th>
+                <th class="annual-separator">Du plus Fort</th>
+                <th>De l'Élève</th>
+                <th>Du Plus Faible</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-bold">{{ formatNumber(semester1Average) }}</td>
+                <td class="font-bold">{{ formatNumber(semester2Average) }}</td>
+                <td class="font-bold annual-separator">{{ formatNumber(classHighestAnnual) }}</td>
             <td class="font-bold annual-highlight" :style="{ color: options.primaryColor }">{{ formatNumber(computedAnnualAverage) }}</td>
             <td class="font-bold">{{ formatNumber(classLowestAnnual) }}</td>
           </tr>
@@ -201,6 +201,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getAppreciation, formatNumber } from '@/utils/grade';
 
 interface AnnualDecision {
   honors: boolean;
@@ -373,11 +374,6 @@ const generalAverage = computed(() => {
   return totalWeightedPoints.value / totalCoefficients.value;
 });
 
-const formatNumber = (num: number) => {
-  return num ? num.toFixed(2) : '0.00';
-};
-
-
 const getGradeColorClass = (grade: number) => {
   if (grade < 10) return 'text-red-600';
   if (grade >= 16) return 'text-green-600';
@@ -386,17 +382,6 @@ const getGradeColorClass = (grade: number) => {
 
 const signatoryLeftLabel = computed(() => props.options?.signatoryLeft || 'Le Professeur Principal');
 const signatoryRightLabel = computed(() => props.options?.signatoryRight || 'Le Directeur');
-
-const getAppreciation = (note: number) => {
-  if (note < 5) return "Très Faible";
-  if (note < 8) return "Faible";
-  if (note < 10) return "Insuffisant";
-  if (note < 12) return "Passable";
-  if (note < 14) return "Assez Bien";
-  if (note < 16) return "Bien";
-  if (note < 18) return "Très Bien";
-  return "Excellent";
-};
 </script>
 
 <style scoped>
@@ -782,6 +767,10 @@ const getAppreciation = (note: number) => {
   font-weight: 700;
   color: #000;
   text-align: center;
+}
+
+.annual-separator {
+  border-left: 3px solid v-bind('options.primaryColor') !important;
 }
 
 @media print {

@@ -257,7 +257,9 @@ interface GradesDataStructure {
 // État
 const loading = ref(false);
 const saving = ref(false);
+const refreshing = ref(false);
 const hasChanges = ref(false);
+let loadGeneration = 0;
 
 const classes = ref<any[]>([]);
 const students = ref<Student[]>([]);
@@ -280,9 +282,11 @@ const calculatedAverages = ref<Map<number, number>>(new Map());
 const calculationDetailRef = ref<InstanceType<typeof GradeCalculationDetail> | null>(null);
 
 // Watch pour déboguer les changements dans gradesData
-watchEffect(() => {
-  console.log('🔄 gradesData mis à jour:', JSON.stringify(gradesData, null, 2));
-});
+if (import.meta.env.DEV) {
+  watchEffect(() => {
+    console.log('🔄 gradesData mis à jour:', JSON.stringify(gradesData, null, 2));
+  });
+}
 
 // Computed
 const selectedClassName = computed(() => {
@@ -436,7 +440,7 @@ const onClassChange = async () => {
 const onPeriodChange = async () => {
   await loadConfig();
   if (selectedStudent.value) {
-    loadStudentGrades();
+    await loadStudentGrades();
   }
 };
 
@@ -487,39 +491,46 @@ const selectStudent = async (student: Student) => {
 const loadStudentGrades = async () => {
   if (!selectedStudent.value || !selectedPeriod.value || courses.value.length === 0) return;
 
+  const generation = ++loadGeneration;
   loading.value = true;
   try {
     console.log('=== CHARGEMENT DES NOTES ===');
     console.log('StudentId:', selectedStudent.value.id, 'Période:', selectedPeriod.value, 'Matières:', courses.value.length);
 
-    // Initialiser la structure de données
-    for (const course of courses.value) {
-      if (!gradesData[course.id!]) {
-        gradesData[course.id!] = {};
-      }
-      for (const category of categories.value) {
-        gradesData[course.id!][category.id] = null;
-      }
-    }
+    // Vider le cache des moyennes précédentes
+    calculatedAverages.value = new Map();
 
     console.log('Structure initiale de gradesData créée');
 
-      // Charger les notes existantes pour chaque matière
-      for (const course of courses.value) {
-        const gradesRes = await window.ipcRenderer.invoke('gradeEntry:get', {
-          studentId: selectedStudent.value.id,
-          courseId: course.id,
-          period: selectedPeriod.value
-        });
+    // Charger les notes existantes pour chaque matière
+    for (const course of courses.value) {
+      if (generation !== loadGeneration) return;
 
-        if (gradesRes.success && gradesRes.data && gradesRes.data.length > 0) {
-          for (const entry of gradesRes.data) {
-            gradesData[course.id!][entry.categoryId] = entry.score;
-          }
-          console.log(`✅ Notes chargées pour matière ${course.name} (ID: ${course.id}):`, gradesData[course.id!]);
-        } else {
-          console.log(`ℹ️ Aucune note trouvée pour matière ${course.name} (studentId: ${selectedStudent.value.id}, courseId: ${course.id}, period: ${selectedPeriod.value})`);
+      if (!gradesData[course.id!]) {
+        gradesData[course.id!] = {};
+      }
+
+      // Remettre à null pour cette matière seulement, au moment du fetch
+      for (const category of categories.value) {
+        gradesData[course.id!][category.id] = null;
+      }
+
+      const gradesRes = await window.ipcRenderer.invoke('gradeEntry:get', {
+        studentId: selectedStudent.value.id,
+        courseId: course.id,
+        period: selectedPeriod.value
+      });
+
+      if (generation !== loadGeneration) return;
+
+      if (gradesRes.success && gradesRes.data && gradesRes.data.length > 0) {
+        for (const entry of gradesRes.data) {
+          gradesData[course.id!][entry.categoryId] = entry.score;
         }
+        console.log(`✅ Notes chargées pour matière ${course.name} (ID: ${course.id}):`, gradesData[course.id!]);
+      } else {
+        console.log(`ℹ️ Aucune note trouvée pour matière ${course.name} (studentId: ${selectedStudent.value.id}, courseId: ${course.id}, period: ${selectedPeriod.value})`);
+      }
 
       // Charger la moyenne calculée
       const avgRes = await window.ipcRenderer.invoke('gradeEntry:getCalculated', {
@@ -530,15 +541,20 @@ const loadStudentGrades = async () => {
         period: selectedPeriod.value
       });
 
+      if (generation !== loadGeneration) return;
+
       if (avgRes.success && avgRes.data) {
         calculatedAverages.value.set(course.id!, avgRes.data.finalAverage);
       }
     }
 
+    if (generation !== loadGeneration) return;
+
     console.log('=== CHARGEMENT TERMINÉ ===');
     console.log('Notes finales dans gradesData:', JSON.stringify(gradesData, null, 2));
     hasChanges.value = false;
   } catch (error) {
+    if (generation !== loadGeneration) return;
     console.error('Erreur chargement notes:', error);
     ElMessage.error('Erreur lors du chargement des notes');
   } finally {
@@ -802,9 +818,12 @@ const showCalculationDetail = (courseId: number) => {
 };
 
 const saveAll = async () => {
-  if (!selectedStudent.value || !selectedPeriod.value) return;
+  if (!selectedStudent.value || !selectedPeriod.value || refreshing.value) return;
 
+  refreshing.value = true;
   saving.value = true;
+  let allSuccess = true;
+  let savedAtLeastOne = false;
   try {
     console.log('=== DÉBUT SAUVEGARDE ===');
     console.log('Élève:', selectedStudent.value.id, selectedStudent.value.lastname);
@@ -850,6 +869,14 @@ const saveAll = async () => {
         const saveRes = await window.ipcRenderer.invoke('gradeEntry:bulkSave', savePayload);
         console.log('Résultat sauvegarde:', saveRes);
 
+        if (!saveRes.success) {
+          allSuccess = false;
+          console.error(`❌ Échec sauvegarde pour matière ${course.name}:`, saveRes);
+          continue;
+        }
+
+        savedAtLeastOne = true;
+
         // Recalculer et mettre en cache la moyenne
         const calcPayload = {
           studentId: selectedStudent.value.id,
@@ -871,9 +898,11 @@ const saveAll = async () => {
             calculatedAverages.value.set(course.id!, calcRes.data.finalAverage);
             console.log(`✅ Moyenne mise en cache pour cours ${course.id}: ${calcRes.data.finalAverage}`);
           } else {
+            allSuccess = false;
             console.error(`❌ Échec du calcul de moyenne pour cours ${course.id}:`, calcRes);
           }
         } catch (error) {
+          allSuccess = false;
           console.error(`❌ Erreur lors du calcul de moyenne pour cours ${course.id}:`, error);
         }
       } else {
@@ -881,14 +910,22 @@ const saveAll = async () => {
       }
     }
 
-    console.log('=== FIN SAUVEGARDE ===\n');
-    ElMessage.success('Notes enregistrées avec succès');
-    hasChanges.value = false;
+    if (allSuccess && savedAtLeastOne) {
+      console.log('=== FIN SAUVEGARDE ===\n');
+      ElMessage.success('Notes enregistrées avec succès');
+      hasChanges.value = false;
+      await loadStudentGrades();
+    } else if (!savedAtLeastOne) {
+      ElMessage.warning('Aucune note à enregistrer');
+    } else {
+      ElMessage.error('Erreur lors de la sauvegarde de certaines matières');
+    }
   } catch (error) {
     console.error('Erreur sauvegarde:', error);
     ElMessage.error('Erreur lors de la sauvegarde');
   } finally {
     saving.value = false;
+    refreshing.value = false;
   }
 };
 </script>

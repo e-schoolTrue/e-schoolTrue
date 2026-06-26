@@ -300,8 +300,24 @@ const onPageChange = (page: number) => {
 };
 
 const onPeriodChange = async () => {
+  currentPage.value = 1;
   await loadData();
 };
+
+watch(() => filters.value.gradeId, async (newGradeId) => {
+  if (newGradeId) {
+    currentPage.value = 1;
+    await loadGradeConfig(newGradeId);
+    await loadData();
+  } else {
+    rankings.value = [];
+    courses.value = [];
+    currentClass.value = null;
+    classConfig.value = null;
+    schoolInfo.value = null;
+    periods.value = [];
+  }
+});
 
 // Charger les données depuis le service backend
 const loadData = async () => {
@@ -348,8 +364,8 @@ const loadData = async () => {
 
 const getStudentScore = (student: CentralizedRanking, courseId: number): string | null => {
    const scoreData = student.scores?.find((s) => s.courseId === courseId);
-   if (scoreData) {
-     return scoreData.score ? scoreData.score.toFixed(1) : null;
+   if (scoreData && scoreData.score !== undefined && scoreData.score !== null) {
+     return scoreData.score.toFixed(1);
    }
    return null;
  };
