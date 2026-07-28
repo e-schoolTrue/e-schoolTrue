@@ -113,7 +113,7 @@ const formatDate = (date: string): string => {
 const getPaymentTypeColor = (type: string): string => {
   const colors: Record<string, string> = {
     tuition: 'primary',
-    registration: 'success',
+    inscription: 'success',
     uniform: 'warning',
     transport: 'info',
     cafeteria: 'danger'
@@ -124,7 +124,7 @@ const getPaymentTypeColor = (type: string): string => {
 const formatPaymentType = (type: string): string => {
   const types: Record<string, string> = {
     tuition: 'Frais de scolarité',
-    registration: 'Inscription',
+    inscription: 'Inscription',
     uniform: 'Uniforme',
     transport: 'Transport',
     cafeteria: 'Cantine'

@@ -1011,6 +1011,32 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       };
     }
   });
+
+  // === SCHEDULE CONFIG HANDLERS ===
+  ipcMain.handle('schedule-config:get', async (_event, { classId }) => {
+    try {
+      return await global.scheduleConfigService.getConfig(classId);
+    } catch (error) {
+      return { success: false, message: 'Erreur lors de la récupération', error };
+    }
+  });
+
+  ipcMain.handle('schedule-config:save', async (_event, data) => {
+    try {
+      return await global.scheduleConfigService.saveConfig(data);
+    } catch (error) {
+      return { success: false, message: 'Erreur lors de l\'enregistrement', error };
+    }
+  });
+
+  ipcMain.handle('schedule-config:delete', async (_event, { id }) => {
+    try {
+      return await global.scheduleConfigService.deleteConfig(id);
+    } catch (error) {
+      return { success: false, message: 'Erreur lors de la suppression', error };
+    }
+  });
+
   // ===================================================================
   // CONFIGURATION DES NOTES (ConfigNoteService)
   // ===================================================================

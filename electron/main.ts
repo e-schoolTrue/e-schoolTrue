@@ -27,6 +27,7 @@ import { GradeConfigService } from "./backend/services/gradeConfigService";
 import { PreferenceService } from "./backend/services/preferenceService";
 import { LicenseService } from "./backend/services/licenseService";
 import { ScheduleService } from './backend/services/scheduleService';
+import { ScheduleConfigService } from './backend/services/scheduleConfigService';
 import { InscriptionFeeService } from "./backend/services/inscription-fee.service";
 import { PaymentAnnualConfigService } from './backend/services/payment-annual-config.service';
 import { ConfigNoteService } from "./backend/services/note-config-service";
@@ -72,6 +73,7 @@ function initializeServices() {
   global.preferenceService = new PreferenceService();
   global.licenseService = new LicenseService();
   global.scheduleService = new ScheduleService();
+  global.scheduleConfigService = new ScheduleConfigService();
   global.inscriptionFeeService = new InscriptionFeeService();
   global.paymentAnnualConfigService = new PaymentAnnualConfigService();
   global.configNoteService = new ConfigNoteService();

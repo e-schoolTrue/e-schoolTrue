@@ -84,7 +84,7 @@ const emit = defineEmits<{
 
 // Gérer les étapes "Suivant" et "Précédent"
 const nextStep = () => {
-  if (currentStep.value < 5) {
+  if (currentStep.value < 4) {
     currentStep.value += 1;
   }
 };
@@ -93,6 +93,12 @@ const previousStep = () => {
   if (currentStep.value > 0) {
     currentStep.value -= 1;
   }
+};
+
+const goToStep = (index: number) => {
+  if (index === currentStep.value) return;
+  if (index < 0 || index > 4) return; // Student form has 5 virtual steps (0-4) but 4 sections
+  currentStep.value = index;
 };
 
 // Validation des champs obligatoires uniquement
@@ -216,10 +222,10 @@ defineExpose<StudentFormInstance>({
 <template>
   <el-card class="student-form">
     <el-steps :active="currentStep" finish-status="success" align-center class="mb-4">
-      <el-step title="Informations personnelles" icon="el-icon-user" />
-      <el-step title="Informations des Parents" icon="el-icon-user-solid" />
-      <el-step title="Informations Scolaires" icon="el-icon-school" />
-      <el-step title="Pièces jointes" icon="el-icon-document" />
+      <el-step title="Informations personnelles" style="cursor: pointer" @click.native="goToStep(0)" />
+      <el-step title="Informations des Parents" style="cursor: pointer" @click.native="goToStep(1)" />
+      <el-step title="Informations Scolaires" style="cursor: pointer" @click.native="goToStep(2)" />
+      <el-step title="Pièces jointes" style="cursor: pointer" @click.native="goToStep(3)" />
     </el-steps>
 
     <div class="form-container">
@@ -232,8 +238,8 @@ defineExpose<StudentFormInstance>({
 
         <div class="step-actions">
           <el-button v-if="currentStep > 0" @click="previousStep" :disabled="props.disabled">Précédent</el-button>
-          <el-button v-if="currentStep < 4" type="primary" @click="nextStep" :disabled="props.disabled">Suivant</el-button>
-          <el-button v-if="currentStep === 4" type="primary" @click="saveData" :disabled="props.disabled">
+          <el-button v-if="currentStep < 3" type="primary" @click="nextStep" :disabled="props.disabled">Suivant</el-button>
+          <el-button v-if="currentStep === 3" type="primary" @click="saveData" :disabled="props.disabled">
             <el-icon class="el-icon-loading" v-if="props.disabled"></el-icon>
             Sauvegarder
           </el-button>

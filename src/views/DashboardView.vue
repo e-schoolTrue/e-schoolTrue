@@ -34,6 +34,7 @@ const loading = ref(true);
 const paymentChartRef = ref<HTMLCanvasElement | null>(null);
 const absenceChartRef = ref<HTMLCanvasElement | null>(null);
 const { currency } = useCurrency();
+const schoolLogo = ref<string | null>(null);
 
 // --- Computed ---
 const recentAbsencesDisplay = computed(() => {
@@ -84,6 +85,14 @@ const loadDashboardStats = async () => {
           recentAbsences: statsResult.data.stats.recentAbsences || []
         }
       };
+    }
+
+    // Fetch school logo
+    if (schoolResult?.success && schoolResult.data?.logo?.id) {
+        const logoResult = await window.ipcRenderer.invoke('school:getLogo', schoolResult.data.logo.id);
+        if (logoResult?.success && logoResult.data) {
+            schoolLogo.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+        }
     }
 
     // Graphique Paiements
@@ -194,6 +203,9 @@ onMounted(() => {
             <p class="date-display">
                 <Icon icon="mdi:calendar-blank-outline" class="mr-2"/> {{ currentDate }}
             </p>
+        </div>
+        <div class="school-logo" v-if="schoolLogo">
+            <img :src="schoolLogo" alt="Logo école" class="dashboard-logo" />
         </div>
       </div>
 
@@ -445,6 +457,18 @@ onMounted(() => {
 }
 .kpi-trend.positive { color: #67C23A; }
 .kpi-trend.neutral { color: #909399; }
+
+.school-logo {
+  display: flex;
+  align-items: center;
+}
+.dashboard-logo {
+  max-height: 70px;
+  max-width: 70px;
+  border-radius: 12px;
+  object-fit: contain;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
 
 /* Custom Cards (Charts & Lists) */
 .custom-card {

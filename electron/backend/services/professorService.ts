@@ -356,6 +356,32 @@ export class ProfessorService {
                     cni_number: professorData.cni_number
                 });
 
+                // Handle diploma
+                let diploma;
+                if (professorData.diploma && professorData.diploma.name) {
+                    diploma = await transactionalEntityManager.findOne(DiplomaEntity, {
+                        where: { name: professorData.diploma.name }
+                    });
+                    if (!diploma) {
+                        diploma = this.diplomaRepository.create({ name: professorData.diploma.name });
+                        diploma = await transactionalEntityManager.save(diploma);
+                    }
+                }
+                existingProfessor.diploma = diploma || undefined;
+
+                // Handle qualification
+                let qualification;
+                if (professorData.qualification && professorData.qualification.name) {
+                    qualification = await transactionalEntityManager.findOne(QualificationEntity, {
+                        where: { name: professorData.qualification.name }
+                    });
+                    if (!qualification) {
+                        qualification = this.qualificationRepository.create({ name: professorData.qualification.name });
+                        qualification = await transactionalEntityManager.save(qualification);
+                    }
+                }
+                existingProfessor.qualification = qualification || undefined;
+
                 // Handle documents upload
                 if (professorData.documents && professorData.documents.length > 0) {
                     const validDocuments = professorData.documents.filter(doc => doc.content);
@@ -804,7 +830,7 @@ export class ProfessorService {
                 .leftJoinAndSelect('teaching.class', 'class')
                 .leftJoinAndSelect('teaching.grades', 'grades')
                 .where('teaching.course.id = :courseId', { courseId })
-                .andWhere('teaching.teachingType = :type', { type: TEACHING_TYPE.SECONDARY })
+                .andWhere('teaching.teachingType = :type', { type: TEACHING_TYPE.SUBJECT_TEACHER })
                 .getMany();
 
             console.log(`📚 Affectations SECONDARY trouvées: ${secondaryTeachingAssignments.length}`);

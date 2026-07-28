@@ -25,8 +25,10 @@ const classes = ref([]);
 const isLoading = ref(false);
 
 onMounted(async () => {
-  await loadStudentData();
+  // Load classes first (reference data for select fields)
   await loadClasses();
+  // Then load student data
+  await loadStudentData();
 });
 
 const loadStudentData = async () => {

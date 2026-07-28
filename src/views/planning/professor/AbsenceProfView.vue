@@ -230,10 +230,36 @@ const reasonForm = ref<ReasonForm>({
 });
 
 // Créneaux horaires
-const timeSlots = [
-  '8-9', '9-10', '10-11', '11-12',
-  '14-15', '15-16', '16-17'
-];
+const timeSlots = ref<string[]>([])
+
+const defaultTimeSlots = ['8-9', '9-10', '10-11', '11-12', '14-15', '15-16', '16-17']
+
+const loadScheduleConfig = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: null })
+    if (result.success && result.data) {
+      const config = result.data
+      const slots: string[] = []
+      let h = config.startHour
+      while (h < config.endHour) {
+        if (h >= config.lunchStart && h < config.lunchEnd) {
+          h = config.lunchEnd
+          continue
+        }
+        const endH = h + config.slotDuration / 60
+        if (endH > config.endHour) break
+        slots.push(`${h}-${endH}`)
+        h = endH
+      }
+      timeSlots.value = slots.length > 0 ? slots : defaultTimeSlots
+    } else {
+      timeSlots.value = defaultTimeSlots
+    }
+  } catch (error) {
+    console.error('Error loading schedule config:', error)
+    timeSlots.value = defaultTimeSlots
+  }
+}
 
 // Computed
 const filteredProfessorsSchedule = computed(() => {
@@ -334,8 +360,8 @@ const loadProfessors = async () => {
   }
 };
 
-const disableWeekends = (date: Date) => {
-  return date.getDay() === 0 || date.getDay() === 6;
+const disableWeekends = (_date: Date) => {
+  return false;
 };
 
 const loadSchedules = async () => {
@@ -355,7 +381,7 @@ const loadSchedules = async () => {
     if (scheduleResult.success) {
       professorsSchedule.value = professors.value.map(prof => ({
         professor: prof,
-        absences: timeSlots.reduce((acc, slot) => ({ 
+        absences: timeSlots.value.reduce((acc, slot) => ({ 
           ...acc, 
           [slot]: { 
             checked: false, 
@@ -461,7 +487,7 @@ const getSelectedAbsencesCount = () => {
 
 const resetAll = () => {
   professorsSchedule.value.forEach(profSchedule => {
-    timeSlots.forEach(slot => {
+    timeSlots.value.forEach(slot => {
       profSchedule.absences[slot] = {
         checked: false,
         reason: '',
@@ -526,6 +552,7 @@ const handleFilter = () => {
 onMounted(async () => {
   await loadClasses();
   await loadProfessors();
+  await loadScheduleConfig();
   selectedDate.value = new Date();
   await loadSchedules();
 });

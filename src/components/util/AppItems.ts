@@ -96,6 +96,12 @@ export const AppItems: MenuItem[] = [
                         title: "Congés",
                         icon: "fluent-emoji:beach-with-umbrella",
                         route: "/planning/students/vacation",
+                    },
+                    {
+                        id: "submenu-4-1-4",
+                        title: "Emploi du temps",
+                        icon: "fluent-emoji:calendar",
+                        route: "/planning/students/planning",
                     }
                 ]
             },
@@ -121,6 +127,12 @@ export const AppItems: MenuItem[] = [
                         title: "Emploi du temps",
                         icon: "fluent-emoji:calendar",
                         route: "/planning/professors/planning",
+                    },
+                    {
+                        id: "submenu-4-2-4",
+                        title: "Configuration créneaux",
+                        icon: "fluent-emoji:clock",
+                        route: "/planning/professors/schedule-config",
                     }
                 ]
             }

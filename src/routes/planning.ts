@@ -30,5 +30,15 @@ export const planningRoutes = [
     name: "ProfessorPlanning",
     component: () => import("@/views/planning/professor/PlanningConfigView.vue"),
   },
+  {
+    path: "/planning/professors/schedule-config",
+    name: "ProfessorScheduleConfig",
+    component: () => import("@/views/planning/professor/PlanningScheduleConfig.vue"),
+  },
+  {
+    path: "/planning/students/planning",
+    name: "StudentPlanning",
+    component: () => import("@/views/planning/student/StudentPlanningView.vue"),
+  },
 
 ];

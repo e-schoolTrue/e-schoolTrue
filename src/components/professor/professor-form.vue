@@ -158,28 +158,19 @@ const validateCurrentStep = async () => {
   const stepValidationFields = {
     0: ['firstname', 'lastname', 'civility', 'birth_date', 'birth_town', 'address', 'town', 'cni_number', 'family_situation'],
     1: ['diploma.name', 'qualification.name'],
-    2: [], // Étape documents - pas de validation obligatoire
+    2: [],
     3: ['teaching.schoolType']
   };
 
+  const fields = stepValidationFields[activeStep.value as keyof typeof stepValidationFields];
+  if (!fields || fields.length === 0) {
+    return true;
+  }
   try {
-    const fields = stepValidationFields[activeStep.value as keyof typeof stepValidationFields];
-    if (!fields || fields.length === 0) {
-      console.warn('Aucun champ à valider pour cette étape.');
-      return true; // Si aucun champ n'est requis, retournez "validé".
-    }
-    console.log('Validation des champs pour cette étape :', fields);
-    // Appel à validate avec des champs spécifiques.
-    await formRef.value.validate((valid: any, invalidFields: any) => {
-      if (valid) {
-        console.log('Validation réussie.');
-      } else {
-        console.error('Erreurs de validation :', invalidFields);
-      }
-    });
+    await formRef.value.validateField(fields);
     return true;
   } catch (error) {
-    console.error("Erreur lors de la validation de l\'étape :", error);
+    console.error('Erreurs de validation :', error);
     return false;
   }
 };
@@ -203,6 +194,15 @@ const prevStep = () => {
   if (activeStep.value > 0) {
     activeStep.value--;
   }
+};
+
+const goToStep = async (index: number) => {
+  if (index === activeStep.value) return;
+  if (index > activeStep.value) {
+    const isValid = await validateCurrentStep();
+    if (!isValid) return;
+  }
+  activeStep.value = index;
 };
 
 // Gestion améliorée des fichiers
@@ -437,6 +437,8 @@ const emit = defineEmits<{
         v-for="(step, index) in steps" 
         :key="index"
         :title="step.title"
+        style="cursor: pointer"
+        @click.native="goToStep(index)"
       >
         <template #icon>
           <Icon :icon="step.icon" />

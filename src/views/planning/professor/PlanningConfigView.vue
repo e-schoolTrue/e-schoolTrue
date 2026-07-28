@@ -328,7 +328,9 @@ const days = ref([
   { key: 'dimanche', label: 'Dimanche', enabled: false }
 ])
 
-const timeSlots = ref([
+const timeSlots = ref<{ key: string; label: string }[]>([])
+
+const defaultSlots = [
   { key: '8-9', label: '8h-9h' },
   { key: '9-10', label: '9h-10h' },
   { key: '10-11', label: '10h-11h' },
@@ -337,7 +339,34 @@ const timeSlots = ref([
   { key: '15-16', label: '15h-16h' },
   { key: '16-17', label: '16h-17h' },
   { key: '17-18', label: '17h-18h' }
-])
+]
+
+const loadScheduleConfig = async (classId?: number | null) => {
+  try {
+    const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: classId || null })
+    if (result.success && result.data) {
+      const config = result.data
+      const slots: { key: string; label: string }[] = []
+      let h = config.startHour
+      while (h < config.endHour) {
+        if (h >= config.lunchStart && h < config.lunchEnd) {
+          h = config.lunchEnd
+          continue
+        }
+        const endH = h + config.slotDuration / 60
+        if (endH > config.endHour) break
+        slots.push({ key: `${h}-${endH}`, label: `${h}h - ${endH}h` })
+        h = endH
+      }
+      timeSlots.value = slots.length > 0 ? slots : defaultSlots
+    } else {
+      timeSlots.value = defaultSlots
+    }
+  } catch (error) {
+    console.error('Error loading schedule config:', error)
+    timeSlots.value = defaultSlots
+  }
+}
 
 // Couleurs des matières
 const courseColors = ref<Record<number, string>>({})
@@ -581,7 +610,7 @@ const toggleDay = (index: number) => {
 }
 
 const onClassChange = () => {
-  // Recharger les données si nécessaire
+  loadScheduleConfig(filters.selectedClassId)
 }
 
 const handleDragStart = (event: DragEvent, item: TeachingItem) => {
@@ -673,7 +702,8 @@ onMounted(async () => {
   await Promise.all([
     loadProfessors(),
     loadClasses(),
-    loadSchedules()
+    loadSchedules(),
+    loadScheduleConfig(filters.selectedClassId)
   ])
 })
 </script>

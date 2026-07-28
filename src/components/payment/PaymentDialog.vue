@@ -93,7 +93,7 @@
       <el-form-item label="Type" prop="type">
         <el-select v-model="form.type" class="w-full" placeholder="Sélectionner un type">
           <el-option label="Frais de scolarité" value="tuition" />
-          <el-option label="Frais d'inscription" value="registration" />
+          <el-option label="Frais d'inscription" value="inscription" />
           <el-option label="Uniforme" value="uniform" />
           <el-option label="Transport" value="transport" />
           <el-option label="Cantine" value="cafeteria" />

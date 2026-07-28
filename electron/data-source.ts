@@ -25,6 +25,7 @@ import { PreferenceEntity } from "./backend/entities/preference";
 import { GradeConfigEntity } from "./backend/entities/gradeConfig";
 import { License } from "./backend/entities/licence";
 import { BackupEntity } from "./backend/entities/backup";
+import { ScheduleConfigEntity } from "./backend/entities/scheduleConfig";
 import { ScheduleEntity } from "./backend/entities/schedule";
 import { TranchConfigEntity } from "./backend/entities/paymentConfig";
 import { InscriptionFeeEntity } from "./backend/entities/paymentConfig";
@@ -64,6 +65,7 @@ const entities = [
     License,
     BackupEntity,
     ScheduleEntity,
+    ScheduleConfigEntity,
     PaymentAnnualConfigEntity,
     TranchConfigEntity,
     TrancheEntryEntity,

@@ -1765,26 +1765,10 @@ const getPaymentStatusLabel = (studentId: number) => {
 const getPaymentStatus = (studentId: number): 'paid' | 'partial' | 'unpaid' => {
   const amounts = paymentAmounts.value.get(studentId);
   if (!amounts) return 'unpaid';
-
-  if (amounts.totalRemaining <= 0) {
-    return 'paid';
-  }
-
-  const dueToDate = amounts.tuitionDueToDate;
-  if (dueToDate === undefined) {
-      if (amounts.paidTuition > 0) return 'partial';
-      return 'unpaid';
-  }
-
-  if (amounts.paidTuition >= dueToDate) {
-      if (amounts.paidTuition > 0) {
-          return 'partial';
-      } else { 
-          return 'unpaid';
-      }
-  } else {
-    return 'unpaid';
-  }
+  const { totalRemaining, totalPaid } = amounts;
+  if (totalRemaining <= 0) return 'paid';
+  if (totalPaid > 0) return 'partial';
+  return 'unpaid';
 };
 
 const getActiveScholarship = (student: Student) => {
