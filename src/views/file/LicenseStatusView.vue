@@ -3,53 +3,166 @@ import { ref, onMounted, computed } from "vue";
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Icon } from '@iconify/vue';
 
+/**
+ * Statut de licence retourné par le canal IPC `license:getStatus`.
+ */
+interface LicenseStatus {
+  isValid: boolean;
+  machineId: string;
+  licenseType: 'master' | 'sub' | null;
+  customer: string | null;
+  expiryDate: string | null;
+  daysRemaining: number | null;
+  stationIndex: number | null;
+  maxStations: number | null;
+  /** true si un retour arrière d'horloge a été détecté. */
+  clockError?: boolean;
+}
+
+/**
+ * Détails de licence retournés par le canal IPC `license:getDetails`.
+ */
+interface LicenseDetails {
+  isValid: boolean;
+  maxStations: number | null;
+  usedStations: number | null;
+  customer: string | null;
+  licenseType: string | null;
+  expiresAt: string | null;
+}
+
+/**
+ * Réponse du canal IPC `license:getStatus`.
+ */
+interface GetStatusResponse {
+  success: boolean;
+  data?: LicenseStatus;
+  error?: string;
+}
+
+/**
+ * Réponse du canal IPC `license:getDetails`.
+ */
+interface GetDetailsResponse {
+  success: boolean;
+  data?: LicenseDetails;
+  error?: string;
+}
+
+/**
+ * Réponse des canaux IPC `license:activateMaster` / `license:activateSub`.
+ */
+interface ActivateResponse {
+  success: boolean;
+  message?: string;
+}
+
+/**
+ * Réponse du canal IPC `license:generateSub`.
+ */
+interface GenerateSubResponse {
+  success: boolean;
+  /**
+   * Paquet de sous-licence sur 2 lignes (à transmettre tel quel) :
+   * ligne 1 = jeton `base64url(JSON).signatureHex`, ligne 2 = clé publique.
+   * Aucune transformation (uppercase, regex, maxlength) ne doit être appliquée.
+   */
+  data?: { subLicenseCode: string };
+  error?: string;
+}
+
+type LicenseType = 'master' | 'sub';
+
 // États pour l'activation
 const licenseCode = ref('');
+const activationType = ref<LicenseType>('master');
 const isLoading = ref(false);
 const showActivationDialog = ref(false);
 
 // États pour la gestion de licence
-const licenseStatus = ref<any>(null);
-const licenseDetails = ref<any>(null);
+const licenseStatus = ref<LicenseStatus | null>(null);
+const licenseDetails = ref<LicenseDetails | null>(null);
 const isLoadingStatus = ref(true);
 const isGenerating = ref(false);
 const showGeneratedCode = ref(false);
 const generatedLicenseCode = ref('');
 
+// États pour la génération de sous-licence
+const showGenerateSubDialog = ref(false);
+const targetMachineId = ref('');
+
 // Propriétés calculées
-const isLicenseValid = computed(() => licenseStatus.value?.isValid);
-const daysRemaining = computed(() => {
-  if (!licenseStatus.value?.expiryDate) return null;
-  const expiry = new Date(licenseStatus.value.expiryDate);
-  const now = new Date();
-  const diffTime = expiry.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays > 0 ? diffDays : 0;
+const isLicenseValid = computed<boolean>(() => licenseStatus.value?.isValid === true);
+
+const daysRemaining = computed<number | null>(() => {
+  const days = licenseStatus.value?.daysRemaining;
+  return days === null || days === undefined ? null : Math.max(days, 0);
 });
-const statusColor = computed(() => {
+
+const statusColor = computed<'success' | 'warning' | 'danger'>(() => {
   if (!isLicenseValid.value) return 'danger';
   if (daysRemaining.value !== null && daysRemaining.value < 30) return 'warning';
   return 'success';
 });
 
+const licenseTypeLabel = computed<string>(() => {
+  const type = licenseStatus.value?.licenseType;
+  if (type === 'master') return 'Licence principale';
+  if (type === 'sub') return 'Sous-licence (poste)';
+  return 'Aucune';
+});
+
+// Un poste secondaire (sous-licence) ne peut pas générer de sous-licences :
+// seule la licence principale (poste maître) peut le faire.
+const isSubLicense = computed<boolean>(() => licenseStatus.value?.licenseType === 'sub');
+
+// Informations sur les postes utilisés / disponibles (uniquement pour les licences principales)
+const quotaInfo = computed<{ used: number; max: number; exhausted: boolean } | null>(() => {
+  const details = licenseDetails.value;
+  if (!details || details.maxStations === null || details.maxStations === undefined) return null;
+  const used = details.usedStations ?? 0;
+  return { used, max: details.maxStations, exhausted: used >= details.maxStations };
+});
+
+const quotaPercentage = computed<number>(() => {
+  if (!quotaInfo.value) return 0;
+  return Math.min(Math.round((quotaInfo.value.used / quotaInfo.value.max) * 100), 100);
+});
+
+const quotaStatus = computed<'success' | 'exception'>(() =>
+  quotaInfo.value?.exhausted ? 'exception' : 'success'
+);
+
+function quotaFormat(): string {
+  if (!quotaInfo.value) return '0 / 0';
+  return `${quotaInfo.value.used} / ${quotaInfo.value.max}`;
+}
+
 // Charger le statut de la licence
 async function loadLicenseStatus() {
   isLoadingStatus.value = true;
   try {
-    const statusResult = await window.ipcRenderer.invoke('license:isValid');
-    if (statusResult.success) {
+    const statusResult = await window.ipcRenderer.invoke('license:getStatus') as GetStatusResponse;
+    if (statusResult.success && statusResult.data) {
       licenseStatus.value = statusResult.data;
+    } else {
+      console.error('Erreur de chargement du statut :', statusResult.error);
+      ElMessage.error('Erreur lors du chargement du statut de la licence.');
     }
 
     // Charger les détails de la licence si elle est valide
     if (licenseStatus.value?.isValid) {
-      const detailsResult = await window.ipcRenderer.invoke('license:getDetails');
-      if (detailsResult.success) {
+      const detailsResult = await window.ipcRenderer.invoke('license:getDetails') as GetDetailsResponse;
+      if (detailsResult.success && detailsResult.data) {
         licenseDetails.value = detailsResult.data;
+      } else {
+        console.error('Erreur de chargement des détails :', detailsResult.error);
+        ElMessage.error('Erreur lors du chargement des détails de la licence.');
       }
     }
   } catch (error) {
     console.error('Erreur lors du chargement du statut de la licence:', error);
+    ElMessage.error('Erreur lors du chargement du statut de la licence.');
   } finally {
     isLoadingStatus.value = false;
   }
@@ -59,6 +172,7 @@ async function loadLicenseStatus() {
 function openActivationDialog() {
   showActivationDialog.value = true;
   licenseCode.value = '';
+  activationType.value = 'master';
 }
 
 // Fermer la dialog d'activation
@@ -67,15 +181,21 @@ function closeActivationDialog() {
   licenseCode.value = '';
 }
 
-// Activer une licence
+// Activer une licence (principale ou sous-licence)
 async function activateLicense() {
-  if (!licenseCode.value.trim()) {
+  // Le code est envoyé tel quel (seul un trim() est appliqué) : le jeton est un
+  // base64url(JSON).signatureHex sensible à la casse, à ne jamais transformer.
+  const code = licenseCode.value.trim();
+  if (!code) {
     ElMessage.error('Veuillez entrer un code de licence.');
     return;
   }
+
   isLoading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('license:activate', licenseCode.value.trim());
+    const channel = activationType.value === 'master' ? 'license:activateMaster' : 'license:activateSub';
+    const result = await window.ipcRenderer.invoke(channel, code) as ActivateResponse;
+
     if (result.success) {
       ElMessage.success('Licence activée avec succès !');
       closeActivationDialog();
@@ -87,47 +207,46 @@ async function activateLicense() {
         { confirmButtonText: 'OK', type: 'error' }
       );
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Erreur lors de l\'activation de la licence:', error);
-    ElMessageBox.alert(
-      error.message || 'Une erreur inattendue est survenue.',
-      'Erreur critique',
-      { confirmButtonText: 'OK', type: 'error' }
-    );
+    ElMessage.error('Une erreur inattendue est survenue lors de l\'activation de la licence.');
   } finally {
     isLoading.value = false;
   }
 }
 
+// Ouvrir la dialog de génération de sous-licence
+function openGenerateSubDialog() {
+  targetMachineId.value = '';
+  showGenerateSubDialog.value = true;
+}
+
+// Fermer la dialog de génération de sous-licence
+function closeGenerateSubDialog() {
+  showGenerateSubDialog.value = false;
+  targetMachineId.value = '';
+}
+
 // Générer une sous-licence
 async function generateSubLicense() {
+  isGenerating.value = true;
   try {
-    await ElMessageBox.confirm(
-      'Êtes-vous sûr de vouloir générer une nouvelle sous-licence ? Cette action utilisera un de vos postes disponibles.',
-      'Générer une sous-licence',
-      {
-        confirmButtonText: 'Générer',
-        cancelButtonText: 'Annuler',
-        type: 'info',
-      }
-    );
+    // Identifiant machine cible (optionnel) : on passe undefined si vide
+    const machineId = targetMachineId.value.trim();
+    const result = await window.ipcRenderer.invoke('license:generateSub', machineId || undefined) as GenerateSubResponse;
 
-    isGenerating.value = true;
-    const result = await window.ipcRenderer.invoke('license:generateSub');
-    
-    if (result.success) {
+    if (result.success && result.data?.subLicenseCode) {
       generatedLicenseCode.value = result.data.subLicenseCode;
       showGeneratedCode.value = true;
+      closeGenerateSubDialog();
       await loadLicenseStatus();
       ElMessage.success('Sous-licence générée avec succès !');
     } else {
       ElMessage.error(result.error || 'Erreur lors de la génération de la sous-licence.');
     }
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('Erreur lors de la génération de la sous-licence:', error);
-      ElMessage.error('Une erreur inattendue est survenue.');
-    }
+  } catch (error) {
+    console.error('Erreur lors de la génération de la sous-licence:', error);
+    ElMessage.error('Une erreur inattendue est survenue.');
   } finally {
     isGenerating.value = false;
   }
@@ -148,10 +267,6 @@ async function copyGeneratedCode() {
 function closeGeneratedCodeDialog() {
   showGeneratedCode.value = false;
   generatedLicenseCode.value = '';
-}
-
-function handleInput(value: string) {
-  licenseCode.value = value.toUpperCase();
 }
 
 onMounted(() => {
@@ -225,53 +340,60 @@ onMounted(() => {
             <!-- Informations détaillées -->
             <div class="license-info" v-if="licenseStatus">
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="Code de licence">
-                  {{ licenseStatus.licenseCode || 'N/A' }}
+                <el-descriptions-item label="Client">
+                  {{ licenseStatus.customer || 'N/A' }}
                 </el-descriptions-item>
                 <el-descriptions-item label="Type">
-                  {{ licenseStatus.licenseType || 'Standard' }}
+                  {{ licenseTypeLabel }}
                 </el-descriptions-item>
                 <el-descriptions-item label="Date d'expiration">
                   {{ licenseStatus.expiryDate ? new Date(licenseStatus.expiryDate).toLocaleDateString('fr-FR') : 'N/A' }}
                 </el-descriptions-item>
-                <el-descriptions-item label="Machine ID">
+                <el-descriptions-item label="Identifiant machine">
                   {{ licenseStatus.machineId || 'N/A' }}
                 </el-descriptions-item>
               </el-descriptions>
             </div>
 
             <!-- Gestion des quotas et sous-licences -->
-            <div v-if="licenseDetails" class="quota-section">
+            <div v-if="quotaInfo" class="quota-section">
               <h3>
                 <Icon icon="mdi:desktop-classic" :width="20" :height="20" />
                 Postes Autorisés
               </h3>
               <div class="quota-display">
                 <el-progress 
-                  :percentage="(licenseDetails.usedActivations / licenseDetails.maxActivations) * 100"
-                  :format="() => `${licenseDetails.usedActivations} / ${licenseDetails.maxActivations}`"
-                  :status="licenseDetails.usedActivations >= licenseDetails.maxActivations ? 'exception' : 'success'"
+                  :percentage="quotaPercentage"
+                  :format="quotaFormat"
+                  :status="quotaStatus"
                 />
                 <p class="quota-text">
-                  {{ licenseDetails.usedActivations }} postes utilisés sur {{ licenseDetails.maxActivations }} autorisés
+                  {{ quotaInfo.used }} postes utilisés sur {{ quotaInfo.max }} autorisés
                 </p>
               </div>
 
               <el-button 
-                v-if="licenseDetails.usedActivations < licenseDetails.maxActivations"
+                v-if="!quotaInfo.exhausted && !isSubLicense"
                 type="primary" 
-                @click="generateSubLicense"
-                :loading="isGenerating"
+                @click="openGenerateSubDialog"
                 class="generate-button"
               >
                 <Icon icon="mdi:plus" :width="16" :height="16" class="mr-2" />
                 Générer une licence pour un autre ordinateur
               </el-button>
               <el-alert 
-                v-else
+                v-else-if="quotaInfo.exhausted"
                 title="Quota épuisé"
                 description="Vous avez utilisé tous vos postes autorisés. Contactez votre fournisseur pour augmenter votre quota."
                 type="warning"
+                show-icon
+                :closable="false"
+              />
+              <el-alert 
+                v-else
+                title="Poste secondaire"
+                description="Seul le poste principal peut générer des sous-licences."
+                type="info"
                 show-icon
                 :closable="false"
               />
@@ -305,22 +427,30 @@ onMounted(() => {
           }}
         </p>
         
-        <el-form @submit.prevent="activateLicense">
-          <el-form-item>
+        <el-form label-position="top" @submit.prevent="activateLicense">
+          <el-form-item label="Type de licence">
+            <el-radio-group v-model="activationType" :disabled="isLoading" class="activation-type-group">
+              <el-radio-button value="master">Licence principale</el-radio-button>
+              <el-radio-button value="sub">Sous-licence (poste)</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="Code de licence">
             <el-input
               v-model="licenseCode"
-              placeholder="XXXX-XXXX-XXXX-XXXX"
+              type="textarea"
+              :rows="activationType === 'master' ? 3 : 4"
+              :placeholder="activationType === 'master'
+                ? 'Collez le code signé fourni par le revendeur'
+                : 'Collez le paquet de sous-licence (2 lignes) fourni par le poste principal'"
               :disabled="isLoading"
-              maxlength="19"
               class="license-input"
-              @input="handleInput"
               size="large"
-            >
-              <template #prefix>
-                <Icon icon="mdi:key" :width="16" :height="16" />
-              </template>
-            </el-input>
-            <p class="input-hint">Format: XXXX-XXXX-XXXX-XXXX</p>
+            />
+            <p class="input-hint">
+              {{ activationType === 'master'
+                ? 'Code à coller intégralement (sans modification).'
+                : 'Paquet à coller intégralement : ligne 1 = jeton, ligne 2 = clé publique.' }}
+            </p>
           </el-form-item>
         </el-form>
       </div>
@@ -343,6 +473,61 @@ onMounted(() => {
       </template>
     </el-dialog>
 
+    <!-- Dialog de génération de sous-licence -->
+    <el-dialog
+      v-model="showGenerateSubDialog"
+      title="Générer une sous-licence"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="generate-sub-dialog">
+        <el-alert
+          title="Poste disponible requis"
+          description="La génération utilisera un de vos postes disponibles."
+          type="info"
+          show-icon
+          :closable="false"
+          class="mb-4"
+        />
+
+        <el-form label-position="top" @submit.prevent="generateSubLicense">
+          <el-form-item label="Identifiant machine cible (optionnel)">
+            <el-input
+              v-model="targetMachineId"
+              placeholder="Laisser vide pour ce poste"
+              :disabled="isGenerating"
+              size="large"
+              clearable
+            >
+              <template #prefix>
+                <Icon icon="mdi:desktop-classic" :width="16" :height="16" />
+              </template>
+            </el-input>
+            <p class="target-hint">
+              L'identifiant machine s'affiche dans le menu de gestion des licences de chaque poste.
+            </p>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeGenerateSubDialog" :disabled="isGenerating">
+            <Icon icon="mdi:close" :width="16" :height="16" class="mr-2" />
+            Annuler
+          </el-button>
+          <el-button
+            type="primary"
+            @click="generateSubLicense"
+            :loading="isGenerating"
+          >
+            <Icon v-if="!isGenerating" icon="mdi:check" :width="16" :height="16" class="mr-2" />
+            {{ isGenerating ? 'Génération en cours...' : 'Générer' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- Dialog code généré -->
     <el-dialog
       v-model="showGeneratedCode"
@@ -353,6 +538,7 @@ onMounted(() => {
       <div class="generated-code-dialog">
         <el-alert
           title="Nouvelle sous-licence créée"
+          description="Paquet de 2 lignes : ligne 1 = jeton, ligne 2 = clé publique. À transmettre intégralement, sans modification."
           type="success"
           show-icon
           :closable="false"
@@ -366,18 +552,16 @@ onMounted(() => {
         
         <div class="code-display">
           <el-input
-            :value="generatedLicenseCode"
+            :model-value="generatedLicenseCode"
+            type="textarea"
+            :rows="4"
             readonly
-            size="large"
             class="generated-code-input"
-          >
-            <template #append>
-              <el-button @click="copyGeneratedCode" type="primary">
-                <Icon icon="mdi:content-copy" :width="16" :height="16" class="mr-1" />
-                Copier
-              </el-button>
-            </template>
-          </el-input>
+          />
+          <el-button @click="copyGeneratedCode" type="primary" class="copy-code-button">
+            <Icon icon="mdi:content-copy" :width="16" :height="16" class="mr-1" />
+            Copier
+          </el-button>
         </div>
         
         <el-alert
@@ -516,6 +700,18 @@ onMounted(() => {
   padding: 1rem 0;
 }
 
+.generate-sub-dialog {
+  padding: 1rem 0;
+}
+
+.target-hint {
+  color: #909399;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0.5rem 0 0 0;
+  text-align: left;
+}
+
 .dialog-icon {
   color: #409EFF;
   margin-bottom: 1rem;
@@ -528,9 +724,24 @@ onMounted(() => {
   line-height: 1.5;
 }
 
+.activation-type-group {
+  display: flex;
+  width: 100%;
+}
+
+.activation-type-group :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.activation-type-group :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
 .license-input {
-  font-size: 1.125rem;
-  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: left;
 }
 
 .input-hint {
@@ -564,9 +775,16 @@ onMounted(() => {
 }
 
 .generated-code-input {
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: 2px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.copy-code-button {
+  margin-top: 1rem;
+  width: 100%;
+  height: 40px;
 }
 
 /* Classes utilitaires */
@@ -600,8 +818,7 @@ onMounted(() => {
   }
 
   .generated-code-input {
-    font-size: 1rem;
-    letter-spacing: 1px;
+    font-size: 0.85rem;
   }
 
   .dialog-footer {

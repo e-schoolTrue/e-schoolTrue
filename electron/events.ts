@@ -837,73 +837,18 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   ipcMain.handle("scholarship:getActiveByStudent", async (_, studentId) => global.paymentService.getActiveByStudent(studentId));
 
   // --- Licence ---
-  // ====================================================================
-  // LICENSE BYPASS — Désactive temporairement la vérification de licence
-  // Mettre à false ou supprimer ce bloc pour réactiver la vérification
-  // ====================================================================
-  const LICENSE_BYPASS = true;
-
-  ipcMain.handle("license:generateMachineId", async () => ({ success: true, data: global.licenseService.generateMachineId() }));
-  ipcMain.handle("license:activate", async (_, licenseCode) => global.licenseService.activateLicense(licenseCode));
-  ipcMain.handle("license:isValid", async () => {
-    if (LICENSE_BYPASS) {
-      return {
-        success: true,
-        data: {
-          isValid: true,
-          daysRemaining: null,
-          machineId: 'BYPASS-MODE',
-          licenseCode: 'BYPASS-ACTIVE',
-          licenseType: 'development',
-          expiryDate: null,
-          activatedAt: new Date().toISOString(),
-        }
-      };
-    }
-    return { success: true, data: await global.licenseService.getLicenseStatus() };
+  ipcMain.handle("license:getMachineId", async () => ({ success: true, data: { machineId: global.licenseService.getMachineId() } }));
+  ipcMain.handle("license:activateMaster", async (_, code) => global.licenseService.activateMaster(code));
+  ipcMain.handle("license:activateSub", async (_, packageText) => global.licenseService.activateSub(packageText));
+  ipcMain.handle("license:generateSub", async (_, targetMachineId?: string) => {
+    const result = await global.licenseService.generateSub(targetMachineId);
+    return result.success
+      ? { success: true, data: { subLicenseCode: result.data!.subLicenseCode } }
+      : { success: false, error: result.message };
   });
-
-  // Correction pour getLicenseDetails - ne prend aucun paramètre
-  ipcMain.handle("license:getDetails", async () => {
-    if (LICENSE_BYPASS) {
-      return { success: true, data: { maxActivations: 10, usedActivations: 1 } };
-    }
-    try {
-      const details = await global.licenseService.getLicenseDetails();
-      return {
-        success: true,
-        data: {
-          maxActivations: details.maxActivations,
-          usedActivations: details.currentActivations
-        }
-      };
-    } catch (error) {
-      return handleError(error, "Erreur lors de la récupération des détails de licence");
-    }
-  });
-
-  // Correction pour generateSub - ne prend aucun paramètre
-  ipcMain.handle("license:generateSub", async () => {
-    try {
-      const result = await global.licenseService.generateSubLicense();
-      if (result.success) {
-        return {
-          success: true,
-          data: {
-            subLicenseCode: result.newCode
-          },
-          message: result.message
-        };
-      } else {
-        return {
-          success: false,
-          error: result.message
-        };
-      }
-    } catch (error) {
-      return handleError(error, "Erreur lors de la génération de sous-licence");
-    }
-  });
+  ipcMain.handle("license:removeSub", async (_, targetMachineId) => global.licenseService.removeSub(targetMachineId));
+  ipcMain.handle("license:getStatus", async () => global.licenseService.getStatus());
+  ipcMain.handle("license:getDetails", async () => global.licenseService.getDetails());
 
 
   //shedule

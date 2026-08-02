@@ -8,9 +8,12 @@
     "preview": "vite preview",
     "dev:debug": "electron . --remote-debugging-port=9222",
     "test:unit": "vitest --environment jsdom",
-    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3"
+    "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3",
+    "license:cli": "tsx electron/tools/license-cli.ts"
   },
   "dependencies": {
+    "@noble/ed25519": "^2.2.0",
+    "@noble/hashes": "^1.4.0",
     "@supabase/supabase-js": "^2.49.4",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.2",
@@ -59,6 +62,7 @@
     "pinia": "^2.3.0",
     "print-js": "^1.6.0",
     "qrcode.vue": "^3.6.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.2.2",
     "unplugin-auto-import": "^0.17.5",
     "unplugin-element-plus": "^0.8.0",

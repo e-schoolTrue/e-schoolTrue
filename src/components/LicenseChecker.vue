@@ -3,25 +3,81 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import LicenseView from '../views/omboarding/LicenseView.vue'
 
+/**
+ * Statut de licence retourné par le canal IPC `license:getStatus`.
+ */
+interface LicenseStatus {
+  isValid: boolean;
+  machineId: string;
+  licenseType: 'master' | 'sub' | null;
+  customer: string | null;
+  expiryDate: string | null;
+  daysRemaining: number | null;
+  stationIndex: number | null;
+  maxStations: number | null;
+  /** true si un retour arrière d'horloge a été détecté. */
+  clockError?: boolean;
+}
+
+/**
+ * Réponse du canal IPC `license:getStatus`.
+ */
+interface GetStatusResponse {
+  success: boolean;
+  data?: LicenseStatus;
+  error?: string;
+}
+
 const showLicenseView = ref(false)
 const daysRemaining = ref<number | null>(null)
 
 const checkLicense = async () => {
   try {
-    const result = await window.ipcRenderer.invoke('license:isValid')
-    
+    const result = await window.ipcRenderer.invoke('license:getStatus') as GetStatusResponse
+
     if (!result.success) {
       console.error('Erreur de vérification:', result.error)
       ElMessage.error('Erreur lors de la vérification de la licence')
       return
     }
 
-    const { isValid, daysRemaining: days } = result.data
+    const data = result.data
+    if (!data) {
+      console.error('Erreur de vérification : statut absent de la réponse')
+      ElMessage.error('Erreur lors de la vérification de la licence')
+      return
+    }
+
+    const { isValid, daysRemaining: days, licenseType } = data
     daysRemaining.value = days
 
-    if (!isValid) {
+    // Retour arrière d'horloge détecté : l'application est bloquée tant que
+    // l'horloge système n'est pas réinitialisée. Aucune vue d'activation ne
+    // doit s'afficher — corriger l'horloge d'abord.
+    if (data.clockError) {
+      showLicenseView.value = false
       await ElMessageBox.alert(
-        'Veuillez activer une licence pour continuer à utiliser ce logiciel.',
+        'L\'horloge système a été reculée. Réinitialisez la date et l\'heure, puis redémarrez l\'application.',
+        'Horloge système modifiée',
+        {
+          confirmButtonText: 'OK',
+          type: 'warning',
+          showClose: false,
+          closeOnClickModal: false,
+          closeOnPressEscape: false
+        }
+      )
+      return
+    }
+
+    if (!isValid) {
+      // Pas de licence du tout → message d'activation ; licence expirée → message de renouvellement
+      const message = licenseType === null
+        ? 'Veuillez activer une licence pour continuer à utiliser ce logiciel.'
+        : 'Votre licence est expirée. Contactez votre revendeur pour la renouveler.'
+
+      await ElMessageBox.alert(
+        message,
         'Licence Invalide',
         {
           confirmButtonText: 'Activer une licence',

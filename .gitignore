@@ -28,5 +28,10 @@ release
 *.sln
 *.sw?
 
+# Licences / clés
+*.key
+*.license-key
+.license-keys/
+
 
 
