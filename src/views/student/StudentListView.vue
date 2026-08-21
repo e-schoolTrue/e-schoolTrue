@@ -244,8 +244,14 @@ const handleFilter = (filterCriteria: {
   if (filterCriteria.classId) {
     filteredStudents.value = students.value.filter(student => {
       const nameMatch = filterCriteria.studentFullName
-        ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
-           student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+        ? (() => {
+            const q = filterCriteria.studentFullName.toLowerCase().trim();
+            const first = student.firstname.toLowerCase();
+            const last = student.lastname.toLowerCase();
+            const full = `${first} ${last}`;
+            const rev = `${last} ${first}`;
+            return full.includes(q) || rev.includes(q) || first.includes(q) || last.includes(q);
+          })()
         : true;
       
       const gradeMatch = student.gradeId === Number(filterCriteria.classId);
@@ -262,8 +268,14 @@ const handleFilter = (filterCriteria: {
     // Filtrage standard sans filtre par classe
     filteredStudents.value = students.value.filter(student => {
       const nameMatch = filterCriteria.studentFullName
-        ? (student.firstname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()) || 
-           student.lastname.toLowerCase().includes(filterCriteria.studentFullName.toLowerCase()))
+        ? (() => {
+            const q = filterCriteria.studentFullName.toLowerCase().trim();
+            const first = student.firstname.toLowerCase();
+            const last = student.lastname.toLowerCase();
+            const full = `${first} ${last}`;
+            const rev = `${last} ${first}`;
+            return full.includes(q) || rev.includes(q) || first.includes(q) || last.includes(q);
+          })()
         : true;
       
       const yearMatch = filterCriteria.schoolYear

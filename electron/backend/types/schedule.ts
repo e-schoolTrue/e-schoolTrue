@@ -14,6 +14,7 @@ export interface IScheduleData {
         firstname: string;
         lastname: string;
         civility: string;
+        color?: string | null;
         qualification?: {
             id: number;
             name: string;

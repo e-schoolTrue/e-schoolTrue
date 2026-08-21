@@ -357,12 +357,18 @@ const refreshData = async () => {
   await loadData();
 };
 
-// Filtrage
+// Filtrage - support nom complet
 const handleFilter = () => {
   filteredPayments.value = payments.value.filter(payment => {
     const nameMatch = filters.value.professorName
-      ? payment.professor.firstname.toLowerCase().includes(filters.value.professorName.toLowerCase()) ||
-        payment.professor.lastname.toLowerCase().includes(filters.value.professorName.toLowerCase())
+      ? (() => {
+          const q = filters.value.professorName.toLowerCase().trim();
+          const first = payment.professor.firstname.toLowerCase();
+          const last = payment.professor.lastname.toLowerCase();
+          const full = `${first} ${last}`;
+          const rev = `${last} ${first}`;
+          return full.includes(q) || rev.includes(q) || first.includes(q) || last.includes(q);
+        })()
       : true;
 
     const monthMatch = filters.value.month

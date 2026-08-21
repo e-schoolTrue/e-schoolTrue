@@ -232,10 +232,27 @@ export function verifySub(token: string, publicKeyHex: string, machineId: string
 }
 
 /**
- * Construit l'empreinte machine locale : base64url(sha256(machineId|hostname|platform|arch|ramGo|cpuModel)).
+ * Construit l'empreinte machine locale : base64url(sha256(machineId|platform|arch)).
+ * Stable: n'inclut plus hostname/ram/cpuModel qui changent entre boots.
  * @returns {string} Empreinte machine stable pour lier une sous-licence à un poste
  */
 export function buildMachineFingerprint(): string {
+    let machineId: string;
+    try {
+        machineId = machineIdSync(true);
+    } catch {
+        machineId = 'machine-inconnue';
+    }
+    // Stable uniquement: machineId + platform + arch (hostname/totalmem/cpuModel retirés pour stabilité)
+    const source = `${machineId}|${os.platform()}|${os.arch()}`;
+    return base64UrlEncode(sha256(utf8ToBytes(source)));
+}
+
+/**
+ * Ancienne empreinte (legacy) pour rétro-compatibilité vérification.
+ * @returns {string} Empreinte legacy
+ */
+export function buildMachineFingerprintLegacy(): string {
     let machineId: string;
     try {
         machineId = machineIdSync(true);

@@ -17,6 +17,7 @@ type ProfessorFormData = {
   address: string;
   town: string;
   cni_number: string;
+  color?: string;
   diploma?: { name: string };
   qualification?: { name: string };
   documents?: IProfessorFile[];
@@ -43,6 +44,7 @@ interface ProfessorUpdateData {
     address: string;
     town: string;
     cni_number: string;
+    color?: string;
     diploma: { name: string };
     qualification: { name: string };
     documents?: IProfessorFile[];
@@ -62,6 +64,8 @@ interface TeachingData extends ITeachingAssignment {
   selectedClasses?: number[];
   selectedCourse?: number | null;
 }
+
+type TeachingWithLegacy = ITeachingAssignment & { selectedClasses?: number[]; selectedCourse?: number | null; grades?: { id: number; name: string }[] };
 
 const route = useRoute();
 const router = useRouter();
@@ -101,7 +105,7 @@ const loadProfessor = async () => {
       
       // Prétraitement des données d'enseignement avant de les attribuer au professeur
       if (result.data.teaching && result.data.teaching.length > 0) {
-        const teachingAssignment = result.data.teaching[0];
+        const teachingAssignment = result.data.teaching[0] as TeachingWithLegacy;
         console.log("Données d'enseignement brutes:", teachingAssignment);
         
         // S'assurer que selectedClasses est bien initialisé pour l'enseignement primaire
@@ -116,11 +120,15 @@ const loadProfessor = async () => {
             teachingAssignment.selectedCourse = teachingAssignment.course.id;
           }
           if (teachingAssignment.gradeIds) {
-            const gradeIds = Array.isArray(teachingAssignment.gradeIds) 
-              ? teachingAssignment.gradeIds 
-              : teachingAssignment.gradeIds.split(',').map(Number);
+            const gradeIds: number[] = Array.isArray(teachingAssignment.gradeIds) 
+              ? (teachingAssignment.gradeIds as number[])
+              : String(teachingAssignment.gradeIds).split(',').map(Number);
             
             teachingAssignment.selectedClasses = gradeIds;
+          } else if (teachingAssignment.grades && Array.isArray(teachingAssignment.grades) && teachingAssignment.grades.length>0) {
+            teachingAssignment.selectedClasses = teachingAssignment.grades.map((g: { id: number; name: string })=> Number(g.id));
+          } else if (teachingAssignment.class?.id) {
+            teachingAssignment.selectedClasses = [teachingAssignment.class.id];
           }
         }
       }
@@ -176,6 +184,7 @@ const handleUpdate = async (formData: ProfessorFormData) => {
             civility: formData.civility || 'MR',
             nbr_child: typeof formData.nbr_child === 'number' ? formData.nbr_child : 0,
             family_situation: formData.family_situation || 'CÉLIBATAIRE',
+            color: (formData as any).color || '#409EFF',
             
             // Champs facultatifs mais formatés correctement
             birth_date: formData.birth_date || null,
@@ -267,62 +276,72 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 }
             }
 
+            // FIX: envoi format plat attendu par backend (classId/courseId/gradeIds) + compat nested
+            const primaryClassId = Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0 ? teachingData.selectedClasses[0] : teachingData.class?.id;
+            const secondaryCourseId = teachingData.selectedCourse ?? teachingData.course?.id;
             professorData.teaching = {
                 teachingType: teachingData.teachingType || 'CLASS',
                 schoolType: teachingData.schoolType,
-                class: Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0 
-                    ? { id: teachingData.selectedClasses[0], name: '' }
-                    : undefined,
-                course: teachingData.selectedCourse 
-                    ? { id: teachingData.selectedCourse, name: '' }
-                    : undefined,
+                // champs plats pour backend
+                classId: primaryClassId,
+                courseId: teachingData.schoolType === 'SECONDARY' ? secondaryCourseId : undefined,
                 gradeIds: Array.isArray(teachingData.selectedClasses) ? teachingData.selectedClasses.join(',') : undefined,
+                // compat nested pour robustesse backend
+                class: primaryClassId ? { id: primaryClassId, name: '' } : undefined,
+                course: secondaryCourseId ? { id: secondaryCourseId, name: '' } : undefined,
                 selectedClasses: teachingData.selectedClasses,
                 selectedCourse: teachingData.selectedCourse
-        };
+            } as any;
 
             // Vérification supplémentaire pour s'assurer que les données de classe sont correctement formatées
             if (professorData.teaching && teachingData.schoolType === 'PRIMARY') {
                 // Pour l'enseignement primaire, mettre l'accent sur la classe et définir le teachingType à CLASS_TEACHER
-                professorData.teaching.teachingType = 'CLASS_TEACHER';
+                (professorData.teaching as any).teachingType = 'CLASS_TEACHER';
                 
                 // S'assurer que class est correctement défini
                 if (Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0) {
                     const classId = teachingData.selectedClasses[0];
-                    professorData.teaching.class = { id: classId, name: '' };
+                    (professorData.teaching as any).class = { id: classId, name: '' };
+                    (professorData.teaching as any).classId = classId;
                     
                     // Ajouter également gradeIds pour l'enseignement primaire
-                    professorData.teaching.gradeIds = String(classId);
+                    (professorData.teaching as any).gradeIds = String(classId);
                     
                     // Supprimer course s'il existe pour éviter toute confusion
-                    professorData.teaching.course = undefined;
+                    (professorData.teaching as any).course = undefined;
+                    (professorData.teaching as any).courseId = undefined;
                 }
                 
                 // Log explicite pour l'enseignement primaire
                 console.log("Données finales pour enseignement primaire:", {
-                    teachingType: professorData.teaching.teachingType,
-                    class: professorData.teaching.class,
-                    gradeIds: professorData.teaching.gradeIds
+                    teachingType: (professorData.teaching as any).teachingType,
+                    class: (professorData.teaching as any).class,
+                    classId: (professorData.teaching as any).classId,
+                    gradeIds: (professorData.teaching as any).gradeIds
                 });
             } else if (professorData.teaching && teachingData.schoolType === 'SECONDARY') {
                 // Pour l'enseignement secondaire, définir le teachingType à SUBJECT_TEACHER si une matière est sélectionnée
                 if (teachingData.selectedCourse) {
-                    professorData.teaching.teachingType = 'SUBJECT_TEACHER';
-                    professorData.teaching.course = { id: teachingData.selectedCourse, name: '' };
+                    (professorData.teaching as any).teachingType = 'SUBJECT_TEACHER';
+                    (professorData.teaching as any).course = { id: teachingData.selectedCourse, name: '' };
+                    (professorData.teaching as any).courseId = teachingData.selectedCourse;
                 }
                 
                 // S'assurer que class et gradeIds sont correctement définis
                 if (Array.isArray(teachingData.selectedClasses) && teachingData.selectedClasses.length > 0) {
-                    professorData.teaching.class = { id: teachingData.selectedClasses[0], name: '' };
-                    professorData.teaching.gradeIds = teachingData.selectedClasses.join(',');
+                    (professorData.teaching as any).class = { id: teachingData.selectedClasses[0], name: '' };
+                    (professorData.teaching as any).classId = teachingData.selectedClasses[0];
+                    (professorData.teaching as any).gradeIds = teachingData.selectedClasses.join(',');
                 }
                 
                 // Log explicite pour l'enseignement secondaire
                 console.log("Données finales pour enseignement secondaire:", {
-                    teachingType: professorData.teaching.teachingType,
-                    course: professorData.teaching.course,
-                    class: professorData.teaching.class,
-                    gradeIds: professorData.teaching.gradeIds
+                    teachingType: (professorData.teaching as any).teachingType,
+                    course: (professorData.teaching as any).course,
+                    courseId: (professorData.teaching as any).courseId,
+                    class: (professorData.teaching as any).class,
+                    classId: (professorData.teaching as any).classId,
+                    gradeIds: (professorData.teaching as any).gradeIds
                 });
             }
             

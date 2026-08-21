@@ -43,12 +43,14 @@ const filteredRankingsBase = computed(() => {
   if (!searchQuery.value) {
     return rankings.value
   }
-  const query = searchQuery.value.toLowerCase()
-  return rankings.value.filter(r =>
-    r.firstname.toLowerCase().includes(query) ||
-    r.lastname.toLowerCase().includes(query) ||
-    r.studentId.toString().includes(query)
-  )
+  const query = searchQuery.value.toLowerCase().trim()
+  return rankings.value.filter(r => {
+    const first = r.firstname.toLowerCase()
+    const last = r.lastname.toLowerCase()
+    const full = `${first} ${last}`
+    const rev = `${last} ${first}`
+    return full.includes(query) || rev.includes(query) || first.includes(query) || last.includes(query) || r.studentId.toString().includes(query)
+  })
 })
 
 watch(filteredRankingsBase, (newRankings) => {

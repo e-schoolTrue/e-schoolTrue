@@ -37,12 +37,16 @@ Usage :
 
   license:cli gen-master --customer "Nom" --stations 3 --years 1 [--out master.txt]
       Génère une licence maître signée (3 postes, 1 an).
+      Durée : --years (années) et/ou --months (mois), cumulables.
+      Exemples : --years 0 --months 1 = 1 mois ; --years 1 --months 3 = 1 an et 3 mois.
+      Sans option de durée, la licence dure 1 an.
       Options : --key <chemin> ou variable d'environnement LICENSE_PRIVATE_KEY.
       Sans --stations, la licence est limitée à 1 poste (défaut).
       Sans --out, le jeton est imprimé sur la sortie standard.
 
   license:cli gen-sub --master master.txt --machine <empreinte> [--years 1] [--out sub.txt]
       Génère une sous-licence liée à une machine à partir d'une licence maître valide.
+      Durée : --years et/ou --months (comme gen-master), bornée par la maître.
       Le résultat est un paquet de 2 lignes : le jeton de sous-licence puis la
       clé publique de vérification, à coller sur le poste cible (activation).
       Avec --out, le paquet est écrit dans le fichier (2 lignes).
@@ -164,9 +168,24 @@ function parsePositiveInt(value: string | undefined, name: string, defaultValue:
     return parsed;
 }
 
+function parseNonNegativeInt(value: string | undefined, name: string, defaultValue: number): number {
+    const raw = value ?? String(defaultValue);
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+        fail(`Valeur invalide pour --${name} : '${raw}' (entier nul ou positif attendu).`);
+    }
+    return parsed;
+}
+
 function addYears(isoDate: string, years: number): string {
     const date = new Date(isoDate);
     date.setFullYear(date.getFullYear() + years);
+    return date.toISOString();
+}
+
+function addMonths(isoDate: string, months: number): string {
+    const date = new Date(isoDate);
+    date.setMonth(date.getMonth() + months);
     return date.toISOString();
 }
 
@@ -215,7 +234,11 @@ function cmdGenMaster(options: Map<string, string>): void {
     if (stationsRaw === undefined) {
         console.log('Remarque : --stations absent, licence limitée à 1 poste (défaut).');
     }
-    const years = parsePositiveInt(options.get('years'), 'years', 1);
+    // Durée : combinaison années + mois. Sans aucune option de durée, défaut = 1 an.
+    // Si --months est fourni sans --years, la durée est limitée aux mois.
+    const yearsRaw = options.get('years');
+    const months = parseNonNegativeInt(options.get('months'), 'months', 0);
+    const years = parseNonNegativeInt(yearsRaw, 'years', yearsRaw === undefined && months > 0 ? 0 : 1);
     const outPath = options.get('out');
     const privateKeyHex = loadPrivateKey(options.get('key'));
 
@@ -227,7 +250,7 @@ function cmdGenMaster(options: Map<string, string>): void {
         maxStations: stations,
         seed: randomHex(32),
         issuedAt: now,
-        expiresAt: addYears(now, years),
+        expiresAt: addMonths(addYears(now, years), months),
     };
     const token = signMaster(payload, privateKeyHex);
 
@@ -244,7 +267,9 @@ function cmdGenMaster(options: Map<string, string>): void {
 function cmdGenSub(options: Map<string, string>): void {
     const masterFile = requireOption(options, 'master');
     const machineId = requireOption(options, 'machine');
-    const years = parsePositiveInt(options.get('years'), 'years', 1);
+    const yearsRaw = options.get('years');
+    const months = parseNonNegativeInt(options.get('months'), 'months', 0);
+    const years = parseNonNegativeInt(yearsRaw, 'years', yearsRaw === undefined && months > 0 ? 0 : 1);
     const outPath = options.get('out');
 
     const masterToken = readTokenFile(masterFile);
@@ -268,7 +293,7 @@ function cmdGenSub(options: Map<string, string>): void {
         cust: master.cust,
         maxStations: master.maxStations,
         issuedAt: now,
-        expiresAt: minIso(master.expiresAt, addYears(now, years)),
+        expiresAt: minIso(master.expiresAt, addMonths(addYears(now, years), months)),
     };
     const token = signSub(payload, master.seed, machineId);
     // Clé publique de vérification dérivée du seed : seule cette clé (jamais le

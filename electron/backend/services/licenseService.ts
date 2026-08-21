@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { ElectronStore } from '../utils/electronStore';
 import {
     buildMachineFingerprint,
+    buildMachineFingerprintLegacy,
     verifyMaster,
     verifySub,
     signSub,
@@ -15,7 +16,7 @@ import type { MasterLicensePayload, SubLicensePayload } from './licenseCrypto';
  * Tolérance de dérive d'horloge avant de considérer un retour arrière (rollback)
  * comme une tentative de prolongation frauduleuse de la licence (5 minutes).
  */
-const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000;
+const CLOCK_SKEW_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Clés de stockage (ElectronStore 'license').
@@ -404,8 +405,11 @@ export class LicenseService {
                 }
 
                 const masterMachine = await this.store.getItem(STORE_MASTER_MACHINE);
-                if (masterMachine === machineId) {
-                    // Poste principal : la maître gouverne le statut
+                let legacyMachine: string | null = null;
+                try { legacyMachine = buildMachineFingerprintLegacy(); } catch {}
+                const isMasterMachine = masterMachine === machineId || (legacyMachine !== null && masterMachine === legacyMachine);
+                if (isMasterMachine) {
+                    // Poste principal : la maître gouverne le statut (accepte legacy pour rétro-compat)
                     licenseType = 'master';
                     stationIndex = 1;
                     stationValid = !isExpired(master);
@@ -435,9 +439,15 @@ export class LicenseService {
             }
 
             // 3. Anti-rollback horloge : refuser si l'horloge a reculé de plus de
-            //    5 minutes. Uniquement lorsqu'une licence existe (maître ou
+            //    24h. Uniquement lorsqu'une licence existe (maître ou
             //    sous-licence locale) : une machine vierge n'écrit pas d'horodatage.
-            const hasLocalLicense = masterToken !== null || subs[machineId] !== undefined;
+            let hasLocalLicense = masterToken !== null || subs[machineId] !== undefined;
+            if (!hasLocalLicense) {
+                try {
+                    const legacyId2 = buildMachineFingerprintLegacy();
+                    if (legacyId2 !== machineId && subs[legacyId2] !== undefined) hasLocalLicense = true;
+                } catch {}
+            }
             const now = Date.now();
             const clockLastSeen = await this.store.getItem(STORE_CLOCK_LAST_SEEN);
             let clockError = false;
@@ -756,8 +766,21 @@ export class LicenseService {
         expiryDate: string | null;
         maxStations: number | null;
     } {
-        const subToken = subs[machineId];
-        const pubKeyHex = subKeys[machineId];
+        // Essayer d'abord l'empreinte actuelle, sinon legacy (rétro-compat)
+        let subToken = subs[machineId];
+        let pubKeyHex = subKeys[machineId];
+        let effectiveMachineId = machineId;
+        if ((subToken === undefined || pubKeyHex === undefined) && machineId) {
+            try {
+                const legacyId = buildMachineFingerprintLegacy();
+                if (legacyId !== machineId && subs[legacyId] !== undefined && subKeys[legacyId] !== undefined) {
+                    console.log('[LicenseService] Fallback legacy fingerprint pour sous-licence');
+                    subToken = subs[legacyId];
+                    pubKeyHex = subKeys[legacyId];
+                    effectiveMachineId = legacyId;
+                }
+            } catch {}
+        }
         if (subToken === undefined || pubKeyHex === undefined) {
             return {
                 licenseType: null,
@@ -769,17 +792,33 @@ export class LicenseService {
             };
         }
         try {
-            const sub = verifySub(subToken, pubKeyHex, machineId);
+            const sub = verifySub(subToken, pubKeyHex, effectiveMachineId);
             const valid = !isExpired(sub);
             return {
                 licenseType: 'sub',
-                stationIndex: valid ? this.computeStationIndex(subs, machineId) : null,
+                stationIndex: valid ? this.computeStationIndex(subs, effectiveMachineId) : null,
                 stationValid: valid,
                 customer: sub.cust ?? null,
                 expiryDate: sub.expiresAt,
                 maxStations: sub.maxStations ?? null,
             };
         } catch (error) {
+            // Si échec avec empreinte actuelle, tenter legacy si différent
+            try {
+                const legacyId = buildMachineFingerprintLegacy();
+                if (legacyId !== effectiveMachineId && subs[legacyId] !== undefined) {
+                    const subLegacy = verifySub(subs[legacyId], subKeys[legacyId], legacyId);
+                    const valid = !isExpired(subLegacy);
+                    return {
+                        licenseType: 'sub',
+                        stationIndex: valid ? this.computeStationIndex(subs, legacyId) : null,
+                        stationValid: valid,
+                        customer: subLegacy.cust ?? null,
+                        expiryDate: subLegacy.expiresAt,
+                        maxStations: subLegacy.maxStations ?? null,
+                    };
+                }
+            } catch {}
             console.warn('[LicenseService] Sous-licence du poste invalide :', error);
             // Jeton présent mais invalide ou expiré : poste « sub » défaillant
             return {

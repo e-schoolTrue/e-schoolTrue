@@ -33,7 +33,7 @@ export class ScheduleConfigService {
         }
     }
 
-    async saveConfig(data: { classId?: number; startHour: number; endHour: number; slotDuration: number; lunchStart: number; lunchEnd: number; global?: boolean }): Promise<IScheduleConfigResponse> {
+    async saveConfig(data: { classId?: number; startHour: number; endHour: number; slotDuration: number; lunchStart: number; lunchEnd: number; startMinutes?: number; endMinutes?: number; lunchStartMinutes?: number; lunchEndMinutes?: number; global?: boolean }): Promise<IScheduleConfigResponse> {
         try {
             await this.ensureRepository();
             const where = data.global ? { classId: null as any } : { classId: data.classId };
@@ -44,6 +44,10 @@ export class ScheduleConfigService {
             config.slotDuration = data.slotDuration;
             config.lunchStart = data.lunchStart;
             config.lunchEnd = data.lunchEnd;
+            config.startMinutes = data.startMinutes ?? 0;
+            config.endMinutes = data.endMinutes ?? 0;
+            config.lunchStartMinutes = data.lunchStartMinutes ?? 0;
+            config.lunchEndMinutes = data.lunchEndMinutes ?? 0;
             if (!data.global && data.classId) config.classId = data.classId;
             if (data.global) config.classId = undefined;
             const saved = await this.configRepository.save(config);

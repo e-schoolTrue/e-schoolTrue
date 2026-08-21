@@ -91,15 +91,17 @@ export class AppDataSource {
         console.log(`[DataSource] Initialisation avec isFirstLaunch = ${isFirstLaunch}`);
         console.log(`[DataSource] Chemin de la base de données : ${dbPath}`);
 
+        // Fix: ne jamais dropSchema en prod (licence stockée hors DB mais onboarding rejoué masque)
+        const isDev = process.env.NODE_ENV === 'development';
         this.instance = new DataSource({
             type: "better-sqlite3",
-            synchronize: true,
-            dropSchema: isFirstLaunch,
+            synchronize: isDev ? true : false,
+            dropSchema: false,
             database: dbPath,
             logging: false,
             entities: entities,
-            // migrations: [path.join(__dirname, 'migrations', '*.{ts,js}')],
-            // migrationsRun: true,
+            migrations: [path.join(__dirname, 'migrations', '*.{ts,js}')],
+            migrationsRun: !isDev,
             subscribers: [],
             cache: false
         });

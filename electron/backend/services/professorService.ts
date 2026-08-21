@@ -41,6 +41,7 @@ export class ProfessorService {
             address: professor.address,
             town: professor.town,
             cni_number: professor.cni_number,
+            color: professor.color,
             photo: professor.photo ? {
                 id: professor.photo.id,
                 name: professor.photo.name,
@@ -99,6 +100,20 @@ export class ProfessorService {
                             name: String(teaching.grades[0].name)
                         };
                     }
+                }
+
+                // Mapping gradeIds / gradeNames for SECONDARY multi-classes (preserve original arrays)
+                // teaching is TeachingAssignmentEntity which has gradeIds?: string and gradeNames?: string
+                const legacyTeaching = teaching as TeachingAssignmentEntity;
+                if (legacyTeaching.gradeIds) {
+                    mappedTeaching.gradeIds = String(legacyTeaching.gradeIds);
+                } else if (teaching.grades && Array.isArray(teaching.grades) && teaching.grades.length > 0) {
+                    mappedTeaching.gradeIds = teaching.grades.map(g => String((g as GradeEntity).id)).join(',');
+                }
+                if (legacyTeaching.gradeNames) {
+                    mappedTeaching.gradeNames = String(legacyTeaching.gradeNames);
+                } else if (mappedTeaching.gradeIds && mappedTeaching.grades?.length) {
+                    mappedTeaching.gradeNames = mappedTeaching.grades.map(g => g.name).join(', ');
                 }
                 
                 return mappedTeaching;
@@ -194,6 +209,15 @@ export class ProfessorService {
 
                 // Générer le matricule personnalisé
                 professor.matricule = ProfessorEntity.generateMatricule(schoolName);
+                if (professorData.color) {
+                    professor.color = professorData.color;
+                } else {
+                    const palette = ['#409EFF','#67C23A','#E6A23C','#F56C6C','#909399','#8B5CF6','#EC4899','#10B981','#F59E0B','#EF4444','#3B82F6','#14B8A6','#A855F7','#F97316','#06B6D4'];
+                    try {
+                        const count = await transactionalEntityManager.count(ProfessorEntity);
+                        professor.color = palette[count % palette.length];
+                    } catch { professor.color = '#409EFF'; }
+                }
 
                 // Handle photo upload
                 if (professorData.photo && professorData.photo.content) {
@@ -236,34 +260,49 @@ export class ProfessorService {
                             : TEACHING_TYPE.SUBJECT_TEACHER
                     });
 
-                    // Handle PRIMARY teaching type
-                    if (professorData.teaching.schoolType === 'PRIMARY' && professorData.teaching.classId) {
-                        const grade = await transactionalEntityManager.findOne(GradeEntity, {
-                            where: { id: professorData.teaching.classId }
-                        });
-                        if (grade) {
-                            teachingAssignment.class = grade;
-                            await transactionalEntityManager.save(teachingAssignment);
+                    // Handle PRIMARY teaching type - robust fallback
+                    const createRawClassId: any = (professorData.teaching as any).classId ?? (professorData.teaching as any).class?.id ?? (professorData.teaching as any).selectedClasses?.[0];
+                    if (professorData.teaching.schoolType === 'PRIMARY' && createRawClassId) {
+                        const cid = Number(createRawClassId);
+                        if (!isNaN(cid)) {
+                            const grade = await transactionalEntityManager.findOne(GradeEntity, {
+                                where: { id: cid }
+                            });
+                            if (grade) {
+                                teachingAssignment.class = grade;
+                                await transactionalEntityManager.save(teachingAssignment);
+                            }
                         }
                     }
-                    // Handle SECONDARY teaching type
+                    // Handle SECONDARY teaching type - robust fallback
                     else if (professorData.teaching.schoolType === 'SECONDARY') {
-                        if (professorData.teaching.courseId) {
-                            const course = await transactionalEntityManager.findOne(CourseEntity, {
-                                where: { id: professorData.teaching.courseId }
-                            });
-                            if (course) {
-                                teachingAssignment.course = course;
+                        const createRawCourseId: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
+                        if (createRawCourseId) {
+                            const courseId = Number(createRawCourseId);
+                            if (!isNaN(courseId)) {
+                                const course = await transactionalEntityManager.findOne(CourseEntity, {
+                                    where: { id: courseId }
+                                });
+                                if (course) {
+                                    teachingAssignment.course = course;
+                                }
                             }
                         }
 
+                        const createRawGradeIds: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses;
                         let gradeIdsArray: number[] = [];
-                        if (typeof professorData.teaching.gradeIds === 'string') {
+                        if (typeof createRawGradeIds === 'string') {
+                            gradeIdsArray = createRawGradeIds.split(',')
+                                .map((id: string) => parseInt(id.trim()))
+                                .filter((id: number) => !isNaN(id));
+                        } else if (Array.isArray(createRawGradeIds)) {
+                            gradeIdsArray = createRawGradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
+                        } else if (typeof professorData.teaching.gradeIds === 'string') {
                             gradeIdsArray = professorData.teaching.gradeIds.split(',')
                                 .map(id => parseInt(id.trim()))
                                 .filter(id => !isNaN(id));
                         } else if (Array.isArray(professorData.teaching.gradeIds)) {
-                            gradeIdsArray = professorData.teaching.gradeIds;
+                            gradeIdsArray = professorData.teaching.gradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
                         }
 
                         if (gradeIdsArray.length > 0) {
@@ -276,8 +315,11 @@ export class ProfessorService {
                                 teachingAssignment.grades = grades;
                                 teachingAssignment.gradeIds = gradeIdsArray.join(',');
                                 teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
-                                await transactionalEntityManager.save(teachingAssignment);
                             }
+                        }
+
+                        if (teachingAssignment.course || teachingAssignment.grades || teachingAssignment.class) {
+                            await transactionalEntityManager.save(teachingAssignment);
                         }
                     }
                 }
@@ -355,6 +397,7 @@ export class ProfessorService {
                     town: professorData.town,
                     cni_number: professorData.cni_number
                 });
+                if (professorData.color) existingProfessor.color = professorData.color;
 
                 // Handle diploma
                 let diploma;
@@ -424,31 +467,48 @@ export class ProfessorService {
                         teachingType: teachingType
                     });
 
-                    if (professorData.teaching.schoolType === 'PRIMARY' && professorData.teaching.classId) {
-                        const grade = await transactionalEntityManager.findOne(GradeEntity, {
-                            where: { id: professorData.teaching.classId }
-                        });
-                        if (grade) {
-                            teachingAssignment.class = grade;
-                            await transactionalEntityManager.save(teachingAssignment);
+                    // Robust fallback: accepte classId OU class.id OU selectedClasses[0], courseId OU course.id OU selectedCourse
+                    const rawClassId: any = (professorData.teaching as any).classId ?? (professorData.teaching as any).class?.id ?? (professorData.teaching as any).selectedClasses?.[0];
+                    const rawCourseId: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
+                    const rawGradeIds: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses;
+
+                    if (professorData.teaching.schoolType === 'PRIMARY' && rawClassId) {
+                        const cid = Number(rawClassId);
+                        if (!isNaN(cid)) {
+                            const grade = await transactionalEntityManager.findOne(GradeEntity, {
+                                where: { id: cid }
+                            });
+                            if (grade) {
+                                teachingAssignment.class = grade;
+                                await transactionalEntityManager.save(teachingAssignment);
+                            }
                         }
                     } else if (professorData.teaching.schoolType === 'SECONDARY') {
-                        if (professorData.teaching.courseId) {
-                            const course = await transactionalEntityManager.findOne(CourseEntity, {
-                                where: { id: professorData.teaching.courseId }
-                            });
-                            if (course) {
-                                teachingAssignment.course = course;
+                        if (rawCourseId) {
+                            const courseId = Number(rawCourseId);
+                            if (!isNaN(courseId)) {
+                                const course = await transactionalEntityManager.findOne(CourseEntity, {
+                                    where: { id: courseId }
+                                });
+                                if (course) {
+                                    teachingAssignment.course = course;
+                                }
                             }
                         }
 
                         let gradeIdsArray: number[] = [];
-                        if (typeof professorData.teaching.gradeIds === 'string') {
+                        if (typeof rawGradeIds === 'string') {
+                            gradeIdsArray = rawGradeIds.split(',')
+                                .map((id: string) => parseInt(id.trim()))
+                                .filter((id: number) => !isNaN(id));
+                        } else if (Array.isArray(rawGradeIds)) {
+                            gradeIdsArray = rawGradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
+                        } else if (typeof professorData.teaching.gradeIds === 'string') {
                             gradeIdsArray = professorData.teaching.gradeIds.split(',')
                                 .map(id => parseInt(id.trim()))
                                 .filter(id => !isNaN(id));
                         } else if (Array.isArray(professorData.teaching.gradeIds)) {
-                            gradeIdsArray = professorData.teaching.gradeIds;
+                            gradeIdsArray = professorData.teaching.gradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
                         }
 
                         if (gradeIdsArray.length > 0) {
@@ -461,8 +521,11 @@ export class ProfessorService {
                                 teachingAssignment.grades = grades;
                                 teachingAssignment.gradeIds = gradeIdsArray.join(',');
                                 teachingAssignment.gradeNames = grades.map(g => g.name).join(', ');
-                                await transactionalEntityManager.save(teachingAssignment);
                             }
+                        }
+
+                        if (teachingAssignment.course || teachingAssignment.grades || teachingAssignment.class) {
+                            await transactionalEntityManager.save(teachingAssignment);
                         }
                     }
                 }
@@ -764,6 +827,7 @@ export class ProfessorService {
                 address: '',
                 town: '',
                 cni_number: '',
+                color: '#409EFF',
                 nbr_child: count,
                 teaching: []
             };
@@ -904,6 +968,7 @@ export class ProfessorService {
                     address: teachingAssignment.professor.address,
                     town: teachingAssignment.professor.town,
                     cni_number: teachingAssignment.professor.cni_number,
+                    color: (teachingAssignment.professor as any).color || '#409EFF',
                     nbr_child: teachingAssignment.professor.nbr_child,
                     teaching: []
                 }

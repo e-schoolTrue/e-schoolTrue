@@ -28,6 +28,18 @@ export class ScheduleConfigEntity {
     @Column({ name: 'lunch_end', type: 'int', default: 14 })
     lunchEnd: number;
 
+    @Column({ name: 'start_minutes', type: 'int', default: 0 })
+    startMinutes: number = 0;
+
+    @Column({ name: 'end_minutes', type: 'int', default: 0 })
+    endMinutes: number = 0;
+
+    @Column({ name: 'lunch_start_minutes', type: 'int', default: 0 })
+    lunchStartMinutes: number = 0;
+
+    @Column({ name: 'lunch_end_minutes', type: 'int', default: 0 })
+    lunchEndMinutes: number = 0;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

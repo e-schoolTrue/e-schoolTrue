@@ -95,19 +95,23 @@ const loadDashboardStats = async () => {
         }
     }
 
-    // Graphique Paiements
+    // Graphique Paiements - gère vide
     if (paymentStats.success && paymentChartRef.value) {
       const ctx = paymentChartRef.value.getContext('2d');
-      // Dégradé bleu moderne
       const gradient = ctx ? createGradient(ctx, 'rgba(64, 158, 255, 0.5)', 'rgba(64, 158, 255, 0.0)') : '#409EFF';
+      const labels = Object.keys(paymentStats.data || {});
+      const values = Object.values(paymentStats.data || {}) as number[];
+      // Fallback si aucune donnée: afficher mois courant à 0 pour éviter chart vide
+      const chartLabels = labels.length ? labels : [new Date().toLocaleString('fr-FR', { month: 'long' })];
+      const chartData = values.length ? values : [0];
 
       new Chart(paymentChartRef.value, {
         type: 'line',
         data: {
-          labels: Object.keys(paymentStats.data),
+          labels: chartLabels,
           datasets: [{
             label: 'Revenus',
-            data: Object.values(paymentStats.data),
+            data: chartData,
             borderColor: '#409EFF',
             backgroundColor: gradient,
             borderWidth: 3,
@@ -151,17 +155,20 @@ const loadDashboardStats = async () => {
       });
     }
 
-    // Graphique Absences
+    // Graphique Absences - gère vide et inclut Professeurs
     if (absenceStats.success && absenceChartRef.value) {
+      const labels = Object.keys(absenceStats.data || {});
+      const values = Object.values(absenceStats.data || {}) as number[];
+      const chartLabels = labels.length ? labels : ['Aucune absence'];
+      const chartData = values.length ? values : [1];
+      const bgColors = labels.length ? ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#8B5CF6', '#EC4899', '#10B981'] : ['#ebeef5'];
       new Chart(absenceChartRef.value, {
         type: 'doughnut',
         data: {
-          labels: Object.keys(absenceStats.data),
+          labels: chartLabels,
           datasets: [{
-            data: Object.values(absenceStats.data),
-            backgroundColor: [
-              '#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399'
-            ],
+            data: chartData,
+            backgroundColor: bgColors.slice(0, chartLabels.length),
             borderWidth: 0,
             hoverOffset: 4
           }]
@@ -173,6 +180,9 @@ const loadDashboardStats = async () => {
             legend: {
                 position: 'right',
                 labels: { usePointStyle: true, font: { size: 12 } }
+            },
+            tooltip: {
+              enabled: labels.length > 0
             }
           },
           cutout: '75%' // Anneau plus fin et élégant
@@ -325,11 +335,11 @@ onMounted(() => {
                 v-for="(absence, index) in recentAbsencesDisplay"
                 :key="index"
               >
-                 <div class="item-icon-circle bg-red-light">
-                    <Icon icon="mdi:school-outline" />
+                 <div class="item-icon-circle" :class="(absence as any).type === 'PROFESSOR' ? 'bg-blue-light' : 'bg-red-light'">
+                    <Icon :icon="(absence as any).type === 'PROFESSOR' ? 'mdi:teach' : 'mdi:school-outline'" />
                 </div>
                 <div class="item-details">
-                  <span class="item-title">{{ absence.studentName }}</span>
+                  <span class="item-title">{{ absence.studentName }} <el-tag v-if="(absence as any).type === 'PROFESSOR'" size="small" type="info" class="ml-2">Prof</el-tag></span>
                   <span class="item-sub">Classe : {{ absence.className }}</span>
                 </div>
                 <div class="item-date">

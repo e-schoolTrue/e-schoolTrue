@@ -25,22 +25,38 @@
         <el-divider />
 
         <el-form-item label="Heure de début">
-          <el-select v-model.number="form.startHour" style="width: 150px">
-            <el-option v-for="h in 12" :key="h + 5" :label="`${h + 5}h`" :value="h + 5" />
-          </el-select>
+          <el-time-picker
+            v-model="startTime"
+            format="HH:mm"
+            value-format="HH:mm"
+            placeholder="08:00"
+            style="width: 150px"
+            :clearable="false"
+          />
         </el-form-item>
 
         <el-form-item label="Heure de fin">
-          <el-select v-model.number="form.endHour" style="width: 150px">
-            <el-option v-for="h in 8" :key="h + 12" :label="`${h + 12}h`" :value="h + 12" />
-          </el-select>
+          <el-time-picker
+            v-model="endTime"
+            format="HH:mm"
+            value-format="HH:mm"
+            placeholder="18:00"
+            style="width: 150px"
+            :clearable="false"
+          />
         </el-form-item>
 
         <el-form-item label="Durée d'un créneau">
-          <el-select v-model.number="form.slotDuration" style="width: 150px">
-            <el-option label="1 heure (60 min)" :value="60" />
-            <el-option label="2 heures (120 min)" :value="120" />
-            <el-option label="3 heures (180 min)" :value="180" />
+          <el-input-number v-model="form.slotDuration" :min="15" :step="15" :max="180" style="width: 150px" />
+          <span style="margin-left: 12px; color: #909399; font-size: 12px">{{ form.slotDuration }} min</span>
+          <el-select v-model.number="form.slotDuration" placeholder="Rapide" style="width: 140px; margin-left: 12px">
+            <el-option label="15 min" :value="15" />
+            <el-option label="30 min" :value="30" />
+            <el-option label="45 min" :value="45" />
+            <el-option label="60 min" :value="60" />
+            <el-option label="90 min" :value="90" />
+            <el-option label="120 min" :value="120" />
+            <el-option label="180 min" :value="180" />
           </el-select>
         </el-form-item>
 
@@ -48,15 +64,25 @@
         <h3>Pause déjeuner</h3>
 
         <el-form-item label="Début de la pause">
-          <el-select v-model.number="form.lunchStart" style="width: 150px">
-            <el-option v-for="h in 4" :key="h + 10" :label="`${h + 10}h`" :value="h + 10" />
-          </el-select>
+          <el-time-picker
+            v-model="lunchStartTime"
+            format="HH:mm"
+            value-format="HH:mm"
+            placeholder="12:00"
+            style="width: 150px"
+            :clearable="false"
+          />
         </el-form-item>
 
         <el-form-item label="Fin de la pause">
-          <el-select v-model.number="form.lunchEnd" style="width: 150px">
-            <el-option v-for="h in 4" :key="h + 12" :label="`${h + 12}h`" :value="h + 12" />
-          </el-select>
+          <el-time-picker
+            v-model="lunchEndTime"
+            format="HH:mm"
+            value-format="HH:mm"
+            placeholder="14:00"
+            style="width: 150px"
+            :clearable="false"
+          />
         </el-form-item>
 
         <el-divider />
@@ -85,12 +111,12 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Timer } from '@element-plus/icons-vue'
+import { generateSlots } from '@/composables/useScheduleSlots'
 
 interface ClassItem {
   id: number
   name: string
 }
-
 
 const classes = ref<ClassItem[]>([])
 const saving = ref(false)
@@ -99,26 +125,60 @@ const form = reactive({
   global: true,
   classId: null as number | null,
   startHour: 8,
+  startMinutes: 0,
   endHour: 18,
+  endMinutes: 0,
   slotDuration: 60,
   lunchStart: 12,
-  lunchEnd: 14
+  lunchStartMinutes: 0,
+  lunchEnd: 14,
+  lunchEndMinutes: 0
+})
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+const startTime = computed({
+  get: () => `${pad(form.startHour)}:${pad(form.startMinutes ?? 0)}`,
+  set: (val: string) => {
+    if (!val) return
+    const [h, m] = val.split(':').map(Number)
+    if (!Number.isNaN(h)) form.startHour = h
+    form.startMinutes = Number.isNaN(m) ? 0 : m
+  }
+})
+
+const endTime = computed({
+  get: () => `${pad(form.endHour)}:${pad(form.endMinutes ?? 0)}`,
+  set: (val: string) => {
+    if (!val) return
+    const [h, m] = val.split(':').map(Number)
+    if (!Number.isNaN(h)) form.endHour = h
+    form.endMinutes = Number.isNaN(m) ? 0 : m
+  }
+})
+
+const lunchStartTime = computed({
+  get: () => `${pad(form.lunchStart)}:${pad(form.lunchStartMinutes ?? 0)}`,
+  set: (val: string) => {
+    if (!val) return
+    const [h, m] = val.split(':').map(Number)
+    if (!Number.isNaN(h)) form.lunchStart = h
+    form.lunchStartMinutes = Number.isNaN(m) ? 0 : m
+  }
+})
+
+const lunchEndTime = computed({
+  get: () => `${pad(form.lunchEnd)}:${pad(form.lunchEndMinutes ?? 0)}`,
+  set: (val: string) => {
+    if (!val) return
+    const [h, m] = val.split(':').map(Number)
+    if (!Number.isNaN(h)) form.lunchEnd = h
+    form.lunchEndMinutes = Number.isNaN(m) ? 0 : m
+  }
 })
 
 const previewSlots = computed(() => {
-  const slots: { key: string; label: string }[] = []
-  let h = form.startHour
-  while (h < form.endHour) {
-    if (h >= form.lunchStart && h < form.lunchEnd) {
-      h = form.lunchEnd
-      continue
-    }
-    const endH = h + form.slotDuration / 60
-    if (endH > form.endHour) break
-    slots.push({ key: `${h}-${endH}`, label: `${h}h - ${endH}h` })
-    h = endH
-  }
-  return slots
+  return generateSlots(form)
 })
 
 const loadClasses = async () => {
@@ -131,11 +191,15 @@ const loadClasses = async () => {
 const loadConfig = async () => {
   const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: form.global ? null : form.classId })
   if (result.success && result.data) {
-    form.startHour = result.data.startHour
-    form.endHour = result.data.endHour
-    form.slotDuration = result.data.slotDuration
-    form.lunchStart = result.data.lunchStart
-    form.lunchEnd = result.data.lunchEnd
+    form.startHour = result.data.startHour ?? 8
+    form.startMinutes = result.data.startMinutes ?? 0
+    form.endHour = result.data.endHour ?? 18
+    form.endMinutes = result.data.endMinutes ?? 0
+    form.slotDuration = result.data.slotDuration ?? 60
+    form.lunchStart = result.data.lunchStart ?? 12
+    form.lunchStartMinutes = result.data.lunchStartMinutes ?? 0
+    form.lunchEnd = result.data.lunchEnd ?? 14
+    form.lunchEndMinutes = result.data.lunchEndMinutes ?? 0
   }
 }
 

@@ -366,7 +366,7 @@ describe('LicenseService (logique métier, crypto mockée)', () => {
 
     it('13. anti-rollback : clockLastSeen dans le futur → isValid false + clockError, horloge non mise à jour', async () => {
         installMasterStation();
-        const futureClock = String(Date.now() + 10 * 60 * 1000);
+        const futureClock = String(Date.now() + 25 * 60 * 60 * 1000);
         storeState.set('clockLastSeen', futureClock);
         const service = new LicenseService();
 

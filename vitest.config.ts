@@ -27,9 +27,25 @@ export default defineConfig(async () => {
     return mergeConfig({ ...viteConfig, plugins }, {
         test: {
             environment: 'jsdom',
-            // Process CSS so element-plus CSS imports don't crash the test runner
-            css: true,
             globals: true,
+            css: true,
+            setupFiles: ['./vitest.setup.ts'],
+            coverage: {
+                provider: 'v8',
+                reporter: ['text', 'lcov', 'html'],
+                reportsDirectory: './coverage',
+                include: ['src/**/*.{ts,vue}', 'electron/**/*.{ts}'],
+                exclude: [
+                    '**/*.spec.ts',
+                    '**/__tests__/**',
+                    'src/stores/__tests__/**',
+                    'electron/backend/services/__tests__/**',
+                    'node_modules/**',
+                    'dist/**',
+                    'graphify-out/**',
+                ],
+                thresholds: { lines: 10, branches: 60, functions: 20, statements: 10 },
+            },
             server: {
                 deps: {
                     inline: ['element-plus'],

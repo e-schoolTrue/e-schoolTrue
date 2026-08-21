@@ -283,9 +283,12 @@ const filteredStudents = computed(() => {
     const firstname = student.firstname?.toLowerCase() || '';
     const lastname = student.lastname?.toLowerCase() || '';
     const matricule = student.matricule?.toLowerCase() || '';
-    const query = searchQuery.value.toLowerCase();
+    const query = searchQuery.value.toLowerCase().trim();
+    const full = `${firstname} ${lastname}`;
+    const rev = `${lastname} ${firstname}`;
     
-    return firstname.includes(query) || 
+    return full.includes(query) || rev.includes(query) ||
+           firstname.includes(query) || 
            lastname.includes(query) || 
            matricule.includes(query);
   });

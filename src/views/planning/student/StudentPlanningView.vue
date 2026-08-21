@@ -67,6 +67,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Calendar } from '@element-plus/icons-vue'
+import { generateSlots, normSlot } from '@/composables/useScheduleSlots'
 
 interface DayItem {
   key: string
@@ -103,29 +104,77 @@ const activeDays = computed(() => days.value.filter(d => d.enabled))
 
 const selectedClass = computed(() => classes.value.find((c: any) => c.id === filters.selectedClassId))
 
-const courseColors: Record<number, string> = {}
+const courseColors: Record<number | string, string> = {}
 let colorIndex = 0
-const palette = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#B37FEB', '#36CFC9', '#F2A7B3']
+const palette = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#B37FEB', '#36CFC9', '#F2A7B3', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#14B8A6']
+const professorDistinctColors: Record<number, string> = {}
 
-function getColorForCourse(courseId: number): string {
-  if (!courseColors[courseId]) {
-    courseColors[courseId] = palette[colorIndex % palette.length]
+function getProfessorDistinctColor(prof: any): string | null {
+  if (!prof?.id) return null
+  if (professorDistinctColors[prof.id]) return professorDistinctColors[prof.id]
+  // Si couleur personnalisée non-default et unique, l'utiliser
+  if (prof.color && prof.color !== '#409EFF') {
+    professorDistinctColors[prof.id] = prof.color
+    return prof.color
+  }
+  // Sinon palette distincte par id
+  const color = palette[prof.id % palette.length]
+  professorDistinctColors[prof.id] = color
+  return color
+}
+
+function getColorForCourse(courseId: number | string): string {
+  const key = courseId as number | string
+  if (!courseColors[key]) {
+    courseColors[key] = palette[colorIndex % palette.length]
     colorIndex++
   }
-  return courseColors[courseId]
+  return courseColors[key]
 }
 
 function getScheduleItem(dayKey: string, slotKey: string): any {
-  return schedules.value.find((s: any) => s.day === dayKey && s.timeSlot === slotKey)
+  return schedules.value.find((s: any) => s.day === dayKey && normSlot(String(s.timeSlot)) === normSlot(String(slotKey)))
 }
 
 function getCellStyle(dayKey: string, slotKey: string) {
   const item = getScheduleItem(dayKey, slotKey)
   if (!item) return {}
-  const color = item.course?.id ? getColorForCourse(item.course.id) : '#409EFF'
+  // Priority: couleur distincte par professeur (même si même default en DB)
+  const profDistinct = item.professor ? getProfessorDistinctColor(item.professor) : null
+  if (profDistinct) {
+    return {
+      backgroundColor: profDistinct + '15',
+      borderLeft: `3px solid ${profDistinct}`,
+      cursor: 'default'
+    }
+  }
+  const profColor: string | null = item.professor?.color || null
+  if (profColor) {
+    return {
+      backgroundColor: profColor + '15',
+      borderLeft: `3px solid ${profColor}`,
+      cursor: 'default'
+    }
+  }
+  // Fallback: handle PRIMARY where course may be null but professorId exists
+  // If schedule item lacks professor embed but has professorId, color would already be undefined – fallback to palette
+  // Resolve course identifier (supports both numeric courseId and string primary-<id>)
+  const courseId = item.course?.id ?? item.courseId
+  if (courseId != null) {
+    // For SECONDARY: numeric courseId -> palette (which may be seeded from professor color elsewhere)
+    // For PRIMARY with string id, getColorForCourse will assign deterministic palette if no profColor
+    const color = getColorForCourse(courseId as number | string)
+    return {
+      backgroundColor: color + '15',
+      borderLeft: `3px solid ${color}`,
+      cursor: 'default'
+    }
+  }
+  // Ultimate fallback: neutral primary color
+  const fallback = '#409EFF'
   return {
-    backgroundColor: color + '15',
-    borderLeft: `3px solid ${color}`,
+    backgroundColor: fallback + '15',
+    borderLeft: `3px solid ${fallback}`,
     cursor: 'default'
   }
 }
@@ -135,34 +184,37 @@ const loadClasses = async () => {
   if (result.success) classes.value = result.data || []
 }
 
+const defaultStudentSlots: TimeSlot[] = generateSlots({
+  startHour: 8,
+  startMinutes: 0,
+  endHour: 18,
+  endMinutes: 0,
+  slotDuration: 60,
+  lunchStart: 12,
+  lunchStartMinutes: 0,
+  lunchEnd: 14,
+  lunchEndMinutes: 0
+})
+
 const loadScheduleConfig = async () => {
   const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: filters.selectedClassId })
   if (result.success && result.data) {
-    const config = result.data
-    const slots: TimeSlot[] = []
-    let h = config.startHour
-    while (h < config.endHour) {
-      if (h >= config.lunchStart && h < config.lunchEnd) {
-        h = config.lunchEnd
-        continue
-      }
-      const endH = h + config.slotDuration / 60
-      if (endH > config.endHour) break
-      slots.push({ key: `${h}-${endH}`, label: `${h}h - ${endH}h` })
-      h = endH
+    const cfg = result.data
+    const config = {
+      startHour: cfg.startHour ?? 8,
+      startMinutes: cfg.startMinutes ?? 0,
+      endHour: cfg.endHour ?? 18,
+      endMinutes: cfg.endMinutes ?? 0,
+      slotDuration: cfg.slotDuration ?? 60,
+      lunchStart: cfg.lunchStart ?? 12,
+      lunchStartMinutes: cfg.lunchStartMinutes ?? 0,
+      lunchEnd: cfg.lunchEnd ?? 14,
+      lunchEndMinutes: cfg.lunchEndMinutes ?? 0
     }
-    timeSlots.value = slots
+    const slots = generateSlots(config)
+    timeSlots.value = slots.length > 0 ? slots : defaultStudentSlots
   } else {
-    timeSlots.value = [
-      { key: '8-9', label: '8h-9h' },
-      { key: '9-10', label: '9h-10h' },
-      { key: '10-11', label: '10h-11h' },
-      { key: '11-12', label: '11h-12h' },
-      { key: '14-15', label: '14h-15h' },
-      { key: '15-16', label: '15h-16h' },
-      { key: '16-17', label: '16h-17h' },
-      { key: '17-18', label: '17h-18h' }
-    ]
+    timeSlots.value = defaultStudentSlots
   }
 }
 

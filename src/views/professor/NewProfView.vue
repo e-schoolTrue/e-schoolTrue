@@ -31,6 +31,7 @@ interface ProfessorFormData {
   address: string;
   town: string;
   cni_number: string;
+  color?: string;
   diploma: { name: string };
   qualification: { name: string };
   documents: IProfessorFile[];
@@ -115,6 +116,7 @@ const handleSave = async (professorData: ProfessorFormData) => {
       address: professorData.address.trim(),
       town: professorData.town.trim(),
       cni_number: professorData.cni_number.trim(),
+      color: professorData.color || '#409EFF',
       diploma: professorData.diploma.name.trim(),
       qualification: professorData.qualification.name.trim(),
       photo: professorData.photo ? {

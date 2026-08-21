@@ -150,23 +150,30 @@ export class DashboardService {
             const absences = await absenceRepo
                 .createQueryBuilder('absence')
                 .leftJoinAndSelect('absence.student', 'student')
+                .leftJoinAndSelect('absence.professor', 'professor')
                 .leftJoinAndSelect('absence.grade', 'grade')
-                .where('absence.type = :type', { type: 'STUDENT' })
+                .leftJoinAndSelect('absence.course', 'course')
                 .orderBy('absence.date', 'DESC')
                 .addOrderBy('absence.created_at', 'DESC')
                 .take(limit)
                 .getMany();
 
-            const formattedAbsences: IRecentAbsence[] = absences.map(absence => ({
-                id: absence.id,
-                studentName: absence.student 
-                    ? `${absence.student.firstname} ${absence.student.lastname}`
-                    : 'Inconnu',
-                className: absence.grade?.name || 'N/A',
-                date: absence.date,
-                absenceType: absence.absenceType,
-                justified: absence.justified
-            }));
+            const formattedAbsences: IRecentAbsence[] = absences.map(absence => {
+                const isProfessor = absence.type === 'PROFESSOR';
+                const name = isProfessor
+                    ? (absence.professor ? `${absence.professor.firstname} ${absence.professor.lastname}` : 'Professeur inconnu')
+                    : (absence.student ? `${absence.student.firstname} ${absence.student.lastname}` : 'Inconnu');
+                const className = absence.grade?.name || (absence.course?.name || (isProfessor ? 'Professeur' : 'N/A'));
+                return {
+                    id: absence.id,
+                    studentName: name,
+                    className: className,
+                    date: absence.date,
+                    absenceType: absence.absenceType,
+                    justified: absence.justified,
+                    type: absence.type
+                } as IRecentAbsence;
+            });
 
             return {
                 success: true,
@@ -194,14 +201,15 @@ export class DashboardService {
             
             const lastThreeMonths = new Date();
             lastThreeMonths.setMonth(lastThreeMonths.getMonth() - 3);
+            lastThreeMonths.setHours(0,0,0,0);
 
             const absences = await absenceRepo
                 .createQueryBuilder('absence')
                 .leftJoinAndSelect('absence.grade', 'grade')
                 .leftJoinAndSelect('absence.student', 'student')
                 .leftJoinAndSelect('absence.professor', 'professor')
-                .where('absence.created_at >= :startDate', { startDate: lastThreeMonths })
-                .andWhere('absence.created_at <= :endDate', { endDate: new Date() })
+                .where('absence.date >= :startDate', { startDate: lastThreeMonths.toISOString().split('T')[0] })
+                .andWhere('absence.date <= :endDate', { endDate: new Date().toISOString().split('T')[0] })
                 .getMany();
 
             console.log('Types des absences trouvées:', absences.map((a:any) => a.type));

@@ -68,7 +68,7 @@
               ]"
               :draggable="true"
               @dragstart="handleDragStart($event, item)"
-              :style="{ borderLeftColor: getCourseColor(item.course.id) }"
+              :style="{ borderLeftColor: getCourseColor(item.course.id, item.professor?.id ?? (item as any).professorId) }"
             >
               <div class="course-info">
                 <!-- Affichage pour le primaire -->
@@ -173,7 +173,7 @@
                         'schedule-item',
                         selectedClass?.type === 'PRIMARY' ? 'primary-schedule' : 'secondary-schedule'
                       ]"
-                      :style="{ backgroundColor: getCourseColor(scheduleItem.courseId), '--bg-color': getCourseColor(scheduleItem.courseId) }"
+                      :style="{ backgroundColor: getCourseColor(scheduleItem.courseId, scheduleItem.professorId), '--bg-color': getCourseColor(scheduleItem.courseId, scheduleItem.professorId) }"
                     >
                       <el-button
                         class="remove-btn"
@@ -259,6 +259,7 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, User, Clock, Warning, Close } from '@element-plus/icons-vue'
+import { generateSlots, normSlot } from '@/composables/useScheduleSlots'
 
 // Types
 interface Professor {
@@ -266,6 +267,7 @@ interface Professor {
   firstname: string
   lastname: string
   civility: string
+  color?: string | null
   qualification?: { id: number; name: string }
   photo?: { id: number; name: string; type: string }
   teaching: Teaching[]
@@ -330,34 +332,35 @@ const days = ref([
 
 const timeSlots = ref<{ key: string; label: string }[]>([])
 
-const defaultSlots = [
-  { key: '8-9', label: '8h-9h' },
-  { key: '9-10', label: '9h-10h' },
-  { key: '10-11', label: '10h-11h' },
-  { key: '11-12', label: '11h-12h' },
-  { key: '14-15', label: '14h-15h' },
-  { key: '15-16', label: '15h-16h' },
-  { key: '16-17', label: '16h-17h' },
-  { key: '17-18', label: '17h-18h' }
-]
+const defaultSlots = generateSlots({
+  startHour: 8,
+  startMinutes: 0,
+  endHour: 18,
+  endMinutes: 0,
+  slotDuration: 60,
+  lunchStart: 12,
+  lunchStartMinutes: 0,
+  lunchEnd: 14,
+  lunchEndMinutes: 0
+})
 
 const loadScheduleConfig = async (classId?: number | null) => {
   try {
     const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: classId || null })
     if (result.success && result.data) {
-      const config = result.data
-      const slots: { key: string; label: string }[] = []
-      let h = config.startHour
-      while (h < config.endHour) {
-        if (h >= config.lunchStart && h < config.lunchEnd) {
-          h = config.lunchEnd
-          continue
-        }
-        const endH = h + config.slotDuration / 60
-        if (endH > config.endHour) break
-        slots.push({ key: `${h}-${endH}`, label: `${h}h - ${endH}h` })
-        h = endH
+      const cfg = result.data
+      const config = {
+        startHour: cfg.startHour ?? 8,
+        startMinutes: cfg.startMinutes ?? 0,
+        endHour: cfg.endHour ?? 18,
+        endMinutes: cfg.endMinutes ?? 0,
+        slotDuration: cfg.slotDuration ?? 60,
+        lunchStart: cfg.lunchStart ?? 12,
+        lunchStartMinutes: cfg.lunchStartMinutes ?? 0,
+        lunchEnd: cfg.lunchEnd ?? 14,
+        lunchEndMinutes: cfg.lunchEndMinutes ?? 0
       }
+      const slots = generateSlots(config)
       timeSlots.value = slots.length > 0 ? slots : defaultSlots
     } else {
       timeSlots.value = defaultSlots
@@ -368,8 +371,9 @@ const loadScheduleConfig = async (classId?: number | null) => {
   }
 }
 
-// Couleurs des matières
+// Couleurs des matières et professeurs - distinct par professeur
 const courseColors = ref<Record<number, string>>({})
+const professorColors = ref<Record<number, string>>({})
 
 // Computed
 const selectedClass = computed(() => {
@@ -511,37 +515,108 @@ const deleteScheduleItem = async (scheduleId: string) => {
   }
 }
 
-// Méthodes utilitaires
+// Méthodes utilitaires - couleurs distinctes par professeur
 const generateCourseColors = () => {
-  const colors = [
+  const palette = [
     '#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399',
-    '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#EF4444'
+    '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#EF4444',
+    '#3B82F6', '#14B8A6', '#A855F7', '#F97316', '#06B6D4'
   ]
-  
-  const allCourses = new Set<number>()
+
+  // 1) Générer couleurs distinctes par professeur (prioritaire pour affichage)
+  const used = new Set<string>()
+  professorColors.value = {}
+  // D'abord les couleurs personnalisées non-dupliquées (et non-default si doublon)
+  const defaultColor = '#409EFF'
+  const defaultCount = professors.value.filter(p => !p.color || p.color === defaultColor).length
+  const hasDuplicateDefault = defaultCount > 1
+
+  professors.value.forEach((prof) => {
+    if (prof.color && !(hasDuplicateDefault && prof.color === defaultColor) && !used.has(prof.color)) {
+      professorColors.value[prof.id] = prof.color
+      used.add(prof.color)
+    }
+  })
+  // Ensuite assigner palette distincte aux restants (sans couleur ou couleur dupliquée)
+  let paletteIdx = 0
+  professors.value.forEach((prof) => {
+    if (!professorColors.value[prof.id]) {
+      while (used.has(palette[paletteIdx % palette.length])) paletteIdx++
+      const c = palette[paletteIdx % palette.length]
+      professorColors.value[prof.id] = c
+      used.add(c)
+      paletteIdx++
+    }
+  })
+
+  // 2) Couleurs par cours (fallback si besoin)
+  const courseToProfColor = new Map<number, string | null>()
+  const fallbackCourses = new Set<number>()
+
   professors.value.forEach(professor => {
     professor.teaching.forEach(teaching => {
       if (teaching.course) {
-        allCourses.add(teaching.course.id)
+        const cid = teaching.course.id as number
+        if (!courseToProfColor.has(cid)) {
+          // Utiliser couleur distincte du professeur (pas brute)
+          const profCol = professorColors.value[professor.id] || professor.color || null
+          if (profCol) {
+            courseToProfColor.set(cid, profCol)
+          } else {
+            courseToProfColor.set(cid, null)
+            fallbackCourses.add(cid)
+          }
+        } else if (fallbackCourses.has(cid) && professorColors.value[professor.id]) {
+          courseToProfColor.set(cid, professorColors.value[professor.id])
+          fallbackCourses.delete(cid)
+        }
       }
     })
   })
-  
-  Array.from(allCourses).forEach((courseId, index) => {
-    courseColors.value[courseId] = colors[index % colors.length]
+
+  let paletteIndex = 0
+  courseToProfColor.forEach((profColor, courseId) => {
+    if (profColor) {
+      courseColors.value[courseId] = profColor
+    } else {
+      while (used.has(palette[paletteIndex % palette.length])) paletteIndex++
+      const c = palette[paletteIndex % palette.length]
+      courseColors.value[courseId] = c
+      used.add(c)
+      paletteIndex++
+    }
+  })
+
+  fallbackCourses.forEach((courseId) => {
+    if (!courseColors.value[courseId]) {
+      while (used.has(palette[paletteIndex % palette.length])) paletteIndex++
+      courseColors.value[courseId] = palette[paletteIndex % palette.length]
+      paletteIndex++
+    }
   })
 }
 
-const getCourseColor = (courseId: number | string): string => {
-  if (selectedClass.value?.type === 'PRIMARY') {
-    // Pour le primaire, couleur basée sur le professeur
-    if (typeof courseId === 'string' && courseId.startsWith('primary-')) {
-      const professorId = parseInt(courseId.replace('primary-', ''))
+const getCourseColor = (courseId: number | string, professorId?: number): string => {
+  // Priority 1: couleur distincte du professeur si disponible
+  if (professorId != null) {
+    if (professorColors.value[professorId]) return professorColors.value[professorId]
+    const prof = professors.value.find(p => p.id === professorId)
+    if (prof?.color && professorColors.value[professorId]) return professorColors.value[professorId]
+    if (prof?.color) return prof.color
+  }
+  // Priority 2: PRIMARY handling – derive professor from courseId string
+  if (selectedClass.value?.type === 'PRIMARY' && typeof courseId === 'string' && courseId.startsWith('primary-')) {
+    const pid = parseInt(courseId.replace('primary-', ''), 10)
+    if (!isNaN(pid)) {
+      if (professorColors.value[pid]) return professorColors.value[pid]
+      const prof = professors.value.find(p => p.id === pid)
+      if (prof?.color) return prof.color
       const colors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#8B5CF6', '#EC4899', '#10B981']
-      return colors[professorId % colors.length]
+      return colors[pid % colors.length]
     }
   }
-  return courseColors.value[courseId as number] || '#409EFF'
+  // Fallback: per-course palette (déjà distinct)
+  return courseColors.value[courseId as number] || professorColors.value[professorId as number] || '#409EFF'
 }
 
 const getCourseDuration = (courseId: number | string): number | null => {
@@ -586,7 +661,7 @@ const getPhotoUrl = (photo: { id: number; name: string; type: string }): string 
 const getScheduleItem = (day: string, timeSlot: string): ScheduleItem | undefined => {
   return schedule.value.find(item => 
     item.day === day && 
-    item.timeSlot === timeSlot && 
+    normSlot(String(item.timeSlot)) === normSlot(String(timeSlot)) && 
     item.classId === filters.selectedClassId
   )
 }
@@ -599,7 +674,7 @@ const checkConflicts = (newItem: ScheduleItem): boolean => {
   return schedule.value.some(item => 
     item.professorId === newItem.professorId &&
     item.day === newItem.day &&
-    item.timeSlot === newItem.timeSlot &&
+    normSlot(String(item.timeSlot)) === normSlot(String(newItem.timeSlot)) &&
     item.classId !== newItem.classId
   )
 }

@@ -80,21 +80,16 @@
           >
             <template #default="{ row }">
               <div class="schedule-cell">
-                <template v-if="hasSchedule(row.professor, timeSlot)">
-                  <div class="schedule-info">
-                    <div class="class-name">{{ getClassInfo(row.professor, timeSlot) }}</div>
-                    <el-checkbox
-                      v-model="row.absences[timeSlot].checked"
-                      @change="(val: boolean) => handleAbsenceChange(row.professor, timeSlot, val)"
-                      size="large"
-                    >
-                      <span class="checkbox-label">Absent</span>
-                    </el-checkbox>
-                  </div>
-                </template>
-                <template v-else>
-                  <span class="no-schedule">-</span>
-                </template>
+                <div class="schedule-info">
+                  <div class="class-name">{{ getClassInfo(row.professor, timeSlot) || getTeachingClassName(row.professor) }}</div>
+                  <el-checkbox
+                    v-model="row.absences[timeSlot].checked"
+                    @change="(val: boolean) => handleAbsenceChange(row.professor, timeSlot, val)"
+                    size="large"
+                  >
+                    <span class="checkbox-label">Absent</span>
+                  </el-checkbox>
+                </div>
               </div>
             </template>
           </el-table-column>
@@ -174,19 +169,16 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
+import { generateSlots, formatTimeSlotForDisplay, normSlot } from '@/composables/useScheduleSlots';
+import type { ITeachingAssignment } from '@/types/shared';
+
+type TeachingWithLegacy = ITeachingAssignment & { selectedClasses?: number[]; selectedCourse?: number; grades?: { id: number; name: string }[]; gradeNames?: string; gradeIds?: string | number[] };
 
 interface Professor {
   id: number;
   firstname: string;
   lastname: string;
-  teaching?: Array<{
-    course?: { name: string };
-    class?: { name: string };
-    grades?: Array<{ id: number; name: string }>;
-    gradeNames?: string;
-    gradeIds?: string;
-    id?: number;
-  }>;
+  teaching?: TeachingWithLegacy[];
 }
 
 type ReasonType = 'MEDICAL' | 'FAMILY' | 'UNAUTHORIZED' | 'SCHOOL_ACTIVITY' | 'OTHER';
@@ -229,28 +221,38 @@ const reasonForm = ref<ReasonForm>({
   reason: ''
 });
 
-// Créneaux horaires
+// Créneaux horaires - canonical keys "HH:mm-HH:mm"
 const timeSlots = ref<string[]>([])
 
-const defaultTimeSlots = ['8-9', '9-10', '10-11', '11-12', '14-15', '15-16', '16-17']
+const defaultTimeSlots: string[] = generateSlots({
+  startHour: 8,
+  startMinutes: 0,
+  endHour: 18,
+  endMinutes: 0,
+  slotDuration: 60,
+  lunchStart: 12,
+  lunchStartMinutes: 0,
+  lunchEnd: 14,
+  lunchEndMinutes: 0
+}).map(s => s.key)
 
 const loadScheduleConfig = async () => {
   try {
     const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: null })
     if (result.success && result.data) {
-      const config = result.data
-      const slots: string[] = []
-      let h = config.startHour
-      while (h < config.endHour) {
-        if (h >= config.lunchStart && h < config.lunchEnd) {
-          h = config.lunchEnd
-          continue
-        }
-        const endH = h + config.slotDuration / 60
-        if (endH > config.endHour) break
-        slots.push(`${h}-${endH}`)
-        h = endH
+      const cfg = result.data
+      const config = {
+        startHour: cfg.startHour ?? 8,
+        startMinutes: cfg.startMinutes ?? 0,
+        endHour: cfg.endHour ?? 18,
+        endMinutes: cfg.endMinutes ?? 0,
+        slotDuration: cfg.slotDuration ?? 60,
+        lunchStart: cfg.lunchStart ?? 12,
+        lunchStartMinutes: cfg.lunchStartMinutes ?? 0,
+        lunchEnd: cfg.lunchEnd ?? 14,
+        lunchEndMinutes: cfg.lunchEndMinutes ?? 0
       }
+      const slots = generateSlots(config).map(s => s.key)
       timeSlots.value = slots.length > 0 ? slots : defaultTimeSlots
     } else {
       timeSlots.value = defaultTimeSlots
@@ -261,23 +263,38 @@ const loadScheduleConfig = async () => {
   }
 }
 
+// Helpers for filtering with teaching fallback
+const matchTeaching = (prof: Professor, filterId: number): boolean => {
+  if (!prof.teaching || !Array.isArray(prof.teaching)) return false
+  return prof.teaching.some((t: TeachingWithLegacy) => {
+    if (t.class?.id === filterId) return true
+    if (t.grades?.some((g: { id: number; name: string }) => g.id === filterId)) return true
+    if (t.gradeIds) {
+      const raw = t.gradeIds as string | number[];
+      const ids = Array.isArray(raw)
+        ? raw.map((n: number) => Number(n)).filter((n: number) => !Number.isNaN(n))
+        : String(raw).split(',').map((s: string) => Number(s.trim())).filter((n: number) => !Number.isNaN(n))
+      if (ids.includes(filterId)) return true
+    }
+    return false
+  })
+}
+
 // Computed
 const filteredProfessorsSchedule = computed(() => {
   let filtered = [...professorsSchedule.value];
 
-  // Filtre par classe
+  // Filtre par classe with fallback to teaching
   if (selectedClassFilter.value) {
-    filtered = filtered.filter(profSchedule => 
-      profSchedule.schedules?.some((schedule: any) => 
-        // CHANGEMENT ICI: passer de schedule.class?.id à schedule.classId
-        schedule.classId === selectedClassFilter.value 
-      )
+    filtered = filtered.filter(profSchedule =>
+      profSchedule.schedules?.some((schedule: any) => schedule.classId === selectedClassFilter.value)
+      || matchTeaching(profSchedule.professor, selectedClassFilter.value as number)
     );
   }
 
   // Filtre par professeur
   if (selectedProfessorFilter.value) {
-    filtered = filtered.filter(profSchedule => 
+    filtered = filtered.filter(profSchedule =>
       profSchedule.professor.id === selectedProfessorFilter.value
     );
   }
@@ -287,7 +304,16 @@ const filteredProfessorsSchedule = computed(() => {
 
 // Méthodes
 const formatTimeSlot = (slot: string) => {
-  return slot.replace('-', 'h - ') + 'h';
+  return formatTimeSlotForDisplay(slot)
+};
+
+const getTeachingClassName = (professor: Professor): string => {
+  if (!professor?.teaching || !Array.isArray(professor.teaching) || professor.teaching.length === 0) return ''
+  const first = professor.teaching[0] as TeachingWithLegacy
+  if (first.class?.name) return first.class.name
+  if (first.grades && Array.isArray(first.grades) && first.grades.length > 0) return first.grades[0].name
+  if (first.gradeNames) return String(first.gradeNames).split(',')[0].trim()
+  return ''
 };
 
 const getInitials = (professor: Professor): string => {
@@ -371,27 +397,70 @@ const loadSchedules = async () => {
 
   try {
     loading.value = true;
-    console.log('[loadSchedules] Date sélectionnée:', selectedDate.value.toISOString().split('T')[0]);
+    const dateStr = selectedDate.value.toISOString().split('T')[0];
+    console.log('[loadSchedules] Date sélectionnée:', dateStr);
 
-    const scheduleResult = await window.ipcRenderer.invoke('schedule:getByDate', {
-      date: selectedDate.value.toISOString().split('T')[0]
-    });
+    const [scheduleResult, absenceResult] = await Promise.all([
+      window.ipcRenderer.invoke('schedule:getByDate', { date: dateStr }),
+      window.ipcRenderer.invoke('absence:allProfessor')
+    ]);
     console.log("shedule value :",scheduleResult )
+    console.log("absences value :", absenceResult?.data?.length)
+
+    // Build map of existing absences for this date: key = professorId + normalized slot
+    const absenceMap = new Map<string, any>()
+    if (absenceResult?.success && Array.isArray(absenceResult.data)) {
+      absenceResult.data.forEach((abs: any) => {
+        const absDate = abs.date ? new Date(abs.date).toISOString().split('T')[0] : null
+        if (absDate !== dateStr) return
+        const profId = abs.professor?.id ?? abs.professorId
+        if (!profId) return
+        // Reconstruct slot key from startTime/endTime (stored as HH:mm:ss)
+        let absSlot: string | null = null
+        if (abs.startTime && abs.endTime) {
+          const s = abs.startTime.substring(0,5) // "08:30"
+          const e = abs.endTime.substring(0,5) // "09:30"
+          absSlot = `${s}-${e}` // "08:30-09:30"
+        } else if ((abs as any).timeSlot) {
+          absSlot = (abs as any).timeSlot
+        }
+        if (!absSlot) return
+        // Normalize to match timeSlots keys
+        const canonical = timeSlots.value.find(ts => normSlot(ts) === normSlot(absSlot!))
+        const keySlot = canonical || absSlot
+        const mapKey = `${profId}__${normSlot(keySlot)}`
+        absenceMap.set(mapKey, abs)
+      })
+    }
 
     if (scheduleResult.success) {
-      professorsSchedule.value = professors.value.map(prof => ({
-        professor: prof,
-        absences: timeSlots.value.reduce((acc, slot) => ({ 
-          ...acc, 
-          [slot]: { 
-            checked: false, 
-            reason: '',
-            justified: false,
-            reasonType: 'UNAUTHORIZED'
-          } 
-        }), {}),
-        schedules: scheduleResult.data.filter((s: { professorId: number }) => s.professorId === prof.id)
-      }));
+      professorsSchedule.value = professors.value.map(prof => {
+        const absences: Record<string, AbsenceInfo> = {}
+        timeSlots.value.forEach(slot => {
+          const mapKey = `${prof.id}__${normSlot(slot)}`
+          const existing = absenceMap.get(mapKey)
+          if (existing) {
+            absences[slot] = {
+              checked: true,
+              reason: existing.reason || '',
+              justified: !!existing.justified,
+              reasonType: existing.reasonType || 'UNAUTHORIZED'
+            }
+          } else {
+            absences[slot] = {
+              checked: false,
+              reason: '',
+              justified: false,
+              reasonType: 'UNAUTHORIZED'
+            }
+          }
+        })
+        return {
+          professor: prof,
+          absences,
+          schedules: scheduleResult.data.filter((s: { professorId: number }) => s.professorId === prof.id)
+        }
+      });
     }
   } catch (error) {
     console.error('[loadSchedules] Exception:', error);
@@ -401,18 +470,16 @@ const loadSchedules = async () => {
   }
 };
 
+// keep hasSchedule for hint / external use (avoids TS6133)
 const hasSchedule = (professor: any, timeSlot: string) => {
   const profSchedule = professorsSchedule.value.find(p => p.professor.id === professor.id);
-  const formattedTimeSlot = timeSlot.replace('h', '-');
-  return profSchedule?.schedules.some((s: any) => s.timeSlot === formattedTimeSlot) || false;
+  return profSchedule?.schedules.some((s: any) => normSlot(String(s.timeSlot)) === normSlot(timeSlot)) || false;
 };
+void hasSchedule;
 
 const getClassInfo = (professor: any, timeSlot: string) => {
   const profSchedule = professorsSchedule.value.find(p => p.professor.id === professor.id);
-  const formattedTimeSlot = timeSlot.replace('h', '-');
-  const schedule = profSchedule?.schedules.find((s: any) => s.timeSlot === formattedTimeSlot);
-  
- 
+  const schedule = profSchedule?.schedules.find((s: any) => normSlot(String(s.timeSlot)) === normSlot(timeSlot));
   if (schedule && schedule.classId) {
     const foundClass = classes.value.find(cls => cls.id === schedule.classId);
     return foundClass ? foundClass.name : '';
@@ -501,13 +568,13 @@ const resetAll = () => {
 const saveAbsences = async () => {
   try {
     saving.value = true;
-    const absencesToSave = [];
+    const absencesToSave: any[] = [];
 
     for (const profSchedule of professorsSchedule.value) {
       for (const [timeSlot, absenceInfo] of Object.entries(profSchedule.absences) as [string, AbsenceInfo][]) {
-        if (absenceInfo.checked && hasSchedule(profSchedule.professor, timeSlot)) {
-          const schedule = profSchedule.schedules.find((s: any) => s.timeSlot === timeSlot);
-          const gradeId = schedule ? schedule.classId : null;
+        if (absenceInfo.checked) {
+          const schedule = profSchedule.schedules.find((s: any) => normSlot(String(s.timeSlot)) === normSlot(timeSlot));
+          const gradeId = schedule?.classId ?? (selectedClassFilter.value as number | null) ?? null;
 
           absencesToSave.push({
             professorId: profSchedule.professor.id,
@@ -532,7 +599,8 @@ const saveAbsences = async () => {
     
     if (result.success) {
       ElMessage.success(`${absencesToSave.length} absence(s) enregistrée(s) avec succès`);
-      resetAll();
+      // Recharger pour afficher les cases cochées persistées
+      await loadSchedules();
     } else {
       throw new Error(result.message);
     }

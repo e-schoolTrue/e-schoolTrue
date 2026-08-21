@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import LicenseChecker from './components/LicenseChecker.vue'
 import UpdateNotifier from '@/components/common/UpdateNotifier.vue'
 import { useThemeStore } from '@/stores/themeStore'
+import LicenseChecker from "@/components/LicenseChecker.vue";
 
 const themeStore = useThemeStore()
 

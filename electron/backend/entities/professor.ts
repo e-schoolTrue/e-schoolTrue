@@ -47,6 +47,9 @@ export class ProfessorEntity {
     @Column({ type: "text" })
     cni_number!: string;
 
+    @Column({ type: 'varchar', length: 9, nullable: true, default: '#409EFF' })
+    color?: string;
+
     @OneToOne(() => FileEntity, { nullable: true })
     @JoinColumn()
     photo?: FileEntity;

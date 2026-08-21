@@ -20,6 +20,7 @@ export interface IRecentAbsence {
     date: Date;
     absenceType: string;
     justified: boolean;
+    type?: string;
 }
 
 export interface IDashboardServiceResponse {

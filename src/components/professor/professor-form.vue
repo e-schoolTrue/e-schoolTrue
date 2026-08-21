@@ -4,6 +4,9 @@ import TeachingAssignment from './sections/TeachingAssignment.vue';
 import type { FormRules } from 'element-plus';
 import type { IProfessorFile, IProfessorDetails } from '@/types/professor';
 import { CIVILITY, FAMILY_SITUATION, type CivilityType, type FamilySituationType, SCHOOL_TYPE, type SchoolType } from '@/types/shared';
+import type { ITeachingAssignment } from '@/types/shared';
+
+type TeachingWithLegacy = ITeachingAssignment & { selectedClasses?: number[]; selectedCourse?: number; grades?: { id: number; name: string }[] };
 
 // Définir les props pour recevoir des données initiales
 const props = defineProps<{
@@ -12,6 +15,17 @@ const props = defineProps<{
 }>();
 
 const activeStep = ref(0);
+
+const predefineColors = ref([
+  '#409EFF',
+  '#67C23A',
+  '#E6A23C',
+  '#F56C6C',
+  '#909399',
+  '#8B5CF6',
+  '#EC4899',
+  '#10B981'
+]);
 
 const form = reactive({
   firstname: '',
@@ -24,6 +38,7 @@ const form = reactive({
   address: '',
   town: '',
   cni_number: '',
+  color: '#409EFF' as string,
   diploma: { name: '' },
   qualification: { name: '' },
   documents: [] as IProfessorFile[],
@@ -57,6 +72,7 @@ watch(
       if (newData.address) form.address = newData.address;
       if (newData.town) form.town = newData.town;
       if (newData.cni_number) form.cni_number = newData.cni_number;
+      if ((newData as any).color) form.color = (newData as any).color;
       
       // Mettre à jour les objets imbriqués
       if (newData.diploma) {
@@ -87,28 +103,42 @@ watch(
         form.documents = [...newData.documents];
       }
       
-      // Mettre à jour les données d'enseignement si disponibles
+      // Mettre à jour les données d'enseignement si disponibles - FIX MATIERE ATOMIQUE
       if (newData.teaching && newData.teaching.length > 0) {
-        const teachingAssignment = newData.teaching[0];
-        
-        if (teachingAssignment.schoolType) {
-          form.teaching.schoolType = teachingAssignment.schoolType === SCHOOL_TYPE.PRIMARY 
-            ? SCHOOL_TYPE.PRIMARY 
-            : SCHOOL_TYPE.SECONDARY;
+        const ta = newData.teaching[0] as TeachingWithLegacy;
+        const patch: Partial<typeof form.teaching> = {};
+        if (ta.schoolType) patch.schoolType = ta.schoolType === 'PRIMARY' ? 'PRIMARY' : 'SECONDARY';
+        const rawCid: any = (ta as any).selectedCourse ?? ta.course?.id ?? (ta as any).courseId;
+        if (rawCid != null && rawCid !== '') {
+          const cid = Number(rawCid);
+          if (!isNaN(cid)) { patch.courseId = cid; patch.selectedCourse = cid; }
         }
-        
-        if (teachingAssignment.class?.id) {
-          form.teaching.classId = teachingAssignment.class.id;
+        let ids: number[] | undefined;
+        if (ta.selectedClasses && Array.isArray(ta.selectedClasses) && ta.selectedClasses.length > 0) {
+          ids = ta.selectedClasses.map((n: any) => Number(n)).filter((n: number) => !isNaN(n));
+        } else if (ta.gradeIds) {
+          ids = Array.isArray(ta.gradeIds) ? (ta.gradeIds as any[]).map((n: any) => Number(n)).filter((n: number) => !isNaN(n)) : String(ta.gradeIds).split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n));
+        } else if (ta.grades && Array.isArray(ta.grades) && ta.grades.length > 0) {
+          ids = ta.grades.map((g: { id: number; name: string }) => Number(g.id)).filter((n: number) => !isNaN(n));
+        } else if (ta.class?.id != null) {
+          const cid = Number(ta.class.id);
+          if (!isNaN(cid)) ids = [cid];
         }
-        
-        if (teachingAssignment.course?.id) {
-          form.teaching.courseId = teachingAssignment.course.id;
+        if (ids && ids.length > 0) {
+          patch.selectedClasses = ids;
+          patch.gradeIds = [...ids];
+          patch.classId = ids[0];
+        } else if (ta.class?.id != null) {
+          const cid = Number(ta.class.id);
+          if (!isNaN(cid)) { patch.classId = cid; patch.selectedClasses = [cid]; patch.gradeIds = [cid]; }
         }
-        
-        if (teachingAssignment.gradeIds) {
-          form.teaching.gradeIds = Array.isArray(teachingAssignment.gradeIds) 
-            ? teachingAssignment.gradeIds 
-            : teachingAssignment.gradeIds.split(',').map(Number);
+        if (!patch.classId && ta.class?.id != null) {
+          const cid = Number(ta.class.id);
+          if (!isNaN(cid)) patch.classId = cid;
+        }
+        if (Object.keys(patch).length > 0) {
+          form.teaching = { ...form.teaching, ...patch } as typeof form.teaching;
+          console.log('✅ Teaching patch atomique:', patch, '→ form.teaching:', form.teaching);
         }
       }
     }
@@ -392,6 +422,7 @@ const handleSubmit = async () => {
       address: form.address,
       town: form.town,
       cni_number: form.cni_number,
+      color: form.color,
       diploma: form.diploma ? { ...form.diploma } : { name: '' },
       qualification: form.qualification ? { ...form.qualification } : { name: '' },
       documents: form.documents.map(doc => ({ ...doc })),
@@ -534,6 +565,14 @@ const emit = defineEmits<{
           <el-col :span="12">
             <el-form-item prop="cni_number" label="Numéro CNI">
               <el-input v-model="form.cni_number" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="Couleur du professeur" prop="color">
+              <el-color-picker v-model="form.color" :predefine="predefineColors" show-alpha />
             </el-form-item>
           </el-col>
         </el-row>

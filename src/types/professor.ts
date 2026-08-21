@@ -14,6 +14,7 @@ export interface IProfessorData {
     address: string;
     town: string;
     cni_number: string;
+    color?: string;
 }
 
 // Types pour les fichiers du professeur
@@ -27,6 +28,7 @@ export interface IProfessorFile {
 
 // Types pour les détails complets du professeur
 export interface IProfessorDetails extends IProfessorData {
+    color?: string;
     photo?: IProfessorFile;
     documents?: IProfessorFile[];
     diploma?: {
@@ -53,6 +55,7 @@ export interface IProfessorServiceParams {
         address: string;
         town: string;
         cni_number: string;
+        color?: string;
         diploma?: string;
         qualification?: string;
         photo?: IProfessorFile;
@@ -67,6 +70,7 @@ export interface IProfessorServiceParams {
     updateProfessor: {
         id: number;
         data: Partial<IProfessorData> & {
+            color?: string;
             photo?: IProfessorFile;
             documents?: IProfessorFile[];
             diploma?: { name: string };

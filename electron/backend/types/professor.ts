@@ -14,6 +14,7 @@ export interface IProfessorData {
     address: string;
     town: string;
     cni_number: string;
+    color?: string;
 }
 export interface ITeachingAssignment {
     id: number;
@@ -30,6 +31,9 @@ export interface ITeachingAssignment {
         id: number;
         name: string;
     }[];
+    // gradeIds supports CSV string from DB and number[] for parsed/frontend usage; helpers must handle both
+    gradeIds?: string | number[];
+    gradeNames?: string;
 }
 
 
@@ -43,6 +47,7 @@ export interface IProfessorFile {
 
 // Types pour les détails complets du professeur
 export interface IProfessorDetails extends IProfessorData {
+    color?: string;
     photo?: IProfessorFile;
     documents?: IProfessorFile[];
     diploma?: {
@@ -70,6 +75,7 @@ export interface IProfessorServiceParams {
         address: string;
         town: string;
         cni_number: string;
+        color?: string;
         diploma?: string;
         qualification?: string;
         photo?: IProfessorFile;
@@ -84,6 +90,7 @@ export interface IProfessorServiceParams {
     updateProfessor: {
         id: number;
         data: Partial<IProfessorData> & {
+            color?: string;
             photo?: IProfessorFile;
             documents?: IProfessorFile[];
             diploma?: { name: string };

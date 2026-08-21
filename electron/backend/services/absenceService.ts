@@ -5,6 +5,18 @@ import { StudentEntity } from '../entities/students';
 import { GradeEntity } from '../entities/grade';
 import { FileService } from "./fileService";
 import { CourseEntity } from '../entities/course';
+import { ProfessorEntity } from '../entities/professor';
+
+export type ProfessorAbsenceBatchItem = {
+    professorId: number;
+    date: string;
+    timeSlot: string;
+    gradeId?: number | null;
+    absenceType?: string;
+    reason?: string;
+    reasonType?: string;
+    justified?: boolean;
+};
 import { 
     IAbsenceData, 
     IAbsenceStatistics, 
@@ -384,6 +396,7 @@ export class AbsenceService {
                 documentEntity = savedDocument;
             }
 
+            const professorAbsenceData = data as IAbsenceData & { gradeId?: number | null; professorId: number };
             const absence = this.absenceRepository.create({
                 date: new Date(data.date),
                 absenceType: data.absenceType,
@@ -392,7 +405,8 @@ export class AbsenceService {
                 reason: data.reason,
                 reasonType: data.reasonType,
                 justified: data.justified,
-                professor: { id: data.professorId },
+                professor: { id: data.professorId } as ProfessorEntity,
+                grade: professorAbsenceData.gradeId ? { id: professorAbsenceData.gradeId } as GradeEntity : undefined,
                 document: documentEntity || undefined,
                 type: 'PROFESSOR'
             } as DeepPartial<AbsenceEntity>);
@@ -522,12 +536,30 @@ export class AbsenceService {
         }
     }
 
-    async createProfessorAbsencesBatch(absencesData: any[]): Promise<IAbsenceServiceResponse> {
+    async createProfessorAbsencesBatch(absencesData: ProfessorAbsenceBatchItem[]): Promise<IAbsenceServiceResponse> {
         try {
-            const absencesToSave = absencesData.map(data => {
-                const [start, end] = data.timeSlot.split('-');
-                const startTime = `${start.padStart(2, '0')}:00`;
-                const endTime = `${end.padStart(2, '0')}:00`;
+            const parseHM = (raw: string): { h: string; m: string } => {
+                const part = String(raw).trim();
+                if (part.includes(':')) {
+                    const [h, m] = part.split(':');
+                    return { h: h.trim(), m: (m ?? '00').trim() };
+                }
+                if (part.includes('.')) {
+                    const f = parseFloat(part);
+                    if (!isNaN(f)) {
+                        const h = Math.floor(f);
+                        const m = Math.round((f - h) * 60);
+                        return { h: String(h), m: String(m).padStart(2, '0') };
+                    }
+                }
+                return { h: part, m: '00' };
+            };
+            const absencesToSave = absencesData.map((data: ProfessorAbsenceBatchItem) => {
+                const [startRaw, endRaw] = String(data.timeSlot).split('-');
+                const { h: sh, m: sm } = parseHM(startRaw ?? '');
+                const { h: eh, m: em } = parseHM(endRaw ?? '');
+                const startTime = `${sh.padStart(2, '0')}:${sm.padStart(2, '0')}:00`;
+                const endTime = `${eh.padStart(2, '0')}:${em.padStart(2, '0')}:00`;
 
                 return this.absenceRepository.create({
                     date: new Date(data.date),
@@ -537,8 +569,8 @@ export class AbsenceService {
                     reason: data.reason,
                     justified: data.justified,
                     reasonType: data.reasonType,
-                    professor: { id: data.professorId },
-                    grade: { id: data.gradeId },
+                    professor: { id: data.professorId } as ProfessorEntity,
+                    ...(data.gradeId ? { grade: { id: data.gradeId } as GradeEntity } : {}),
                     type: 'PROFESSOR'
                 } as DeepPartial<AbsenceEntity>);
             });

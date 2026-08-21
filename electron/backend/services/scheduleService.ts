@@ -7,6 +7,7 @@ import { AppDataSource } from "#electron/data-source";
 import { messages } from "#electron/messages";
 import { ScheduleCommand } from "#electron/command/scheduleCommand";
 import { IScheduleServiceResponse, IScheduleData } from "#electron/backend/types/schedule";
+import { TeachingAssignmentEntity } from "#electron/backend/entities/teaching";
 
 export class ScheduleService {
     private scheduleRepository: Repository<ScheduleEntity>;
@@ -73,7 +74,7 @@ export class ScheduleService {
             // Vérifier que le professeur existe
             const professor = await this.professorRepository.findOne({
                 where: { id: command.professorId },
-                relations: ['teaching', 'teaching.course', 'teaching.class']
+                relations: ['teaching', 'teaching.course', 'teaching.class', 'teaching.grades']
             });
 
             if (!professor) {
@@ -101,11 +102,25 @@ export class ScheduleService {
                 }
             }
 
-            // Vérifier que le professeur enseigne bien cette matière dans cette classe
+            // Vérifier que le professeur enseigne bien cette matière dans cette classe (triple-check: class, gradeIds CSV, grades M2M)
             if (classEntity.type === 'SECONDARY') {
-                const teachingMatch = professor.teaching.find(t => 
-                    t.course.id === command.courseId && t.class.id === command.classId
-                );
+                const courseIdNum = Number(command.courseId);
+                const classIdNum = Number(command.classId);
+                const teachingMatch = professor.teaching.find((t: TeachingAssignmentEntity) => {
+                    const courseMatches = t.course?.id === courseIdNum;
+                    if (!courseMatches) return false;
+                    if (t.class?.id === classIdNum) return true;
+                    const gradeIdsStr: string | undefined = t.gradeIds;
+                    if (gradeIdsStr) {
+                        const ids = gradeIdsStr.split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n));
+                        if (ids.includes(classIdNum)) return true;
+                    }
+                    const gradesArr: GradeEntity[] | undefined = t.grades;
+                    if (gradesArr && gradesArr.length > 0) {
+                        if (gradesArr.some((g: GradeEntity) => Number(g.id) === classIdNum)) return true;
+                    }
+                    return false;
+                });
 
                 if (!teachingMatch) {
                     return {
@@ -116,8 +131,8 @@ export class ScheduleService {
                     };
                 }
             } else if (classEntity.type === 'PRIMARY') {
-                const teachingMatch = professor.teaching.find(t => 
-                    t.class.id === command.classId
+                const teachingMatch = professor.teaching.find((t: TeachingAssignmentEntity) => 
+                    t.class?.id === command.classId
                 );
 
                 if (!teachingMatch) {
@@ -222,6 +237,7 @@ export class ScheduleService {
                 firstname: entity.professor.firstname,
                 lastname: entity.professor.lastname,
                 civility: entity.professor.civility,
+                color: (entity.professor as any).color || null,
                 qualification: entity.professor.qualification ? {
                     id: entity.professor.qualification.id!,
                     name: entity.professor.qualification.name

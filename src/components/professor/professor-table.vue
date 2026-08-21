@@ -101,11 +101,15 @@ const handleAdd = () => {
 
 const handleSearch = (value: string) => {
   if (value) {
-    filteredProfessors.value = props.professors.filter(prof => 
-      prof.firstname.toLowerCase().includes(value.toLowerCase()) ||
-      prof.lastname.toLowerCase().includes(value.toLowerCase()) ||
-      prof.diploma?.name.toLowerCase().includes(value.toLowerCase())
-    );
+    const q = value.toLowerCase().trim();
+    filteredProfessors.value = props.professors.filter(prof => {
+      const first = prof.firstname.toLowerCase();
+      const last = prof.lastname.toLowerCase();
+      const full = `${first} ${last}`;
+      const rev = `${last} ${first}`;
+      return full.includes(q) || rev.includes(q) || first.includes(q) || last.includes(q) ||
+        (prof.diploma?.name.toLowerCase().includes(q) ?? false);
+    });
   } else {
     filteredProfessors.value = props.professors;
   }
@@ -257,6 +261,26 @@ const handleSizeChange = (val: number) => {
           prop="qualification.name"
           min-width="150"
         />
+
+        <el-table-column 
+          label="Couleur" 
+          width="80"
+          align="center"
+        >
+          <template #default="{ row }">
+            <div
+              :style="{
+                backgroundColor: (row as any).color || '#409EFF',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                border: '1px solid #ebeef5',
+                display: 'inline-block'
+              }"
+              :title="(row as any).color || '#409EFF'"
+            />
+          </template>
+        </el-table-column>
 
         <el-table-column
           fixed="right"

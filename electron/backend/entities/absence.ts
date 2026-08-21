@@ -55,8 +55,9 @@ export class AbsenceEntity {
     @JoinColumn({ name: 'professorId' })
     professor?: ProfessorEntity;
 
-    @ManyToOne(() => GradeEntity)
-    grade!: GradeEntity;
+    @ManyToOne(() => GradeEntity, { nullable: true })
+    @JoinColumn({ name: 'gradeId' })
+    grade?: GradeEntity;
 
     @ManyToOne(() => CourseEntity, { nullable: true })
     course?: CourseEntity;

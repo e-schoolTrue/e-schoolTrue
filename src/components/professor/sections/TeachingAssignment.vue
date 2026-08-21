@@ -113,7 +113,7 @@ const selectedClasses = computed({
 
 const selectedCourse = computed({
   get: () => {
-    return props.modelValue.selectedCourse ?? props.modelValue.courseId;
+    return props.modelValue.selectedCourse != null ? Number(props.modelValue.selectedCourse) : props.modelValue.courseId != null ? Number(props.modelValue.courseId) : undefined;
   },
   set: (value) => {
     const newValue = { 
@@ -132,11 +132,13 @@ const selectedCourse = computed({
 const loadGrades = async () => {
   try {
     const result = await window.ipcRenderer.invoke('grade:all');
-    if (result.success) {
-      grades.value = result.data;
+    if (result?.success) {
+      const raw = result.data;
+      const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.rows ?? []);
+      grades.value = Array.isArray(arr) ? arr.map((g: any) => ({ ...g, id: Number(g.id) })) : [];
       console.log("📚 Classes chargées :", grades.value);
     } else {
-      console.error("❌ Erreur lors du chargement des classes:", result.error);
+      console.error("❌ Erreur lors du chargement des classes:", result?.error);
     }
   } catch (error) {
     console.error("❌ Exception lors du chargement des classes:", error);
@@ -146,11 +148,13 @@ const loadGrades = async () => {
 const loadCourses = async () => {
   try {
     const result = await window.ipcRenderer.invoke('course:all');
-    if (result.success) {
-      courses.value = result.data;
+    if (result?.success) {
+      const raw = result.data;
+      const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.rows ?? []);
+      courses.value = Array.isArray(arr) ? arr.map((c: any) => ({ ...c, id: Number(c.id) })) : [];
       console.log("📘 Cours chargés :", courses.value);
     } else {
-      console.error("❌ Erreur lors du chargement des cours:", result.error);
+      console.error("❌ Erreur lors du chargement des cours:", result?.error);
     }
   } catch (error) {
     console.error("❌ Exception lors du chargement des cours:", error);
