@@ -82,9 +82,17 @@ onMounted(async () => {
         const response = await window.ipcRenderer.invoke('is-first-launch');
         console.log('Réponse du serveur:', response);
 
-        if (!response.success) {
+        // P0 FIX: backend now returns {success:true, data:boolean, error:null, message:''}
+        // Be tolerant: only treat as error when success === false explicitly.
+        if (response.success === false) {
           console.error('Erreur lors de la vérification:', response.error);
            ElMessage.error(`Erreur de vérification: ${response.error || 'Inconnue'}`);
+          return;
+        }
+        // Fallback for old IPC shape without success field: if data is undefined, treat as error
+        if (response.data === undefined) {
+          console.error('Erreur lors de la vérification: réponse sans data', response);
+          ElMessage.error(`Erreur de vérification: ${response.error || 'Réponse invalide'}`);
           return;
         }
 
@@ -100,7 +108,7 @@ onMounted(async () => {
     }
   } catch (error: any) {
     console.error('Erreur lors de la vérification du premier lancement:', error);
-     ElMessage.error(`Erreur critique: ${error.message || 'Impossible de vérifier le statut de lancement.'}`);
+    ElMessage.error(`Erreur critique: ${error.message || 'Impossible de vérifier le statut de lancement.'}`);
 
   }
 });

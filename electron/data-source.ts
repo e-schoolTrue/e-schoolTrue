@@ -91,17 +91,19 @@ export class AppDataSource {
         console.log(`[DataSource] Initialisation avec isFirstLaunch = ${isFirstLaunch}`);
         console.log(`[DataSource] Chemin de la base de données : ${dbPath}`);
 
-        // Fix: ne jamais dropSchema en prod (licence stockée hors DB mais onboarding rejoué masque)
-        const isDev = process.env.NODE_ENV === 'development';
+        // P0 FIX: synchronize must stay true in all envs to auto-create new columns
+        // (e.g. professor.color, scheduleConfig.*) until proper migrations exist.
+        // dropSchema must never be true to avoid wiping user data on onboarding replay.
+        // migrationsRun kept false because no migration files exist yet; synchronize handles schema.
         this.instance = new DataSource({
             type: "better-sqlite3",
-            synchronize: isDev ? true : false,
+            synchronize: true,
             dropSchema: false,
             database: dbPath,
             logging: false,
             entities: entities,
             migrations: [path.join(__dirname, 'migrations', '*.{ts,js}')],
-            migrationsRun: !isDev,
+            migrationsRun: false,
             subscribers: [],
             cache: false
         });

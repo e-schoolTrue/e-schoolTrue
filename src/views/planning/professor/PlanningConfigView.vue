@@ -76,7 +76,7 @@
                   <div class="professor-name-primary">
                     {{ item.professor.civility }} {{ item.professor.firstname }} {{ item.professor.lastname }}
                   </div>
-                  <div class="course-name-primary">{{ item.course.name }}</div>
+                  <div class="course-name-primary">{{ item.course.name }} ({{ ((item.course as any).type || item.teaching?.schoolType || selectedClass?.type || 'Primaire').toString().charAt(0).toUpperCase() + ((item.course as any).type || item.teaching?.schoolType || selectedClass?.type || 'Primaire').toString().slice(1).toLowerCase() }}{{ (item.course as any).coefficient ? ', ' + (item.course as any).coefficient : '' }})</div>
                   <div v-if="item.professor.qualification" class="qualification">
                     {{ item.professor.qualification.name }}
                   </div>
@@ -84,7 +84,7 @@
                 
                 <!-- Affichage pour le secondaire -->
                 <template v-else>
-                  <div class="course-name">{{ item.course.name }}</div>
+                  <div class="course-name">{{ item.course.name }} ({{ ((item.course as any).type || item.teaching?.schoolType || selectedClass?.type || 'Secondaire').toString().charAt(0).toUpperCase() + ((item.course as any).type || item.teaching?.schoolType || selectedClass?.type || 'Secondaire').toString().slice(1).toLowerCase() }}{{ (item.course as any).coefficient ? ', ' + (item.course as any).coefficient : '' }})</div>
                   <div class="professor-name">
                     {{ item.professor.civility }} {{ item.professor.firstname }} {{ item.professor.lastname }}
                   </div>
@@ -387,8 +387,22 @@ const availableTeachingItems = computed((): TeachingItem[] => {
   
   professors.value.forEach(professor => {
     professor.teaching.forEach(teaching => {
-      // Vérifier que la classe correspond
-      if (teaching.class && teaching.class.id === selectedClass.value!.id) {
+      // Vérifier que la classe correspond — support multi-classes (grades/gradeIds) pour SECONDARY with Number.isFinite guards
+      const classId = selectedClass.value!.id
+      const matchClass = (() => {
+        if (teaching.class && Number.isFinite(Number(teaching.class.id)) && Number(teaching.class.id) === classId) return true
+        if ((teaching as any).grades?.some((g: any) => Number.isFinite(Number(g.id)) && Number(g.id) === classId)) return true
+        const raw = (teaching as any).gradeIds
+        if (raw != null && !(typeof raw === 'string' && raw.trim() === '') && !(Array.isArray(raw) && raw.length === 0)) {
+          const ids: number[] = Array.isArray(raw) ? raw.map((n:any)=>Number(n)).filter((n:number)=>Number.isFinite(n) && n>0) : String(raw).split(',').map((s:string)=>Number(s.trim())).filter((n:number)=>Number.isFinite(n) && n>0)
+          if (ids.includes(classId)) return true
+        }
+        if ((teaching as any).gradeNames) {
+          // fallback: if gradeNames contains class name, but prefer id check
+        }
+        return false
+      })()
+      if (matchClass) {
         
         if (selectedClass.value!.type === 'PRIMARY') {
           // Pour le primaire : le professeur peut enseigner (cours générique)

@@ -473,11 +473,16 @@ const getCategoryAverage = (grade: any, code: string) => {
 <style scoped>
 .bulletin-template-two {
   width: 210mm;
-  min-height: 297mm;
-  padding: 10mm;
+  max-width: 100%;
+  min-height: 277mm;
+  height: auto;
+  padding: 8mm 10mm;
   background-color: white;
   color: #000;
   box-sizing: border-box;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
@@ -629,22 +634,29 @@ const getCategoryAverage = (grade: any, code: string) => {
 /* Tableau */
 .notes-table {
   width: 100%;
+  max-width: 190mm;
   border-collapse: collapse;
   font-size: 11px;
   border: 2px solid #000;
   margin-bottom: 10px;
+  table-layout: fixed;
+  word-wrap: break-word;
 }
 
 .notes-table th, .notes-table td {
   border: 1px solid #000;
-  padding: 5px 4px;
+  padding: 4px 6px;
   text-align: center;
+  font-size: 9px;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 .notes-table thead th {
-  font-size: 10px;
+  font-size: 8px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
  .col-matiere { width: 22%; text-align: left; padding-left: 8px !important; }

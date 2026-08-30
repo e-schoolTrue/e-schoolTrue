@@ -1,4 +1,5 @@
 <template>
+  <el-scrollbar height="calc(100vh - 40px)" wrap-class="config-scrollbar">
   <div class="schedule-config">
     <el-card shadow="never">
       <template #header>
@@ -11,15 +12,16 @@
       <el-form :model="form" label-width="220px" class="config-form">
         <el-form-item label="Type de configuration">
           <el-radio-group v-model="form.global">
-            <el-radio :value="true" border>Appliquer à toutes les classes</el-radio>
-            <el-radio :value="false" border>Configurer par classe</el-radio>
+            <el-radio :value="true" border>Appliquer à toutes les classes (global)</el-radio>
+            <el-radio :value="false" border>Configurer par classe(s) — choix multiple</el-radio>
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="Classe" v-if="!form.global">
-          <el-select v-model="form.classId" placeholder="Sélectionner une classe" style="width: 300px">
+        <el-form-item label="Classes" v-if="!form.global">
+          <el-select v-model="form.classIds" multiple collapse-tags collapse-tags-tooltip placeholder="Sélectionner une ou plusieurs classes" style="width: 400px">
             <el-option v-for="cls in classes" :key="cls.id" :label="cls.name" :value="cls.id" />
           </el-select>
+          <div style="margin-top: 8px; color: #909399; font-size: 12px">Sélection multiple : la même configuration sera appliquée à chaque classe cochée.</div>
         </el-form-item>
 
         <el-divider />
@@ -105,6 +107,7 @@
       </el-form>
     </el-card>
   </div>
+  </el-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -123,7 +126,8 @@ const saving = ref(false)
 
 const form = reactive({
   global: true,
-  classId: null as number | null,
+  classId: null as number | null, // compat single
+  classIds: [] as number[], // multi-choice
   startHour: 8,
   startMinutes: 0,
   endHour: 18,
@@ -189,7 +193,13 @@ const loadClasses = async () => {
 }
 
 const loadConfig = async () => {
-  const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: form.global ? null : form.classId })
+  // Compat: si classIds vide mais classId ancien existe, le migrer
+  if (!form.global && form.classIds.length === 0 && form.classId) {
+    form.classIds = [form.classId]
+  }
+  // Pour multi: charger la config de la première classe sélectionnée (ou globale)
+  const targetClassId = form.global ? null : (form.classIds[0] ?? form.classId ?? null)
+  const result = await window.ipcRenderer.invoke('schedule-config:get', { classId: targetClassId })
   if (result.success && result.data) {
     form.startHour = result.data.startHour ?? 8
     form.startMinutes = result.data.startMinutes ?? 0
@@ -206,11 +216,40 @@ const loadConfig = async () => {
 const saveConfig = async () => {
   saving.value = true
   try {
-    const result = await window.ipcRenderer.invoke('schedule-config:save', { ...form })
-    if (result.success) {
-      ElMessage.success('Configuration enregistrée')
+    // Validation multi
+    if (!form.global && form.classIds.length === 0 && !form.classId) {
+      ElMessage.warning('Veuillez sélectionner au moins une classe')
+      saving.value = false
+      return
+    }
+    // Construire payload de base (sans classId)
+    const basePayload = {
+      startHour: form.startHour,
+      startMinutes: form.startMinutes,
+      endHour: form.endHour,
+      endMinutes: form.endMinutes,
+      slotDuration: form.slotDuration,
+      lunchStart: form.lunchStart,
+      lunchStartMinutes: form.lunchStartMinutes,
+      lunchEnd: form.lunchEnd,
+      lunchEndMinutes: form.lunchEndMinutes,
+      global: form.global
+    }
+    if (form.global) {
+      const result = await window.ipcRenderer.invoke('schedule-config:save', { ...basePayload, classId: null, global: true })
+      if (result.success) ElMessage.success('Configuration globale enregistrée')
+      else ElMessage.error(result.message || 'Erreur')
     } else {
-      ElMessage.error(result.message || 'Erreur lors de l\'enregistrement')
+      // Multi-choice: une sauvegarde par classe
+      const ids = form.classIds.length ? form.classIds : (form.classId ? [form.classId] : [])
+      let ok = 0
+      for (const cid of ids) {
+        const res = await window.ipcRenderer.invoke('schedule-config:save', { ...basePayload, classId: cid, global: false })
+        if (res.success) ok++
+      }
+      if (ok === ids.length) ElMessage.success(`Configuration enregistrée pour ${ok} classe(s)`)
+      else if (ok > 0) ElMessage.warning(`${ok}/${ids.length} classes enregistrées`)
+      else ElMessage.error('Erreur lors de l\'enregistrement')
     }
   } catch (error) {
     ElMessage.error('Erreur lors de l\'enregistrement')

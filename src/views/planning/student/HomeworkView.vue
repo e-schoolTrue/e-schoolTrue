@@ -41,11 +41,11 @@
           <el-option
             v-for="course in courses"
             :key="course.id"
-            :label="course.name"
+            :label="`${course.name} (${(course as any).type ? String((course as any).type).charAt(0).toUpperCase() + String((course as any).type).slice(1).toLowerCase() : 'Matière'}${(course as any).coefficient ? ', ' + (course as any).coefficient : ''})`"
             :value="course.id"
           >
             <Icon icon="mdi:book" class="option-icon" />
-            {{ course.name }}
+            {{ course.name }} ({{ (course as any).type ? String((course as any).type).charAt(0).toUpperCase() + String((course as any).type).slice(1).toLowerCase() : 'Matière' }}{{ (course as any).coefficient ? ', ' + (course as any).coefficient : '' }})
           </el-option>
         </el-select>
       </div>
@@ -61,7 +61,7 @@
           <template #default="{ row }">
             <div class="course-info">
               <Icon icon="mdi:book" class="course-icon" />
-              {{ row.course.name }}
+              {{ row.course.name }} ({{ (row.course as any).type ? String((row.course as any).type).charAt(0).toUpperCase() + String((row.course as any).type).slice(1).toLowerCase() : 'Matière' }}{{ (row.course as any).coefficient ? ', ' + (row.course as any).coefficient : '' }})
             </div>
           </template>
         </el-table-column>
@@ -427,9 +427,12 @@ watch(selectedGrade, async (newValue) => {
 const defaultMessage = computed(() => {
   if (!selectedHomework.value) return '';
   
+  const hwCourse = selectedHomework.value.course as any;
+  const hwType = hwCourse?.type ? String(hwCourse.type).charAt(0).toUpperCase() + String(hwCourse.type).slice(1).toLowerCase() : 'Matière';
+  const hwCoeff = hwCourse?.coefficient ? `, ${hwCourse.coefficient}` : '';
   return `${schoolInfo.value?.name || 'École'}\n\n` +
     `Cher parent,\n\n` +
-    `Un devoir a été assigné en ${selectedHomework.value.course.name} ` +
+    `Un devoir a été assigné en ${selectedHomework.value.course.name} (${hwType}${hwCoeff}) ` +
     `pour la classe de ${selectedHomework.value.grade.name}.\n\n` +
     `Description: ${selectedHomework.value.description}\n` +
     `Date limite: ${formatDate(selectedHomework.value.dueDate)}\n\n` +

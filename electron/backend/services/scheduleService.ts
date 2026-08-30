@@ -1,4 +1,5 @@
 import { Repository } from "typeorm";
+import { logger } from "../utils/logger";
 import { ScheduleEntity } from "#electron/backend/entities/schedule";
 import { ProfessorEntity } from "#electron/backend/entities/professor";
 import { GradeEntity } from "#electron/backend/entities/grade";
@@ -102,22 +103,33 @@ export class ScheduleService {
                 }
             }
 
-            // Vérifier que le professeur enseigne bien cette matière dans cette classe (triple-check: class, gradeIds CSV, grades M2M)
+            // Vérifier que le professeur enseigne bien cette matière dans cette classe (triple-check: class, gradeIds CSV/array, grades M2M) with Number.isFinite guards
             if (classEntity.type === 'SECONDARY') {
                 const courseIdNum = Number(command.courseId);
                 const classIdNum = Number(command.classId);
+                if (!Number.isFinite(courseIdNum) || courseIdNum <= 0 || !Number.isFinite(classIdNum) || classIdNum <= 0) {
+                    return {
+                        success: false,
+                        message: "IDs invalides pour la vérification d'enseignement",
+                        data: null,
+                        error: "Invalid IDs"
+                    };
+                }
                 const teachingMatch = professor.teaching.find((t: TeachingAssignmentEntity) => {
-                    const courseMatches = t.course?.id === courseIdNum;
-                    if (!courseMatches) return false;
-                    if (t.class?.id === classIdNum) return true;
-                    const gradeIdsStr: string | undefined = t.gradeIds;
-                    if (gradeIdsStr) {
-                        const ids = gradeIdsStr.split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n));
+                    const tCourseId = t.course ? Number(t.course.id) : NaN;
+                    if (!Number.isFinite(tCourseId) || tCourseId !== courseIdNum) return false;
+                    if (t.class && Number.isFinite(Number(t.class.id)) && Number(t.class.id) === classIdNum) return true;
+                    const rawGradeIds: any = (t as any).gradeIds;
+                    // Skip empty array or empty string
+                    if (rawGradeIds != null && !(typeof rawGradeIds === 'string' && rawGradeIds.trim() === '') && !(Array.isArray(rawGradeIds) && rawGradeIds.length === 0)) {
+                        const ids: number[] = Array.isArray(rawGradeIds)
+                            ? rawGradeIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
+                            : String(rawGradeIds).split(',').map((s: string) => Number(s.trim())).filter((n: number) => Number.isFinite(n) && n > 0);
                         if (ids.includes(classIdNum)) return true;
                     }
                     const gradesArr: GradeEntity[] | undefined = t.grades;
                     if (gradesArr && gradesArr.length > 0) {
-                        if (gradesArr.some((g: GradeEntity) => Number(g.id) === classIdNum)) return true;
+                        if (gradesArr.some((g: GradeEntity) => Number.isFinite(Number(g.id)) && Number(g.id) === classIdNum)) return true;
                     }
                     return false;
                 });
@@ -209,7 +221,7 @@ export class ScheduleService {
             }
 
         } catch (e: any) {
-            console.error('Error in createSchedule:', e);
+            logger.error('Error in createSchedule:', e);
             return {
                 success: false,
                 message: messages.schedule_save_failed || "Erreur lors de la sauvegarde de l'emploi du temps",
@@ -287,7 +299,7 @@ export class ScheduleService {
                 error: null
             };
         } catch (e: any) {
-            console.error('Error in getAllSchedules:', e);
+            logger.error('Error in getAllSchedules:', e);
             return {
                 success: false,
                 message: messages.schedule_retrieve_failed || "Erreur lors de la récupération des emplois du temps",
@@ -326,7 +338,7 @@ export class ScheduleService {
                 error: null
             };
         } catch (e: any) {
-            console.error('Error in getScheduleByClass:', e);
+            logger.error('Error in getScheduleByClass:', e);
             return {
                 success: false,
                 message: "Erreur lors de la récupération de l'emploi du temps de la classe",
@@ -365,7 +377,7 @@ export class ScheduleService {
                 error: null
             };
         } catch (e: any) {
-            console.error('Error in getScheduleByProfessor:', e);
+            logger.error('Error in getScheduleByProfessor:', e);
             return {
                 success: false,
                 message: "Erreur lors de la récupération de l'emploi du temps du professeur",
@@ -402,7 +414,7 @@ export class ScheduleService {
                 error: null
             };
         } catch (e: any) {
-            console.error('Error in deleteSchedule:', e);
+            logger.error('Error in deleteSchedule:', e);
             return {
                 success: false,
                 message: messages.schedule_delete_failed || "Erreur lors de la suppression du créneau",
@@ -467,7 +479,7 @@ export class ScheduleService {
                 error: null
             };
         } catch (e: any) {
-            console.error('Error in updateSchedule:', e);
+            logger.error('Error in updateSchedule:', e);
             return {
                 success: false,
                 message: messages.schedule_update_failed || "Erreur lors de la mise à jour du créneau",
@@ -504,7 +516,7 @@ export class ScheduleService {
                 conflictDetails: conflictingSchedule
             };
         } catch (e: any) {
-            console.error('Error in checkConflicts:', e);
+            logger.error('Error in checkConflicts:', e);
             return {
                 hasConflict: false
             };
@@ -523,7 +535,7 @@ export class ScheduleService {
 async getScheduleByDate(date: string): Promise<IScheduleServiceResponse> {
     try {
         // --- LOG 1 : VÉRIFIER LA DONNÉE D'ENTRÉE ---
-        console.log(`[BACKEND - getScheduleByDate] Appel reçu avec la date : "${date}"`);
+        logger.debug(`[BACKEND - getScheduleByDate] Appel reçu avec la date : "${date}"`);
 
         // Utiliser la version corrigée pour éviter les problèmes de fuseau horaire
         const [year, month, day] = date.split('-').map(Number);
@@ -534,7 +546,7 @@ async getScheduleByDate(date: string): Promise<IScheduleServiceResponse> {
         const dayName = dayNames[dayIndex];
 
         // --- LOG 2 : VÉRIFIER LE JOUR CALCULÉ ---
-        console.log(`[BACKEND - getScheduleByDate] Jour de la semaine calculé pour la requête : "${dayName}"`);
+        logger.debug(`[BACKEND - getScheduleByDate] Jour de la semaine calculé pour la requête : "${dayName}"`);
 
         const schedules = await this.scheduleRepository.find({
             where: { day: dayName }, // Le filtre critique
@@ -546,8 +558,8 @@ async getScheduleByDate(date: string): Promise<IScheduleServiceResponse> {
         });
 
         // --- LOG 3 : VÉRIFIER LE RÉSULTAT DE LA REQUÊTE ---
-        console.log(`[BACKEND - getScheduleByDate] Requête SQL équivalente : SELECT * FROM schedule WHERE day = '${dayName}'`);
-        console.log(`[BACKEND - getScheduleByDate] Nombre de résultats trouvés dans la BDD : ${schedules.length}`);
+        logger.debug(`[BACKEND - getScheduleByDate] Requête SQL équivalente : SELECT * FROM schedule WHERE day = '${dayName}'`);
+        logger.debug(`[BACKEND - getScheduleByDate] Nombre de résultats trouvés dans la BDD : ${schedules.length}`);
 
         // Le reste de la fonction...
         const mappedSchedules = schedules.map(schedule => this.mapEntityToData(schedule));
@@ -560,7 +572,7 @@ async getScheduleByDate(date: string): Promise<IScheduleServiceResponse> {
 
     } catch (e: any) {
         // --- LOG 4 : CAPTURER LES ERREURS ---
-        console.error('[BACKEND - getScheduleByDate] Une erreur est survenue :', e);
+        logger.error('[BACKEND - getScheduleByDate] Une erreur est survenue :', e);
         return {
             success: false,
             message: "Erreur lors de la récupération des emplois du temps",

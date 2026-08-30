@@ -187,17 +187,28 @@ const formatDate = (date: Date | null) => {
 const getTeachingInfo = (teachings: Teaching[]) => {
   if (!teachings || teachings.length === 0) return 'Non assigné';
   
-  const teaching = teachings[0];
+  const teaching: any = teachings[0];
   console.log("Teaching data being processed:", teaching);
 
   if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
     return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
   }
   
-  // Pour les enseignants du secondaire
+  // Pour les enseignants du secondaire - handles both string and array gradeIds with Number.isFinite guards (>0)
   if (teaching.schoolType === SCHOOL_TYPE.SECONDARY) {
-    const courseName = teaching.course?.name || 'Matière non assignée';
-    const gradeNames = teaching.grades?.map(grade => grade.name).join(', ') || 'Classes non assignées';
+    const baseCourseName = teaching.course?.name || 'Matière non assignée';
+    const rawType = (teaching as any).course?.type || teaching.grades?.[0]?.type || teaching.schoolType || '';
+    const typeLabel = rawType ? String(rawType).charAt(0).toUpperCase() + String(rawType).slice(1).toLowerCase() : '';
+    const coeff = (teaching.course as any)?.coefficient ?? (teaching as any).course?.coefficient ?? '';
+    const coeffStr = coeff !== '' && coeff != null ? `, ${coeff}` : '';
+    const courseName = baseCourseName !== 'Matière non assignée' && typeLabel ? `${baseCourseName} (${typeLabel}${coeffStr})` : baseCourseName;
+    const rawGradeIds: (number | string)[] = Array.isArray((teaching as any).gradeIds) ? (teaching as any).gradeIds : (typeof (teaching as any).gradeIds==='string' ? (teaching as any).gradeIds.split(',').filter(Boolean) : []);
+    const gradeIdsArr = rawGradeIds
+      .map((v: any) => Number(v))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    // Prefer gradeNames, then grades relation, then gradeIds
+    const gradeNamesFromRelation = Array.isArray(teaching.grades) && teaching.grades.length > 0 ? teaching.grades.map((grade: any) => grade.name).join(', ') : '';
+    const gradeNames = teaching.gradeNames ? String(teaching.gradeNames) : (gradeNamesFromRelation || (gradeIdsArr.length > 0 ? gradeIdsArr.join(', ') : 'Classes non assignées'));
     return `Enseignant - ${courseName} (${gradeNames})`;
   }
   

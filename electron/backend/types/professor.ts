@@ -26,6 +26,8 @@ export interface ITeachingAssignment {
     course?: {
         id: number;
         name: string;
+        coefficient?: number;
+        type?: string;
     };
     grades?: {
         id: number;

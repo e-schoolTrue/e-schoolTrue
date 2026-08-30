@@ -379,7 +379,7 @@ describe('AbsenceService', () => {
     expect(qbMock.andWhere).toHaveBeenCalledWith(expect.stringContaining('absence.date <='), expect.anything());
   });
 
-  it('16. getTotalAbsencesGroupedByStudent hours-weighted sorting', async () => {
+  it('16. getTotalAbsencesGroupedByStudent per-slot sorting', async () => {
     const qbMock: any = {
       leftJoinAndSelect: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
@@ -388,18 +388,18 @@ describe('AbsenceService', () => {
         { id: 1, absenceType: 'FULL_DAY', justified: true, student: { id: 1, firstname: 'A', lastname: 'Alpha' }, startTime: null, endTime: null },
         { id: 2, absenceType: 'MORNING', justified: false, student: { id: 1, firstname: 'A', lastname: 'Alpha' }, startTime: null, endTime: null },
         { id: 3, absenceType: 'COURSE', justified: true, student: { id: 2, firstname: 'B', lastname: 'Beta' }, startTime: '08:00', endTime: '09:00' },
-        { id: 4, absenceType: 'COURSE', justified: false, student: { id: 3, firstname: 'C', lastname: 'Gamma' }, startTime: null, endTime: null }, // fallback 1h
+        { id: 4, absenceType: 'COURSE', justified: false, student: { id: 3, firstname: 'C', lastname: 'Gamma' }, startTime: null, endTime: null }, // fallback 1 slot
       ]),
     };
     mockAbsenceRepo.createQueryBuilder = vi.fn().mockReturnValue(qbMock);
 
     const result = await service.getTotalAbsencesGroupedByStudent();
     expect(result.length).toBe(3);
-    // Student 1 has 8+4=12h, Student 2 has 1h, Student 3 has 1h
+    // Comptage par créneau (1 par absence): Student 1 has 2 créneaux, Student 2 has 1, Student 3 has 1
     expect(result[0].studentId).toBe(1);
-    expect(result[0].totalHours).toBe(12);
+    expect(result[0].totalHours).toBe(2);
     expect(result[0].studentName).toBe('A Alpha');
-    // Sorting descending: student 1 first, then others tied 1h but stable order
+    // Sorting descending: student 1 first, then others tied 1 slot but stable order
     expect(result[0].totalHours).toBeGreaterThanOrEqual(result[1].totalHours);
     expect(result[1].totalHours).toBe(1);
   });

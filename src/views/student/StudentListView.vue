@@ -62,8 +62,18 @@ const loadStudents = async () => {
     const result = await window.ipcRenderer.invoke('student:all');
     console.log('Raw student data:', result.data);
 
-    if (result.success) {
-      students.value = result.data.map((student: IStudentDetails) => {
+    // P0 FIX: tolerant to both envelope shapes - {success:true, data: students[]} (legacy)
+    // and {success:true, data:{students, total}} (paginated). Also tolerant to missing success field.
+    if (result.success === false) {
+      ElMessage.error("Erreur lors du chargement des étudiants");
+      return;
+    }
+    if (result.data === undefined) {
+      ElMessage.error("Erreur lors du chargement des étudiants");
+      return;
+    }
+    const rawStudents: IStudentDetails[] = Array.isArray(result.data) ? result.data : (result.data.students ?? []);
+      students.value = rawStudents.map((student: IStudentDetails) => {
         const mappedStudent: StudentTableItem = {
           id: student.id,
           matricule: student.matricule || '',
@@ -105,9 +115,6 @@ const loadStudents = async () => {
       
       console.log('Students after mapping:', students.value);
       filteredStudents.value = students.value;
-    } else {
-      ElMessage.error("Erreur lors du chargement des étudiants");
-    }
   } catch (error) {
     console.error("Erreur lors du chargement des étudiants:", error);
     ElMessage.error("Une erreur s'est produite lors du chargement des étudiants");

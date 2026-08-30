@@ -61,8 +61,9 @@ const formatTeachingInfo = (professor: IProfessorDetails) => {
       return `Instituteur - ${teaching.class?.name || 'N/A'}`;
     } else {
       const courseName = teaching.course?.name || 'N/A';
-      const gradeIds = Array.isArray(teaching.gradeIds) ? teaching.gradeIds : [];
-      const classes = gradeIds.length > 0 ? gradeIds.join(', ') : 'Aucune classe';
+      const rawGradeIds: (number | string)[] = Array.isArray(teaching.gradeIds) ? teaching.gradeIds : (typeof teaching.gradeIds==='string' ? teaching.gradeIds.split(',').filter(Boolean) : []);
+      const gradeIdsArr = rawGradeIds.map((v: any) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 0);
+      const classes = gradeIdsArr.length > 0 ? gradeIdsArr.join(', ') : (teaching as any).gradeNames ? String((teaching as any).gradeNames) : (Array.isArray((teaching as any).grades) && (teaching as any).grades.length > 0 ? (teaching as any).grades.map((g: any) => g.name).join(', ') : 'Aucune classe');
       return `Professeur de ${courseName} - Classes: ${classes}`;
     }
   }).join(', ');

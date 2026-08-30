@@ -36,13 +36,15 @@ export interface TeachingAssignment {
     gradeIds?: number[];   // Classes pour les profs de matière
 }
 
-export interface ResultType {
+export interface ResultType<T = any> {
     success: boolean;
-    data: any;
+    data: T | null;
     message: string;
     error: string | null;
-    generalAverage?: number;  // Ajout de generalAverage optionnel
+    generalAverage?: number;
 }
+
+export type IServiceResponse<T = any> = ResultType<T>;
 
 export class Mapper{
     static mapTo<S,T>(source:S , target:new()=>T):T{

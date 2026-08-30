@@ -2,7 +2,6 @@
 import { onMounted } from 'vue'
 import UpdateNotifier from '@/components/common/UpdateNotifier.vue'
 import { useThemeStore } from '@/stores/themeStore'
-import LicenseChecker from "@/components/LicenseChecker.vue";
 
 const themeStore = useThemeStore()
 
@@ -13,7 +12,7 @@ onMounted(() => {
 
 <template>
     <RouterView/>
-    <LicenseChecker />
+<!--    <LicenseChecker />-->
     <UpdateNotifier />
 </template>
 

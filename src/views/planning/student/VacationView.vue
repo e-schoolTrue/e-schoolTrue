@@ -275,11 +275,18 @@ const loadVacations = async () => {
 const loadStudents = async () => {
   try {
     const result = await window.ipcRenderer.invoke('student:all');
-    if (result.success) {
-      students.value = result.data;
-    } else {
-      throw new Error(result.message || 'Erreur lors du chargement des étudiants');
+    if (result.success === false) {
+      throw new Error(result.message || result.error || 'Erreur lors du chargement des étudiants');
     }
+    if (result.data === undefined) {
+      throw new Error(result.message || result.error || 'Erreur lors du chargement des étudiants');
+    }
+    // P0 FIX: tolerant to both array and {students,total}
+    const raw = Array.isArray(result.data) ? result.data : (result.data.students ?? []);
+    if (!Array.isArray(raw)) {
+      throw new Error(result.message || 'Réponse étudiants invalide');
+    }
+    students.value = raw;
   } catch (error) {
     console.error('Erreur:', error);
     ElMessage.error('Erreur lors du chargement des étudiants');

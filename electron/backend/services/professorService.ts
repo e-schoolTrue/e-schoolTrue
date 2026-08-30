@@ -1,4 +1,5 @@
 import { AppDataSource } from "#electron/data-source";
+import { logger } from "../utils/logger";
 import { ProfessorEntity, DiplomaEntity, QualificationEntity } from "#electron/backend/entities/professor";
 import { Repository, In } from "typeorm";
 import { TeachingAssignmentEntity } from "../entities/teaching";
@@ -63,7 +64,7 @@ export class ProfessorService {
             teaching: [] // Initialiser avec un tableau vide
         };
         
-        console.log("Teaching data in entity:", professor.teaching);
+        logger.debug("Teaching data loaded", { count: professor.teaching?.length ?? 0 });
         
         if (professor.teaching && Array.isArray(professor.teaching) && professor.teaching.length > 0) {
             mappedProfessor.teaching = professor.teaching.map(teaching => {
@@ -73,32 +74,44 @@ export class ProfessorService {
                 };
                 
                 if (teaching.class) {
-                    mappedTeaching.class = {
-                        id: Number(teaching.class.id),
-                        name: String(teaching.class.name)
-                    };
+                    const cid = Number(teaching.class.id);
+                    if (Number.isFinite(cid) && cid > 0) {
+                        mappedTeaching.class = {
+                            id: cid,
+                            name: String(teaching.class.name)
+                        };
+                    }
                 }
                 
                 if (teaching.course) {
-                    mappedTeaching.course = {
-                        id: Number(teaching.course.id),
-                        name: String(teaching.course.name)
-                    };
+                    const crsId = Number(teaching.course.id);
+                    if (Number.isFinite(crsId) && crsId > 0) {
+                        mappedTeaching.course = {
+                            id: crsId,
+                            name: String(teaching.course.name),
+                            coefficient: (teaching.course as any).coefficient != null ? Number((teaching.course as any).coefficient) : undefined
+                        } as any;
+                    }
                 }
                 
                 // S'assurer que les grades sont correctement mappés
                 if (teaching.grades && Array.isArray(teaching.grades) && teaching.grades.length > 0) {
-                    mappedTeaching.grades = teaching.grades.map(grade => ({
-                        id: Number(grade.id),
-                        name: String(grade.name)
-                    }));
-                    
-                    // Si c'est un enseignement secondaire, on définit aussi la classe principale
-                    if (teaching.schoolType === 'SECONDARY' && teaching.grades.length > 0) {
-                        mappedTeaching.class = {
-                            id: Number(teaching.grades[0].id),
-                            name: String(teaching.grades[0].name)
-                        };
+                    const validGrades = teaching.grades
+                        .map(grade => {
+                            const gid = Number(grade.id);
+                            if (!Number.isFinite(gid) || gid <= 0) return null;
+                            return { id: gid, name: String(grade.name) };
+                        })
+                        .filter(Boolean) as { id: number; name: string }[];
+                    if (validGrades.length > 0) {
+                        mappedTeaching.grades = validGrades;
+                        // Si c'est un enseignement secondaire, on définit aussi la classe principale
+                        if (teaching.schoolType === 'SECONDARY' && validGrades.length > 0) {
+                            mappedTeaching.class = {
+                                id: validGrades[0].id,
+                                name: String(validGrades[0].name)
+                            };
+                        }
                     }
                 }
 
@@ -119,7 +132,7 @@ export class ProfessorService {
                 return mappedTeaching;
             });
             
-            console.log("Mapped teaching data:", mappedProfessor.teaching);
+            logger.debug("Mapped teaching data", { count: mappedProfessor.teaching?.length ?? 0 });
         }
         
         return mappedProfessor;
@@ -145,7 +158,7 @@ export class ProfessorService {
             this.gradeRepository = dataSource.getRepository(GradeEntity);
             this.courseRepository = dataSource.getRepository(CourseEntity);
         } catch (error) {
-            console.error("Error initializing repositories:", error);
+            logger.error("Error initializing repositories:", error);
             throw error;
         }
     }
@@ -154,6 +167,22 @@ export class ProfessorService {
         try {
             await this.ensureRepositoriesInitialized();
             const dataSource = AppDataSource.getInstance();
+
+            // P1 early validation: SECONDARY requires at least courseId or gradeIds
+            if (professorData.teaching?.schoolType === 'SECONDARY') {
+                const vCourse: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
+                const vGrade: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses ?? (professorData.teaching as any).gradeIds;
+                const courseMissing = vCourse == null || String(vCourse).trim() === '' || !Number.isFinite(Number(vCourse)) || Number(vCourse) <= 0;
+                const gradeEmpty = vGrade == null || (typeof vGrade === 'string' && vGrade.trim() === '') || (Array.isArray(vGrade) && vGrade.length === 0);
+                if (courseMissing && gradeEmpty) {
+                    return {
+                        success: false,
+                        data: null,
+                        message: "Enseignement secondaire incomplet : courseId et gradeIds manquants. Veuillez fournir au moins une matière ou une classe.",
+                        error: "VALIDATION_ERROR"
+                    };
+                }
+            }
 
             // Récupérer les informations de l'école pour le matricule
             const schoolInfo = await this.schoolService.getSchool();
@@ -250,7 +279,18 @@ export class ProfessorService {
 
                 // Handle teaching assignments
                 if (professorData.teaching) {
-                    console.log('Création de l\'affectation d\'enseignement:', professorData.teaching);
+                    logger.debug('Création affectation enseignement', { schoolType: professorData.teaching?.schoolType });
+
+                    // P1 validation: SECONDARY requires at least courseId or gradeIds
+                    if (professorData.teaching.schoolType === 'SECONDARY') {
+                        const vCourse: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
+                        const vGrade: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses ?? (professorData.teaching as any).gradeIds;
+                        const courseMissing = vCourse == null || String(vCourse).trim() === '' || !Number.isFinite(Number(vCourse)) || Number(vCourse) <= 0;
+                        const gradeEmpty = vGrade == null || (typeof vGrade === 'string' && vGrade.trim() === '') || (Array.isArray(vGrade) && vGrade.length === 0);
+                        if (courseMissing && gradeEmpty) {
+                            throw new Error("Enseignement secondaire incomplet : courseId et gradeIds manquants. Veuillez fournir au moins une matière ou une classe.");
+                        }
+                    }
 
                     const teachingAssignment = this.teachingAssignmentRepository.create({
                         professor: savedProfessor,
@@ -260,11 +300,13 @@ export class ProfessorService {
                             : TEACHING_TYPE.SUBJECT_TEACHER
                     });
 
-                    // Handle PRIMARY teaching type - robust fallback
+                    // Handle PRIMARY teaching type - robust fallback with Number.isFinite guards
                     const createRawClassId: any = (professorData.teaching as any).classId ?? (professorData.teaching as any).class?.id ?? (professorData.teaching as any).selectedClasses?.[0];
-                    if (professorData.teaching.schoolType === 'PRIMARY' && createRawClassId) {
+                    if (professorData.teaching.schoolType === 'PRIMARY' && createRawClassId != null && String(createRawClassId).trim() !== '') {
                         const cid = Number(createRawClassId);
-                        if (!isNaN(cid)) {
+                        if (!Number.isFinite(cid) || cid <= 0) {
+                            logger.warn('createProfessor: invalid classId skipped', createRawClassId);
+                        } else {
                             const grade = await transactionalEntityManager.findOne(GradeEntity, {
                                 where: { id: cid }
                             });
@@ -274,12 +316,14 @@ export class ProfessorService {
                             }
                         }
                     }
-                    // Handle SECONDARY teaching type - robust fallback
+                    // Handle SECONDARY teaching type - robust fallback with empty checks
                     else if (professorData.teaching.schoolType === 'SECONDARY') {
                         const createRawCourseId: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
-                        if (createRawCourseId) {
+                        if (createRawCourseId != null && String(createRawCourseId).trim() !== '') {
                             const courseId = Number(createRawCourseId);
-                            if (!isNaN(courseId)) {
+                            if (!Number.isFinite(courseId) || courseId <= 0) {
+                                logger.warn('createProfessor: invalid courseId skipped', createRawCourseId);
+                            } else {
                                 const course = await transactionalEntityManager.findOne(CourseEntity, {
                                     where: { id: courseId }
                                 });
@@ -291,18 +335,31 @@ export class ProfessorService {
 
                         const createRawGradeIds: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses;
                         let gradeIdsArray: number[] = [];
-                        if (typeof createRawGradeIds === 'string') {
+                        // Skip empty array or empty string explicitly
+                        if (Array.isArray(createRawGradeIds) && createRawGradeIds.length === 0) {
+                            gradeIdsArray = [];
+                        } else if (typeof createRawGradeIds === 'string' && createRawGradeIds.trim() === '') {
+                            gradeIdsArray = [];
+                        } else if (typeof createRawGradeIds === 'string') {
                             gradeIdsArray = createRawGradeIds.split(',')
-                                .map((id: string) => parseInt(id.trim()))
-                                .filter((id: number) => !isNaN(id));
+                                .map((id: string) => Number(id.trim()))
+                                .filter((id: number) => Number.isFinite(id) && id > 0);
                         } else if (Array.isArray(createRawGradeIds)) {
-                            gradeIdsArray = createRawGradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
+                            gradeIdsArray = createRawGradeIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0);
                         } else if (typeof professorData.teaching.gradeIds === 'string') {
-                            gradeIdsArray = professorData.teaching.gradeIds.split(',')
-                                .map(id => parseInt(id.trim()))
-                                .filter(id => !isNaN(id));
+                            if (professorData.teaching.gradeIds.trim() === '') {
+                                gradeIdsArray = [];
+                            } else {
+                                gradeIdsArray = professorData.teaching.gradeIds.split(',')
+                                    .map(id => Number(id.trim()))
+                                    .filter(id => Number.isFinite(id) && id > 0);
+                            }
                         } else if (Array.isArray(professorData.teaching.gradeIds)) {
-                            gradeIdsArray = professorData.teaching.gradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
+                            if (professorData.teaching.gradeIds.length === 0) {
+                                gradeIdsArray = [];
+                            } else {
+                                gradeIdsArray = professorData.teaching.gradeIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0);
+                            }
                         }
 
                         if (gradeIdsArray.length > 0) {
@@ -353,12 +410,21 @@ export class ProfessorService {
             };
 
         } catch (error) {
-            console.error("Erreur dans createProfessor:", error);
+            logger.error("Erreur dans createProfessor:", error);
+            const msg = error instanceof Error ? error.message : "Erreur inconnue";
+            if (msg.includes("Enseignement secondaire incomplet")) {
+                return {
+                    success: false,
+                    data: null,
+                    message: msg,
+                    error: "VALIDATION_ERROR"
+                };
+            }
             return {
                 success: false,
                 data: null,
                 message: "Erreur lors de la création du professeur",
-                error: error instanceof Error ? error.message : "Erreur inconnue"
+                error: msg
             };
         }
     }
@@ -447,7 +513,23 @@ export class ProfessorService {
 
                 // Handle teaching assignments if provided
                 if (professorData.teaching) {
-                    console.log("updateProfessor: Données d'affectation reçues:", JSON.stringify(professorData.teaching, null, 2));
+                    logger.debug("updateProfessor affectation", { schoolType: professorData.teaching?.schoolType });
+
+                    // P1 validation: SECONDARY requires at least courseId or gradeIds
+                    if (professorData.teaching.schoolType === 'SECONDARY') {
+                        const vCourse: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
+                        const vGrade: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses ?? (professorData.teaching as any).gradeIds;
+                        const courseMissing = vCourse == null || String(vCourse).trim() === '' || !Number.isFinite(Number(vCourse)) || Number(vCourse) <= 0;
+                        const gradeEmpty = vGrade == null || (typeof vGrade === 'string' && vGrade.trim() === '') || (Array.isArray(vGrade) && vGrade.length === 0);
+                        if (courseMissing && gradeEmpty) {
+                            return {
+                                success: false,
+                                data: null,
+                                message: "Enseignement secondaire incomplet : courseId et gradeIds manquants. Veuillez fournir au moins une matière ou une classe.",
+                                error: "VALIDATION_ERROR"
+                            };
+                        }
+                    }
                     
                     // Delete existing teaching assignments
                     await transactionalEntityManager
@@ -467,14 +549,16 @@ export class ProfessorService {
                         teachingType: teachingType
                     });
 
-                    // Robust fallback: accepte classId OU class.id OU selectedClasses[0], courseId OU course.id OU selectedCourse
+                    // Robust fallback: accepte classId OU class.id OU selectedClasses[0], courseId OU course.id OU selectedCourse - with Number.isFinite guards
                     const rawClassId: any = (professorData.teaching as any).classId ?? (professorData.teaching as any).class?.id ?? (professorData.teaching as any).selectedClasses?.[0];
                     const rawCourseId: any = (professorData.teaching as any).courseId ?? (professorData.teaching as any).course?.id ?? (professorData.teaching as any).selectedCourse;
                     const rawGradeIds: any = (professorData.teaching as any).gradeIds ?? (professorData.teaching as any).selectedClasses;
 
-                    if (professorData.teaching.schoolType === 'PRIMARY' && rawClassId) {
+                    if (professorData.teaching.schoolType === 'PRIMARY' && rawClassId != null && String(rawClassId).trim() !== '') {
                         const cid = Number(rawClassId);
-                        if (!isNaN(cid)) {
+                        if (!Number.isFinite(cid) || cid <= 0) {
+                            logger.warn('updateProfessor: invalid classId skipped', rawClassId);
+                        } else {
                             const grade = await transactionalEntityManager.findOne(GradeEntity, {
                                 where: { id: cid }
                             });
@@ -484,9 +568,11 @@ export class ProfessorService {
                             }
                         }
                     } else if (professorData.teaching.schoolType === 'SECONDARY') {
-                        if (rawCourseId) {
+                        if (rawCourseId != null && String(rawCourseId).trim() !== '') {
                             const courseId = Number(rawCourseId);
-                            if (!isNaN(courseId)) {
+                            if (!Number.isFinite(courseId) || courseId <= 0) {
+                                logger.warn('updateProfessor: invalid courseId skipped', rawCourseId);
+                            } else {
                                 const course = await transactionalEntityManager.findOne(CourseEntity, {
                                     where: { id: courseId }
                                 });
@@ -497,18 +583,30 @@ export class ProfessorService {
                         }
 
                         let gradeIdsArray: number[] = [];
-                        if (typeof rawGradeIds === 'string') {
+                        if (Array.isArray(rawGradeIds) && rawGradeIds.length === 0) {
+                            gradeIdsArray = [];
+                        } else if (typeof rawGradeIds === 'string' && rawGradeIds.trim() === '') {
+                            gradeIdsArray = [];
+                        } else if (typeof rawGradeIds === 'string') {
                             gradeIdsArray = rawGradeIds.split(',')
-                                .map((id: string) => parseInt(id.trim()))
-                                .filter((id: number) => !isNaN(id));
+                                .map((id: string) => Number(id.trim()))
+                                .filter((id: number) => Number.isFinite(id) && id > 0);
                         } else if (Array.isArray(rawGradeIds)) {
-                            gradeIdsArray = rawGradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
+                            gradeIdsArray = rawGradeIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0);
                         } else if (typeof professorData.teaching.gradeIds === 'string') {
-                            gradeIdsArray = professorData.teaching.gradeIds.split(',')
-                                .map(id => parseInt(id.trim()))
-                                .filter(id => !isNaN(id));
+                            if (professorData.teaching.gradeIds.trim() === '') {
+                                gradeIdsArray = [];
+                            } else {
+                                gradeIdsArray = professorData.teaching.gradeIds.split(',')
+                                    .map(id => Number(id.trim()))
+                                    .filter(id => Number.isFinite(id) && id > 0);
+                            }
                         } else if (Array.isArray(professorData.teaching.gradeIds)) {
-                            gradeIdsArray = professorData.teaching.gradeIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id));
+                            if (professorData.teaching.gradeIds.length === 0) {
+                                gradeIdsArray = [];
+                            } else {
+                                gradeIdsArray = professorData.teaching.gradeIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0);
+                            }
                         }
 
                         if (gradeIdsArray.length > 0) {
@@ -557,7 +655,7 @@ export class ProfessorService {
                 };
             });
         } catch (error) {
-            console.error("Erreur lors de la mise à jour du professeur:", error);
+            logger.error("Erreur lors de la mise à jour du professeur:", error);
             return {
                 success: false,
                 data: null,
@@ -593,7 +691,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur lors de la suppression du professeur:", error);
+            logger.error("Erreur lors de la suppression du professeur:", error);
             return {
                 success: false,
                 data: null,
@@ -629,7 +727,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error('Erreur dans getAllProfessors:', error);
+            logger.error('Erreur dans getAllProfessors:', error);
             return {
                 success: false,
                 data: null,
@@ -661,18 +759,19 @@ export class ProfessorService {
                 throw new Error('Professeur non trouvé');
             }
 
-            // If teaching assignments exist, process gradeIds for secondary teachers
+            // If teaching assignments exist, process gradeIds for secondary teachers with Number.isFinite guards
             if (professor.teaching?.length) {
                 for (const teaching of professor.teaching) {
-                    if (teaching.gradeIds && typeof teaching.gradeIds === 'string') {
+                    if (teaching.gradeIds && typeof teaching.gradeIds === 'string' && teaching.gradeIds.trim() !== '') {
                         try {
-                            const gradeIdArray = teaching.gradeIds.split(',').map(id => parseInt(id.trim()));
+                            const gradeIdArray = teaching.gradeIds.split(',').map(id => Number(id.trim())).filter(id => Number.isFinite(id) && id > 0);
+                            if (gradeIdArray.length === 0) continue;
                             const grades = await this.gradeRepository.find({
                                 where: { id: In(gradeIdArray) }
                             });
                             teaching.gradeNames = grades.map(g => g.name).join(', ');
                         } catch (error) {
-                            console.error('Erreur lors du traitement des gradeIds:', error);
+                            logger.error('Erreur lors du traitement des gradeIds:', error);
                             teaching.gradeNames = '';
                         }
                     }
@@ -686,7 +785,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error('Erreur lors de la récupération du professeur:', error);
+            logger.error('Erreur lors de la récupération du professeur:', error);
             return {
                 success: false,
                 data: null,
@@ -814,7 +913,7 @@ export class ProfessorService {
                 .createQueryBuilder('professor')
                 .getCount();
 
-            console.log('Nombre total de professeurs:', count);
+            logger.debug('Nombre total de professeurs:', count);
 
             // Créer un objet IProfessorDetails avec les champs requis
             const professorStats: IProfessorDetails = {
@@ -839,7 +938,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error('Erreur lors du comptage des professeurs:', error);
+            logger.error('Erreur lors du comptage des professeurs:', error);
             return {
                 success: false,
                 data: null,
@@ -867,7 +966,7 @@ export class ProfessorService {
                 error: null
             };
         } catch (error) {
-            console.error('Erreur lors de la recherche des professeurs:', error);
+            logger.error('Erreur lors de la recherche des professeurs:', error);
             return {
                 success: false,
                 data: [],
@@ -884,7 +983,7 @@ export class ProfessorService {
         try {
             await this.ensureRepositoriesInitialized();
             
-            console.log(`🔍 Recherche professeur pour courseId=${courseId}, gradeId=${gradeId}`);
+            logger.debug(`🔍 Recherche professeur pour courseId=${courseId}, gradeId=${gradeId}`);
             
             // ÉTAPE 1 : Chercher un professeur de matière (SECONDARY) affecté spécifiquement à ce cours
             const secondaryTeachingAssignments = await this.teachingAssignmentRepository
@@ -897,24 +996,27 @@ export class ProfessorService {
                 .andWhere('teaching.teachingType = :type', { type: TEACHING_TYPE.SUBJECT_TEACHER })
                 .getMany();
 
-            console.log(`📚 Affectations SECONDARY trouvées: ${secondaryTeachingAssignments.length}`);
+            logger.debug(`📚 Affectations SECONDARY trouvées: ${secondaryTeachingAssignments.length}`);
 
-            // Filtrer pour trouver celle qui correspond à la classe
+            // Filtrer pour trouver celle qui correspond à la classe - with Number.isFinite guards
             let teachingAssignment = secondaryTeachingAssignments.find(ta => {
                 // Vérifier si la classe unique correspond
-                if (ta.class && ta.class.id === gradeId) {
+                if (ta.class && Number.isFinite(Number(ta.class.id)) && Number(ta.class.id) === gradeId) {
                     return true;
                 }
-                // Vérifier si la classe est dans gradeIds (string CSV)
-                if (ta.gradeIds) {
-                    const gradeIdArray = ta.gradeIds.split(',').map(id => parseInt(id.trim()));
+                // Vérifier si la classe est dans gradeIds (string CSV or array)
+                if (ta.gradeIds != null && String(ta.gradeIds).trim() !== '') {
+                    const raw: any = (ta as any).gradeIds;
+                    const gradeIdArray = Array.isArray(raw)
+                        ? raw.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
+                        : String(raw).split(',').map(id => Number(id.trim())).filter((n: number) => Number.isFinite(n) && n > 0);
                     if (gradeIdArray.includes(gradeId)) {
                         return true;
                     }
                 }
                 // Vérifier si la classe est dans grades (relation ManyToMany)
                 if (ta.grades && ta.grades.length > 0) {
-                    if (ta.grades.some(g => g.id === gradeId)) {
+                    if (ta.grades.some(g => Number.isFinite(Number(g.id)) && Number(g.id) === gradeId)) {
                         return true;
                     }
                 }
@@ -923,7 +1025,7 @@ export class ProfessorService {
 
             // ÉTAPE 2 : Si aucun professeur de matière n'est trouvé, chercher le professeur titulaire (CLASS_TEACHER)
             if (!teachingAssignment) {
-                console.log('🔄 Aucun prof SECONDARY, recherche du professeur titulaire (CLASS_TEACHER)...');
+                logger.debug('🔄 Aucun prof SECONDARY, recherche du professeur titulaire (CLASS_TEACHER)...');
                 
                 const classTacherAssignments = await this.teachingAssignmentRepository
                     .createQueryBuilder('teaching')
@@ -933,18 +1035,18 @@ export class ProfessorService {
                     .andWhere('teaching.teachingType = :type', { type: TEACHING_TYPE.CLASS_TEACHER })
                     .getMany();
 
-                console.log(`👨‍🏫 Professeurs titulaires trouvés: ${classTacherAssignments.length}`);
+                logger.debug(`👨‍🏫 Professeurs titulaires trouvés: ${classTacherAssignments.length}`);
                 
                 if (classTacherAssignments.length > 0) {
                     teachingAssignment = classTacherAssignments[0];
-                    console.log(`✅ Professeur titulaire utilisé: ${teachingAssignment.professor?.firstname} ${teachingAssignment.professor?.lastname}`);
+                    logger.debug(`✅ Professeur titulaire utilisé: ${teachingAssignment.professor?.firstname} ${teachingAssignment.professor?.lastname}`);
                 }
             } else {
-                console.log(`✅ Professeur de matière trouvé: ${teachingAssignment.professor?.firstname} ${teachingAssignment.professor?.lastname}`);
+                logger.debug(`✅ Professeur de matière trouvé: ${teachingAssignment.professor?.firstname} ${teachingAssignment.professor?.lastname}`);
             }
 
             if (!teachingAssignment || !teachingAssignment.professor) {
-                console.log('❌ Aucun professeur trouvé (ni SECONDARY, ni CLASS_TEACHER)');
+                logger.debug('❌ Aucun professeur trouvé (ni SECONDARY, ni CLASS_TEACHER)');
                 return {
                     success: false,
                     message: "Aucun professeur trouvé pour ce cours dans cette classe",
@@ -974,7 +1076,7 @@ export class ProfessorService {
                 }
             };
         } catch (error) {
-            console.error('Erreur lors de la récupération du professeur:', error);
+            logger.error('Erreur lors de la récupération du professeur:', error);
             return {
                 success: false,
                 data: null,

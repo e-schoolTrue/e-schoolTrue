@@ -539,9 +539,11 @@ const loadStudents = async () => {
       }
     });
     
-    if (result.success && result.data) {
-      students.value = result.data.students;
-      totalStudents.value = result.data.total;
+    // P0 FIX: tolerant to both array and {students,total} shapes
+    if (result.success !== false && result.data !== undefined && result.data !== null) {
+      const payload = Array.isArray(result.data) ? { students: result.data, total: result.data.length } : result.data;
+      students.value = payload.students ?? [];
+      totalStudents.value = payload.total ?? payload.students?.length ?? 0;
 
       for (const student of students.value) {
         await loadStudentPayments(student.id);
@@ -633,12 +635,13 @@ const exportToExcel = async () => {
       }
     });
 
-    if (!result.success || !result.data) {
+    // P0 FIX: tolerant to both shapes
+    if (result.success === false || result.data === undefined || result.data === null) {
       ElMessage.error("Erreur lors de la récupération des données à exporter.");
       return;
     }
 
-    let allStudents: Student[] = result.data.students;
+    let allStudents: Student[] = Array.isArray(result.data) ? result.data : (result.data.students ?? []);
 
     // 2. Fetch payment info for all students
     await Promise.all(allStudents.map((s: Student) => loadStudentPayments(s.id)));
@@ -1516,12 +1519,13 @@ const exportToPdf = async () => {
       }
     });
 
-    if (!result.success || !result.data) {
+    // P0 FIX: tolerant to both shapes
+    if (result.success === false || result.data === undefined || result.data === null) {
       ElMessage.error("Erreur lors de la récupération des données à exporter.");
       return;
     }
 
-    let allStudents: Student[] = result.data.students;
+    let allStudents: Student[] = Array.isArray(result.data) ? result.data : (result.data.students ?? []);
     await Promise.all(allStudents.map((s: Student) => loadStudentPayments(s.id)));
 
     // Calculer les dates d'échéance

@@ -26,6 +26,7 @@ interface GetStatusResponse {
   success: boolean;
   data?: LicenseStatus;
   error?: string;
+  message?: string;
 }
 
 const showLicenseView = ref(false)
@@ -56,8 +57,9 @@ const checkLicense = async () => {
     // doit s'afficher — corriger l'horloge d'abord.
     if (data.clockError) {
       showLicenseView.value = false
+      const clockMsg = (result as any).message as string | undefined || 'L\'horloge système a été reculée. Réinitialisez la date et l\'heure, puis redémarrez l\'application.';
       await ElMessageBox.alert(
-        'L\'horloge système a été reculée. Réinitialisez la date et l\'heure, puis redémarrez l\'application.',
+        clockMsg,
         'Horloge système modifiée',
         {
           confirmButtonText: 'OK',
@@ -72,9 +74,11 @@ const checkLicense = async () => {
 
     if (!isValid) {
       // Pas de licence du tout → message d'activation ; licence expirée → message de renouvellement
-      const message = licenseType === null
+      const backendMsg = (result as any).message as string | undefined;
+
+      const message = backendMsg || (licenseType === null
         ? 'Veuillez activer une licence pour continuer à utiliser ce logiciel.'
-        : 'Votre licence est expirée. Contactez votre revendeur pour la renouveler.'
+        : 'Votre licence est expirée. Contactez votre revendeur pour la renouveler.');
 
       await ElMessageBox.alert(
         message,

@@ -417,11 +417,16 @@ const signatoryRightLabel = computed(() => props.options?.signatoryRight || 'Le 
 
 .bulletin-template-one {
   width: 210mm;
-  min-height: 297mm;
-  padding: 15mm;
+  max-width: 100%;
+  min-height: 277mm; /* 297mm - 20mm marges */
+  height: auto;
+  padding: 8mm 10mm;
   background: white;
   box-sizing: border-box;
   color: #333;
+  overflow: visible; /* Permet au contenu de s'étendre, le preview scrolle */
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -560,23 +565,37 @@ const signatoryRightLabel = computed(() => props.options?.signatoryRight || 'Le 
   font-weight: 500;
 }
 
+.grades-section {
+  width: 100%;
+  overflow-x: hidden;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
 .grades-table {
   width: 100%;
+  max-width: 190mm; /* 210mm - 20mm padding */
   border-collapse: collapse;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  table-layout: fixed;
+  word-wrap: break-word;
 }
 
 .grades-table th,
 .grades-table td {
-  padding: 8px 10px;
+  padding: 4px 6px;
   border: 1px solid #e0e0e0;
-  font-size: 13px;
+  font-size: 9px;
+  line-height: 1.2;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .grades-table th {
   text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.5px;
+  font-size: 8px;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
 .grade-row:nth-child(even) {

@@ -8,12 +8,8 @@ import { ProfessorPaymentEntity } from '../entities/professorPayment';
 import { ScholarshipEntity } from '../entities/scholarship';
 import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse, IPaymentServiceParams, IPaymentAnnualConfigData } from '../types/payment';
 
-export interface ResultType<T = any> {
-    success: boolean;
-    data: T | null;
-    message: string;
-    error: string | null;
-}
+import { ResultType as CentralResultType } from "#electron/command";
+export type ResultType<T = any> = CentralResultType<T>;
 
 // Interface pour les données de paiement d'un étudiant
 export interface StudentPaymentResponse {

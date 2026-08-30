@@ -9,12 +9,8 @@ import { TeachingAssignmentEntity } from "../entities/teaching";
 import { ProfessorEntity } from "../entities/professor";
 import { TEACHING_TYPE } from "../../command";
 
-interface ResultType<T> {
-    success: boolean;
-    data: T | null;
-    message: string;
-    error: string | null;
-}
+import { ResultType as CentralResultType } from "#electron/command";
+type ResultType<T = any> = CentralResultType<T>;
 
 interface SaveGradeEntryInput {
     studentId: number;

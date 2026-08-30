@@ -574,7 +574,8 @@ const saveAbsences = async () => {
       for (const [timeSlot, absenceInfo] of Object.entries(profSchedule.absences) as [string, AbsenceInfo][]) {
         if (absenceInfo.checked) {
           const schedule = profSchedule.schedules.find((s: any) => normSlot(String(s.timeSlot)) === normSlot(timeSlot));
-          const gradeId = schedule?.classId ?? (selectedClassFilter.value as number | null) ?? null;
+          const rawGradeId = (schedule?.classId as number | null | undefined) ?? (selectedClassFilter.value as number | null) ?? null;
+          const gradeId: number | null = Number.isFinite(rawGradeId as number) && (rawGradeId as number) > 0 ? Number(rawGradeId) : null;
 
           absencesToSave.push({
             professorId: profSchedule.professor.id,

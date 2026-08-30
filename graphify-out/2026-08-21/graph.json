@@ -978,8 +978,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_entities_gradeconfig",
-      "community": 63,
-      "community_name": "main.ts",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "gradeconfig.ts"
     },
     {
@@ -1066,8 +1066,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_entities_gradeentry",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "gradeentry.ts"
     },
     {
@@ -1198,8 +1198,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "electron_backend_entities_homework_homeworkentity",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "homeworkentity"
     },
     {
@@ -1209,8 +1209,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_homework_ts_entity",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "entity"
     },
     {
@@ -1220,8 +1220,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_homework_ts_primarygeneratedcolumn",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "primarygeneratedcolumn"
     },
     {
@@ -1231,8 +1231,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_homework_ts_column",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "column"
     },
     {
@@ -1242,8 +1242,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_homework_ts_manytoone",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "manytoone"
     },
     {
@@ -1253,8 +1253,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_homework_ts_createdatecolumn",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "createdatecolumn"
     },
     {
@@ -1363,8 +1363,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_paymententity",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "paymententity"
     },
     {
@@ -1374,8 +1374,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_entity",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "entity"
     },
     {
@@ -1385,8 +1385,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_primarygeneratedcolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "primarygeneratedcolumn"
     },
     {
@@ -1396,8 +1396,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_column",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "column"
     },
     {
@@ -1407,8 +1407,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_createdatecolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "createdatecolumn"
     },
     {
@@ -1418,8 +1418,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_updatedatecolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "updatedatecolumn"
     },
     {
@@ -1429,8 +1429,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_deletedatecolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "deletedatecolumn"
     },
     {
@@ -1440,8 +1440,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_manytoone",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "manytoone"
     },
     {
@@ -1451,8 +1451,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_payment_ts_joincolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "joincolumn"
     },
     {
@@ -1671,8 +1671,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "electron_backend_entities_professor_professorentity",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 6,
+      "community_name": "ProfessorEntity",
       "norm_label": "professorentity"
     },
     {
@@ -1715,8 +1715,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professor_ts_onetoone",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 6,
+      "community_name": "ProfessorEntity",
       "norm_label": "onetoone"
     },
     {
@@ -1726,8 +1726,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professor_ts_joincolumn",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 6,
+      "community_name": "ProfessorEntity",
       "norm_label": "joincolumn"
     },
     {
@@ -1748,8 +1748,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professor_ts_manytoone",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 6,
+      "community_name": "ProfessorEntity",
       "norm_label": "manytoone"
     },
     {
@@ -1836,8 +1836,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_professorpaymententity",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "professorpaymententity"
     },
     {
@@ -1847,8 +1847,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_entity",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "entity"
     },
     {
@@ -1858,8 +1858,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_primarygeneratedcolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "primarygeneratedcolumn"
     },
     {
@@ -1869,8 +1869,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_column",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "column"
     },
     {
@@ -1880,8 +1880,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_createdatecolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "createdatecolumn"
     },
     {
@@ -1891,8 +1891,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_manytoone",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "manytoone"
     },
     {
@@ -1902,8 +1902,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_updatedatecolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "updatedatecolumn"
     },
     {
@@ -1913,8 +1913,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_professorpayment_ts_deletedatecolumn",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "deletedatecolumn"
     },
     {
@@ -2122,8 +2122,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "scheduleconfig.ts"
     },
     {
@@ -2133,8 +2133,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_scheduleconfigentity",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "scheduleconfigentity"
     },
     {
@@ -2144,8 +2144,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_entity",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "entity"
     },
     {
@@ -2155,8 +2155,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_primarygeneratedcolumn",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "primarygeneratedcolumn"
     },
     {
@@ -2166,8 +2166,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_manytoone",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "manytoone"
     },
     {
@@ -2177,8 +2177,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_joincolumn",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "joincolumn"
     },
     {
@@ -2188,8 +2188,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_column",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "column"
     },
     {
@@ -2199,8 +2199,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_createdatecolumn",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "createdatecolumn"
     },
     {
@@ -2210,8 +2210,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "electron_backend_entities_scheduleconfig_ts_updatedatecolumn",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "updatedatecolumn"
     },
     {
@@ -3035,8 +3035,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_lib_session",
-      "community": 6,
-      "community_name": "ProfessorEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "session.ts"
     },
     {
@@ -3046,8 +3046,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "electron_backend_lib_session_getcurrentsupabaseuserid",
-      "community": 6,
-      "community_name": "ProfessorEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "getcurrentsupabaseuserid()"
     },
     {
@@ -3057,8 +3057,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "electron_backend_lib_session_setcurrentsupabaseuserid",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "setcurrentsupabaseuserid()"
     },
     {
@@ -3068,8 +3068,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "electron_backend_lib_session_getcurrentschemaname",
-      "community": 6,
-      "community_name": "ProfessorEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "getcurrentschemaname()"
     },
     {
@@ -3079,8 +3079,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "electron_backend_lib_session_setcurrentschemaname",
-      "community": 6,
-      "community_name": "ProfessorEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "setcurrentschemaname()"
     },
     {
@@ -3090,8 +3090,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "electron_backend_lib_session_onschoolselected",
-      "community": 6,
-      "community_name": "ProfessorEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "onschoolselected()"
     },
     {
@@ -3387,8 +3387,8 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "electron_backend_services_absenceservice_absenceservice_constructor",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".constructor()"
     },
     {
@@ -3574,8 +3574,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_ai_service",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "ai-service.ts"
     },
     {
@@ -3585,8 +3585,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "electron_backend_services_ai_service_aiservice",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "aiservice"
     },
     {
@@ -3596,8 +3596,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "electron_backend_services_ai_service_aiservice_constructor",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".constructor()"
     },
     {
@@ -3607,8 +3607,8 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "electron_backend_services_ai_service_aiservice_generatecontent",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".generatecontent()"
     },
     {
@@ -3640,8 +3640,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "authservice"
     },
     {
@@ -3651,8 +3651,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_createsupervisor",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".createsupervisor()"
     },
     {
@@ -3662,8 +3662,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_validatesupervisor",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".validatesupervisor()"
     },
     {
@@ -3673,8 +3673,8 @@
       "source_location": "L125",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_init",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".init()"
     },
     {
@@ -3684,8 +3684,8 @@
       "source_location": "L138",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_getcurrentuser",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".getcurrentuser()"
     },
     {
@@ -3695,8 +3695,8 @@
       "source_location": "L142",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_logout",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".logout()"
     },
     {
@@ -3706,8 +3706,8 @@
       "source_location": "L146",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_getsecurityquestion",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".getsecurityquestion()"
     },
     {
@@ -3717,8 +3717,8 @@
       "source_location": "L178",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_validatesecurityanswer",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".validatesecurityanswer()"
     },
     {
@@ -3728,8 +3728,8 @@
       "source_location": "L220",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_resetpassword",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".resetpassword()"
     },
     {
@@ -3739,8 +3739,8 @@
       "source_location": "L258",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_createsupabaseaccount",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".createsupabaseaccount()"
     },
     {
@@ -3750,8 +3750,8 @@
       "source_location": "L310",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_signinwithsupabase",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".signinwithsupabase()"
     },
     {
@@ -3761,8 +3761,8 @@
       "source_location": "L363",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_signoutfromsupabase",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".signoutfromsupabase()"
     },
     {
@@ -3772,8 +3772,8 @@
       "source_location": "L369",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_issupabasesessionvalid",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".issupabasesessionvalid()"
     },
     {
@@ -3783,8 +3783,8 @@
       "source_location": "L385",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_getsupabaseauthuser",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".getsupabaseauthuser()"
     },
     {
@@ -3794,8 +3794,8 @@
       "source_location": "L395",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_formatsupabaseerror",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".formatsupabaseerror()"
     },
     {
@@ -3805,8 +3805,8 @@
       "source_location": "L402",
       "_origin": "ast",
       "id": "electron_backend_services_authservice_authservice_formaterror",
-      "community": 69,
-      "community_name": "AuthService",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".formaterror()"
     },
     {
@@ -4278,8 +4278,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_centralizedpdfservice",
-      "community": 63,
-      "community_name": "main.ts",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "centralizedpdfservice.ts"
     },
     {
@@ -4289,8 +4289,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "electron_backend_services_centralizedpdfservice_centralizedrankingdata",
-      "community": 63,
-      "community_name": "main.ts",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "centralizedrankingdata"
     },
     {
@@ -4377,8 +4377,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_configservice",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": "configservice.ts"
     },
     {
@@ -4388,8 +4388,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_appconfig",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": "appconfig"
     },
     {
@@ -4399,8 +4399,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": "configservice"
     },
     {
@@ -4410,8 +4410,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice_constructor",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": ".constructor()"
     },
     {
@@ -4421,8 +4421,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice_getinstance",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": ".getinstance()"
     },
     {
@@ -4432,8 +4432,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice_loadconfig",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": ".loadconfig()"
     },
     {
@@ -4443,8 +4443,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice_saveconfig",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": ".saveconfig()"
     },
     {
@@ -4454,8 +4454,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice_isfirstlaunch",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": ".isfirstlaunch()"
     },
     {
@@ -4465,8 +4465,8 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "electron_backend_services_configservice_configservice_setfirstlaunchcomplete",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 210,
+      "community_name": "@types/jsdom",
       "norm_label": ".setfirstlaunchcomplete()"
     },
     {
@@ -4575,8 +4575,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "dashboardservice.ts"
     },
     {
@@ -4586,8 +4586,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "dashboardservice"
     },
     {
@@ -4597,8 +4597,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_gettotalstudents",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".gettotalstudents()"
     },
     {
@@ -4608,8 +4608,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_gettotalprofessors",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".gettotalprofessors()"
     },
     {
@@ -4619,8 +4619,8 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_gettotalclasses",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".gettotalclasses()"
     },
     {
@@ -4630,8 +4630,8 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_getrecentpayments",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getrecentpayments()"
     },
     {
@@ -4641,8 +4641,8 @@
       "source_location": "L108",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_getpaymentstats",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getpaymentstats()"
     },
     {
@@ -4652,8 +4652,8 @@
       "source_location": "L145",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_getrecentabsences",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getrecentabsences()"
     },
     {
@@ -4663,8 +4663,8 @@
       "source_location": "L195",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_getabsencestats",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getabsencestats()"
     },
     {
@@ -4674,8 +4674,8 @@
       "source_location": "L246",
       "_origin": "ast",
       "id": "electron_backend_services_dashboardservice_dashboardservice_getstats",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getstats()"
     },
     {
@@ -4707,8 +4707,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_fileservice",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": "fileservice.ts"
     },
     {
@@ -4905,8 +4905,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "gradeentryservice.ts"
     },
     {
@@ -4916,8 +4916,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_resulttype",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "resulttype"
     },
     {
@@ -4927,8 +4927,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_savegradeentryinput",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "savegradeentryinput"
     },
     {
@@ -4938,8 +4938,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_getgradesinput",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "getgradesinput"
     },
     {
@@ -4949,8 +4949,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_bulksavegradesinput",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "bulksavegradesinput"
     },
     {
@@ -4960,8 +4960,8 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_default_periods",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "default_periods"
     },
     {
@@ -5147,8 +5147,8 @@
       "source_location": "L260",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_rationale_260",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "note: subjectid: null \u2192 utilise la config de niveau classe, comme le fait le fro"
     },
     {
@@ -5158,8 +5158,8 @@
       "source_location": "L660",
       "_origin": "ast",
       "id": "electron_backend_services_gradeentryservice_rationale_660",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "important: utiliser la meme requete que getcentralizedrankings pour"
     },
     {
@@ -5180,8 +5180,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": "gradeservice"
     },
     {
@@ -5202,8 +5202,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_newgrade",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".newgrade()"
     },
     {
@@ -5213,8 +5213,8 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_getgrades",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".getgrades()"
     },
     {
@@ -5224,8 +5224,8 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_updategrade",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".updategrade()"
     },
     {
@@ -5235,8 +5235,8 @@
       "source_location": "L131",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_deletegrade",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".deletegrade()"
     },
     {
@@ -5246,8 +5246,8 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_newclassroom",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".newclassroom()"
     },
     {
@@ -5257,8 +5257,8 @@
       "source_location": "L253",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_updateclassroom",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".updateclassroom()"
     },
     {
@@ -5268,8 +5268,8 @@
       "source_location": "L305",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_deleteclassroom",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".deleteclassroom()"
     },
     {
@@ -5279,8 +5279,8 @@
       "source_location": "L338",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_getclassrooms",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".getclassrooms()"
     },
     {
@@ -5290,8 +5290,8 @@
       "source_location": "L361",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_newbranch",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".newbranch()"
     },
     {
@@ -5301,8 +5301,8 @@
       "source_location": "L398",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_deletebranch",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".deletebranch()"
     },
     {
@@ -5312,8 +5312,8 @@
       "source_location": "L431",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_updatebranch",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".updatebranch()"
     },
     {
@@ -5323,8 +5323,8 @@
       "source_location": "L477",
       "_origin": "ast",
       "id": "electron_backend_services_gradeservice_gradeservice_gettotalclasses",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": ".gettotalclasses()"
     },
     {
@@ -5345,8 +5345,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "electron_backend_services_homeworkservice_homeworkservice",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": "homeworkservice"
     },
     {
@@ -5356,8 +5356,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "electron_backend_services_homeworkservice_homeworkservice_constructor",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 4,
+      "community_name": "GradeEntity",
       "norm_label": ".constructor()"
     },
     {
@@ -5389,8 +5389,8 @@
       "source_location": "L114",
       "_origin": "ast",
       "id": "electron_backend_services_homeworkservice_homeworkservice_deletehomework",
-      "community": 47,
-      "community_name": "YearRepartitionService",
+      "community": 73,
+      "community_name": "events.ts",
       "norm_label": ".deletehomework()"
     },
     {
@@ -6335,8 +6335,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "paymentservice.ts"
     },
     {
@@ -6346,8 +6346,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_resulttype",
-      "community": 47,
-      "community_name": "YearRepartitionService",
+      "community": 73,
+      "community_name": "events.ts",
       "norm_label": "resulttype"
     },
     {
@@ -6357,8 +6357,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_studentpaymentresponse",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "studentpaymentresponse"
     },
     {
@@ -6368,8 +6368,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_paymentcreatedata",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "paymentcreatedata"
     },
     {
@@ -6423,8 +6423,8 @@
       "source_location": "L123",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_paymentservice_getpaymentannualconfigs",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getpaymentannualconfigs()"
     },
     {
@@ -6654,8 +6654,8 @@
       "source_location": "L857",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_rationale_857",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "todo: implementer avec une vraie entite custompaymentconfigentity"
     },
     {
@@ -6665,8 +6665,8 @@
       "source_location": "L900",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_rationale_900",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "todo: implementer la sauvegarde reelle avec custompaymentconfigentity"
     },
     {
@@ -6676,8 +6676,8 @@
       "source_location": "L935",
       "_origin": "ast",
       "id": "electron_backend_services_paymentservice_rationale_935",
-      "community": 1,
-      "community_name": "data-source.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "todo: implementer la suppression reelle avec custompaymentconfigentity"
     },
     {
@@ -7138,8 +7138,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleconfigservice_scheduleconfigservice",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": "scheduleconfigservice"
     },
     {
@@ -7149,8 +7149,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleconfigservice_scheduleconfigservice_ensurerepository",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": ".ensurerepository()"
     },
     {
@@ -7160,8 +7160,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleconfigservice_scheduleconfigservice_getconfig",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": ".getconfig()"
     },
     {
@@ -7171,8 +7171,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleconfigservice_scheduleconfigservice_saveconfig",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": ".saveconfig()"
     },
     {
@@ -7182,8 +7182,8 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleconfigservice_scheduleconfigservice_deleteconfig",
-      "community": 92,
-      "community_name": "ScheduleConfigEntity",
+      "community": 82,
+      "community_name": "PreferenceEntity",
       "norm_label": ".deleteconfig()"
     },
     {
@@ -7204,8 +7204,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": "scheduleservice"
     },
     {
@@ -7226,8 +7226,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_createschedule",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".createschedule()"
     },
     {
@@ -7237,8 +7237,8 @@
       "source_location": "L225",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_mapentitytodata",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".mapentitytodata()"
     },
     {
@@ -7248,8 +7248,8 @@
       "source_location": "L265",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_getallschedules",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".getallschedules()"
     },
     {
@@ -7259,8 +7259,8 @@
       "source_location": "L303",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_getschedulebyclass",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".getschedulebyclass()"
     },
     {
@@ -7270,8 +7270,8 @@
       "source_location": "L342",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_getschedulebyprofessor",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".getschedulebyprofessor()"
     },
     {
@@ -7281,8 +7281,8 @@
       "source_location": "L381",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_deleteschedule",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".deleteschedule()"
     },
     {
@@ -7292,8 +7292,8 @@
       "source_location": "L418",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_updateschedule",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".updateschedule()"
     },
     {
@@ -7303,8 +7303,8 @@
       "source_location": "L483",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_checkconflicts",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".checkconflicts()"
     },
     {
@@ -7314,8 +7314,8 @@
       "source_location": "L523",
       "_origin": "ast",
       "id": "electron_backend_services_scheduleservice_scheduleservice_getschedulebydate",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": ".getschedulebydate()"
     },
     {
@@ -7501,8 +7501,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_services_studentservice",
-      "community": 140,
-      "community_name": "DataLocationView.vue",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "studentservice.ts"
     },
     {
@@ -7534,8 +7534,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "electron_backend_services_studentservice_studentservice_constructor",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 140,
+      "community_name": "DataLocationView.vue",
       "norm_label": ".constructor()"
     },
     {
@@ -7600,8 +7600,8 @@
       "source_location": "L394",
       "_origin": "ast",
       "id": "electron_backend_services_studentservice_studentservice_getstudentbyid",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": ".getstudentbyid()"
     },
     {
@@ -7831,8 +7831,8 @@
       "source_location": "L151",
       "_origin": "ast",
       "id": "electron_backend_services_yearservice_yearrepartitionservice_deleteyearrepartition",
-      "community": 47,
-      "community_name": "YearRepartitionService",
+      "community": 73,
+      "community_name": "events.ts",
       "norm_label": ".deleteyearrepartition()"
     },
     {
@@ -7974,8 +7974,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_types_dashboard",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "dashboard.ts"
     },
     {
@@ -7985,8 +7985,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_types_dashboard_idashboardstats",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "idashboardstats"
     },
     {
@@ -7996,8 +7996,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "electron_backend_types_dashboard_irecentpayment",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "irecentpayment"
     },
     {
@@ -8007,8 +8007,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "electron_backend_types_dashboard_irecentabsence",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "irecentabsence"
     },
     {
@@ -8018,8 +8018,8 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "electron_backend_types_dashboard_idashboardserviceresponse",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": "idashboardserviceresponse"
     },
     {
@@ -8095,8 +8095,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_types_grade",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 212,
+      "community_name": "CascadeDelete",
       "norm_label": "grade.ts"
     },
     {
@@ -8106,8 +8106,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "electron_backend_types_grade_igradedata",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 212,
+      "community_name": "CascadeDelete",
       "norm_label": "igradedata"
     },
     {
@@ -8117,8 +8117,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "electron_backend_types_grade_iclassroomdata",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 212,
+      "community_name": "CascadeDelete",
       "norm_label": "iclassroomdata"
     },
     {
@@ -8128,8 +8128,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "electron_backend_types_grade_ibranchdata",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 212,
+      "community_name": "CascadeDelete",
       "norm_label": "ibranchdata"
     },
     {
@@ -8139,8 +8139,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "electron_backend_types_grade_igradeserviceparams",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 212,
+      "community_name": "CascadeDelete",
       "norm_label": "igradeserviceparams"
     },
     {
@@ -8150,8 +8150,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "electron_backend_types_grade_igradeserviceresponse",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 69,
+      "community_name": "AuthService",
       "norm_label": "igradeserviceresponse"
     },
     {
@@ -8447,8 +8447,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "electron_backend_types_payment_ipaymentannualconfigdata",
-      "community": 64,
-      "community_name": "grade.ts",
+      "community": 17,
+      "community_name": "PaymentService",
       "norm_label": "ipaymentannualconfigdata"
     },
     {
@@ -8788,8 +8788,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_types_schedule",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": "schedule.ts"
     },
     {
@@ -8799,8 +8799,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_backend_types_schedule_ischeduledata",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": "ischeduledata"
     },
     {
@@ -8810,8 +8810,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "electron_backend_types_schedule_ischeduleserviceresponse",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 93,
+      "community_name": ".getInstance",
       "norm_label": "ischeduleserviceresponse"
     },
     {
@@ -9250,8 +9250,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "electron_backend_utils_cascadedelete_cascadedelete",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 246,
+      "community_name": "grade.ts",
       "norm_label": "cascadedelete"
     },
     {
@@ -9261,8 +9261,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "electron_backend_utils_cascadedelete_cascadedelete_constructor",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 246,
+      "community_name": "grade.ts",
       "norm_label": ".constructor()"
     },
     {
@@ -9272,8 +9272,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "electron_backend_utils_cascadedelete_cascadedelete_gettabledisplayname",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 246,
+      "community_name": "grade.ts",
       "norm_label": ".gettabledisplayname()"
     },
     {
@@ -9283,8 +9283,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "electron_backend_utils_cascadedelete_cascadedelete_getinstance",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 246,
+      "community_name": "grade.ts",
       "norm_label": ".getinstance()"
     },
     {
@@ -9294,8 +9294,8 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "electron_backend_utils_cascadedelete_cascadedelete_delete",
-      "community": 94,
-      "community_name": "ScheduleService",
+      "community": 246,
+      "community_name": "grade.ts",
       "norm_label": ".delete()"
     },
     {
@@ -9426,8 +9426,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_command_index",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "index.ts"
     },
     {
@@ -9437,8 +9437,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_command_index_civility",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "civility"
     },
     {
@@ -9448,8 +9448,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "electron_command_index_family_situation",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "family_situation"
     },
     {
@@ -9470,8 +9470,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "electron_command_index_school_type",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "school_type"
     },
     {
@@ -9481,8 +9481,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "electron_command_index_teaching_type",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "teaching_type"
     },
     {
@@ -9492,8 +9492,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "electron_command_index_teachingassignment",
-      "community": 82,
-      "community_name": "PreferenceEntity",
+      "community": 92,
+      "community_name": "ScheduleConfigEntity",
       "norm_label": "teachingassignment"
     },
     {
@@ -9503,8 +9503,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "electron_command_index_resulttype",
-      "community": 93,
-      "community_name": ".getInstance",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "resulttype"
     },
     {
@@ -9701,8 +9701,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_config_env",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "env.ts"
     },
     {
@@ -9712,8 +9712,8 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "electron_config_env_env",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "env"
     },
     {
@@ -9723,8 +9723,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "electron_config_supabase",
-      "community": 206,
-      "community_name": "ApparenceView.spec.ts",
+      "community": 16,
+      "community_name": ".populateEntitySyncMetas",
       "norm_label": "supabase.ts"
     },
     {
@@ -9800,8 +9800,8 @@
       "source_location": "L119",
       "_origin": "ast",
       "id": "electron_data_source_appdatasource_getinstance",
-      "community": 43,
-      "community_name": "CalculatedGradeEntity",
+      "community": 122,
+      "community_name": "./sections/Attachments.vue",
       "norm_label": ".getinstance()"
     },
     {
@@ -11505,8 +11505,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "package_devdependencies_types_jsdom",
-      "community": 210,
-      "community_name": "@types/jsdom",
+      "community": 115,
+      "community_name": "devDependencies",
       "norm_label": "@types/jsdom"
     },
     {
@@ -11516,8 +11516,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "types_jsdom",
-      "community": 210,
-      "community_name": "@types/jsdom",
+      "community": 115,
+      "community_name": "devDependencies",
       "norm_label": "@types/jsdom"
     },
     {
@@ -11857,8 +11857,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "package_devdependencies_pinia",
-      "community": 115,
-      "community_name": "devDependencies",
+      "community": 251,
+      "community_name": "pinia",
       "norm_label": "pinia"
     },
     {
@@ -11868,8 +11868,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "pinia",
-      "community": 115,
-      "community_name": "devDependencies",
+      "community": 251,
+      "community_name": "pinia",
       "norm_label": "pinia"
     },
     {
@@ -13991,8 +13991,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "class-room-table.vue"
     },
     {
@@ -14002,8 +14002,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_props",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "props"
     },
     {
@@ -14013,8 +14013,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_searchform",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "searchform"
     },
     {
@@ -14024,8 +14024,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_paginator",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "paginator"
     },
     {
@@ -14035,8 +14035,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_filteredclassrooms",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "filteredclassrooms"
     },
     {
@@ -14046,8 +14046,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_gradedetailsref",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "gradedetailsref"
     },
     {
@@ -14057,8 +14057,8 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_emits",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "emits"
     },
     {
@@ -14068,8 +14068,8 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "src_components_classroom_class_room_table_handlecurrentpage",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "handlecurrentpage()"
     },
     {
@@ -14981,8 +14981,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_document_inscription",
-      "community": 212,
-      "community_name": "CascadeDelete",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "inscription.vue"
     },
     {
@@ -14992,8 +14992,8 @@
       "source_location": "L137",
       "_origin": "ast",
       "id": "src_components_document_inscription_props",
-      "community": 212,
-      "community_name": "CascadeDelete",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "props"
     },
     {
@@ -15003,8 +15003,8 @@
       "source_location": "L179",
       "_origin": "ast",
       "id": "src_components_document_inscription_currentdate",
-      "community": 212,
-      "community_name": "CascadeDelete",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "currentdate"
     },
     {
@@ -15014,8 +15014,8 @@
       "source_location": "L188",
       "_origin": "ast",
       "id": "src_components_document_inscription_formatdate",
-      "community": 212,
-      "community_name": "CascadeDelete",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "formatdate()"
     },
     {
@@ -15025,8 +15025,8 @@
       "source_location": "L198",
       "_origin": "ast",
       "id": "src_components_document_inscription_processedcontent",
-      "community": 212,
-      "community_name": "CascadeDelete",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "processedcontent"
     },
     {
@@ -15036,8 +15036,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_document_scolarite",
-      "community": 246,
-      "community_name": "grade.ts",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "scolarite.vue"
     },
     {
@@ -15047,8 +15047,8 @@
       "source_location": "L113",
       "_origin": "ast",
       "id": "src_components_document_scolarite_props",
-      "community": 246,
-      "community_name": "grade.ts",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "props"
     },
     {
@@ -15058,8 +15058,8 @@
       "source_location": "L155",
       "_origin": "ast",
       "id": "src_components_document_scolarite_currentdate",
-      "community": 246,
-      "community_name": "grade.ts",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "currentdate"
     },
     {
@@ -15069,8 +15069,8 @@
       "source_location": "L164",
       "_origin": "ast",
       "id": "src_components_document_scolarite_formatdate",
-      "community": 246,
-      "community_name": "grade.ts",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "formatdate()"
     },
     {
@@ -15080,8 +15080,8 @@
       "source_location": "L174",
       "_origin": "ast",
       "id": "src_components_document_scolarite_processedcontent",
-      "community": 246,
-      "community_name": "grade.ts",
+      "community": 38,
+      "community_name": "DocumentsView.vue",
       "norm_label": "processedcontent"
     },
     {
@@ -19117,8 +19117,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_student_school_print_template",
-      "community": 33,
-      "community_name": "StudentListView.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "school-print-template.vue"
     },
     {
@@ -19128,8 +19128,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_components_student_school_print_template_schoolinfo",
-      "community": 33,
-      "community_name": "StudentListView.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "schoolinfo"
     },
     {
@@ -19139,8 +19139,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "src_components_student_school_print_template_logopreview",
-      "community": 33,
-      "community_name": "StudentListView.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "logopreview"
     },
     {
@@ -19150,8 +19150,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "src_components_student_school_print_template_loadschoolinfo",
-      "community": 33,
-      "community_name": "StudentListView.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "loadschoolinfo()"
     },
     {
@@ -19161,8 +19161,8 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "src_components_student_school_print_template_loadlogo",
-      "community": 33,
-      "community_name": "StudentListView.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "loadlogo()"
     },
     {
@@ -19902,8 +19902,8 @@
       "source_location": "L221",
       "_origin": "ast",
       "id": "src_components_student_student_table_student",
-      "community": 45,
-      "community_name": "student-table.vue",
+      "community": 33,
+      "community_name": "StudentListView.vue",
       "norm_label": "student"
     },
     {
@@ -20727,8 +20727,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_config_reporttemplates",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "reporttemplates.ts"
     },
     {
@@ -20738,8 +20738,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "src_config_reporttemplates_reporttemplates",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "reporttemplates"
     },
     {
@@ -21288,8 +21288,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "src_routes_index_dashboardview",
-      "community": 78,
-      "community_name": "DashboardView.vue",
+      "community": 61,
+      "community_name": "index.ts",
       "norm_label": "dashboardview()"
     },
     {
@@ -22014,8 +22014,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_types_file",
-      "community": 106,
-      "community_name": "gradeService.ts",
+      "community": 250,
+      "community_name": "file.ts",
       "norm_label": "file.ts"
     },
     {
@@ -22036,8 +22036,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "src_types_file_ifileupload",
-      "community": 106,
-      "community_name": "gradeService.ts",
+      "community": 250,
+      "community_name": "file.ts",
       "norm_label": "ifileupload"
     },
     {
@@ -22047,8 +22047,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "src_types_file_ifileserviceresponse",
-      "community": 106,
-      "community_name": "gradeService.ts",
+      "community": 250,
+      "community_name": "file.ts",
       "norm_label": "ifileserviceresponse"
     },
     {
@@ -22058,8 +22058,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_types_file_ifileserviceparams",
-      "community": 106,
-      "community_name": "gradeService.ts",
+      "community": 250,
+      "community_name": "file.ts",
       "norm_label": "ifileserviceparams"
     },
     {
@@ -22069,8 +22069,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "src_types_file_ifileresponse",
-      "community": 106,
-      "community_name": "gradeService.ts",
+      "community": 250,
+      "community_name": "file.ts",
       "norm_label": "ifileresponse"
     },
     {
@@ -22179,8 +22179,8 @@
       "source_location": "L102",
       "_origin": "ast",
       "id": "src_types_grade_classroomcommand",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "classroomcommand"
     },
     {
@@ -22311,8 +22311,8 @@
       "source_location": "L235",
       "_origin": "ast",
       "id": "src_types_grade_classroomentity",
-      "community": 32,
-      "community_name": "ClassRoomView.vue",
+      "community": 31,
+      "community_name": "gradeEntryService.ts",
       "norm_label": "classroomentity"
     },
     {
@@ -22498,8 +22498,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_types_index",
-      "community": 97,
-      "community_name": "card.ts",
+      "community": 103,
+      "community_name": "themeStore.spec.ts",
       "norm_label": "index.ts"
     },
     {
@@ -22861,8 +22861,8 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "src_types_professor_iprofessorserviceresponse",
-      "community": 22,
-      "community_name": "shared.ts",
+      "community": 11,
+      "community_name": "professor.ts",
       "norm_label": "iprofessorserviceresponse"
     },
     {
@@ -23004,8 +23004,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_types_report",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "report.ts"
     },
     {
@@ -23015,8 +23015,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "src_types_report_reportcard",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "reportcard"
     },
     {
@@ -23026,8 +23026,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "src_types_report_gradedata",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "gradedata"
     },
     {
@@ -23037,8 +23037,8 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "src_types_report_reportcarddata",
-      "community": 106,
-      "community_name": "gradeService.ts",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "reportcarddata"
     },
     {
@@ -23048,8 +23048,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "src_types_report_generatereportcardsinput",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "generatereportcardsinput"
     },
     {
@@ -23059,8 +23059,8 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "src_types_report_generatereportcardinput",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "generatereportcardinput"
     },
     {
@@ -23070,8 +23070,8 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "src_types_report_savestudentgradesinput",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "savestudentgradesinput"
     },
     {
@@ -23092,8 +23092,8 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "src_types_report_reportcardtemplate",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "reportcardtemplate"
     },
     {
@@ -23103,8 +23103,8 @@
       "source_location": "L87",
       "_origin": "ast",
       "id": "src_types_report_conductdata",
-      "community": 9,
-      "community_name": "ReportTemplateThree.vue",
+      "community": 206,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "conductdata"
     },
     {
@@ -23224,8 +23224,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_types_shared",
-      "community": 71,
-      "community_name": "professor-form.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "shared.ts"
     },
     {
@@ -23246,8 +23246,8 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "src_types_shared_ifiltercriteria",
-      "community": 33,
-      "community_name": "StudentListView.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "ifiltercriteria"
     },
     {
@@ -23312,8 +23312,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "src_types_shared_teaching_type",
-      "community": 71,
-      "community_name": "professor-form.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "teaching_type"
     },
     {
@@ -23323,8 +23323,8 @@
       "source_location": "L81",
       "_origin": "ast",
       "id": "src_types_shared_teachingtype",
-      "community": 71,
-      "community_name": "professor-form.vue",
+      "community": 22,
+      "community_name": "shared.ts",
       "norm_label": "teachingtype"
     },
     {
@@ -23334,8 +23334,8 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "src_types_shared_civility",
-      "community": 53,
-      "community_name": "professor-table.vue",
+      "community": 84,
+      "community_name": "ProfessorDetailsView.vue",
       "norm_label": "civility"
     },
     {
@@ -23510,8 +23510,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "src_types_student_istudentfile",
-      "community": 45,
-      "community_name": "student-table.vue",
+      "community": 33,
+      "community_name": "StudentListView.vue",
       "norm_label": "istudentfile"
     },
     {
@@ -24478,8 +24478,8 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "src_views_file_classroomview_refreshclassrooms",
-      "community": 27,
-      "community_name": ".hideLoader",
+      "community": 32,
+      "community_name": "ClassRoomView.vue",
       "norm_label": "refreshclassrooms()"
     },
     {
@@ -24500,8 +24500,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "src_views_file_classroomview_newclassroom",
-      "community": 27,
-      "community_name": ".hideLoader",
+      "community": 32,
+      "community_name": "ClassRoomView.vue",
       "norm_label": "newclassroom()"
     },
     {
@@ -24511,8 +24511,8 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "src_views_file_classroomview_updateclassroom",
-      "community": 27,
-      "community_name": ".hideLoader",
+      "community": 32,
+      "community_name": "ClassRoomView.vue",
       "norm_label": "updateclassroom()"
     },
     {
@@ -24522,8 +24522,8 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "src_views_file_classroomview_deleteclassroom",
-      "community": 27,
-      "community_name": ".hideLoader",
+      "community": 32,
+      "community_name": "ClassRoomView.vue",
       "norm_label": "deleteclassroom()"
     },
     {
@@ -24533,8 +24533,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_views_file_courseview",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "courseview.vue"
     },
     {
@@ -24544,8 +24544,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "src_views_file_courseview_newcourseformref",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "newcourseformref"
     },
     {
@@ -24555,8 +24555,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_views_file_courseview_updatecourseformref",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "updatecourseformref"
     },
     {
@@ -24566,8 +24566,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_views_file_courseview_courses",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "courses"
     },
     {
@@ -24577,8 +24577,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_views_file_courseview_loading",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "loading"
     },
     {
@@ -24588,8 +24588,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "src_views_file_courseview_opennewcourseform",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "opennewcourseform()"
     },
     {
@@ -24599,8 +24599,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_views_file_courseview_openupdatecourseform",
-      "community": 77,
-      "community_name": "CourseView.vue",
+      "community": 27,
+      "community_name": ".hideLoader",
       "norm_label": "openupdatecourseform()"
     },
     {
@@ -26920,8 +26920,8 @@
       "source_location": "L108",
       "_origin": "ast",
       "id": "src_views_omboarding_gradeview_savegrades",
-      "community": 27,
-      "community_name": ".hideLoader",
+      "community": 90,
+      "community_name": "GradeView.vue",
       "norm_label": "savegrades()"
     },
     {
@@ -28185,15 +28185,15 @@
       "source_location": "L393",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_loadschedules",
-      "community": 14,
-      "community_name": "AbsenceProfView.vue",
+      "community": 124,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "loadschedules()"
     },
     {
       "label": "hasSchedule()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L431",
+      "source_location": "L474",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_hasschedule",
       "community": 124,
@@ -28204,7 +28204,7 @@
       "label": "getClassInfo()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L437",
+      "source_location": "L480",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_getclassinfo",
       "community": 124,
@@ -28215,7 +28215,7 @@
       "label": "handleAbsenceChange()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L447",
+      "source_location": "L490",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_handleabsencechange",
       "community": 14,
@@ -28226,7 +28226,7 @@
       "label": "confirmReason()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L471",
+      "source_location": "L514",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_confirmreason",
       "community": 14,
@@ -28237,7 +28237,7 @@
       "label": "cancelReason()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L492",
+      "source_location": "L535",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_cancelreason",
       "community": 14,
@@ -28248,7 +28248,7 @@
       "label": "getSelectedAbsencesCount()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L506",
+      "source_location": "L549",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_getselectedabsencescount",
       "community": 14,
@@ -28259,7 +28259,7 @@
       "label": "resetAll()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L512",
+      "source_location": "L555",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_resetall",
       "community": 14,
@@ -28270,18 +28270,18 @@
       "label": "saveAbsences()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L525",
+      "source_location": "L568",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_saveabsences",
-      "community": 14,
-      "community_name": "AbsenceProfView.vue",
+      "community": 124,
+      "community_name": "ApparenceView.spec.ts",
       "norm_label": "saveabsences()"
     },
     {
       "label": "handleFilter()",
       "file_type": "code",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L571",
+      "source_location": "L615",
       "_origin": "ast",
       "id": "src_views_planning_professor_absenceprofview_handlefilter",
       "community": 14,
@@ -31122,8 +31122,8 @@
       "source_location": "L443",
       "_origin": "ast",
       "id": "src_views_professor_professorpaymentview_printpayslip",
-      "community": 42,
-      "community_name": "ProfessorPaymentView.vue",
+      "community": 58,
+      "community_name": "PaymentHistory.vue",
       "norm_label": "printpayslip()"
     },
     {
@@ -32365,8 +32365,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_views_student_studentlistview_studenttableitem",
-      "community": 45,
-      "community_name": "student-table.vue",
+      "community": 33,
+      "community_name": "StudentListView.vue",
       "norm_label": "studenttableitem"
     },
     {
@@ -34345,8 +34345,8 @@
       "source_location": "L1068",
       "_origin": "ast",
       "id": "src_views_tools_printandmodelview_generatebulletinshtml",
-      "community": 113,
-      "community_name": "handlePrint",
+      "community": 107,
+      "community_name": "getAppreciation",
       "norm_label": "generatebulletinshtml()"
     },
     {
@@ -80385,7 +80385,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L439",
+      "source_location": "L482",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview_getclassinfo",
@@ -80397,7 +80397,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L433",
+      "source_location": "L476",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview_hasschedule",
@@ -80409,7 +80409,19 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L533",
+      "source_location": "L429",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "src_views_planning_professor_absenceprofview_loadschedules",
+      "target": "src_composables_usescheduleslots_normslot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/views/planning/professor/AbsenceProfView.vue",
+      "source_location": "L576",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview_saveabsences",
@@ -90932,7 +90944,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L492",
+      "source_location": "L535",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -90954,7 +90966,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L471",
+      "source_location": "L514",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91009,7 +91021,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L437",
+      "source_location": "L480",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91031,7 +91043,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L506",
+      "source_location": "L549",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91064,7 +91076,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L447",
+      "source_location": "L490",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91075,7 +91087,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L571",
+      "source_location": "L615",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91086,7 +91098,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L431",
+      "source_location": "L474",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91251,7 +91263,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L512",
+      "source_location": "L555",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91262,7 +91274,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L525",
+      "source_location": "L568",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview",
@@ -91340,11 +91352,11 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/views/planning/professor/AbsenceProfView.vue",
-      "source_location": "L559",
+      "source_location": "L603",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_planning_professor_absenceprofview_saveabsences",
-      "target": "src_views_planning_professor_absenceprofview_resetall",
+      "target": "src_views_planning_professor_absenceprofview_loadschedules",
       "confidence_score": 1.0
     },
     {

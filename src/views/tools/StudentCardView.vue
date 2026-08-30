@@ -452,8 +452,10 @@ const loadData = async () => {
       grades.value = gradesResult.data;
     }
 
-    if (studentsResult.success) {
-      students.value = await Promise.all(studentsResult.data.map(async (student: Student) => {
+    // P0 FIX: tolerant - studentsResult may be array or {students,total}
+    if (studentsResult.success !== false && studentsResult.data !== undefined) {
+      const rawStudents: Student[] = Array.isArray(studentsResult.data) ? studentsResult.data : (studentsResult.data.students ?? []);
+      students.value = await Promise.all(rawStudents.map(async (student: Student) => {
         const processedStudent = { ...student };
         if (student.photo?.id) {
           const photoResult = await window.ipcRenderer.invoke('getStudentPhoto', student.photo.id);

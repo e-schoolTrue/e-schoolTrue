@@ -393,6 +393,7 @@ export class LicenseService {
             let expiryDate: string | null = null;
             let maxStations: number | null = null;
 
+            let statusMessage: string | null = null;
             if (masterToken !== null) {
                 // Licence maître stockée : poste principal, ou poste sub héritant
                 // d'une ancienne version (qui stockait la maître).
@@ -400,8 +401,9 @@ export class LicenseService {
                 try {
                     master = verifyMaster(masterToken);
                 } catch (error) {
-                    console.error('[LicenseService] Licence maître stockée invalide :', error);
-                    return { success: true, data: baseData({}) };
+                    const msg = errorMessage(error, 'Licence maître stockée invalide.');
+                    console.error('[LicenseService] Licence maître stockée invalide :', msg, error);
+                    return { success: true, message: msg, data: baseData({}) };
                 }
 
                 const masterMachine = await this.store.getItem(STORE_MASTER_MACHINE);
@@ -416,6 +418,7 @@ export class LicenseService {
                     customer = master.cust;
                     expiryDate = master.expiresAt;
                     maxStations = master.maxStations;
+                    if (!stationValid) statusMessage = `Licence expirée depuis le ${master.expiresAt}.`;
                 } else {
                     // Poste non principal : le statut est gouverné par la sous-licence locale
                     const subStatus = this.evaluateSubStatus(subs, subKeys, machineId);
@@ -425,6 +428,7 @@ export class LicenseService {
                     customer = subStatus.customer;
                     expiryDate = subStatus.expiryDate;
                     maxStations = subStatus.maxStations;
+                    statusMessage = (subStatus as any).message ?? null;
                 }
             } else {
                 // Aucune maître stockée : poste sub (le nouveau design ne stocke
@@ -436,6 +440,7 @@ export class LicenseService {
                 customer = subStatus.customer;
                 expiryDate = subStatus.expiryDate;
                 maxStations = subStatus.maxStations;
+                statusMessage = (subStatus as any).message ?? null;
             }
 
             // 3. Anti-rollback horloge : refuser si l'horloge a reculé de plus de
@@ -479,10 +484,11 @@ export class LicenseService {
 
             const remaining = expiryDate !== null ? daysRemaining(expiryDate) : null;
 
-            // 4. Poste non reconnu (ni maître, ni sous-licence valide)
+            // 4. Poste non reconnu (ni maître, ni sous-licence valide) — propage message de validation
             if (!stationValid) {
                 return {
                     success: true,
+                    message: statusMessage ?? (licenseType === null ? 'Veuillez activer une licence.' : 'Votre licence est invalide ou expirée.'),
                     data: baseData({
                         licenseType,
                         customer,
@@ -765,6 +771,7 @@ export class LicenseService {
         customer: string | null;
         expiryDate: string | null;
         maxStations: number | null;
+        message?: string | null;
     } {
         // Essayer d'abord l'empreinte actuelle, sinon legacy (rétro-compat)
         let subToken = subs[machineId];
@@ -789,6 +796,7 @@ export class LicenseService {
                 customer: null,
                 expiryDate: null,
                 maxStations: null,
+                message: null,
             };
         }
         try {
@@ -801,8 +809,10 @@ export class LicenseService {
                 customer: sub.cust ?? null,
                 expiryDate: sub.expiresAt,
                 maxStations: sub.maxStations ?? null,
+                message: valid ? null : `Sous-licence expirée depuis le ${sub.expiresAt}.`,
             };
         } catch (error) {
+            const msg = errorMessage(error, 'Sous-licence invalide pour cette machine.');
             // Si échec avec empreinte actuelle, tenter legacy si différent
             try {
                 const legacyId = buildMachineFingerprintLegacy();
@@ -816,10 +826,12 @@ export class LicenseService {
                         customer: subLegacy.cust ?? null,
                         expiryDate: subLegacy.expiresAt,
                         maxStations: subLegacy.maxStations ?? null,
+                        message: valid ? null : `Sous-licence expirée depuis le ${subLegacy.expiresAt}.`,
                     };
                 }
             } catch {}
-            console.warn('[LicenseService] Sous-licence du poste invalide :', error);
+            const msg2 = errorMessage(error, 'Sous-licence invalide pour cette machine.');
+            console.warn('[LicenseService] Sous-licence du poste invalide :', msg2, error);
             // Jeton présent mais invalide ou expiré : poste « sub » défaillant
             return {
                 licenseType: 'sub',
@@ -828,6 +840,7 @@ export class LicenseService {
                 customer: null,
                 expiryDate: null,
                 maxStations: null,
+                message: msg2,
             };
         }
     }

@@ -206,7 +206,7 @@ onMounted(() => {
           <el-option
             v-for="course in courses"
             :key="course.id"
-            :label="course.name"
+            :label="`${course.name} (${(course as any).type ? String((course as any).type).charAt(0).toUpperCase() + String((course as any).type).slice(1).toLowerCase() : (schoolType ? String(schoolType).charAt(0).toUpperCase() + String(schoolType).slice(1).toLowerCase() : 'Matière')}${(course as any).coefficient ? ', ' + (course as any).coefficient : ''})`"
             :value="course.id"
           />
         </el-select>

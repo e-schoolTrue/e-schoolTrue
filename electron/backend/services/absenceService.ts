@@ -1,4 +1,5 @@
 import { Between, Repository, Not, IsNull, DeepPartial } from 'typeorm';
+import { logger } from "../utils/logger";
 import { AbsenceEntity } from '../entities/absence';
 import { AppDataSource } from '../../data-source';
 import { StudentEntity } from '../entities/students';
@@ -50,8 +51,8 @@ export class AbsenceService {
     async addAbsence(absenceData: IAbsenceServiceParams['addAbsence']): Promise<IAbsenceServiceResponse> {
         const UserId = getCurrentSupabaseUserId();
         try {
-            console.log('=== Service - Début addAbsence ===');
-            console.log('Données reçues:', absenceData);
+            logger.debug('=== Service - Début addAbsence ===');
+            logger.debug('addAbsence called', { hasData: !!absenceData });
 
             const dataSource = AppDataSource.getInstance();
             const absenceRepo = dataSource.getRepository(AbsenceEntity);
@@ -63,7 +64,7 @@ export class AbsenceService {
                 where: { id: absenceData.studentId },
                 relations: ['grade']
             });
-            console.log('Étudiant trouvé:', student);
+            logger.debug('Étudiant trouvé', { id: student?.id });
 
             if (!student) {
                 return {
@@ -118,7 +119,7 @@ export class AbsenceService {
                 document: documentEntity
             } as DeepPartial<AbsenceEntity>);
 
-            console.log('Nouvelle absence à sauvegarder:', newAbsence);
+            logger.debug('Nouvelle absence à sauvegarder', { date: newAbsence.date });
             const savedAbsence = await absenceRepo.save(newAbsence);
 
             // Recharger l'absence avec toutes les relations
@@ -132,7 +133,7 @@ export class AbsenceService {
                 ]
             });
 
-            console.log('Absence sauvegardée avec relations:', completeAbsence);
+            logger.debug('Absence sauvegardée', { id: completeAbsence?.id });
 
             return {
                 success: true,
@@ -141,7 +142,7 @@ export class AbsenceService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur détaillée dans addAbsence:", error);
+            logger.error("Erreur détaillée dans addAbsence:", error);
             return {
                 success: false,
                 data: null,
@@ -286,15 +287,16 @@ export class AbsenceService {
                     };
                 }
 
-                const hours = this.calculateAbsenceHours(absence);
+                // Comptage par créneau (1 par absence) et non par heure
+                const slots = 1;
                 
                 acc[studentId].totalAbsences++;
-                acc[studentId].totalHours += hours;
+                acc[studentId].totalHours += slots;
                 
                 if (absence.justified) {
-                    acc[studentId].justified += hours;
+                    acc[studentId].justified += slots;
                 } else {
-                    acc[studentId].unjustified += hours;
+                    acc[studentId].unjustified += slots;
                 }
 
                 return acc;
@@ -303,7 +305,7 @@ export class AbsenceService {
             // Convertir en tableau et trier par nombre d'heures d'absence décroissant
             return Object.values(groupedData).sort((a, b) => b.totalHours - a.totalHours);
         } catch (error) {
-            console.error("Erreur lors du calcul des totaux d'absences par élève:", error);
+            logger.error("Erreur lors du calcul des totaux d'absences par élève:", error);
             throw error;
         }
     }
@@ -349,10 +351,10 @@ export class AbsenceService {
                 .addOrderBy('absence.created_at', 'DESC')
                 .getMany();
 
-            console.log(`Absences de type ${type} récupérées: ${absences.length}`);
+            logger.debug(`Absences de type ${type} récupérées: ${absences.length}`);
             if (type === 'PROFESSOR' && absences.length > 0) {
                 const sample = absences[0];
-                console.log('Exemple d\'absence professeur:', {
+                logger.debug('Exemple d\'absence professeur:', {
                     id: sample.id,
                     professorId: sample.professor?.id,
                     hasTeaching: !!sample.professor?.teaching && sample.professor.teaching.length > 0,
@@ -373,7 +375,7 @@ export class AbsenceService {
                 error: null
             };
         } catch (error) {
-            console.error(`Erreur lors de la récupération des absences de type ${type}:`, error);
+            logger.error(`Erreur lors de la récupération des absences de type ${type}:`, error);
             return {
                 success: false,
                 data: null,
@@ -406,7 +408,7 @@ export class AbsenceService {
                 reasonType: data.reasonType,
                 justified: data.justified,
                 professor: { id: data.professorId } as ProfessorEntity,
-                grade: professorAbsenceData.gradeId ? { id: professorAbsenceData.gradeId } as GradeEntity : undefined,
+                ...(Number.isFinite(professorAbsenceData.gradeId) && (professorAbsenceData.gradeId as number) > 0 ? { grade: { id: Number(professorAbsenceData.gradeId) } as GradeEntity } : {}),
                 document: documentEntity || undefined,
                 type: 'PROFESSOR'
             } as DeepPartial<AbsenceEntity>);
@@ -570,7 +572,7 @@ export class AbsenceService {
                     justified: data.justified,
                     reasonType: data.reasonType,
                     professor: { id: data.professorId } as ProfessorEntity,
-                    ...(data.gradeId ? { grade: { id: data.gradeId } as GradeEntity } : {}),
+                    ...(Number.isFinite(data.gradeId) && (data.gradeId as number) > 0 ? { grade: { id: Number(data.gradeId) } as GradeEntity } : {}),
                     type: 'PROFESSOR'
                 } as DeepPartial<AbsenceEntity>);
             });

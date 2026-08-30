@@ -268,21 +268,17 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     };
   }) => {
     try {
-      // Fournir des valeurs par défaut si options est undefined ou partiel
       const defaultOptions = {
         page: options?.page || 1,
-        pageSize: options?.pageSize || 1000, // Grande valeur par défaut pour récupérer tous les étudiants
+        pageSize: options?.pageSize || 1000,
         filters: options?.filters || {}
       };
 
       const { students, total } = await global.studentService.getAllStudents(defaultOptions);
 
-      // Pour la compatibilité avec l'ancien code qui attend directement un tableau
-      if (!options) {
-        return { success: true, data: students, message: "Étudiants récupérés" };
-      }
-
-      return { success: true, data: { students, total }, message: "Étudiants récupérés" };
+      // P0 FIX: always return consistent envelope {success, data:{students,total}, error, message}
+      // Frontend callers are made tolerant to both array and object shapes for backward compat.
+      return { success: true, data: { students, total }, error: null, message: "Étudiants récupérés" };
     } catch (error) {
       return handleError(error, "student:all");
     }
@@ -788,9 +784,13 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
   ipcMain.handle('is-first-launch', () => {
-    const isFirst = ConfigService.getInstance().isFirstLaunch();
-    console.log(`[IPC] Réponse à 'is-first-launch': ${isFirst}`);
-    return { data: isFirst };
+    try {
+      const isFirst = ConfigService.getInstance().isFirstLaunch();
+      console.log(`[IPC] Réponse à 'is-first-launch': ${isFirst}`);
+      return { success: true, data: isFirst, error: null, message: '' };
+    } catch (error) {
+      return handleError(error, 'is-first-launch');
+    }
   });
   ipcMain.handle("set-first-launch-complete", () => {
     ConfigService.getInstance().setFirstLaunchComplete();

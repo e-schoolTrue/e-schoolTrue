@@ -778,9 +778,13 @@ const loadStudentGradesForPreview = async (student: Student) => {
             console.log(`⚠️ Pas de categoryBreakdown pour ${course.name}:`, avgRes.data);
           }
 
+          const courseTypeForName = (course as any).type || course.grades?.[0]?.type || (course as any).grade?.type || '';
+          const courseTypeLabel = courseTypeForName ? String(courseTypeForName).charAt(0).toUpperCase() + String(courseTypeForName).slice(1).toLowerCase() : '';
+          const courseCoeffForName = course.coefficient ? `, ${course.coefficient}` : '';
+          const displayCourseName = courseTypeLabel ? `${course.name} (${courseTypeLabel}${courseCoeffForName})` : (courseCoeffForName ? `${course.name} (${courseCoeffForName.slice(2)})` : course.name);
           gradesResults.push({
             courseId: course.id,
-            courseName: course.name,
+            courseName: displayCourseName,
             coefficient: course.coefficient || 1,
             average: avgRes.data.finalAverage,
             classAverage: classAverage,
@@ -877,9 +881,13 @@ const loadAnnualData = async (student: Student, currentGrades: GradeData[]) => {
         period: prevPeriod
       });
       if (avgRes.success && avgRes.data && avgRes.data.finalAverage > 0) {
+        const s1TypeForName = (course as any).type || course.grades?.[0]?.type || (course as any).grade?.type || '';
+        const s1TypeLabel = s1TypeForName ? String(s1TypeForName).charAt(0).toUpperCase() + String(s1TypeForName).slice(1).toLowerCase() : '';
+        const s1CoeffForName = course.coefficient ? `, ${course.coefficient}` : '';
+        const s1DisplayName = s1TypeLabel ? `${course.name} (${s1TypeLabel}${s1CoeffForName})` : (s1CoeffForName ? `${course.name} (${s1CoeffForName.slice(2)})` : course.name);
         s1Grades.push({
           courseId: course.id,
-          courseName: course.name,
+          courseName: s1DisplayName,
           coefficient: course.coefficient || 1,
           average: avgRes.data.finalAverage,
           classAverage: 0,
@@ -2597,9 +2605,13 @@ const handlePrint = async () => {
               console.log('💾 Extraction categoryGrades APRÈS:', categoryGrades);
             }
 
+            const bulkTypeForName = (course as any).type || course.grades?.[0]?.type || (course as any).grade?.type || '';
+            const bulkTypeLabel = bulkTypeForName ? String(bulkTypeForName).charAt(0).toUpperCase() + String(bulkTypeForName).slice(1).toLowerCase() : '';
+            const bulkCoeffForName = course.coefficient ? `, ${course.coefficient}` : '';
+            const bulkDisplayName = bulkTypeLabel ? `${course.name} (${bulkTypeLabel}${bulkCoeffForName})` : (bulkCoeffForName ? `${course.name} (${bulkCoeffForName.slice(2)})` : course.name);
             studentGrades.push({
               courseId: course.id,
-              courseName: course.name,
+              courseName: bulkDisplayName,
               coefficient: course.coefficient || 1,
               average: avgRes.data.finalAverage,
               classAverage: classAverage,
@@ -3066,14 +3078,44 @@ onMounted(() => {
   border-radius: 12px;
   padding: 24px;
   min-height: calc(100vh - 280px);
+  max-height: calc(100vh - 180px);
   overflow: auto;
+  /* Permet le scroll quand le contenu A4 dépasse */
 }
 
 .preview-scaler {
-  transform: scale(0.55);
+  transform: scale(0.72);
   transform-origin: top center;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   border-radius: 4px;
+  /* A4 réel 210mm, le scale 0.72 donne ~151mm visible, lisible sans débordement */
+  width: 210mm;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1400px) {
+  .preview-scaler {
+    transform: scale(0.60);
+  }
+}
+
+@media (max-width: 1100px) {
+  .preview-scaler {
+    transform: scale(0.50);
+  }
+}
+
+@media print {
+  .preview-container {
+    background: white;
+    padding: 0;
+    overflow: visible;
+  }
+  .preview-scaler {
+    transform: none;
+    width: 100%;
+    box-shadow: none;
+  }
 }
 
 /* Empty states */

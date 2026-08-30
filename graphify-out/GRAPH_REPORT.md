@@ -1,16 +1,16 @@
 # Graph Report - e-schoolTrue  (2026-08-21)
 
 ## Corpus Check
-- 304 files · ~315,191 words
+- 315 files · ~337,703 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3329 nodes · 5569 edges · 252 communities (185 shown, 67 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 176 edges (avg confidence: 0.74)
+- 3413 nodes · 5715 edges · 243 communities (176 shown, 67 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 179 edges (avg confidence: 0.74)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5dbc288f`
+- Built from commit: `3cfcf7f6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -219,13 +219,9 @@
 - @noble/ed25519
 - @noble/hashes
 - node-machine-id
-- ApparenceView.spec.ts
-- @supabase/supabase-js
 - typeorm
 - supabase.ts
-- @types/jsdom
 - pinia
-- CascadeDelete
 - qrcode.vue
 - tsx
 - ./sections/SchoolInfo.vue
@@ -234,7 +230,6 @@
 - unplugin-auto-import
 - unplugin-element-plus
 - unplugin-icons
-- unplugin-vue-components
 - vite
 - vite-plugin-electron
 - vite-plugin-electron-renderer
@@ -246,30 +241,28 @@
 - vue-html-to-paper
 - vue-router
 - @vue/test-utils
-- OnboardingView.vue
 - shims-vue.d.ts
 - document.ts
 - ValidateAccountView.vue
-- grade.ts
 - @supabase/supabase-js
-- reflect-metadata
 - @pinia/testing
-- file.ts
 - pinia
 
 ## God Nodes (most connected - your core abstractions)
-1. `GradeEntity` - 66 edges
+1. `GradeEntity` - 68 edges
 2. `CourseEntity` - 57 edges
-3. `StudentEntity` - 56 edges
-4. `ProfessorEntity` - 49 edges
-5. `CloudSyncService` - 37 edges
-6. `PaymentService` - 37 edges
-7. `ResultType` - 35 edges
-8. `AppDataSource` - 33 edges
-9. `AbsenceEntity` - 30 edges
+3. `StudentEntity` - 57 edges
+4. `ProfessorEntity` - 50 edges
+5. `PaymentService` - 38 edges
+6. `CloudSyncService` - 37 edges
+7. `AppDataSource` - 37 edges
+8. `ResultType` - 35 edges
+9. `AbsenceEntity` - 31 edges
 10. `FileEntity` - 29 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `createWrapper()` --indirect_call--> `TeachingAssignment`  [INFERRED]
+  src/components/professor/sections/__tests__/TeachingAssignment.spec.ts → electron/command/index.ts
 - `exportToPdf()` --references--> `jspdf`  [EXTRACTED]
   src/views/student/PaymentManagementView.vue → package.json
 - `exportToExcel()` --references--> `xlsx`  [EXTRACTED]
@@ -278,41 +271,39 @@
   src/components/professor/professor-table.vue → package.json
 - `handleFileSelect()` --references--> `xlsx`  [EXTRACTED]
   src/components/student/student-file.vue → package.json
-- `handleExport()` --references--> `xlsx`  [EXTRACTED]
-  src/components/student/student-table.vue → package.json
 
 ## Import Cycles
 - None detected.
 
-## Communities (252 total, 67 thin omitted)
+## Communities (243 total, 67 thin omitted)
 
 ### Community 0 - "license-cli.ts"
 Cohesion: 0.06
-Nodes (65): assertCommonFields(), base64UrlDecode(), base64UrlEncode(), buildMachineFingerprint(), daysRemaining(), decodePayload(), deriveSubPublicKey(), deriveSubSignKey() (+57 more)
+Nodes (66): assertCommonFields(), base64UrlDecode(), base64UrlEncode(), buildMachineFingerprint(), buildMachineFingerprintLegacy(), daysRemaining(), decodePayload(), deriveSubPublicKey() (+58 more)
 
 ### Community 1 - "data-source.ts"
-Cohesion: 0.15
+Cohesion: 0.16
 Nodes (12): ScholarshipEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn (+4 more)
 
 ### Community 2 - "CloudSyncService"
 Cohesion: 0.10
-Nodes (8): BackupEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, CloudSyncService, isValidUuid()
+Nodes (10): BackupEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, getCurrentSchemaName(), getSchemaClient() (+2 more)
 
 ### Community 3 - "PrintAndModelView.vue"
 Cohesion: 0.03
 Nodes (54): AbsenceData, absencesByStudent, classAverage, classes, colorOptions, countryHeaderMap, courses, currentTemplateComponent (+46 more)
 
 ### Community 4 - "GradeEntity"
-Cohesion: 0.10
-Nodes (25): CourseEntity, ObservationEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, JoinTable (+17 more)
+Cohesion: 0.12
+Nodes (19): CourseEntity, ObservationEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, JoinTable (+11 more)
 
 ### Community 5 - "FileEntity"
-Cohesion: 0.13
-Nodes (14): activeStep, emit, form, formRef, goToStep(), handleSubmit(), loading, nextStep() (+6 more)
+Cohesion: 0.10
+Nodes (15): activeStep, emit, form, formRef, goToStep(), handleSubmit(), loading, nextStep() (+7 more)
 
 ### Community 6 - "ProfessorEntity"
-Cohesion: 0.10
-Nodes (32): DiplomaEntity, ProfessorEntity, QualificationEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn (+24 more)
+Cohesion: 0.11
+Nodes (30): DiplomaEntity, ProfessorEntity, QualificationEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn (+22 more)
 
 ### Community 7 - "PlanningConfigView.vue"
 Cohesion: 0.06
@@ -323,8 +314,8 @@ Cohesion: 0.05
 Nodes (40): ./*, auto-imports.d.ts, DOM, DOM.Iterable, ./node_modules/@types, node_modules/unplugin-auto-import/auto-imports.d.ts, src/**/*.ts, src/**/*.tsx (+32 more)
 
 ### Community 9 - "ReportTemplateThree.vue"
-Cohesion: 0.14
-Nodes (4): Props, getCountryInfo, Props, SchoolInfo
+Cohesion: 0.10
+Nodes (12): Props, getCountryInfo, Props, reportTemplates, ConductData, GenerateReportCardInput, GenerateReportCardsInput, GradeData (+4 more)
 
 ### Community 10 - "note-config-service.ts"
 Cohesion: 0.12
@@ -332,11 +323,11 @@ Nodes (25): CalculationStrategy, EvaluationCategoryEntity, GradingConfigEntity, 
 
 ### Community 11 - "professor.ts"
 Cohesion: 0.11
-Nodes (27): Teaching, IProfessorData, IProfessorDetails, IProfessorFile, IProfessorServiceParams, IProfessorServiceResponse, IProfessorStatistics, ROLE (+19 more)
+Nodes (26): Teaching, IProfessorData, IProfessorDetails, IProfessorFile, IProfessorServiceParams, IProfessorStatistics, ROLE, CivilityType (+18 more)
 
 ### Community 12 - "PaymentManagementView.vue"
 Cohesion: 0.05
-Nodes (20): classConfigs, currentPage, dailyReportVisible, Filters, Grade, grades, historyDialogVisible, loading (+12 more)
+Nodes (36): classConfigs, currentPage, dailyReportVisible, exportToExcel(), exportToPdf(), Filters, formatCurrency(), formatCurrencySimple() (+28 more)
 
 ### Community 13 - "PayementConfigurationView.vue"
 Cohesion: 0.07
@@ -350,13 +341,9 @@ Nodes (21): formatTimeSlotForDisplay(), AbsenceInfo, classes, defaultTimeSlots, 
 Cohesion: 0.06
 Nodes (29): CentralizedRanking, classAverage, classConfig, Course, courses, currentClass, currentPage, exportingExcel (+21 more)
 
-### Community 16 - ".populateEntitySyncMetas"
-Cohesion: 0.07
-Nodes (16): Column, Entity, PrimaryGeneratedColumn, UserEntity, setCurrentSupabaseUserId(), electronStore, getSchemaClient(), SchemaClient (+8 more)
-
 ### Community 17 - "PaymentService"
-Cohesion: 0.08
-Nodes (25): ProfessorPaymentEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn (+17 more)
+Cohesion: 0.13
+Nodes (12): PaymentService, IInscriptionFee, IPaymentConfigData, IPaymentData, IPaymentFee, IPaymentServiceParams, IPaymentServiceResponse, IProfessorPaymentData (+4 more)
 
 ### Community 18 - "ReportCardView.vue"
 Cohesion: 0.06
@@ -367,7 +354,7 @@ Cohesion: 0.13
 Nodes (14): countries, fileInput, foundationYears, hasChanges, initialSchoolInfo, isEditMode, isLoading, isSaving (+6 more)
 
 ### Community 20 - "ResultType"
-Cohesion: 0.19
+Cohesion: 0.18
 Nodes (12): Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, YearRepartitionEntity, YearRepartitionService, PeriodConfiguration (+4 more)
 
 ### Community 21 - "AbsenceForm.vue"
@@ -375,16 +362,16 @@ Cohesion: 0.07
 Nodes (24): Absence, AbsenceFormData, AbsenceSubmitData, absenceTypes, availableCourses, Course, dialogVisible, emit (+16 more)
 
 ### Community 22 - "shared.ts"
-Cohesion: 0.11
-Nodes (30): loadLogo(), loadSchoolInfo(), logoPreview, schoolInfo, IAbsenceData, IAbsenceServiceParams, IAbsenceStatistics, IRecentAbsence (+22 more)
+Cohesion: 0.09
+Nodes (34): applyFilter(), emit, filterForm, grades, loading, resetFilter(), schoolYearOptions, IAbsenceData (+26 more)
 
 ### Community 23 - "LicenseStatusView.vue"
 Cohesion: 0.06
 Nodes (25): ActivateResponse, activationType, daysRemaining, generatedLicenseCode, GenerateSubResponse, GetDetailsResponse, GetStatusResponse, isGenerating (+17 more)
 
 ### Community 24 - "AbsenceEntity"
-Cohesion: 0.19
-Nodes (3): AbsenceService, IAbsenceServiceParams, IAbsenceServiceResponse
+Cohesion: 0.12
+Nodes (12): AbsenceEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn (+4 more)
 
 ### Community 25 - "compilerOptions"
 Cohesion: 0.07
@@ -392,11 +379,11 @@ Nodes (29): dist, electron/**/*.ts, node_modules, compilerOptions, allowSyntheti
 
 ### Community 26 - "PaymentDialog.vue"
 Cohesion: 0.09
-Nodes (28): { currency }, dialogTitle, dialogVisible, emit, form, formRef, getAdjustedTotalAmountDue(), getMaxAmountToPay (+20 more)
+Nodes (26): { currency }, dialogTitle, dialogVisible, emit, form, formRef, getAdjustedTotalAmountDue(), getMaxAmountToPay (+18 more)
 
 ### Community 27 - ".hideLoader"
-Cohesion: 0.15
-Nodes (20): courses, fetchCourses(), handleAddToGroup(), handleDeleteCourse(), handleNewCourse(), handleUpdateCourse(), loading, newCourseFormRef (+12 more)
+Cohesion: 0.12
+Nodes (26): Loader, deleteClassRoom(), newClassRoom(), refreshClassRooms(), updateClassRoom(), courses, fetchCourses(), handleAddToGroup() (+18 more)
 
 ### Community 28 - "HomeworkView.vue"
 Cohesion: 0.07
@@ -407,24 +394,24 @@ Cohesion: 0.08
 Nodes (24): AnnualDiscipline, AnnualDistinctions, AnnualStudentRecord, classAverage, classConfig, currentClass, currentPage, exportingPDF (+16 more)
 
 ### Community 30 - "StudentService"
-Cohesion: 0.11
-Nodes (17): StudentService, ResponseType, IAbsenceRelation, IFileRelation, IGradeRelation, IGradesCentralization, IPaymentRelation, IScholarshipRelation (+9 more)
+Cohesion: 0.08
+Nodes (22): StudentService, ResponseType, IProfessorData, IProfessorDetails, IProfessorFile, IProfessorStatistics, ITeachingAssignment, IAbsenceRelation (+14 more)
 
 ### Community 31 - "gradeEntryService.ts"
-Cohesion: 0.09
-Nodes (22): emits, filteredClassRooms, gradeDetailsRef, paginator, props, searchForm, currGrade, dialogVisible (+14 more)
+Cohesion: 0.06
+Nodes (35): emits, filteredClassRooms, gradeDetailsRef, paginator, props, searchForm, dialogVisible, emits (+27 more)
 
 ### Community 32 - "ClassRoomView.vue"
 Cohesion: 0.11
-Nodes (17): dialogVisible, emits, form, formRef, formRule, formTitle, props, ClassRoom (+9 more)
+Nodes (18): courseStore, createQueryBuilderMock(), deleteSpy, diplomaStore, fileSaveCalls, gradeStore, idCounters, isCourseEntity() (+10 more)
 
 ### Community 33 - "StudentListView.vue"
 Cohesion: 0.08
-Nodes (22): Student, IStudentFile, filterCriteria, filteredStudents, getGradeName(), handleDeleteStudent(), handlePreview(), handlePrint() (+14 more)
+Nodes (24): loadLogo(), loadSchoolInfo(), logoPreview, schoolInfo, IFilterCriteria, filterCriteria, filteredStudents, getGradeName() (+16 more)
 
 ### Community 34 - "payment.ts"
-Cohesion: 0.09
-Nodes (22): CustomPaymentConfig, IPaymentAnnualConfig, IPaymentConfigData, IPaymentServiceParams, IPaymentServiceResponse, IScholarshipData, ITranchConfig, ITrancheEntry (+14 more)
+Cohesion: 0.08
+Nodes (24): CustomPaymentConfig, IPaymentAnnualConfig, IPaymentConfigData, IPaymentServiceParams, IPaymentServiceResponse, IProfessorPaymentData, IScholarshipData, ITranchConfig (+16 more)
 
 ### Community 35 - "VacationView.vue"
 Cohesion: 0.09
@@ -439,8 +426,8 @@ Cohesion: 0.08
 Nodes (19): approveVacation(), dateRange, deleteVacation(), dialogVisible, filteredVacations, form, isEditing, loading (+11 more)
 
 ### Community 38 - "DocumentsView.vue"
-Cohesion: 0.09
-Nodes (15): currentDate, processedContent, props, currentDate, processedContent, props, activeTab, documentId (+7 more)
+Cohesion: 0.11
+Nodes (12): currentDate, processedContent, props, activeTab, documentId, inscriptionContent, inscriptionRef, isSaving (+4 more)
 
 ### Community 39 - "reportCardService.ts"
 Cohesion: 0.14
@@ -456,7 +443,7 @@ Nodes (19): filteredRankings, filteredRankingsBase, filters, loading, paginator,
 
 ### Community 42 - "ProfessorPaymentView.vue"
 Cohesion: 0.09
-Nodes (22): IProfessorPaymentData, exportToExcel(), filteredPayments, Filters, formatDate(), formatPaymentMethod(), formatPaymentType(), handleFilter() (+14 more)
+Nodes (21): exportToExcel(), filteredPayments, Filters, formatDate(), formatPaymentMethod(), formatPaymentType(), handleFilter(), handlePaymentAdded() (+13 more)
 
 ### Community 43 - "CalculatedGradeEntity"
 Cohesion: 0.16
@@ -467,16 +454,16 @@ Cohesion: 0.09
 Nodes (17): CalculationStrategy, CategoryItem, classesList, ConfigForm, context, ExistingConfig, form, loadConfig() (+9 more)
 
 ### Community 45 - "student-table.vue"
-Cohesion: 0.11
-Nodes (21): boysCount, currentPage, emit, filteredStudents, getGradeName(), girlsCount, grades, handleClick() (+13 more)
+Cohesion: 0.10
+Nodes (24): boysCount, currentPage, emit, filteredStudents, getGradeName(), girlsCount, grades, handleClick() (+16 more)
 
 ### Community 46 - "StudentCardView.vue"
 Cohesion: 0.09
 Nodes (19): activeTab, filteredStudents, getCurrentTemplate, grades, handleExportPDF(), loading, previewContainer, previewStudent (+11 more)
 
 ### Community 47 - "YearRepartitionService"
-Cohesion: 0.14
-Nodes (13): Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn, VacationEntity (+5 more)
+Cohesion: 0.26
+Nodes (6): ResultType, VacationService, Vacation, VacationCreateInput, VacationStatus, VacationUpdateInput
 
 ### Community 48 - "BulletinTemplateTwo.vue"
 Cohesion: 0.10
@@ -499,8 +486,8 @@ Cohesion: 0.11
 Nodes (13): dialogVisible, emits, form, formRef, formRule, props, GradeCommand, grades (+5 more)
 
 ### Community 53 - "professor-table.vue"
-Cohesion: 0.13
-Nodes (15): currentPage, emit, filteredProfessors, getCivilityLabel(), getFamilySituationLabel(), handleDelete(), handleEdit(), handleExport() (+7 more)
+Cohesion: 0.12
+Nodes (16): currentPage, emit, filteredProfessors, getCivilityLabel(), getFamilySituationLabel(), handleDelete(), handleEdit(), handleExport() (+8 more)
 
 ### Community 54 - "student-file.vue"
 Cohesion: 0.11
@@ -511,16 +498,16 @@ Cohesion: 0.11
 Nodes (21): activeDays, classes, courseColors, DayItem, days, defaultStudentSlots, filters, getCellStyle() (+13 more)
 
 ### Community 56 - "centralizedPdfService.ts"
-Cohesion: 0.25
-Nodes (7): DocumentContentEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, documentContentService
+Cohesion: 0.17
+Nodes (10): Column, Entity, PrimaryGeneratedColumn, UserEntity, electronStore, SchemaClient, schemaClients, supabase (+2 more)
 
 ### Community 57 - "electron-env.d.ts"
 Cohesion: 0.11
 Nodes (7): DownloadProgress, ElectronAPI, IpcRenderer, NodeJS, ProcessEnv, UpdateInfo, Window
 
 ### Community 58 - "PaymentHistory.vue"
-Cohesion: 0.12
-Nodes (19): { currency }, formattedAmount, props, adjustedAnnualAmount, annualAmount, dialogVisible, emit, exportToExcel() (+11 more)
+Cohesion: 0.10
+Nodes (23): { currency }, formattedAmount, props, adjustedAnnualAmount, annualAmount, dialogVisible, emit, exportToExcel() (+15 more)
 
 ### Community 59 - "student-form.vue"
 Cohesion: 0.12
@@ -531,52 +518,48 @@ Cohesion: 0.11
 Nodes (7): DownloadProgress, ElectronAPI, IpcRenderer, NodeJS, ProcessEnv, UpdateInfo, Window
 
 ### Community 61 - "index.ts"
-Cohesion: 0.14
-Nodes (11): authRoutes, fileRoutes, ConfigurationWizard(), DashboardView(), routes, onboardingRoutes, paymentRoutes, planningRoutes (+3 more)
+Cohesion: 0.16
+Nodes (9): authRoutes, fileRoutes, routes, onboardingRoutes, paymentRoutes, planningRoutes, professorRoutes, studentRoutes (+1 more)
 
 ### Community 62 - "YearRepartitionView.vue"
-Cohesion: 0.15
-Nodes (13): PeriodConfiguration, YearRepartitionCreateInput, YearRepartitionResponse, YearRepartitionUpdateInput, closeModal(), currentRepartition, deleteRepartition(), fetchYearRepartitions() (+5 more)
+Cohesion: 0.06
+Nodes (31): createDefaultPeriods(), emit, form, formRef, handlePeriodTypeChange(), isEditing, isSubmitting, periodType (+23 more)
 
 ### Community 63 - "main.ts"
-Cohesion: 0.10
-Nodes (25): BranchEntity, ClassRoomEntity, GradeEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn (+17 more)
+Cohesion: 0.11
+Nodes (17): GradeConfigEntity, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, CentralizedRankingData (+9 more)
 
 ### Community 64 - "grade.ts"
-Cohesion: 0.14
-Nodes (16): InscriptionFeeEntity, PaymentAnnualConfigEntity, PaymentConfigEntity, TranchConfigEntity, TrancheEntryEntity, Column, Entity, JoinColumn (+8 more)
+Cohesion: 0.08
+Nodes (34): InscriptionFeeEntity, PaymentAnnualConfigEntity, PaymentConfigEntity, TranchConfigEntity, TrancheEntryEntity, Column, Entity, JoinColumn (+26 more)
 
 ### Community 65 - "ProfessorPaymentDialog.vue"
 Cohesion: 0.13
 Nodes (15): calculateNetAmount(), dialogVisible, emit, form, formRef, handleClose(), handleSubmit(), loading (+7 more)
 
 ### Community 66 - "useCurrency.ts"
-Cohesion: 0.13
-Nodes (14): formatCurrency(), formatFCFA(), currency, currencyCode, absenceChartRef, createGradient(), { currency }, currentDate (+6 more)
+Cohesion: 0.20
+Nodes (10): absenceChartRef, createGradient(), { currency }, currentDate, DashboardStats, loadDashboardStats(), loading, paymentChartRef (+2 more)
 
 ### Community 67 - "SyncView.vue"
 Cohesion: 0.11
 Nodes (10): authMode, isAuthenticated, isLoadingHistory, isOnline, isSigningOut, isSyncing, showAuthDialog, showSignOutDialog (+2 more)
 
-### Community 68 - "GradeConfigEntity"
-Cohesion: 0.15
-Nodes (12): createDefaultPeriods(), emit, form, formRef, handlePeriodTypeChange(), isEditing, isSubmitting, periodType (+4 more)
+### Community 69 - "AuthService"
+Cohesion: 0.06
+Nodes (36): DocumentContentEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn, BranchEntity, ClassRoomEntity (+28 more)
 
 ### Community 70 - "PaymentDaily.vue"
 Cohesion: 0.13
 Nodes (13): dailyPayments, dialogVisible, emit, { formatCurrency }, formatPaymentMethod(), formatTime(), loading, printDailyReport() (+5 more)
-
-### Community 71 - "professor-form.vue"
-Cohesion: 0.18
-Nodes (10): applyFilter(), emit, filterForm, grades, loading, resetFilter(), schoolYearOptions, IFilterForm (+2 more)
 
 ### Community 72 - "GeneralInfoView.vue"
 Cohesion: 0.14
 Nodes (13): countries, emit, fileInput, formData, formRef, foundationYears, goBack(), goNext() (+5 more)
 
 ### Community 73 - "events.ts"
-Cohesion: 0.14
-Nodes (10): PreferenceEntity, Column, Entity, PrimaryGeneratedColumn, ResultType, PreferenceService, Preference, PreferenceCreateInput (+2 more)
+Cohesion: 0.17
+Nodes (9): PreferenceEntity, Column, Entity, PrimaryGeneratedColumn, PreferenceService, Preference, PreferenceCreateInput, PreferenceKey (+1 more)
 
 ### Community 74 - "course-form.vue"
 Cohesion: 0.17
@@ -587,40 +570,40 @@ Cohesion: 0.13
 Nodes (12): emits, filteredGrades, paginator, props, searchForm, emits, filteredGrades, filteredGradesBase (+4 more)
 
 ### Community 76 - "YearRepartionForm.vue"
-Cohesion: 0.17
-Nodes (6): emit, PaymentDue, paymentDues, props, size, yearRepartition
+Cohesion: 0.32
+Nodes (7): createMockInvoke(), defaultConfig, mockClasses, mockInvoke, mockProfessors, mountComponent(), setupIpcMock()
 
 ### Community 77 - "CourseView.vue"
-Cohesion: 0.15
-Nodes (12): Loader, CourseFormData, courses, currentCourse, emit, ExtendedCourseFormData, goBack(), goNext() (+4 more)
+Cohesion: 0.18
+Nodes (11): CourseFormData, courses, currentCourse, emit, ExtendedCourseFormData, goBack(), goNext(), isEditing (+3 more)
 
 ### Community 78 - "DashboardView.vue"
-Cohesion: 0.14
-Nodes (12): absenceChartRef, createGradient(), { currency }, currentDate, DashboardStats, loadDashboardStats(), loading, paymentChartRef (+4 more)
+Cohesion: 0.08
+Nodes (24): DashboardView(), absenceChartRef, createGradient(), { currency }, currentDate, dashboardPalette, dashboardProfessors, DashboardStats (+16 more)
 
 ### Community 79 - "PayementConfigurationView.vue"
 Cohesion: 0.16
 Nodes (13): configurations, { currency }, currentConfig, emit, goBack(), goNext(), isLoading, isSaving (+5 more)
 
 ### Community 80 - "loadStudents"
-Cohesion: 0.17
-Nodes (16): exportToExcel(), exportToPdf(), formatCurrency(), formatCurrencySimple(), getPaymentStatus(), getPaymentStatusLabel(), getPaymentStatusType(), getTuitionDueToDate() (+8 more)
+Cohesion: 0.40
+Nodes (3): currentDate, processedContent, props
 
 ### Community 81 - "Guide de la fonctionnalité de Mise à Jour Automatique"
 Cohesion: 0.13
 Nodes (14): Changer l'URL du serveur de mises à jour, Configuration, Dépannage, Déploiement en production, Fichiers de configuration, Fonctionnement, Guide de la fonctionnalité de Mise à Jour Automatique, Journaux (+6 more)
 
 ### Community 82 - "PreferenceEntity"
-Cohesion: 0.21
-Nodes (9): ScheduleConfigEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn (+1 more)
+Cohesion: 0.17
+Nodes (10): ScheduleConfigEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn (+2 more)
 
 ### Community 83 - "SimulationCalculator.vue"
 Cohesion: 0.16
 Nodes (13): addGrade(), calculateSimulation(), CategoryItem, CategoryResult, categoryResults, ConfigForm, finalAverage, initializeGrades() (+5 more)
 
 ### Community 84 - "ProfessorDetailsView.vue"
-Cohesion: 0.13
-Nodes (9): CIVILITY, FAMILY_SITUATION, dialogVisible, loading, loadPhoto(), loadProfessor(), photoUrl, route (+1 more)
+Cohesion: 0.12
+Nodes (10): CIVILITY, CurrentDocument, dialogVisible, DocumentData, loading, loadPhoto(), loadProfessor(), photoUrl (+2 more)
 
 ### Community 85 - "GradeService"
 Cohesion: 0.36
@@ -631,8 +614,8 @@ Cohesion: 0.15
 Nodes (10): colorPresets, currentTemplateComponent, emit, localColorOptions, Props, sampleGrades, sampleStudent, saveAndClose() (+2 more)
 
 ### Community 87 - "CurrencyDisplay.vue"
-Cohesion: 0.22
-Nodes (7): emit, form, isSubmitting, isValid, Props, requiredReferenceRule, submitForm()
+Cohesion: 0.12
+Nodes (13): PaymentForm, emit, form, isSubmitting, isValid, Props, requiredReferenceRule, submitForm() (+5 more)
 
 ### Community 88 - "PaymentHistoryMini.vue"
 Cohesion: 0.14
@@ -643,24 +626,24 @@ Cohesion: 0.16
 Nodes (13): ApiResponse, CourseCommand, CourseGroupFormData, CourseGroupResponse, CourseObservation, CourseResponse, IApiResponse, ICourse (+5 more)
 
 ### Community 90 - "GradeView.vue"
-Cohesion: 0.20
-Nodes (12): Grade, GradeType, PaymentAnnualConfig, emit, ExtendedGrade, formData, formRef, goBack() (+4 more)
+Cohesion: 0.17
+Nodes (11): Grade, GradeType, PaymentAnnualConfig, emit, ExtendedGrade, formData, formRef, goBack() (+3 more)
 
 ### Community 91 - "LicenseView.vue"
 Cohesion: 0.15
 Nodes (11): activateLicense(), ActivateResponse, currentStep, emit, GetMachineIdResponse, isActivating, isCopying, isMachineIdLoading (+3 more)
 
 ### Community 92 - "ScheduleConfigEntity"
-Cohesion: 0.08
-Nodes (20): CentralizedRankingData, BulkSaveGradesInput, DEFAULT_PERIODS, GetGradesInput, NOTE: subjectId: null → utilise la config de niveau classe, comme le fait le fro, IMPORTANT: utiliser la même requête que getCentralizedRankings pour, ResultType, SaveGradeEntryInput (+12 more)
+Cohesion: 0.17
+Nodes (11): BulkSaveGradesInput, DEFAULT_PERIODS, GetGradesInput, NOTE: subjectId: null → utilise la config de niveau classe, comme le fait le fro, IMPORTANT: utiliser la même requête que getCentralizedRankings pour, ResultType, SaveGradeEntryInput, CIVILITY (+3 more)
 
 ### Community 93 - ".getInstance"
-Cohesion: 0.29
-Nodes (3): ScheduleService, IScheduleData, IScheduleServiceResponse
+Cohesion: 0.11
+Nodes (13): ScheduleEntity, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn (+5 more)
 
 ### Community 94 - "ScheduleService"
-Cohesion: 0.25
-Nodes (12): GradeType, SyncConfig, SyncHistory, ScheduleCommand, BranchCommand, ClassRoomCommand, CourseCommand, GradeCommand (+4 more)
+Cohesion: 0.40
+Nodes (4): IntersectionObserverMock, mockInvoke, mockIpcRenderer, ResizeObserverMock
 
 ### Community 95 - "license.spec.ts"
 Cohesion: 0.15
@@ -687,8 +670,8 @@ Cohesion: 0.18
 Nodes (10): emit, formattedPhone, props, toggleVerification(), verificationStatus, emit, phoneVerificationData, props (+2 more)
 
 ### Community 101 - "TeachingAssignment.vue"
-Cohesion: 0.15
-Nodes (10): Course, courses, emit, Grade, grades, props, schoolType, selectedClass (+2 more)
+Cohesion: 0.12
+Nodes (12): TeachingAssignment, Course, courses, emit, Grade, grades, props, schoolType (+4 more)
 
 ### Community 102 - "student-filter.vue"
 Cohesion: 0.18
@@ -707,12 +690,12 @@ Cohesion: 0.09
 Nodes (24): CountryCode, CurrencyCode, SchoolEntity, SchoolSettingsEntity, Column, CreateDateColumn, DeleteDateColumn, Entity (+16 more)
 
 ### Community 106 - "gradeService.ts"
-Cohesion: 0.33
-Nodes (8): IFileData, ISchoolData, ISchoolServiceParams, ISchoolServiceResponse, ISchoolSettingsData, ISchoolSettingsServiceResponse, CountryCode, CurrencyCode
+Cohesion: 0.18
+Nodes (13): IFileData, IFileResponse, IFileServiceParams, IFileServiceResponse, IFileUpload, ReportCardData, ISchoolData, ISchoolServiceParams (+5 more)
 
 ### Community 107 - "getAppreciation"
-Cohesion: 0.24
-Nodes (12): getCategoryAverage(), getCategoryAverage(), getGradeClass(), formatNumber(), getAppreciation(), escapeHtml(), formatBirthDay(), generateBulletinHtml() (+4 more)
+Cohesion: 0.27
+Nodes (11): getCategoryAverage(), getCategoryAverage(), getGradeClass(), formatNumber(), getAppreciation(), escapeHtml(), formatBirthDay(), generateBulletinHtml() (+3 more)
 
 ### Community 108 - "UpdateNotifier.vue"
 Cohesion: 0.20
@@ -731,24 +714,20 @@ Cohesion: 0.20
 Nodes (3): ./sections/Attachments.vue, imageUrl, props
 
 ### Community 112 - "SupervisorInfoView.vue"
-Cohesion: 0.18
-Nodes (9): { activeIndex, updateActiveIndex }, emit, formData, formRef, goNext(), isResetMode, isSaving, router (+1 more)
+Cohesion: 0.13
+Nodes (12): activeIndex, updateActiveIndex(), { activeIndex, updateActiveIndex }, emit, formData, formRef, goBack(), goNext() (+4 more)
 
 ### Community 113 - "handlePrint"
-Cohesion: 0.24
-Nodes (11): calculateClassAverage(), calculateExamAverage(), checkStudentGradesStatus(), findPreviousPeriod(), handlePrint(), loadAnnualData(), loadInitialData(), loadStudentGradesForPreview() (+3 more)
+Cohesion: 0.21
+Nodes (12): calculateClassAverage(), calculateExamAverage(), checkStudentGradesStatus(), findPreviousPeriod(), generateBulletinsHtml(), handlePrint(), loadAnnualData(), loadInitialData() (+4 more)
 
 ### Community 114 - "dependencies"
-Cohesion: 0.18
-Nodes (11): bcryptjs, dotenv, jspdf, dependencies, bcryptjs, dotenv, jspdf, reflect-metadata (+3 more)
-
-### Community 115 - "devDependencies"
-Cohesion: 0.18
-Nodes (11): cross-env, element-plus, i18n-iso-countries, @iconify-json/ri, devDependencies, cross-env, element-plus, i18n-iso-countries (+3 more)
+Cohesion: 0.15
+Nodes (13): bcryptjs, better-sqlite3, bufferutil, @noble/hashes, dependencies, bcryptjs, better-sqlite3, bufferutil (+5 more)
 
 ### Community 116 - "branch-form.vue"
-Cohesion: 0.24
-Nodes (9): emit, formData, formRef, goBack(), goNext(), isSaving, LanguageFormData, router (+1 more)
+Cohesion: 0.10
+Nodes (21): ConfigurationWizard(), configViewsKeys, currentStep, currentViewComponent, finishConfiguration(), handleConfigurationSaved(), nextStep(), router (+13 more)
 
 ### Community 117 - "create-account.vue"
 Cohesion: 0.20
@@ -771,8 +750,8 @@ Cohesion: 0.20
 Nodes (8): CalculationDetails, CategoryDetail, classCategories, classGlobalAverage, details, examCategories, GradeDetail, visible
 
 ### Community 122 - "./sections/Attachments.vue"
-Cohesion: 0.08
-Nodes (24): AbsenceEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn (+16 more)
+Cohesion: 0.11
+Nodes (18): PaymentEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn (+10 more)
 
 ### Community 123 - "SyncHistory.vue"
 Cohesion: 0.22
@@ -781,10 +760,6 @@ Nodes (5): getTableLabel(), parseErrorTables(), props, sortedHistory, tableLabel
 ### Community 124 - "ApparenceView.spec.ts"
 Cohesion: 0.23
 Nodes (12): normSlot(), getClassInfo(), hasSchedule(), loadSchedules(), saveAbsences(), checkConflicts(), deleteScheduleItem(), getScheduleItem() (+4 more)
-
-### Community 125 - "ConfigurationWizard.vue"
-Cohesion: 0.24
-Nodes (8): configViewsKeys, currentStep, currentViewComponent, finishConfiguration(), handleConfigurationSaved(), nextStep(), router, viewComponents
 
 ### Community 126 - "LanguageSettingView.vue"
 Cohesion: 0.32
@@ -815,8 +790,8 @@ Cohesion: 0.32
 Nodes (4): License, Column, Entity, PrimaryGeneratedColumn
 
 ### Community 134 - "scripts"
-Cohesion: 0.25
-Nodes (8): scripts, build, dev, dev:debug, license:cli, preview, rebuild:db-driver, test:unit
+Cohesion: 0.20
+Nodes (10): scripts, build, dev, dev:debug, license:cli, preview, rebuild:db-driver, test (+2 more)
 
 ### Community 135 - "App.vue"
 Cohesion: 0.25
@@ -839,12 +814,8 @@ Cohesion: 0.25
 Nodes (4): Html2Pdf, html2pdf.js, html2pdf.js/dist/html2pdf.min, Html2PdfOptions
 
 ### Community 140 - "DataLocationView.vue"
-Cohesion: 0.06
-Nodes (44): FileEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn (+36 more)
-
-### Community 142 - "xlsx"
-Cohesion: 0.33
-Nodes (5): emits, filteredList, paginator, props, searchText
+Cohesion: 0.07
+Nodes (41): FileEntity, Column, CreateDateColumn, DeleteDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn (+33 more)
 
 ### Community 143 - "CardTemplateOne.vue"
 Cohesion: 0.29
@@ -893,10 +864,6 @@ Nodes (4): main, name, private, version
 ### Community 155 - "AbsenceList.vue"
 Cohesion: 0.40
 Nodes (4): Absence, formattedAbsences, props, Student
-
-### Community 156 - "./sections/SchoolInfo.vue"
-Cohesion: 0.50
-Nodes (3): emit, goNext(), router
 
 ### Community 158 - "preference.ts"
 Cohesion: 0.40
@@ -954,48 +921,36 @@ Nodes (3): Scholarship, ScholarshipCreateInput, ScholarshipUpdateInput
 Cohesion: 0.67
 Nodes (3): calculateCourseAverage(), calculateWeightedAverage(), getAverageClass()
 
-### Community 206 - "ApparenceView.spec.ts"
-Cohesion: 0.20
-Nodes (9): reportTemplates, ConductData, GenerateReportCardInput, GenerateReportCardsInput, GradeData, ReportCard, ReportCardData, ReportCardTemplate (+1 more)
+### Community 182 - "csv-parser"
+Cohesion: 0.18
+Nodes (11): csv-parser, date-fns, electron, @iconify-json/bi, devDependencies, csv-parser, date-fns, electron (+3 more)
 
 ### Community 209 - "supabase.ts"
 Cohesion: 0.29
 Nodes (7): xlsx, exportToExcel(), exportToExcel(), getTotalCoef(), getWeightedAverage(), getWeightedScore(), xlsx
 
 ### Community 211 - "pinia"
-Cohesion: 0.38
-Nodes (3): Homework, HomeworkCreateInput, HomeworkUpdateInput
-
-### Community 212 - "CascadeDelete"
-Cohesion: 0.40
-Nodes (4): IBranchData, IClassRoomData, IGradeData, IGradeServiceParams
+Cohesion: 0.18
+Nodes (13): GradeEntity, ManyToMany, OneToMany, HomeworkEntity, Column, CreateDateColumn, Entity, ManyToOne (+5 more)
 
 ### Community 215 - "./sections/SchoolInfo.vue"
 Cohesion: 0.40
 Nodes (4): ./sections/SchoolInfo.vue, ClassItem, Props, safeClasses
 
-### Community 233 - "OnboardingView.vue"
-Cohesion: 0.50
-Nodes (3): activeIndex, updateActiveIndex(), goBack()
-
-### Community 250 - "file.ts"
-Cohesion: 0.40
-Nodes (4): IFileResponse, IFileServiceParams, IFileServiceResponse, IFileUpload
-
 ## Knowledge Gaps
-- **1314 isolated node(s):** `vue`, `GlobalComponents`, `ComponentCustomProperties`, `electronStore`, `SchemaClient` (+1309 more)
+- **1346 isolated node(s):** `vue`, `GlobalComponents`, `ComponentCustomProperties`, `electronStore`, `SchemaClient` (+1341 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **67 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `PaymentAnnualConfigEntity` connect `grade.ts` to `payment.ts`, `DataLocationView.vue`, `xlsx`, `PaymentService`, `./sections/Attachments.vue`, `main.ts`?**
-  _High betweenness centrality (0.087) - this node is a cross-community bridge._
-- **Why does `xlsx` connect `supabase.ts` to `ProfessorPaymentView.vue`, `student-table.vue`, `loadStudents`, `devDependencies`, `professor-table.vue`, `student-file.vue`, `PaymentHistory.vue`?**
-  _High betweenness centrality (0.086) - this node is a cross-community bridge._
-- **Why does `DocumentContentEntity` connect `centralizedPdfService.ts` to `DataLocationView.vue`, `DocumentsView.vue`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `xlsx` connect `supabase.ts` to `ProfessorPaymentView.vue`, `PaymentManagementView.vue`, `student-table.vue`, `professor-table.vue`, `student-file.vue`, `csv-parser`, `PaymentHistory.vue`?**
+  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+- **Why does `PaymentAnnualConfigEntity` connect `grade.ts` to `payment.ts`, `GradeConfigEntity`, `DataLocationView.vue`, `PaymentService`, `pinia`?**
+  _High betweenness centrality (0.089) - this node is a cross-community bridge._
+- **Why does `devDependencies` connect `csv-parser` to `xlsx`, `TranchConfigTable.vue`, `package.json`, `./sections/SchoolInfo.vue`, `vue-tsc`, `better-sqlite3`, `chart.js`, `electron-builder`, `electron-rebuild`, `html2pdf.js`, `@iconify-json/bi`, `@iconify-json/carbon`, `@iconify-json/ep`, `@iconify-json/mdi`, `@iconify-json/vaadin`, `@iconify/vue`, `jsdom`, `@mdi/js`, `@noble/hashes`, `supabase.ts`, `qrcode.vue`, `tsx`, `@types/jspdf`, `typescript`, `unplugin-auto-import`, `unplugin-element-plus`, `unplugin-icons`, `vite`, `vite-plugin-electron`, `vite-plugin-electron-renderer`, `@vitejs/plugin-vue`, `vitest`, `vue`, `vue-chartjs`, `@vue/devtools`, `vue-html-to-paper`, `vue-router`, `@vue/test-utils`, `devDependencies`, `@pinia/testing`, `pinia`?**
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
 - **Are the 14 inferred relationships involving `GradeEntity` (e.g. with `.addAbsence()` and `.populateEntitySyncMetas()`) actually correct?**
   _`GradeEntity` has 14 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 13 inferred relationships involving `CourseEntity` (e.g. with `.populateEntitySyncMetas()` and `.syncCourseGradesDown()`) actually correct?**

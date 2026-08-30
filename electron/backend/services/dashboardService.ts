@@ -1,4 +1,5 @@
 import { AppDataSource } from "#electron/data-source";
+import { logger } from "../utils/logger";
 import { ResultType } from "#electron/command";
 import { ProfessorEntity } from "../entities/professor";
 import { GradeEntity } from "../entities/grade";
@@ -182,7 +183,7 @@ export class DashboardService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur getRecentAbsences:", error);
+            logger.error("Erreur getRecentAbsences:", error);
             return {
                 success: false,
                 data: null,
@@ -194,7 +195,7 @@ export class DashboardService {
 
     async getAbsenceStats(): Promise<ResultType> {
         try {
-            console.log('=== Service Dashboard - Début getAbsenceStats ===');
+            logger.debug('=== Service Dashboard - Début getAbsenceStats ===');
             
             const dataSource = AppDataSource.getInstance();
             const absenceRepo = dataSource.getRepository(AbsenceEntity);
@@ -212,19 +213,25 @@ export class DashboardService {
                 .andWhere('absence.date <= :endDate', { endDate: new Date().toISOString().split('T')[0] })
                 .getMany();
 
-            console.log('Types des absences trouvées:', absences.map((a:any) => a.type));
+            logger.debug('Types des absences trouvées:', absences.map((a:any) => a.type));
 
             const absencesByGrade = absences.reduce((acc: { [key: string]: number }, absence:any) => {
                 if (absence.type === 'STUDENT' && absence.grade?.name) {
                     const gradeName = absence.grade.name;
                     acc[gradeName] = (acc[gradeName] || 0) + 1;
                 } else if (absence.type === 'PROFESSOR') {
-                    acc['Professeurs'] = (acc['Professeurs'] || 0) + 1;
+                    if (absence.professor?.firstname || absence.professor?.lastname) {
+                        const profName = `${absence.professor.firstname || ''} ${absence.professor.lastname || ''}`.trim() || `Prof #${absence.professor.id}`;
+                        // Chaque prof remplit le cercle selon sa fréquence, avec sa couleur (côté frontend)
+                        acc[profName] = (acc[profName] || 0) + 1;
+                    } else {
+                        acc['Professeurs'] = (acc['Professeurs'] || 0) + 1;
+                    }
                 }
                 return acc;
             }, {});
 
-            console.log('Statistiques calculées:', absencesByGrade);
+            logger.debug('Statistiques calculées:', absencesByGrade);
 
             return {
                 success: true,
@@ -233,7 +240,7 @@ export class DashboardService {
                 error: null
             };
         } catch (error) {
-            console.error("Erreur détaillée dans getAbsenceStats:", error);
+            logger.error("Erreur détaillée dans getAbsenceStats:", error);
             return {
                 success: false,
                 data: null,
@@ -269,7 +276,7 @@ export class DashboardService {
                 error: null
             };
         } catch (error) {
-            console.error('Erreur lors de la récupération des statistiques:', error);
+            logger.error('Erreur lors de la récupération des statistiques:', error);
             return {
                 success: false,
                 data: {

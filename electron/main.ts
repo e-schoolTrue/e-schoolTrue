@@ -123,7 +123,15 @@ async function setupAutoUpdate() {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
-  // Configuration pour le mode développement
+  // Gestion globale des erreurs non capturées de l'updater
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Updater] Unhandled Rejection at:', promise, 'reason:', reason)
+  })
+  process.on('uncaughtException', (error) => {
+    console.error('[Updater] Uncaught Exception:', error)
+  })
+
+  // Configuration pour le mode développement - désactiver les vérifications réseau
   if (!app.isPackaged) {
     autoUpdater.logger = {
       info: (message: string) => console.log(message),
@@ -134,13 +142,18 @@ async function setupAutoUpdate() {
       debug: (message: string) => console.debug(message)
     }
 
-    // Activer les logs détaillés en développement
-    autoUpdater.forceDevUpdateConfig = true
-    autoUpdater.logger.info('Mode développement: configuration de l\'auto-update')
+    // En dev, ne pas utiliser le serveur de mise à jour (évite http://localhost:3000/updates → Grafana HTML)
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = false
+    autoUpdater.logger.info('Mode développement: auto-update désactivé (évite les erreurs de parsing)')
 
     // Désactiver la vérification des certificats SSL en développement
     app.commandLine.appendSwitch('ignore-certificate-errors')
+    return
   }
+
+  // En production, activer les logs détaillés si besoin
+  autoUpdater.logger = autoUpdater.logger || console as any
 }
 
 async function createWindow() {
@@ -231,22 +244,22 @@ autoUpdater.on('error', (error) => {
 // Gestion des événements de mise àjour automatique depuis le rendu
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) {
-    console.log('Vérification des mises à jour demandée depuis le rendu (mode développement)')
-    // Simuler une mise à jour en développement
+    console.log('Vérification des mises à jour demandée depuis le rendu (mode développement) - simulée')
+    // Simuler une mise à jour en développement sans appel réseau
     const updateInfo = {
       version: '1.0.1',
       releaseDate: new Date().toISOString(),
       releaseNotes: ['Corrections de bugs', 'Amélioration des performances']
     }
     win?.webContents.send('update_available', updateInfo)
-    return { updateInfo }
+    return { success: true, updateInfo }
   } else {
     try {
       const updateCheckResult = await autoUpdater.checkForUpdates()
-      return { updateInfo: updateCheckResult?.updateInfo }
-    } catch (error) {
-      console.error('Erreur lors de la vérification des mises à jour:', error)
-      throw error
+      return { success: true, updateInfo: updateCheckResult?.updateInfo }
+    } catch (error: any) {
+      console.error('Erreur lors de la vérification des mises à jour (gérée):', error?.message || error)
+      return { success: false, error: error?.message || String(error) }
     }
   }
 })
@@ -256,10 +269,10 @@ ipcMain.handle('download-update', async () => {
   try {
     const result = await autoUpdater.downloadUpdate()
     console.log('Téléchargement de la mise à jour démarré: ', result)
-    return result
-  } catch (error) {
-    console.log('Erreur lors du téléchargement:', error)
-    throw error
+    return { success: true, result }
+  } catch (error: any) {
+    console.error('Erreur lors du téléchargement (gérée):', error?.message || error)
+    return { success: false, error: error?.message || String(error) }
   }
 })
 
@@ -272,22 +285,18 @@ ipcMain.handle('install-update', () => {
 app.whenReady().then(async () => {
   console.log('Événement "app.whenReady" déclenché.');
   try {
-    // Vérifier les mises à jour au démarrage
+    // Vérifier les mises à jour au démarrage (uniquement en production)
     if (app.isPackaged) {
       console.log('Vérification des mises à jour...')
-      autoUpdater.checkForUpdatesAndNotify()
+      autoUpdater.checkForUpdatesAndNotify().catch(err => console.error('[Updater] check failed (ignored):', err?.message || err))
 
       // Vérifier les mises à jour toutes les heures
       setInterval(() => {
         console.log('Vérification périodique des mises à jour...')
-        autoUpdater.checkForUpdatesAndNotify()
+        autoUpdater.checkForUpdatesAndNotify().catch(err => console.error('[Updater] periodic check failed (ignored):', err?.message || err))
       }, 60 * 60 * 1000)
     } else {
-      // En développement, vérifier plus fréquemment
-      setInterval(() => {
-        console.log('Vérification des mises à jour (mode développement)...')
-        autoUpdater.checkForUpdatesAndNotify()
-      }, 5 * 60 * 1000)
+      console.log('Mode développement: vérification des mises à jour désactivée (dev-app-update.yml pointe vers localhost:3000)')
     }
     await startApplication();
   } catch (error) {

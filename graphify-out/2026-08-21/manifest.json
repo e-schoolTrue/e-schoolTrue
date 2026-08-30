@@ -25,7 +25,7 @@
     "semantic_hash": ""
   },
   "auto-imports.d.ts": {
-    "mtime": 1787307376.5870783,
+    "mtime": 1787307656.773276,
     "ast_hash": "1d04403b8b5d3c355dbbe624e03a6a21",
     "semantic_hash": ""
   },
@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "src/views/planning/professor/AbsenceProfView.vue": {
-    "mtime": 1787304013.5992117,
-    "ast_hash": "5792797d4caaa98e0e12632648c9505d",
+    "mtime": 1787307820.8633873,
+    "ast_hash": "1a8020a76be62c2efc04c27df2d923d6",
     "semantic_hash": ""
   },
   "src/views/planning/professor/PlanningConfigView.vue": {

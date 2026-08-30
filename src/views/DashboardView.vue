@@ -35,6 +35,7 @@ const paymentChartRef = ref<HTMLCanvasElement | null>(null);
 const absenceChartRef = ref<HTMLCanvasElement | null>(null);
 const { currency } = useCurrency();
 const schoolLogo = ref<string | null>(null);
+const dashboardProfessors = ref<any[]>([]);
 
 // --- Computed ---
 const recentAbsencesDisplay = computed(() => {
@@ -55,6 +56,22 @@ const createGradient = (ctx: CanvasRenderingContext2D, colorStart: string, color
   return gradient;
 };
 
+// Helper couleurs profs distinctes (même palette que planning)
+const dashboardPalette = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#14B8A6', '#A855F7', '#F97316', '#06B6D4'];
+const getDashboardProfColor = (label: string, index: number): string => {
+  const prof = dashboardProfessors.value.find((p:any) => `${p.firstname} ${p.lastname}`.trim() === label);
+  if (prof?.color) {
+    // Si plusieurs profs ont même couleur par défaut, assurer distinct via palette
+    const sameColorCount = dashboardProfessors.value.filter((pp:any) => pp.color === prof.color).length;
+    if (prof.color !== '#409EFF' || sameColorCount === 1) return prof.color;
+  }
+  if (prof) {
+    // Fallback distinct par id
+    return dashboardPalette[(prof.id as number) % dashboardPalette.length];
+  }
+  return dashboardPalette[index % dashboardPalette.length];
+};
+
 //--- Navigation ---
 const navigateToAbsences = () => {
   router.push('/planning/students/absences');
@@ -67,130 +84,191 @@ const navigateToPayments = () => {
 // --- Logic ---
 const loadDashboardStats = async () => {
   try {
-    const [statsResult, schoolResult, paymentStats, absenceStats] = await Promise.all([
+    const results = await Promise.allSettled([
       window.ipcRenderer.invoke('dashboard:stats'),
       window.ipcRenderer.invoke('school:get'),
       window.ipcRenderer.invoke('dashboard:paymentStats'),
-      window.ipcRenderer.invoke('dashboard:absenceStats')
+      window.ipcRenderer.invoke('dashboard:absenceStats'),
+      window.ipcRenderer.invoke('professor:all')
     ]);
-    
+
+    const [statsResult, schoolResult, paymentStats, absenceStats, profResult] = results.map((r: any) =>
+      r.status === 'fulfilled' ? r.value : { success: false, data: null, error: r.reason }
+    ) as any[];
+
+    // professor:all is optional — fallback palette ensures dashboard still renders
+    if (profResult?.success && Array.isArray(profResult.data)) {
+      dashboardProfessors.value = profResult.data;
+    } else {
+      dashboardProfessors.value = [];
+      if (profResult && !profResult.success) {
+        console.warn('[Dashboard] professor:all failed, using fallback palette', profResult?.error ?? profResult);
+      }
+    }
+
+    // Core stats: set even if other requests failed — do not swallow partial data
     if (statsResult?.success && statsResult.data) {
       stats.value = {
         school: schoolResult?.success ? schoolResult.data : (statsResult.data.school || {}),
         stats: {
-          totalStudents: Number(statsResult.data.stats.totalStudents) || 0,
-          totalProfessors: Number(statsResult.data.stats.totalProfessors) || 0,
-          totalClasses: Number(statsResult.data.stats.totalClasses) || 0,
-          recentPayments: statsResult.data.stats.recentPayments || [],
-          recentAbsences: statsResult.data.stats.recentAbsences || []
+          totalStudents: Number(statsResult.data.stats?.totalStudents) || 0,
+          totalProfessors: Number(statsResult.data.stats?.totalProfessors) || 0,
+          totalClasses: Number(statsResult.data.stats?.totalClasses) || 0,
+          recentPayments: statsResult.data.stats?.recentPayments || [],
+          recentAbsences: statsResult.data.stats?.recentAbsences || []
         }
       };
+    } else if (!statsResult?.success) {
+      console.warn('[Dashboard] dashboard:stats failed', (statsResult as any)?.error ?? statsResult);
     }
 
-    // Fetch school logo
+    if (schoolResult && !schoolResult?.success) {
+      console.warn('[Dashboard] school:get failed, falling back to stats.school', (schoolResult as any)?.error ?? schoolResult);
+    }
+
+    // Fetch school logo — isolated so failure does not break dashboard
     if (schoolResult?.success && schoolResult.data?.logo?.id) {
+      try {
         const logoResult = await window.ipcRenderer.invoke('school:getLogo', schoolResult.data.logo.id);
         if (logoResult?.success && logoResult.data) {
-            schoolLogo.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+          schoolLogo.value = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
+        } else if (logoResult && !logoResult.success) {
+          console.warn('[Dashboard] school:getLogo failed', (logoResult as any)?.error ?? logoResult);
         }
+      } catch (e) {
+        console.warn('[Dashboard] school:getLogo threw', e);
+      }
     }
 
-    // Graphique Paiements - gère vide
-    if (paymentStats.success && paymentChartRef.value) {
-      const ctx = paymentChartRef.value.getContext('2d');
-      const gradient = ctx ? createGradient(ctx, 'rgba(64, 158, 255, 0.5)', 'rgba(64, 158, 255, 0.0)') : '#409EFF';
-      const labels = Object.keys(paymentStats.data || {});
-      const values = Object.values(paymentStats.data || {}) as number[];
-      // Fallback si aucune donnée: afficher mois courant à 0 pour éviter chart vide
-      const chartLabels = labels.length ? labels : [new Date().toLocaleString('fr-FR', { month: 'long' })];
-      const chartData = values.length ? values : [0];
+    // Graphique Paiements - tolerant to null/undefined, isolated error handling
+    try {
+      const paymentData = (paymentStats as any)?.data ?? {};
+      const isPaymentOk = paymentStats?.success;
+      if (!isPaymentOk) {
+        console.warn('[Dashboard] dashboard:paymentStats failed or empty, rendering fallback', (paymentStats as any)?.error ?? paymentStats);
+      }
+      if (paymentChartRef.value) {
+        // Render chart even on fallback data; tolerant to null/undefined via || {}
+        const ctx = paymentChartRef.value.getContext('2d');
+        const gradient = ctx ? createGradient(ctx, 'rgba(64, 158, 255, 0.5)', 'rgba(64, 158, 255, 0.0)') : '#409EFF';
+        const rawData = isPaymentOk ? paymentData : {};
+        const labels = Object.keys(rawData || {});
+        const values = Object.values(rawData || {}) as number[];
+        // Fallback si aucune donnée: afficher mois courant à 0 pour éviter chart vide
+        const chartLabels = labels.length ? labels : [new Date().toLocaleString('fr-FR', { month: 'long' })];
+        const chartData = values.length ? values : [0];
 
-      new Chart(paymentChartRef.value, {
-        type: 'line',
-        data: {
-          labels: chartLabels,
-          datasets: [{
-            label: 'Revenus',
-            data: chartData,
-            borderColor: '#409EFF',
-            backgroundColor: gradient,
-            borderWidth: 3,
-            pointBackgroundColor: '#fff',
-            pointBorderColor: '#409EFF',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            fill: true,
-            tension: 0.4 // Courbes douces
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#2c3e50',
-              padding: 12,
-              titleFont: { size: 13 },
-              bodyFont: { size: 14, weight: 'bold' },
-              callbacks: {
-                label: function(context) {
-                  return `Total: ${new Intl.NumberFormat('fr-FR').format(context.raw as number)} ${currency.value}`;
+        new Chart(paymentChartRef.value, {
+          type: 'line',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              label: 'Revenus',
+              data: chartData,
+              borderColor: '#409EFF',
+              backgroundColor: gradient,
+              borderWidth: 3,
+              pointBackgroundColor: '#fff',
+              pointBorderColor: '#409EFF',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              fill: true,
+              tension: 0.4 // Courbes douces
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#2c3e50',
+                padding: 12,
+                titleFont: { size: 13 },
+                bodyFont: { size: 14, weight: 'bold' },
+                callbacks: {
+                  label: function(context) {
+                    return `Total: ${new Intl.NumberFormat('fr-FR').format(context.raw as number)} ${currency.value}`;
+                  }
                 }
               }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: ({ color: '#f0f0f0', borderDash: [5, 5] } as any),
-              ticks: { font: { size: 11 }, color: '#909399' }
             },
-            x: {
-              grid: { display: false },
-              ticks: { font: { size: 11 }, color: '#909399' }
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: ({ color: '#f0f0f0', borderDash: [5, 5] } as any),
+                ticks: { font: { size: 11 }, color: '#909399' }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { font: { size: 11 }, color: '#909399' }
+              }
             }
           }
-        }
-      });
+        });
+      }
+    } catch (e) {
+      console.warn('[Dashboard] payment chart render failed, stats still displayed', e);
     }
 
-    // Graphique Absences - gère vide et inclut Professeurs
-    if (absenceStats.success && absenceChartRef.value) {
-      const labels = Object.keys(absenceStats.data || {});
-      const values = Object.values(absenceStats.data || {}) as number[];
-      const chartLabels = labels.length ? labels : ['Aucune absence'];
-      const chartData = values.length ? values : [1];
-      const bgColors = labels.length ? ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#8B5CF6', '#EC4899', '#10B981'] : ['#ebeef5'];
-      new Chart(absenceChartRef.value, {
-        type: 'doughnut',
-        data: {
-          labels: chartLabels,
-          datasets: [{
-            data: chartData,
-            backgroundColor: bgColors.slice(0, chartLabels.length),
-            borderWidth: 0,
-            hoverOffset: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-                position: 'right',
-                labels: { usePointStyle: true, font: { size: 12 } }
-            },
-            tooltip: {
-              enabled: labels.length > 0
-            }
+    // Graphique Absences - par prof distinct avec sa couleur, tolerant to null/undefined
+    try {
+      const absenceData = (absenceStats as any)?.data ?? {};
+      const isAbsenceOk = absenceStats?.success;
+      if (!isAbsenceOk) {
+        console.warn('[Dashboard] dashboard:absenceStats failed or empty, rendering fallback', (absenceStats as any)?.error ?? absenceStats);
+      }
+      if (absenceChartRef.value) {
+        const rawData = isAbsenceOk ? absenceData : {};
+        const labels = Object.keys(rawData || {});
+        const values = Object.values(rawData || {}) as number[];
+        const chartLabels = labels.length ? labels : ['Aucune absence'];
+        const chartData = values.length ? values : [1];
+        // Couleurs : si label = nom prof, utiliser couleur du prof, sinon palette (fallback when profResult failed)
+        const bgColors = labels.length ? chartLabels.map((label, idx) => getDashboardProfColor(label, idx)) : ['#ebeef5'];
+        new Chart(absenceChartRef.value, {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              data: chartData,
+              backgroundColor: bgColors.slice(0, chartLabels.length),
+              borderWidth: 0,
+              hoverOffset: 4
+            }]
           },
-          cutout: '75%' // Anneau plus fin et élégant
-        }
-      });
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                  position: 'right',
+                  labels: { usePointStyle: true, font: { size: 12 } }
+              },
+              tooltip: {
+                enabled: labels.length > 0
+              }
+            },
+            cutout: '75%' // Anneau plus fin et élégant
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[Dashboard] absence chart render failed, stats still displayed', e);
+    }
+
+    // If core stats still missing after partial successes, notify once
+    if (!stats.value) {
+      ElMessage.warning('Statistiques principales indisponibles, affichage partiel');
     }
   } catch (error) {
-    ElMessage.error('Impossible de charger les statistiques');
+    console.error('[Dashboard] loadDashboardStats unexpected error', error);
+    // Do not swallow partial data: only show fatal error if stats still null
+    if (!stats.value) {
+      ElMessage.error('Impossible de charger les statistiques');
+    } else {
+      console.warn('[Dashboard] partial data kept despite error, stats still displayed');
+    }
   } finally {
     loading.value = false;
   }
