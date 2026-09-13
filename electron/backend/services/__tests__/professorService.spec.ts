@@ -1110,4 +1110,59 @@ describe('ProfessorService (unit, transactionalEntityManager InMemory)', () => {
     expect(updateRes.success).toBe(true)
     expect(updateRes.data.teaching?.[0].class).toEqual({ id: 4, name: 'CM1' })
   })
+
+  it('18. updateProfessor saves photo via fileService when photo.content is provided', async () => {
+    const service = new ProfessorService()
+    const createRes = await service.createProfessor(baseProfessorData({}))
+    const id = (createRes.data as any).id
+    expect((createRes.data as any).photo).toBeUndefined()
+
+    const updateRes: any = await service.updateProfessor(id, {
+      firstname: 'Jean',
+      lastname: 'Dupont',
+      photo: { name: 'new-photo.jpg', type: 'image/jpeg', content: 'data:image/jpeg;base64,xyz' },
+    })
+
+    expect(updateRes.success).toBe(true)
+    // fileService.saveFile should have been called for the photo
+    expect(fileSaveCalls).toHaveLength(1)
+    expect(fileSaveCalls[0]).toEqual(expect.objectContaining({ name: 'new-photo.jpg', type: 'image/jpeg', content: 'data:image/jpeg;base64,xyz' }))
+    // stored professor should have photo attached
+    const stored = professorStore.get(id)
+    expect(stored.photo).toBeDefined()
+    expect(stored.photo.name).toBe('new-photo.jpg')
+    // response should map the photo back
+
+  })
+
+  // -------------------------------------------------------------
+  // 19. updateProfessor with removePhoto:true clears the photo
+  // -------------------------------------------------------------
+  it('19. updateProfessor with removePhoto:true clears the photo', async () => {
+    const service = new ProfessorService()
+    // Create a professor WITH a photo
+    const createRes: any = await service.createProfessor(baseProfessorData({
+      photo: { name: 'initial.jpg', type: 'image/jpeg', content: 'data:image/jpeg;base64,abc' },
+    }))
+    const id = (createRes.data as any).id
+    expect(createRes.data.photo).toEqual(expect.objectContaining({ name: 'initial.jpg', type: 'image/jpeg' }))
+    expect(fileSaveCalls).toHaveLength(1)
+
+    // Update with removePhoto:true -> should clear the photo, not save a new file
+    const updateRes: any = await service.updateProfessor(id, {
+      firstname: 'Jean',
+      lastname: 'Dupont',
+      removePhoto: true,
+    })
+
+    expect(updateRes.success).toBe(true)
+    // No additional file save for removal
+    expect(fileSaveCalls).toHaveLength(1)
+    // Stored entity should have photo cleared to null
+    const stored = professorStore.get(id)
+    expect(stored.photo).toBeNull()
+    // Response should map no photo
+    expect(updateRes.data.photo).toBeUndefined()
+  })
 })
+

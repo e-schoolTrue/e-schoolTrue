@@ -191,6 +191,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Document, Loading, Warning, School, Calendar, TrendCharts, Star, User } from '@element-plus/icons-vue';
+import { getAppreciation } from '@/utils/grade';
 
 interface AnnualDistinctions {
   tableauHonneur: boolean;
@@ -270,13 +271,7 @@ const classAverage = computed(() => {
 const generalAppreciation = computed(() => {
   const avg = classAverage.value;
   const base = classConfig.value?.finalGradeBase || 20;
-  if (avg >= base - 1) return 'Excellent';
-  if (avg >= base - 2.5) return 'Très Bien';
-  if (avg >= base - 5) return 'Bien';
-  if (avg >= base - 7.5) return 'Assez Bien';
-  if (avg >= base - 10) return 'Passable';
-  if (avg >= base - 15) return 'Insuffisant';
-  return 'Très Insuffisant';
+  return getAppreciation(avg, base);
 });
 
 const onPageChange = (page: number) => {

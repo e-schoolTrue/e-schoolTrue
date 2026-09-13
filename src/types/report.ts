@@ -37,7 +37,7 @@ export interface ReportCardData {
     observations?: string | null;
     fileUrl?: string | null;
     generalAverage: number;
-    conduct?: ConductData | null;
+    conduct?: { discipline?: string; attendance?: string; workEthic?: string } | null;
 }
 
 export interface GenerateReportCardsInput {
@@ -84,9 +84,3 @@ export interface ReportCardTemplate {
     component: any; // This will be a Vue component type
 }
 
-export interface ConductData {
-    discipline?: string;
-    attendance?: string;
-    workEthic?: string;
-   
-}

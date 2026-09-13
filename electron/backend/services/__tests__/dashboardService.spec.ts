@@ -330,9 +330,9 @@ describe('DashboardService', () => {
     const result = await service.getAbsenceStats()
 
     expect(result.success).toBe(true)
-    expect(result.data['6eme']).toBe(2)
-    expect(result.data['5eme']).toBe(1)
-    expect(result.data['Professeurs']).toBe(2)
+    expect(result.data.student['6eme']).toBe(2)
+    expect(result.data.student['5eme']).toBe(1)
+    expect(result.data.professor['Professeurs']).toBe(2)
 
     // Verify date filter uses last 3 months with ISO date strings
     expect(qb.where).toHaveBeenCalledWith('absence.date >= :startDate', expect.objectContaining({ startDate: expect.any(String) }))
@@ -354,7 +354,7 @@ describe('DashboardService', () => {
 
     const result = await service.getAbsenceStats()
     expect(result.success).toBe(true)
-    expect(result.data).toEqual({})
+    expect(result.data).toEqual({ student: {}, professor: {} })
   })
 
   it('5c. getAbsenceStats handles error', async () => {
@@ -500,7 +500,7 @@ describe('DashboardService', () => {
     expect(classes.data).toBe(0)
     expect(payments.data).toEqual([])
     expect(absences.data).toEqual([])
-    expect(stats.data).toEqual({})
+    expect(stats.data).toEqual({ student: {}, professor: {} })
 
     // Full stats aggregation with empty
     vi.spyOn(service as any, 'getTotalStudents').mockResolvedValue({ success: true, data: 0, message: 'ok', error: null })

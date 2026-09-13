@@ -2,22 +2,25 @@
 import { AppItems } from "@/components/util/AppItems.ts";
 import { Icon } from "@iconify/vue";
 import { useThemeStore } from '@/stores/themeStore'
+import UserMenu from '@/components/layout/UserMenu.vue'
 
 const themeStore = useThemeStore()
 </script>
 
 <template>
-  <el-menu
-    ellipsis
-    mode="horizontal"
-    :background-color="themeStore.colors.menuBg"
-    :active-text-color="themeStore.colors.menuActiveText"
-    :text-color="themeStore.colors.menuText"
-    :popper-offset="0"
-    router
-    :default-active="$route.path"
-    trigger="hover"
-  >
+  <div class="dashboard-navbar">
+    <el-menu
+      ellipsis
+      mode="horizontal"
+      :background-color="themeStore.colors.menuBg"
+      :active-text-color="themeStore.colors.menuActiveText"
+      :text-color="themeStore.colors.menuText"
+      :popper-offset="0"
+      router
+      :default-active="$route.path"
+      trigger="hover"
+      class="dashboard-el-menu"
+    >
     <el-menu-item index="/">Dashboard</el-menu-item>
     <el-sub-menu v-for="item in AppItems" :key="item.id" :index="item.id">
       <template #title>
@@ -61,10 +64,32 @@ const themeStore = useThemeStore()
         </el-menu-item>
       </template>
     </el-sub-menu>
-  </el-menu>
+    </el-menu>
+    <div class="user-menu-wrapper">
+      <UserMenu />
+    </div>
+  </div>
 </template>
 
 <style scoped>
+.dashboard-navbar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background-color: v-bind('themeStore.colors.menuBg');
+}
+
+.dashboard-el-menu {
+  flex: 1;
+  border-bottom: none;
+}
+
+.user-menu-wrapper {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 :deep(.el-sub-menu__title) {
   padding: 0 20px;
 }

@@ -24,6 +24,7 @@ interface DashboardStats {
     totalProfessors: number;
     totalClasses: number;
     recentPayments: Array<any>;
+    recentProfessorPayments: Array<any>;
     recentAbsences: Array<any>;
   };
 }
@@ -32,15 +33,21 @@ interface DashboardStats {
 const stats = ref<DashboardStats | null>(null);
 const loading = ref(true);
 const paymentChartRef = ref<HTMLCanvasElement | null>(null);
-const absenceChartRef = ref<HTMLCanvasElement | null>(null);
+const absenceStudentChartRef = ref<HTMLCanvasElement | null>(null);
+const absenceProfessorChartRef = ref<HTMLCanvasElement | null>(null);
 const { currency } = useCurrency();
 const schoolLogo = ref<string | null>(null);
 const dashboardProfessors = ref<any[]>([]);
 
 // --- Computed ---
-const recentAbsencesDisplay = computed(() => {
+const recentStudentAbsences = computed(() => {
   const absences = stats.value?.stats?.recentAbsences;
-  return Array.isArray(absences) ? absences.slice(0, 5) : [];
+  return Array.isArray(absences) ? absences.filter((a: any) => a.type !== 'PROFESSOR').slice(0, 5) : [];
+});
+
+const recentProfessorAbsences = computed(() => {
+  const absences = stats.value?.stats?.recentAbsences;
+  return Array.isArray(absences) ? absences.filter((a: any) => a.type === 'PROFESSOR').slice(0, 5) : [];
 });
 
 const currentDate = computed(() => {
@@ -77,8 +84,16 @@ const navigateToAbsences = () => {
   router.push('/planning/students/absences');
 };
 
+const navigateToProfessorAbsences = () => {
+  router.push('/planning/professors/absences');
+};
+
 const navigateToPayments = () => {
   router.push('/payment/students');
+};
+
+const navigateToProfessorPayments = () => {
+  router.push('/payment/professors');
 };
 
 // --- Logic ---
@@ -88,11 +103,12 @@ const loadDashboardStats = async () => {
       window.ipcRenderer.invoke('dashboard:stats'),
       window.ipcRenderer.invoke('school:get'),
       window.ipcRenderer.invoke('dashboard:paymentStats'),
+      window.ipcRenderer.invoke('dashboard:professorPaymentStats'),
       window.ipcRenderer.invoke('dashboard:absenceStats'),
       window.ipcRenderer.invoke('professor:all')
     ]);
 
-    const [statsResult, schoolResult, paymentStats, absenceStats, profResult] = results.map((r: any) =>
+    const [statsResult, schoolResult, paymentStats, professorPaymentStats, absenceStats, profResult] = results.map((r: any) =>
       r.status === 'fulfilled' ? r.value : { success: false, data: null, error: r.reason }
     ) as any[];
 
@@ -115,6 +131,7 @@ const loadDashboardStats = async () => {
           totalProfessors: Number(statsResult.data.stats?.totalProfessors) || 0,
           totalClasses: Number(statsResult.data.stats?.totalClasses) || 0,
           recentPayments: statsResult.data.stats?.recentPayments || [],
+          recentProfessorPayments: statsResult.data.stats?.recentProfessorPayments || [],
           recentAbsences: statsResult.data.stats?.recentAbsences || []
         }
       };
@@ -140,33 +157,39 @@ const loadDashboardStats = async () => {
       }
     }
 
-    // Graphique Paiements - tolerant to null/undefined, isolated error handling
+    // Graphique Paiements - étudiants + profs, tolerant to null/undefined, isolated error handling
     try {
       const paymentData = (paymentStats as any)?.data ?? {};
       const isPaymentOk = paymentStats?.success;
+      const professorPaymentData = (professorPaymentStats as any)?.data ?? {};
+      const isProfessorPaymentOk = professorPaymentStats?.success;
       if (!isPaymentOk) {
         console.warn('[Dashboard] dashboard:paymentStats failed or empty, rendering fallback', (paymentStats as any)?.error ?? paymentStats);
+      }
+      if (!isProfessorPaymentOk) {
+        console.warn('[Dashboard] dashboard:professorPaymentStats failed or empty, rendering fallback', (professorPaymentStats as any)?.error ?? professorPaymentStats);
       }
       if (paymentChartRef.value) {
         // Render chart even on fallback data; tolerant to null/undefined via || {}
         const ctx = paymentChartRef.value.getContext('2d');
-        const gradient = ctx ? createGradient(ctx, 'rgba(64, 158, 255, 0.5)', 'rgba(64, 158, 255, 0.0)') : '#409EFF';
-        const rawData = isPaymentOk ? paymentData : {};
-        const labels = Object.keys(rawData || {});
-        const values = Object.values(rawData || {}) as number[];
-        // Fallback si aucune donnée: afficher mois courant à 0 pour éviter chart vide
-        const chartLabels = labels.length ? labels : [new Date().toLocaleString('fr-FR', { month: 'long' })];
-        const chartData = values.length ? values : [0];
+        const gradientStudent = ctx ? createGradient(ctx, 'rgba(64, 158, 255, 0.5)', 'rgba(64, 158, 255, 0.0)') : '#409EFF';
+        const gradientProfessor = ctx ? createGradient(ctx, 'rgba(245, 108, 108, 0.5)', 'rgba(245, 108, 108, 0.0)') : '#F56C6C';
+        const rawStudent = isPaymentOk ? paymentData : {};
+        const rawProfessor = isProfessorPaymentOk ? professorPaymentData : {};
+        const allMonths = [...new Set([...Object.keys(rawStudent || {}), ...Object.keys(rawProfessor || {})])];
+        const labels = allMonths.length ? allMonths : [new Date().toLocaleString('fr-FR', { month: 'long' })];
+        const studentData = labels.map(m => (rawStudent || {})[m] ?? 0);
+        const professorData = labels.map(m => (rawProfessor || {})[m] ?? 0);
 
         new Chart(paymentChartRef.value, {
           type: 'line',
           data: {
-            labels: chartLabels,
+            labels: labels,
             datasets: [{
-              label: 'Revenus',
-              data: chartData,
+              label: 'Paiements élèves',
+              data: studentData,
               borderColor: '#409EFF',
-              backgroundColor: gradient,
+              backgroundColor: gradientStudent,
               borderWidth: 3,
               pointBackgroundColor: '#fff',
               pointBorderColor: '#409EFF',
@@ -174,13 +197,25 @@ const loadDashboardStats = async () => {
               pointRadius: 4,
               fill: true,
               tension: 0.4 // Courbes douces
+            }, {
+              label: 'Paiements profs',
+              data: professorData,
+              borderColor: '#F56C6C',
+              backgroundColor: gradientProfessor,
+              borderWidth: 3,
+              pointBackgroundColor: '#fff',
+              pointBorderColor: '#F56C6C',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              fill: false,
+              tension: 0.4
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: false },
+              legend: { display: true, labels: { usePointStyle: true, font: { size: 12 } } },
               tooltip: {
                 backgroundColor: '#2c3e50',
                 padding: 12,
@@ -188,7 +223,7 @@ const loadDashboardStats = async () => {
                 bodyFont: { size: 14, weight: 'bold' },
                 callbacks: {
                   label: function(context) {
-                    return `Total: ${new Intl.NumberFormat('fr-FR').format(context.raw as number)} ${currency.value}`;
+                    return `${context.dataset.label}: ${new Intl.NumberFormat('fr-FR').format(context.raw as number)} ${currency.value}`;
                   }
                 }
               }
@@ -211,22 +246,21 @@ const loadDashboardStats = async () => {
       console.warn('[Dashboard] payment chart render failed, stats still displayed', e);
     }
 
-    // Graphique Absences - par prof distinct avec sa couleur, tolerant to null/undefined
+    // Graphique Absences étudiants - par niveau scolaire, tolerant to null/undefined
     try {
       const absenceData = (absenceStats as any)?.data ?? {};
       const isAbsenceOk = absenceStats?.success;
       if (!isAbsenceOk) {
         console.warn('[Dashboard] dashboard:absenceStats failed or empty, rendering fallback', (absenceStats as any)?.error ?? absenceStats);
       }
-      if (absenceChartRef.value) {
-        const rawData = isAbsenceOk ? absenceData : {};
-        const labels = Object.keys(rawData || {});
-        const values = Object.values(rawData || {}) as number[];
+      const rawStudentAbsences = (isAbsenceOk ? absenceData : {})?.student || {};
+      if (absenceStudentChartRef.value) {
+        const labels = Object.keys(rawStudentAbsences || {});
+        const values = Object.values(rawStudentAbsences || {}) as number[];
         const chartLabels = labels.length ? labels : ['Aucune absence'];
         const chartData = values.length ? values : [1];
-        // Couleurs : si label = nom prof, utiliser couleur du prof, sinon palette (fallback when profResult failed)
-        const bgColors = labels.length ? chartLabels.map((label, idx) => getDashboardProfColor(label, idx)) : ['#ebeef5'];
-        new Chart(absenceChartRef.value, {
+        const bgColors = labels.length ? chartLabels.map((_label, idx) => dashboardPalette[idx % dashboardPalette.length]) : ['#ebeef5'];
+        new Chart(absenceStudentChartRef.value, {
           type: 'doughnut',
           data: {
             labels: chartLabels,
@@ -254,7 +288,50 @@ const loadDashboardStats = async () => {
         });
       }
     } catch (e) {
-      console.warn('[Dashboard] absence chart render failed, stats still displayed', e);
+      console.warn('[Dashboard] absence student chart render failed, stats still displayed', e);
+    }
+
+    // Graphique Absences profs - par professeur distinct avec sa couleur, tolerant to null/undefined
+    try {
+      const absenceData = (absenceStats as any)?.data ?? {};
+      const isAbsenceOk = absenceStats?.success;
+      const rawProfessorAbsences = (isAbsenceOk ? absenceData : {})?.professor || {};
+      if (absenceProfessorChartRef.value) {
+        const labels = Object.keys(rawProfessorAbsences || {});
+        const values = Object.values(rawProfessorAbsences || {}) as number[];
+        const chartLabels = labels.length ? labels : ['Aucune absence'];
+        const chartData = values.length ? values : [1];
+        // Couleurs : si label = nom prof, utiliser couleur du prof, sinon palette (fallback when profResult failed)
+        const bgColors = labels.length ? chartLabels.map((label, idx) => getDashboardProfColor(label, idx)) : ['#ebeef5'];
+        new Chart(absenceProfessorChartRef.value, {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              data: chartData,
+              backgroundColor: bgColors.slice(0, chartLabels.length),
+              borderWidth: 0,
+              hoverOffset: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                  position: 'right',
+                  labels: { usePointStyle: true, font: { size: 12 } }
+              },
+              tooltip: {
+                enabled: labels.length > 0
+              }
+            },
+            cutout: '75%' // Anneau plus fin et élégant
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[Dashboard] absence professor chart render failed, stats still displayed', e);
     }
 
     // If core stats still missing after partial successes, notify once
@@ -340,41 +417,13 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Charts Section -->
-      <el-row :gutter="24" class="charts-row">
-        <el-col :xs="24" :lg="16" class="mb-4">
-          <div class="custom-card chart-card">
-            <div class="card-header-clean">
-              <h3><Icon icon="mdi:chart-timeline-variant" class="icon-header"/> Évolution financière</h3>
-              <el-tag size="small" effect="plain">Cette année</el-tag>
-            </div>
-            <div class="chart-wrapper">
-              <canvas ref="paymentChartRef"></canvas>
-            </div>
-          </div>
-        </el-col>
-        
-        <el-col :xs="24" :lg="8" class="mb-4">
-          <div class="custom-card chart-card">
-            <div class="card-header-clean">
-              <h3><Icon icon="mdi:chart-donut" class="icon-header"/> Répartition Absences</h3>
-            </div>
-            <div class="chart-wrapper doughnut-wrapper">
-              <canvas ref="absenceChartRef"></canvas>
-            </div>
-             <div class="chart-footer-text">
-                Par niveau scolaire
-            </div>
-          </div>
-        </el-col>
-      </el-row>
-
       <!-- Recent Activities Row -->
-      <el-row :gutter="24">
+      <el-row :gutter="24" class="equal-cards-row">
         <el-col :xs="24" :md="12" class="mb-4">
+          <div class="list-column">
           <div class="custom-card">
             <div class="card-header-clean">
-              <h3><Icon icon="mdi:wallet-outline" class="icon-header"/> Derniers paiements</h3>
+              <h3><Icon icon="mdi:wallet-outline" class="icon-header"/> Derniers paiements élèves</h3>
               <el-button link type="primary" @click="navigateToPayments">Voir tout</el-button>
             </div>
             <div class="list-container">
@@ -399,33 +448,127 @@ onMounted(() => {
               </div>
             </div>
           </div>
-        </el-col>
 
-        <el-col :xs="24" :md="12" class="mb-4">
           <div class="custom-card">
             <div class="card-header-clean">
-              <h3><Icon icon="mdi:alert-circle-outline" class="icon-header text-red"/> Absences récentes</h3>
+              <h3><Icon icon="mdi:account-tie" class="icon-header"/> Derniers paiements profs</h3>
+              <el-button link type="danger" @click="navigateToProfessorPayments">Voir tout</el-button>
+            </div>
+            <div class="list-container">
+              <div
+                class="list-item"
+                v-for="(payment, index) in stats?.stats.recentProfessorPayments.slice(0, 5)"
+                :key="index"
+              >
+                <div class="item-icon-circle bg-purple-light">
+                    <Icon icon="mdi:teach" />
+                </div>
+                <div class="item-details">
+                  <span class="item-title">{{ payment.professorName }}</span>
+                  <span class="item-sub">{{ new Date(payment.date).toLocaleDateString() }}</span>
+                </div>
+                <div class="item-amount positive">
+                   +{{ new Intl.NumberFormat('fr-FR').format(payment.amount) }} {{ currency }}
+                </div>
+              </div>
+               <div v-if="!stats?.stats.recentProfessorPayments.length" class="empty-state">
+                  Aucun paiement prof récent
+              </div>
+            </div>
+          </div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :md="12" class="mb-4">
+          <div class="custom-card chart-card">
+            <div class="card-header-clean">
+              <h3><Icon icon="mdi:chart-timeline-variant" class="icon-header"/> Évolution financière</h3>
+              <el-tag size="small" effect="plain">Cette année</el-tag>
+            </div>
+            <div class="chart-wrapper">
+              <canvas ref="paymentChartRef"></canvas>
+            </div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="24" class="equal-cards-row">
+        <el-col :xs="24" :md="12" class="mb-4">
+          <div class="list-column">
+          <div class="custom-card">
+            <div class="card-header-clean">
+              <h3><Icon icon="mdi:school-outline" class="icon-header text-red"/> Absences récentes (élèves)</h3>
               <el-button link type="danger" @click="navigateToAbsences">Voir tout</el-button>
             </div>
             <div class="list-container">
               <div
                 class="list-item"
-                v-for="(absence, index) in recentAbsencesDisplay"
+                v-for="(absence, index) in recentStudentAbsences"
                 :key="index"
               >
-                 <div class="item-icon-circle" :class="(absence as any).type === 'PROFESSOR' ? 'bg-blue-light' : 'bg-red-light'">
-                    <Icon :icon="(absence as any).type === 'PROFESSOR' ? 'mdi:teach' : 'mdi:school-outline'" />
+                 <div class="item-icon-circle bg-red-light">
+                    <Icon icon="mdi:school-outline" />
                 </div>
                 <div class="item-details">
-                  <span class="item-title">{{ absence.studentName }} <el-tag v-if="(absence as any).type === 'PROFESSOR'" size="small" type="info" class="ml-2">Prof</el-tag></span>
+                  <span class="item-title">{{ absence.studentName }}</span>
                   <span class="item-sub">Classe : {{ absence.className }}</span>
                 </div>
                 <div class="item-date">
                   {{ new Date(absence.date).toLocaleDateString() }}
                 </div>
               </div>
-              <div v-if="!recentAbsencesDisplay.length" class="empty-state">
-                  Aucune absence récente
+              <div v-if="!recentStudentAbsences.length" class="empty-state">
+                  Aucune absence élève récente
+              </div>
+            </div>
+          </div>
+
+          <div class="custom-card">
+            <div class="card-header-clean">
+              <h3><Icon icon="mdi:teach" class="icon-header text-blue"/> Absences récentes (profs)</h3>
+              <el-button link type="info" @click="navigateToProfessorAbsences">Voir tout</el-button>
+            </div>
+            <div class="list-container">
+              <div
+                class="list-item"
+                v-for="(absence, index) in recentProfessorAbsences"
+                :key="index"
+              >
+                 <div class="item-icon-circle bg-blue-light">
+                    <Icon icon="mdi:teach" />
+                </div>
+                <div class="item-details">
+                  <span class="item-title">{{ absence.studentName }}</span>
+                  <span class="item-sub">{{ absence.className }}</span>
+                </div>
+                <div class="item-date">
+                  {{ new Date(absence.date).toLocaleDateString() }}
+                </div>
+              </div>
+              <div v-if="!recentProfessorAbsences.length" class="empty-state">
+                  Aucune absence prof récente
+              </div>
+            </div>
+          </div>
+          </div>
+        </el-col>
+
+        <el-col :xs="24" :md="12" class="mb-4">
+          <div class="custom-card">
+            <div class="card-header-clean">
+              <h3><Icon icon="mdi:chart-donut" class="icon-header"/> Répartition Absences</h3>
+            </div>
+            <div class="absence-charts">
+              <div class="absence-chart-block">
+                <div class="absence-chart-title">Élèves (par niveau)</div>
+                <div class="chart-wrapper doughnut-wrapper">
+                  <canvas ref="absenceStudentChartRef"></canvas>
+                </div>
+              </div>
+              <div class="absence-chart-block">
+                <div class="absence-chart-title">Profs (par professeur)</div>
+                <div class="chart-wrapper doughnut-wrapper">
+                  <canvas ref="absenceProfessorChartRef"></canvas>
+                </div>
               </div>
             </div>
           </div>
@@ -439,13 +582,17 @@ onMounted(() => {
 <style scoped>
 /* Layout Global */
 .dashboard-container {
-  padding: 30px;
+  padding: 30px 30px 60px;
   background-color: #f5f7fa; /* Gris très léger premium */
   min-height: 100vh;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-.mb-4 { margin-bottom: 24px; }
+.dashboard-container > .el-row:last-child {
+  margin-bottom: 24px;
+}
+
+.mb-4 { margin-bottom: 16px; }
 .mr-2 { margin-right: 8px; }
 .text-red { color: #F56C6C; }
 
@@ -454,7 +601,7 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 32px;
+    margin-bottom: 20px;
 }
 
 .dashboard-header h1 {
@@ -477,13 +624,13 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .kpi-card {
   background: white;
   border-radius: 16px;
-  padding: 24px;
+  padding: 18px;
   display: flex;
   align-items: center;
   position: relative;
@@ -498,14 +645,14 @@ onMounted(() => {
 }
 
 .kpi-icon-wrapper {
-  width: 56px;
-  height: 56px;
+  width: 46px;
+  height: 46px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
-  margin-right: 20px;
+  font-size: 24px;
+  margin-right: 14px;
 }
 
 .kpi-icon-wrapper.blue { background: rgba(64, 158, 255, 0.1); color: #409EFF; }
@@ -569,6 +716,18 @@ onMounted(() => {
     flex-direction: column;
 }
 
+.list-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+}
+
+.list-column .custom-card {
+    height: auto;
+    flex: 1 1 auto;
+}
+
 .card-header-clean {
     padding: 20px 24px;
     border-bottom: 1px solid #f5f7fa;
@@ -595,20 +754,65 @@ onMounted(() => {
 .chart-wrapper {
     padding: 20px;
     position: relative;
-    height: 300px;
+    height: 230px;
     width: 100%;
 }
 
-.chart-footer-text {
-    text-align: center;
-    color: #909399;
-    font-size: 12px;
-    padding-bottom: 20px;
+.absence-charts {
+    padding: 12px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.absence-chart-block {
+    display: flex;
+    flex-direction: column;
+}
+
+.absence-chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #606266;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.absence-chart-block .chart-wrapper {
+    padding: 0;
+    height: 220px;
 }
 
 /* List Styles */
 .list-container {
     padding: 10px 24px 24px;
+}
+
+.equal-cards-row {
+    align-items: stretch;
+}
+
+.equal-cards-row .el-col {
+    display: flex;
+}
+
+.equal-cards-row .list-column {
+    flex: 1;
+}
+
+.equal-cards-row .custom-card {
+    flex: 1;
+}
+
+.equal-cards-row .list-column .custom-card {
+    flex: 1;
+}
+
+.equal-cards-row .list-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .list-item {
@@ -636,6 +840,8 @@ onMounted(() => {
 
 .bg-blue-light { background: #ecf5ff; color: #409EFF; }
 .bg-red-light { background: #fef0f0; color: #F56C6C; }
+.bg-purple-light { background: #f5f3ff; color: #8B5CF6; }
+.text-blue { color: #409EFF; }
 
 .item-details {
     flex: 1;
@@ -677,7 +883,7 @@ onMounted(() => {
 /* Responsive */
 @media (max-width: 768px) {
     .dashboard-container {
-        padding: 16px;
+        padding: 16px 16px 56px;
     }
     
     .dashboard-header {
@@ -691,7 +897,7 @@ onMounted(() => {
     }
     
     .chart-wrapper {
-        height: 250px;
+        height: 200px;
     }
 }
 </style>

@@ -1,12 +1,12 @@
-export function getAppreciation(note: number): string {
-  if (note < 6) return "Très Faible"
-  if (note < 8) return "Faible"
-  if (note < 10) return "Insuffisant"
-  if (note < 12) return "Passable"
-  if (note < 14) return "Assez Bien"
-  if (note < 16) return "Bien"
-  if (note < 18) return "Très Bien"
-  return "Excellent"
+export function getAppreciation(note: number, base = 20): string {
+  if (base <= 0) return "Très Insuffisant"
+  if (note >= 0.9 * base) return "Excellent"
+  if (note >= 0.8 * base) return "Très Bien"
+  if (note >= 0.7 * base) return "Bien"
+  if (note >= 0.6 * base) return "Assez Bien"
+  if (note >= 0.5 * base) return "Passable"
+  if (note >= 0.4 * base) return "Insuffisant"
+  return "Très Insuffisant"
 }
 
 export function formatNumber(num: number | null | undefined): string {

@@ -377,6 +377,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PaymentConfig } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { useCurrency } from '@/composables/useCurrency';
 import { PaymentAnnualConfig } from "@/types/payment";
 import { YearRepartition } from "@/types/year";
 
@@ -442,6 +443,8 @@ const filters = ref<Filters>({
   grade: undefined,
   paymentStatus: undefined
 });
+
+const { formatCurrency, currency } = useCurrency();
 
 
 const loadPaymentConfigs = async () => {
@@ -1495,15 +1498,6 @@ const printReceipt = async (student: Student) => {
   }
 };
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
-};
-
 // La fonction generateMonthlyGrid est déjà définie dans printReceipt - suppression du doublon
 
 const exportToPdf = async () => {
@@ -1681,7 +1675,7 @@ const exportToPdf = async () => {
 const formatCurrencySimple = (amount: number): string => {
   // Utiliser une approche simple pour éviter les problèmes d'encodage dans le PDF
   const formattedAmount = amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return formattedAmount + ' FCFA';
+  return `${formattedAmount} ${currency.value}`;
 };
 
 

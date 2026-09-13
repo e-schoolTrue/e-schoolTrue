@@ -250,11 +250,6 @@
     </el-container>
 
     <!-- Dialogs -->
-    <absence-form
-      v-model:visible="showAddDialog"
-      @absence-added="handleAbsenceAdded"
-    />
-
     <el-dialog
       v-model="dialogVisible"
       :title="currentDocument?.name"
@@ -544,29 +539,6 @@ const loadAbsences = async () => {
     ElMessage.error("Erreur lors du chargement des absences");
   } finally {
     loading.value = false;
-  }
-};
-
-// Gestion des absences
-const handleAbsenceAdded = async (newAbsence: Partial<Absence>) => {
-  console.log('=== Vue - Début handleAbsenceAdded ===');
-  console.log('Nouvelle absence à ajouter:', newAbsence);
-  
-  try {
-    const result = await window.ipcRenderer.invoke('absence:add', newAbsence);
-    console.log('Résultat de l\'ajout:', result);
-    
-    if (result?.success) {
-      ElMessage.success("Absence ajoutée avec succès");
-      showAddDialog.value = false;
-      // Recharger immédiatement les absences
-      await loadAbsences();
-    } else {
-      throw new Error(result?.error || "Erreur lors de l'ajout");
-    }
-  } catch (error) {
-    console.error('Erreur détaillée lors de l\'ajout:', error);
-    ElMessage.error(error instanceof Error ? error.message : "Erreur lors de l'ajout de l'absence");
   }
 };
 

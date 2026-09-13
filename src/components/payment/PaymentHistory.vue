@@ -163,6 +163,8 @@ const annualAmount = ref(0);
 const remainingAmount = ref(0);
 const adjustedAnnualAmount = ref(0);
 
+const { currency } = useCurrency();
+
 const formatDate = (date: string | Date | undefined): string => {
   if (!date) return 'N/A';
   try {
@@ -321,7 +323,6 @@ const printReceipt = async (payment: any) => {
       throw new Error('Impossible de récupérer les informations de l\'école');
     }
 
-    const { currency } = useCurrency();
     const studentName = `${props.student.firstname} ${props.student.lastname}`;
 
     // Créer un élément temporaire pour contenir le reçu

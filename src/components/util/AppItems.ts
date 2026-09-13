@@ -1,9 +1,13 @@
-interface MenuItem {
+import type { UserRole } from '@/types/user'
+
+export interface MenuItem {
     id: string;
     title: string;
     icon: string;
     route?: string;
     description?: string;
+    /** Si défini, l'entrée n'est visible que pour les rôles listés. */
+    roles?: UserRole[];
     subItems?: MenuItem[];
 }
 
@@ -50,15 +54,15 @@ export const AppItems: MenuItem[] = [
     },
     {
         id: "submenu-3",
-        title: "Gestion des Paiements",
+        title: "Comptabilité",
         icon: "mdi:cash-register",
         subItems: [
             {
                 id: "submenu-3-1",
-                title: "Paiements Professeurs",
-                icon: "mdi:cash-multiple",
-                route: "/payment/professors",
-                description: "Gérer les salaires et primes des enseignants"
+                title: "Tableau de bord",
+                icon: "mdi:view-dashboard-outline",
+                route: "/comptabilite",
+                roles: ['admin', 'comptable']
             },
             {
                 id: "submenu-3-2",
@@ -66,6 +70,55 @@ export const AppItems: MenuItem[] = [
                 icon: "mdi:cash",
                 route: "/payment/students",
                 description: "Gérer les frais de scolarité et autres paiements"
+            },
+            {
+                id: "submenu-3-3",
+                title: "Paiements Professeurs",
+                icon: "mdi:cash-multiple",
+                route: "/payment/professors",
+                description: "Gérer les salaires et primes des enseignants"
+            },
+            {
+                id: "submenu-3-4",
+                title: "Encaissements",
+                icon: "mdi:cash-register",
+                route: "/encaissements",
+                roles: ['admin', 'comptable']
+            },
+            {
+                id: "submenu-3-5",
+                title: "Impayés",
+                icon: "mdi:alert-circle-outline",
+                route: "/impayes",
+                roles: ['admin', 'comptable']
+            },
+            {
+                id: "submenu-3-6",
+                title: "Dépenses",
+                icon: "mdi:cart-outline",
+                route: "/depenses",
+                roles: ['admin', 'comptable']
+            },
+            {
+                id: "submenu-3-7",
+                title: "Paie enseignants",
+                icon: "mdi:teach",
+                route: "/enseignants",
+                roles: ['admin', 'comptable']
+            },
+            {
+                id: "submenu-3-8",
+                title: "Caisse",
+                icon: "mdi:safe",
+                route: "/caisse",
+                roles: ['admin', 'comptable']
+            },
+            {
+                id: "submenu-3-9",
+                title: "Rapports",
+                icon: "mdi:file-chart-outline",
+                route: "/rapports",
+                roles: ['admin', 'comptable']
             }
         ]
     },
@@ -198,10 +251,30 @@ export const AppItems: MenuItem[] = [
             },
             {
                 id: "submenu-5-4",
-                title: "Sauvegarde et Restauration",
+                title: "Synchronisation Cloud",
                 icon: "mdi:database-sync",
                 route: "/tools/sync",
-                description: "Gérer les sauvegardes et restaurations de données"
+                description: "Sync cloud et historique"
+            }
+        ]
+    },
+    {
+        id: "submenu-admin",
+        title: "Administration",
+        icon: "mdi:shield-account",
+        roles: ['admin'],
+        subItems: [
+            {
+                id: "submenu-admin-1",
+                title: "Utilisateurs",
+                icon: "mdi:account-cog",
+                route: "/utilisateurs",
+            },
+            {
+                id: "submenu-admin-2",
+                title: "Journal d'activité",
+                icon: "mdi:clipboard-text-clock",
+                route: "/journal-activite",
             }
         ]
     },

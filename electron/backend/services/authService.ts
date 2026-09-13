@@ -6,6 +6,7 @@ import Store from 'electron-store';
 import { supabaseConfig } from '../../config/supabase';
 import { supabase } from '../lib/supabaseClient';
 import { setCurrentSupabaseUserId } from '../lib/session';
+import { clearSchemaClients } from '../lib/supabaseClient';
 
 //Variable globale pour stocker l'ID Supabase
 let currentSupabaseUserId: string | null = null;
@@ -17,7 +18,7 @@ export function getCurrentSupabaseUserId(): string | null {
 
 export class AuthService {
     private userRepository = AppDataSource.getInstance().getRepository(UserEntity);
-    private currentUser: { id: number; username: string } | null = null;
+    private currentUser: { id: number; username: string; displayName?: string | null; role?: ROLE; isActive?: boolean } | null = null;
     private store = new Store();
     private supabase = supabase;
 
@@ -93,10 +94,26 @@ export class AuthService {
                 };
             }
 
+            if (user.isActive === false) {
+                this.currentUser = null;
+                return {
+                    success: false,
+                    data: null,
+                    message: "Compte désactivé. Contactez l'administrateur.",
+                    error: "ACCOUNT_DISABLED"
+                };
+            }
+
             this.currentUser = {
                 id: user.id,
-                username: user.username
+                username: user.username,
+                displayName: user.displayName ?? null,
+                role: user.role,
+                isActive: true
             };
+            user.lastLoginAt = new Date();
+            await this.userRepository.save(user);
+            this.store.set('currentUser', { ...this.currentUser });
 
             console.log("=== Résultat de la validation ===", this.currentUser);
 
@@ -105,7 +122,9 @@ export class AuthService {
                 data: {
                     id: user.id,
                     username: user.username,
-                    role: user.role
+                    displayName: user.displayName ?? null,
+                    role: user.role,
+                    isActive: true
                 },
                 message: "Connexion réussie",
                 error: null
@@ -123,24 +142,87 @@ export class AuthService {
     }
 
     async init() {
-        this.currentUser = this.store.get('currentUser') as any;
-
-        // ✅ Étape 1.5 : Restauration de l'ID Supabase au démarrage
-        const { data: { user }, error } = await this.supabase.auth.getUser();
-        if (user) {
-            currentSupabaseUserId = user.id;
-            console.log(`[AuthService:init] Session Supabase valide. ID restauré : ${currentSupabaseUserId}`);
+        // Restauration tolérante de la session locale (alignée sur AppUser src/types/user.ts
+        // + userStore.hydrate() : id number, username non vide, role valide).
+        // - id : number entier OU string numérique normalisée en number (legacy electron-store).
+        // - role : doit appartenir à ['admin','professor','student','comptable']
+        //   (ROLE dans #electron/command + UserRole dans src/types/user.ts).
+        // - displayName : string ?? null. isActive : boolean ?? true.
+        // - Ne purge le store que si la valeur est irrécupérable (objet invalide).
+        const VALID_ROLES: string[] = ['admin', 'professor', 'student', 'comptable'];
+        const stored = this.store.get('currentUser') as unknown as {
+            id?: unknown; username?: unknown; displayName?: unknown; role?: unknown; isActive?: unknown;
+        } | null | undefined;
+        const purgeStored = () => {
+            try { this.store.delete('currentUser'); } catch { /* best-effort purge */ }
+        };
+        let restored = false;
+        if (stored !== null && stored !== undefined && typeof stored === 'object') {
+            // Normalisation de l'id : number entier ou string numérique ("7" -> 7).
+            let normalizedId: number | null = null;
+            const rawId = (stored as { id?: unknown }).id;
+            if (typeof rawId === 'number' && Number.isInteger(rawId) && rawId > 0) {
+                normalizedId = rawId;
+            } else if (typeof rawId === 'string' && /^\d+$/.test(rawId.trim())) {
+                const parsed = Number.parseInt(rawId.trim(), 10);
+                if (Number.isInteger(parsed) && parsed > 0) normalizedId = parsed;
+            }
+            const rawUsername = (stored as { username?: unknown }).username;
+            const normalizedUsername = typeof rawUsername === 'string' ? rawUsername.trim() : '';
+            const rawRole = (stored as { role?: unknown }).role;
+            const normalizedRole = typeof rawRole === 'string' ? rawRole.trim() : '';
+            const rawDisplayName = (stored as { displayName?: unknown }).displayName;
+            const rawIsActive = (stored as { isActive?: unknown }).isActive;
+            if (normalizedId !== null && normalizedUsername.length > 0 && VALID_ROLES.includes(normalizedRole)) {
+                this.currentUser = {
+                    id: normalizedId,
+                    username: normalizedUsername,
+                    displayName: typeof rawDisplayName === 'string' ? rawDisplayName : null,
+                    role: normalizedRole as ROLE,
+                    isActive: typeof rawIsActive === 'boolean' ? rawIsActive : true,
+                };
+                restored = true;
+                // Auto-réparation : réécrire la forme normalisée (id number) pour les prochains restarts.
+                try { this.store.set('currentUser', { ...this.currentUser }); } catch { /* best-effort */ }
+            } else {
+                this.currentUser = null;
+                purgeStored();
+            }
         } else {
+            this.currentUser = null;
+            if (stored !== null && stored !== undefined) {
+                purgeStored();
+            }
+        }
+        void restored;
+
+        // ✅ Étape 1.5 : Restauration best-effort de l'ID Supabase au démarrage.
+        // Ne doit jamais faire échouer le démarrage (offline, tokens absents, etc.).
+        try {
+            const { data: { user } } = await this.supabase.auth.getUser();
+            if (user) {
+                currentSupabaseUserId = user.id;
+                console.log('[AuthService:init] Session Supabase valide. ID restauré.');
+            } else {
+                currentSupabaseUserId = null;
+            }
+        } catch {
             currentSupabaseUserId = null;
         }
     }
 
-    async getCurrentUser(): Promise<{ id: number; username: string } | null> {
+    async getCurrentUser(): Promise<{ id: number; username: string; displayName?: string | null; role?: ROLE; isActive?: boolean } | null> {
         return this.currentUser;
     }
 
     async logout(): Promise<void> {
         this.currentUser = null;
+        // Purge persistée : sans ceci, init() restaurerait currentUser au restart (ghost login).
+        try {
+            this.store.delete('currentUser');
+        } catch (error) {
+            console.warn('[AuthService:logout] store.delete(currentUser) failed:', error);
+        }
     }
 
     async getSecurityQuestion(username: string): Promise<ResultType> {
@@ -361,9 +443,32 @@ export class AuthService {
     }
 
     async signOutFromSupabase(): Promise<void> {
-        await this.supabase.auth.signOut();
-        currentSupabaseUserId = null;
-        console.log('[AuthService] Utilisateur Supabase déconnecté. ID nettoyé.');
+        try {
+            await this.supabase.auth.signOut();
+        } catch (error) {
+            // Offline / réseau : on purge quand même le local (best-effort signOut).
+            console.warn('[AuthService] signOut Supabase a échoué (purge locale quand même):', error);
+        } finally {
+            currentSupabaseUserId = null;
+            try {
+                setCurrentSupabaseUserId(null); // reset session.ts (userId + schemaName)
+            } catch (error) {
+                console.warn('[AuthService] setCurrentSupabaseUserId(null) failed:', error);
+            }
+            try {
+                this.store.delete('supabaseUser');
+            } catch (error) {
+                console.warn('[AuthService] store.delete(supabaseUser) failed:', error);
+            }
+            try {
+                clearSchemaClients(); // purge clients de schema cachés (évite réutilisation cross-session)
+            } catch (error) {
+                console.warn('[AuthService] clearSchemaClients() failed:', error);
+            }
+            // NOTE: 'schoolId' volontairement conservé — config tenant, pas secret de session.
+            // NOTE: tokens Supabase persistés purgés par supabase.auth.signOut() via ElectronStore (supabase-auth.json).
+            console.log('[AuthService] Utilisateur Supabase déconnecté. ID nettoyé.');
+        }
     }
 
     async isSupabaseSessionValid(): Promise<boolean> {

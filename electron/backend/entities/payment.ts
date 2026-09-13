@@ -1,8 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn, UpdateDateColumn, DeleteDateColumn, Index } from "typeorm";
 import { StudentEntity } from "./students";
 import { ScholarshipEntity } from "./scholarship";
 
 @Entity("payments")
+@Index("IDX_payment_created_at", ["created_at"])
+@Index("IDX_payment_schoolYear", ["schoolYear"])
+@Index("IDX_payment_studentId", ["studentId"])
 export class PaymentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
@@ -31,7 +34,15 @@ export class PaymentEntity {
     deleted_at?: Date;
 
     @ManyToOne(() => StudentEntity, student => student.payments, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "studentId" })
     student!: StudentEntity;
+
+    @Column({ type: "integer", nullable: true })
+    studentId?: number;
+
+    /** Numéro de reçu atomique R-YYYY-NNNN, idempotent. */
+    @Column({ type: "varchar", length: 20, nullable: true, unique: true })
+    receiptNumber?: string;
 
 
     @Column({ type: "integer", default: 1 })

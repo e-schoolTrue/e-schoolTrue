@@ -9,13 +9,6 @@ export interface ICourseBase {
     gradeIds?: number[];
 }
 
-// Type pour la rétrocompatibilité
-export interface Type1 {
-    id?: number;
-    username?: string;
-    tel?: string;
-}
-
 // Type principal pour les matières
 export interface ICourse extends ICourseBase {
     isInGroupement?: boolean;
@@ -70,23 +63,10 @@ export interface ICourseServiceParams {
     };
 }
 
-// Types pour les réponses API
-export interface IApiResponse<T> {
-    success: boolean;
-    data: T | null;
-    message: string;
-    error: string | null;
-}
-
-export interface ICourseServiceResponse extends IApiResponse<ICourseData[] | null> {}
-
 // Types pour la rétrocompatibilité (si nécessaire)
 export type Course = ICourse;
 export type CourseFormData = ICourseFormData;
 export type CourseGroupFormData = ICourseGroupFormData;
-export type ApiResponse<T> = IApiResponse<T>;
-export type CourseResponse = IApiResponse<ICourse[]>;
-export type CourseGroupResponse = IApiResponse<ICourse[]>;
 export type CourseCommand = ICourseBase & { 
   isInGroupement?: boolean; 
   groupementId?: number; 

@@ -9,6 +9,7 @@ import { registerIpcHandlers } from './events';
 import { ConfigService } from './backend/services/configService';
 import { AuthService } from './backend/services/authService';
 import { CloudSyncService } from './backend/services/backupService';
+import { getLocalBackupService } from './backend/services/localBackupService';
 import { GradeService } from "./backend/services/gradeService";
 import { CourseService } from "./backend/services/courseService";
 import { StudentService } from "./backend/services/studentService";
@@ -33,6 +34,8 @@ import { PaymentAnnualConfigService } from './backend/services/payment-annual-co
 import { ConfigNoteService } from "./backend/services/note-config-service";
 import { GradeEntryService } from "./backend/services/gradeEntryService";
 import { CentralizedPdfService } from "./backend/services/centralizedPdfService";
+import { AuditLogService } from "./backend/services/auditLogService";
+import { UserAdminService } from "./backend/services/userAdminService";
 
 
 
@@ -55,6 +58,7 @@ let win: BrowserWindow | null;
 function initializeServices() {
   global.authService = new AuthService();
   global.backupService = new CloudSyncService();
+  global.localBackupService = getLocalBackupService();
   global.gradeService = new GradeService();
   global.courseService = new CourseService();
   global.studentService = new StudentService();
@@ -79,6 +83,8 @@ function initializeServices() {
   global.configNoteService = new ConfigNoteService();
   global.gradeEntryService = new GradeEntryService();
   global.centralizedPdfService = new CentralizedPdfService();
+  global.auditLogService = new AuditLogService();
+  global.userAdminService = new UserAdminService();
 }
 
 // =================================================================
@@ -107,6 +113,18 @@ async function startApplication() {
   console.log('[3/4] Initialisation des services métier...');
   initializeServices();
   console.log('[3/4] Services métier initialisés avec succès.');
+
+  console.log('[3b/4] Restauration de la session locale...');
+  try {
+    await global.authService.init();
+    // Log sans PII : booléen uniquement, ni id, ni username, ni displayName.
+    const restored = await global.authService.getCurrentUser().then((u) => !!u).catch(() => false);
+    console.log(`[3b/4] Session locale restaurée: ${restored ? 'oui' : 'non'}.`);
+  } catch (error) {
+    console.warn('[3b/4] Restauration de la session locale impossible (poursuite sans session):', (error as Error)?.message ?? error);
+  }
+
+  await global.auditLogService.init();
 
   console.log('[3/5] Initialisation des handlers IPC...');
   registerIpcHandlers();

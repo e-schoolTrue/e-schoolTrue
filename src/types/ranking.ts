@@ -14,13 +14,6 @@ export interface StudentRanking {
     }>;
 }
 
-export interface CentralizedRankingsResponse {
-    success: boolean;
-    data: StudentRanking[];
-    message: string;
-    error: string|null;
-}
-
 export interface RankingFilters {
     classId?: number;
     gradeId?: number;

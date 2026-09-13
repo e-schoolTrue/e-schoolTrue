@@ -5,7 +5,8 @@ import { ProfessorEntity } from "../entities/professor";
 import { GradeEntity } from "../entities/grade";
 import { PaymentEntity } from "../entities/payment";
 import { AbsenceEntity } from "../entities/absence";
-import { IDashboardServiceResponse, IRecentPayment, IRecentAbsence } from "../types/dashboard";
+import { ProfessorPaymentEntity } from "../entities/professorPayment";
+import { IDashboardServiceResponse, IRecentPayment, IRecentAbsence, IProfessorRecentPayment, IAbsenceStats } from "../types/dashboard";
 import { StudentService } from "./studentService";
 
 export class DashboardService {
@@ -143,6 +144,76 @@ export class DashboardService {
         }
     }
 
+    async getRecentProfessorPayments(limit: number = 5): Promise<ResultType> {
+        try {
+            const dataSource = AppDataSource.getInstance();
+            const professorPaymentRepo = dataSource.getRepository(ProfessorPaymentEntity);
+            const payments = await professorPaymentRepo.find({
+                relations: ['professor'],
+                order: { created_at: 'DESC' },
+                take: limit
+            });
+
+            const formattedPayments: IProfessorRecentPayment[] = payments.map(payment => ({
+                id: payment.id,
+                professorName: `${payment.professor.firstname} ${payment.professor.lastname}`,
+                amount: payment.amount,
+                date: payment.created_at || payment.createdAt
+            }));
+
+            return {
+                success: true,
+                data: formattedPayments,
+                message: "Paiements profs récents récupérés avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des paiements profs récents",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
+
+    async getProfessorPaymentStats(): Promise<ResultType> {
+        try {
+            const dataSource = AppDataSource.getInstance();
+            const professorPaymentRepo = dataSource.getRepository(ProfessorPaymentEntity);
+
+            const lastSixMonths = new Date();
+            lastSixMonths.setMonth(lastSixMonths.getMonth() - 6);
+
+            const payments = await professorPaymentRepo
+                .createQueryBuilder('payment')
+                .where('payment.created_at >= :startDate', { startDate: lastSixMonths })
+                .andWhere('payment.created_at <= :endDate', { endDate: new Date() })
+                .orderBy('payment.created_at', 'ASC')
+                .getMany();
+
+            const monthlyPayments = payments.reduce((acc: { [key: string]: number }, payment:any) => {
+                    const month = new Date(payment.created_at || payment.createdAt).toLocaleString('fr-FR', { month: 'long' });
+                acc[month] = (acc[month] || 0) + payment.amount;
+                return acc;
+            }, {});
+
+            return {
+                success: true,
+                data: monthlyPayments,
+                message: "Statistiques de paiement profs récupérées avec succès",
+                error: null
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la récupération des statistiques de paiement profs",
+                error: error instanceof Error ? error.message : "Unknown error"
+            };
+        }
+    }
+
     async getRecentAbsences(limit: number = 5): Promise<ResultType> {
         try {
             const dataSource = AppDataSource.getInstance();
@@ -215,27 +286,27 @@ export class DashboardService {
 
             logger.debug('Types des absences trouvées:', absences.map((a:any) => a.type));
 
-            const absencesByGrade = absences.reduce((acc: { [key: string]: number }, absence:any) => {
+            const absenceStats: IAbsenceStats = { student: {}, professor: {} };
+
+            absences.forEach((absence:any) => {
                 if (absence.type === 'STUDENT' && absence.grade?.name) {
                     const gradeName = absence.grade.name;
-                    acc[gradeName] = (acc[gradeName] || 0) + 1;
+                    absenceStats.student[gradeName] = (absenceStats.student[gradeName] || 0) + 1;
                 } else if (absence.type === 'PROFESSOR') {
                     if (absence.professor?.firstname || absence.professor?.lastname) {
                         const profName = `${absence.professor.firstname || ''} ${absence.professor.lastname || ''}`.trim() || `Prof #${absence.professor.id}`;
-                        // Chaque prof remplit le cercle selon sa fréquence, avec sa couleur (côté frontend)
-                        acc[profName] = (acc[profName] || 0) + 1;
+                        absenceStats.professor[profName] = (absenceStats.professor[profName] || 0) + 1;
                     } else {
-                        acc['Professeurs'] = (acc['Professeurs'] || 0) + 1;
+                        absenceStats.professor['Professeurs'] = (absenceStats.professor['Professeurs'] || 0) + 1;
                     }
                 }
-                return acc;
-            }, {});
+            });
 
-            logger.debug('Statistiques calculées:', absencesByGrade);
+            logger.debug('Statistiques calculées:', absenceStats);
 
             return {
                 success: true,
-                data: absencesByGrade,
+                data: absenceStats,
                 message: "Statistiques d'absence récupérées avec succès",
                 error: null
             };
@@ -252,12 +323,13 @@ export class DashboardService {
 
     async getStats(): Promise<IDashboardServiceResponse> {
         try {
-            const [totalStudents, totalProfessors, totalClasses, recentPayments, recentAbsences] = 
+            const [totalStudents, totalProfessors, totalClasses, recentPayments, recentProfessorPayments, recentAbsences] = 
                 await Promise.all([
                     this.getTotalStudents(),
                     this.getTotalProfessors(),
                     this.getTotalClasses(),
                     this.getRecentPayments(5),
+                    this.getRecentProfessorPayments(5),
                     this.getRecentAbsences(5)
                 ]);
 
@@ -269,6 +341,7 @@ export class DashboardService {
                         totalProfessors: totalProfessors.data || 0,
                         totalClasses: totalClasses.data || 0,
                         recentPayments: recentPayments.data || [],
+                        recentProfessorPayments: recentProfessorPayments.data || [],
                         recentAbsences: recentAbsences.data || []
                     }
                 },
@@ -285,6 +358,7 @@ export class DashboardService {
                         totalProfessors: 0,
                         totalClasses: 0,
                         recentPayments: [],
+                        recentProfessorPayments: [],
                         recentAbsences: []
                     }
                 },

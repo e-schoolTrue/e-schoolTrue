@@ -94,6 +94,7 @@ export interface IProfessorServiceParams {
         data: Partial<IProfessorData> & {
             color?: string;
             photo?: IProfessorFile;
+            removePhoto?: boolean;
             documents?: IProfessorFile[];
             diploma?: { name: string };
             qualification?: { name: string };

@@ -508,6 +508,18 @@ export class ProfessorService {
                     }
                 }
 
+                // Handle photo upload
+                if (professorData.photo && professorData.photo.content) {
+                    const savedPhoto = await this.fileService.saveFile({
+                        content: professorData.photo.content,
+                        name: professorData.photo.name,
+                        type: professorData.photo.type
+                    });
+                    existingProfessor.photo = savedPhoto;
+                } else if (professorData.removePhoto === true) {
+                    existingProfessor.photo = null;
+                }
+
                 // Save the updated professor
                 const savedProfessor = await transactionalEntityManager.save(existingProfessor);
 

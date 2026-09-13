@@ -50,6 +50,14 @@ export class ProfessorEntity {
     @Column({ type: 'varchar', length: 9, nullable: true, default: '#409EFF' })
     color?: string;
 
+    /** Taux horaire en GNF (decimal entier, pas de float). */
+    @Column("decimal", { precision: 12, scale: 0, default: 0 })
+    hourlyRate!: number;
+
+    /** Mode de paiement: monthly | hourly | custom. */
+    @Column({ type: 'varchar', length: 20, default: 'monthly' })
+    paymentMode!: string;
+
     @OneToOne(() => FileEntity, { nullable: true })
     @JoinColumn()
     photo?: FileEntity;

@@ -31,6 +31,15 @@ export class UserEntity {
     @Column({ type: "varchar" })
     securityAnswer!: string;
 
+    @Column({ type: "varchar", nullable: true })
+    displayName!: string | null;
+
+    @Column({ type: "boolean", default: true })
+    isActive!: boolean;
+
+    @Column({ type: 'datetime', nullable: true })
+    lastLoginAt!: Date | null;
+
     @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
     createdAt!: Date;
 }

@@ -55,6 +55,10 @@ const mockStats = {
       { studentName: 'Alice', amount: 50000, date: '2024-01-15' },
       { studentName: 'Bob', amount: 30000, date: '2024-01-16' },
     ],
+    recentProfessorPayments: [
+      { professorName: 'Prof Dupont', amount: 200000, date: '2024-01-17' },
+      { professorName: 'Prof Martin', amount: 150000, date: '2024-01-18' },
+    ],
     recentAbsences: [
       { studentName: 'Charlie', className: 'CP', date: '2024-02-01', type: 'STUDENT' },
       { studentName: 'Prof Dupont', className: '6eme', date: '2024-02-02', type: 'PROFESSOR' },
@@ -67,7 +71,8 @@ const mockStats = {
 }
 
 const mockPaymentStats = { 'Janvier': 100000, 'Février': 150000, Mars: 200000 }
-const mockAbsenceStats = { 'CP': 5, '6ème': 3, 'CE1': 2 }
+const mockProfessorPaymentStats = { 'Janvier': 50000, 'Février': 75000, Mars: 100000 }
+const mockAbsenceStats = { student: { 'CP': 5, '6ème': 3, 'CE1': 2 }, professor: { 'Prof Dupont': 4, 'Prof Martin': 2 } }
 
 function makeSuccessMocks(overrides: any = {}) {
   return vi.fn(async (channel: string) => {
@@ -75,6 +80,7 @@ function makeSuccessMocks(overrides: any = {}) {
       case 'dashboard:stats': return { success: true, data: overrides.stats || mockStats }
       case 'school:get': return { success: true, data: overrides.school || { name: 'Ecole Test', logo: null, country: 'SEN' } }
       case 'dashboard:paymentStats': return { success: true, data: overrides.paymentStats !== undefined ? overrides.paymentStats : mockPaymentStats }
+      case 'dashboard:professorPaymentStats': return { success: true, data: overrides.professorPaymentStats !== undefined ? overrides.professorPaymentStats : mockProfessorPaymentStats }
       case 'dashboard:absenceStats': return { success: true, data: overrides.absenceStats !== undefined ? overrides.absenceStats : mockAbsenceStats }
       case 'school:getLogo': return { success: true, data: null }
       default: return { success: true, data: null }
@@ -122,6 +128,7 @@ describe('DashboardView', () => {
     expect(mockInvoke).toHaveBeenCalledWith('dashboard:stats')
     expect(mockInvoke).toHaveBeenCalledWith('school:get')
     expect(mockInvoke).toHaveBeenCalledWith('dashboard:paymentStats')
+    expect(mockInvoke).toHaveBeenCalledWith('dashboard:professorPaymentStats')
     expect(mockInvoke).toHaveBeenCalledWith('dashboard:absenceStats')
     expect(wrapper.vm.stats).toBeTruthy()
     expect(wrapper.vm.stats.stats.totalStudents).toBe(150)
@@ -133,7 +140,7 @@ describe('DashboardView', () => {
   })
 
   it('payment chart fallback when data empty shows current month with 0', async () => {
-    const wrapper: any = await mountDashboard(makeSuccessMocks({ paymentStats: {}, absenceStats: mockAbsenceStats }))
+    const wrapper: any = await mountDashboard(makeSuccessMocks({ paymentStats: {}, professorPaymentStats: {}, absenceStats: mockAbsenceStats }))
     const calls = mockChartCtor.mock.calls
     expect(calls.length).toBeGreaterThanOrEqual(1)
     const lineCall = calls.find((c: any) => c[1] && c[1].type === 'line')
@@ -142,6 +149,7 @@ describe('DashboardView', () => {
       const expectedMonth = new Date().toLocaleString('fr-FR', { month: 'long' })
       expect(dataConfig.labels).toEqual([expectedMonth])
       expect(dataConfig.datasets[0].data).toEqual([0])
+      expect(dataConfig.datasets[1].data).toEqual([0])
     } else {
       const labels = Object.keys({})
       const values = Object.values({})
@@ -173,25 +181,29 @@ describe('DashboardView', () => {
     wrapper.unmount()
   })
 
-  it('recentAbsencesDisplay slices 0-5 and handles professor type (shows Prof tag)', async () => {
+  it('recentAbsencesDisplay split: student and professor lists filtered correctly', async () => {
     const wrapper: any = await mountDashboard()
-    const display = wrapper.vm.recentAbsencesDisplay
-    expect(display.length).toBe(5)
-    const profEntry = display.find((a: any) => a.type === 'PROFESSOR')
-    expect(profEntry).toBeTruthy()
-    expect(profEntry.studentName).toBe('Prof Dupont')
+    const studentAb = wrapper.vm.recentStudentAbsences
+    const professorAb = wrapper.vm.recentProfessorAbsences
+    expect(studentAb.length).toBe(5)
+    expect(studentAb.every((a: any) => a.type === 'STUDENT')).toBe(true)
+    const studentNames = studentAb.map((a: any) => a.studentName)
+    expect(studentNames).not.toContain('Prof Dupont')
+    expect(studentNames).toContain('Heidi')
+    expect(professorAb.length).toBe(1)
+    expect(professorAb.every((a: any) => a.type === 'PROFESSOR')).toBe(true)
+    expect(professorAb[0].studentName).toBe('Prof Dupont')
     await nextTick()
     const html = wrapper.html()
     expect(html).toContain('Prof')
-    const names = display.map((a: any) => a.studentName)
-    expect(names).not.toContain('Heidi')
     wrapper.unmount()
   })
 
   it('recentAbsencesDisplay handles empty and non-array gracefully', async () => {
     const emptyStats = { school: { name: 'Test', address: '', phone: '' }, stats: { totalStudents: 0, totalProfessors: 0, totalClasses: 0, recentPayments: [], recentAbsences: null } }
     const wrapper: any = await mountDashboard(makeSuccessMocks({ stats: emptyStats }))
-    expect(wrapper.vm.recentAbsencesDisplay).toEqual([])
+    expect(wrapper.vm.recentStudentAbsences).toEqual([])
+    expect(wrapper.vm.recentProfessorAbsences).toEqual([])
     wrapper.unmount()
   })
 
@@ -217,8 +229,12 @@ describe('DashboardView', () => {
     const wrapper: any = await mountDashboard()
     await wrapper.vm.navigateToAbsences()
     expect(mockPush).toHaveBeenCalledWith('/planning/students/absences')
+    await wrapper.vm.navigateToProfessorAbsences()
+    expect(mockPush).toHaveBeenCalledWith('/planning/professors/absences')
     await wrapper.vm.navigateToPayments()
     expect(mockPush).toHaveBeenCalledWith('/payment/students')
+    await wrapper.vm.navigateToProfessorPayments()
+    expect(mockPush).toHaveBeenCalledWith('/payment/professors')
     mockPush.mockClear()
     await wrapper.vm.navigateToAbsences()
     expect(mockPush).toHaveBeenCalled()

@@ -14,6 +14,7 @@ export interface IPaymentData {
     adjustedAmount?: number;
     scholarshipPercentage?: number;
     reference?: string;
+    receiptNumber?: string;
     scholarshipAppliedOnAnnual?: boolean;
     annualScholarshipPercentage?: string | number;
     annualScholarshipAmount?: number;
@@ -66,6 +67,9 @@ export interface IProfessorPaymentData {
     netAmount?: number;
     deductions?: any[];
     additions?: any[];
+    hoursTotal?: number;
+    hourlyRate?: number;
+    salarySlipId?: number;
 }
 
 export interface IScholarshipData {

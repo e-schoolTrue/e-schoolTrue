@@ -1,76 +1,98 @@
-import { app, BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    (timer as any)?.unref?.();
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 export class PdfService {
   async generatePdf(htmlContent: string): Promise<Buffer> {
+    let win: BrowserWindow | null = null;
     try {
-      // Créer une fenêtre temporaire pour générer le PDF
-      const win = new BrowserWindow({
+      // Fenêtre invisible, sandboxée, sans intégration Node.
+      win = new BrowserWindow({
         width: 800,
         height: 600,
         show: false,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true
         }
       });
 
-      // Chargement du HTML
-      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+      await withTimeout(
+        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`),
+        10000,
+        'loadURL'
+      );
 
-      // Attendre que la page soit chargée
-      await new Promise<void>((resolve, reject) => {
-        win.webContents.on('did-finish-load', async () => {
-          try {
-            // Générer le PDF
-            const options = {
-              margin: 10,
-              filename: `centralized-grades.pdf`,
-              image: { type: 'jpeg', quality: 0.98 },
-              html2canvas: {
-                scale: 2,
-                useCORS: true,
-                letterRendering: true
-              },
-              jsPDF: {
-                unit: 'mm',
-                format: 'a4',
-                orientation: 'landscape'
-              },
-              printBackground: true
-            };
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          win!.webContents.once('did-finish-load', () => resolve());
+          win!.webContents.once('did-fail-load', (_e, code, desc) =>
+            reject(new Error(`did-fail-load ${code}: ${desc}`))
+          );
+        }),
+        10000,
+        'did-finish-load'
+      );
 
-            const pdfBuffer = await win.webContents.printToPDF(options);
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        });
-
-        win.webContents.on('did-fail-load', reject);
-      });
-
-      win.close();
-      return Buffer.from(''); // Le buffer sera dans une variable différente
+      // B5: printToPDF pur — uniquement les options supportées par Electron.
+      const pdfBuffer: Buffer = await withTimeout(
+        win.webContents.printToPDF({
+          margins: { top: 10, bottom: 10, left: 10, right: 10 },
+          pageSize: 'A4',
+          printBackground: true
+        }),
+        10000,
+        'printToPDF'
+      );
+      return pdfBuffer;
     } catch (error) {
       console.error('Erreur génération PDF:', error);
       throw new Error('Erreur lors de la génération du PDF');
+    } finally {
+      try {
+        if (win && !win.isDestroyed()) win.destroy();
+      } catch {
+        // ignore
+      }
+      win = null;
     }
   }
 
   async generatePdfWithPrintDialog(htmlContent: string): Promise<void> {
+    let win: BrowserWindow | null = null;
     try {
-      // Créer une fenêtre temporaire avec une interface d'impression
-      const win = new BrowserWindow({
+      // Fenêtre visible d'impression, sandboxée, sans intégration Node.
+      win = new BrowserWindow({
         width: 1000,
         height: 800,
         show: true,
         webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
+          nodeIntegration: false,
+          contextIsolation: true,
+          sandbox: true
         }
       });
 
-      // Charger le HTML
+      const safeContent = escapeHtml(htmlContent);
       const htmlWithPrintButton = `
         <!DOCTYPE html>
         <html>
@@ -183,13 +205,12 @@ export class PdfService {
             <div class="header">
               <h1>Fiche de Centralisation des Notes</h1>
               <div class="header-info">
-                École: ${encodeURIComponent(htmlContent)}
+                École: ${safeContent}
               </div>
             </div>
-            ${htmlContent}
+            ${safeContent}
             <div class="print-section">
               <button class="print-btn" onclick="window.print()">Imprimer le PDF</button>
-<!--              <button class="close-btn" onclick="window.close()">Fermer</button>-->
             </div>
           </div>
           <script>
@@ -203,12 +224,22 @@ export class PdfService {
         </html>
       `;
 
-      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlWithPrintButton)}`);
+      await withTimeout(
+        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlWithPrintButton)}`),
+        10000,
+        'loadURL'
+      );
     } catch (error) {
       console.error('Erreur affichage PDF:', error);
+      try {
+        if (win && !win.isDestroyed()) win.destroy();
+      } catch {
+        // ignore
+      }
       throw new Error('Erreur lors de l\'affichage du PDF');
     }
   }
 }
 
 export const pdfService = new PdfService();
+export { escapeHtml };

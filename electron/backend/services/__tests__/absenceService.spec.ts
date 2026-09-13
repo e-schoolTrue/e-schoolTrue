@@ -373,7 +373,7 @@ describe('AbsenceService', () => {
 
     const result = await dashboard.getAbsenceStats();
     expect(result.success).toBe(true);
-    expect(result.data).toEqual({ '6eme A': 2, '5eme B': 1, Professeurs: 2 });
+    expect(result.data).toEqual({ student: { '6eme A': 2, '5eme B': 1 }, professor: { Professeurs: 2 } });
     // Ensure date filter was applied (where called with date >=)
     expect(qbMock.where).toHaveBeenCalledWith(expect.stringContaining('absence.date >='), expect.objectContaining({ startDate: expect.any(String) }));
     expect(qbMock.andWhere).toHaveBeenCalledWith(expect.stringContaining('absence.date <='), expect.anything());

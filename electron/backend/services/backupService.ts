@@ -15,7 +15,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { supabase, getSchemaClient } from '../lib/supabaseClient';
 import { ElectronStore } from '../utils/electronStore';
-import { BackupEntity } from '../entities/backup';
 import { BranchEntity, ClassRoomEntity, GradeEntity } from '../entities/grade';
 import { DiplomaEntity, ProfessorEntity, QualificationEntity } from '../entities/professor';
 import { CourseEntity, ObservationEntity } from '../entities/course';
@@ -41,6 +40,11 @@ import {
   TranchConfigEntity,
   TrancheEntryEntity,
 } from '../entities/paymentConfig';
+import {
+  ExpenseEntity, CashRegisterEntity, CashMovementEntity, CashClosureEntity,
+  BankAccountEntity, BankTransactionEntity, TeacherHourLogEntity, SalarySlipEntity,
+  ReceiptCounterEntity, FeeItemEntity,
+} from '../entities/accounting';
 import { getCurrentSupabaseUserId, getCurrentSchemaName } from '../lib/session';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -346,6 +350,8 @@ export class CloudSyncService {
           town: e.town,
           cni_number: e.cni_number,
           color: (e as any).color || '#409EFF',
+          hourly_rate: (e as any).hourlyRate ?? 0,
+          payment_mode: (e as any).paymentMode ?? 'monthly',
           diploma_id: e.diploma?.remote_id,
           qualification_id: e.qualification?.remote_id,
           updated_at: e.updated_at,
@@ -363,6 +369,8 @@ export class CloudSyncService {
           town: d.town,
           cni_number: d.cni_number,
           color: d.color || '#409EFF',
+          hourlyRate: d.hourly_rate ?? 0,
+          paymentMode: d.payment_mode ?? 'monthly',
           _diploma_remote_id: d.diploma_id,
           _qualification_remote_id: d.qualification_id,
         }),
@@ -686,6 +694,7 @@ export class CloudSyncService {
             scholarship_amount: e.scholarshipAmount,
             adjusted_amount: e.adjustedAmount,
             scholarship_percentage: e.scholarshipPercentage,
+            receipt_number: (e as any).receiptNumber,
             updated_at: e.updated_at,
           };
         },
@@ -700,6 +709,7 @@ export class CloudSyncService {
           scholarshipAmount: d.scholarship_amount,
           adjustedAmount: d.adjusted_amount,
           scholarshipPercentage: d.scholarship_percentage,
+          receiptNumber: d.receipt_number,
           _student_remote_id: d.student_id,
           _scholarship_remote_id: d.scholarship_id,
         }),
@@ -723,6 +733,9 @@ export class CloudSyncService {
           is_paid: (e as any).isPaid,
           gross_amount: (e as any).grossAmount,
           net_amount: (e as any).netAmount,
+          hours_total: (e as any).hoursTotal ?? 0,
+          hourly_rate: (e as any).hourlyRate ?? 0,
+          salary_slip_id: (e as any).salarySlipId ?? null,
           deductions: (e as any).deductions,
           additions: (e as any).additions,
           updated_at: e.updated_at,
@@ -737,6 +750,9 @@ export class CloudSyncService {
           isPaid: d.is_paid,
           grossAmount: d.gross_amount,
           netAmount: d.net_amount,
+          hoursTotal: d.hours_total ?? 0,
+          hourlyRate: d.hourly_rate ?? 0,
+          salarySlipId: d.salary_slip_id ?? null,
           deductions: d.deductions,
           additions: d.additions,
           _professor_remote_id: d.professor_id,
@@ -936,6 +952,254 @@ export class CloudSyncService {
           startDate: d.start_date,
           endDate: d.end_date,
           _tranchConfig_remote_id: d.tranch_config_id,
+        }),
+      },
+      // --- B3 Comptabilité : niveau 0 (sans FK métier) ---
+      {
+        entity: CashRegisterEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(CashRegisterEntity),
+        supabaseTable: 'cash_registers',
+        identifyingFields: [],
+        upsertConflict: 'name,register_date',
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          name: e.name,
+          register_date: e.registerDate,
+          opening_balance: e.openingBalance,
+          closing_balance: e.closingBalance,
+          status: e.status,
+          updated_at: e.updated_at,
+        }),
+        transformFromSupabase: (d: any) => ({
+          name: d.name,
+          registerDate: d.register_date,
+          openingBalance: d.opening_balance,
+          closingBalance: d.closing_balance,
+          status: d.status,
+        }),
+      },
+      {
+        entity: BankAccountEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(BankAccountEntity),
+        supabaseTable: 'bank_accounts',
+        identifyingFields: ['accountNumber'],
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          bank_name: e.bankName,
+          account_number: e.accountNumber,
+          iban: e.iban,
+          balance: e.balance,
+          currency: e.currency,
+          updated_at: e.updated_at,
+        }),
+        transformFromSupabase: (d: any) => ({
+          bankName: d.bank_name,
+          accountNumber: d.account_number,
+          iban: d.iban,
+          balance: d.balance,
+          currency: d.currency,
+        }),
+      },
+      {
+        entity: ReceiptCounterEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(ReceiptCounterEntity),
+        supabaseTable: 'receipt_counters',
+        identifyingFields: [],
+        upsertConflict: 'year',
+        hasRemoteUpdatedAt: false,
+        transformToSupabase: (e: any) => ({ year: e.year, last_number: e.lastNumber }),
+        transformFromSupabase: (d: any) => ({ year: d.year, lastNumber: d.last_number }),
+      },
+      {
+        entity: FeeItemEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(FeeItemEntity),
+        supabaseTable: 'fee_items',
+        identifyingFields: ['name'],
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          name: e.name,
+          category: e.category,
+          amount: e.amount,
+          school_year: e.schoolYear,
+          is_active: e.isActive,
+          updated_at: e.updated_at,
+        }),
+        transformFromSupabase: (d: any) => ({
+          name: d.name,
+          category: d.category,
+          amount: d.amount,
+          schoolYear: d.school_year,
+          isActive: d.is_active,
+        }),
+      },
+      {
+        entity: ExpenseEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(ExpenseEntity),
+        supabaseTable: 'expenses',
+        identifyingFields: [],
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          label: e.label,
+          category: e.category,
+          amount: e.amount,
+          expense_date: e.expenseDate,
+          payment_method: e.paymentMethod,
+          status: e.status,
+          receipt_number: e.receiptNumber,
+          school_year: e.schoolYear,
+          comment: e.comment,
+          updated_at: e.updated_at,
+        }),
+        transformFromSupabase: (d: any) => ({
+          label: d.label,
+          category: d.category,
+          amount: d.amount,
+          expenseDate: d.expense_date,
+          paymentMethod: d.payment_method,
+          status: d.status,
+          receiptNumber: d.receipt_number,
+          schoolYear: d.school_year,
+          comment: d.comment,
+        }),
+      },
+      // --- B3 Comptabilité : niveau 1 (FK vers niveau 0 / domaine) ---
+      {
+        entity: CashMovementEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(CashMovementEntity),
+        supabaseTable: 'cash_movements',
+        dependsOn: [CashRegisterEntity as any],
+        relationsToLoad: ['register'],
+        identifyingFields: [],
+        hasRemoteUpdatedAt: false,
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          register_id: e.register?.remote_id,
+          direction: e.direction,
+          amount: e.amount,
+          motive: e.motive,
+          reference: e.reference,
+          movement_date: e.movementDate,
+          school_year: e.schoolYear,
+        }),
+        transformFromSupabase: (d: any) => ({
+          direction: d.direction,
+          amount: d.amount,
+          motive: d.motive,
+          reference: d.reference,
+          movementDate: d.movement_date,
+          schoolYear: d.school_year,
+          _register_remote_id: d.register_id,
+        }),
+      },
+      {
+        entity: CashClosureEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(CashClosureEntity),
+        supabaseTable: 'cash_closures',
+        dependsOn: [CashRegisterEntity as any],
+        relationsToLoad: ['register'],
+        identifyingFields: [],
+        hasRemoteUpdatedAt: false,
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          register_id: e.register?.remote_id,
+          closure_date: e.closureDate,
+          expected_amount: e.expectedAmount,
+          counted_amount: e.countedAmount,
+          gap: e.gap,
+          validated_by: e.validatedBy,
+          comment: e.comment,
+        }),
+        transformFromSupabase: (d: any) => ({
+          closureDate: d.closure_date,
+          expectedAmount: d.expected_amount,
+          countedAmount: d.counted_amount,
+          gap: d.gap,
+          validatedBy: d.validated_by,
+          comment: d.comment,
+          _register_remote_id: d.register_id,
+        }),
+      },
+      {
+        entity: BankTransactionEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(BankTransactionEntity),
+        supabaseTable: 'bank_transactions',
+        dependsOn: [BankAccountEntity as any],
+        relationsToLoad: ['account'],
+        identifyingFields: [],
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          account_id: e.account?.remote_id,
+          direction: e.direction,
+          amount: e.amount,
+          transaction_date: e.transactionDate,
+          reference: e.reference,
+          label: e.label,
+          school_year: e.schoolYear,
+          updated_at: e.updated_at,
+        }),
+        transformFromSupabase: (d: any) => ({
+          direction: d.direction,
+          amount: d.amount,
+          transactionDate: d.transaction_date,
+          reference: d.reference,
+          label: d.label,
+          schoolYear: d.school_year,
+          _account_remote_id: d.account_id,
+        }),
+      },
+      {
+        entity: TeacherHourLogEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(TeacherHourLogEntity),
+        supabaseTable: 'teacher_hour_logs',
+        dependsOn: [ProfessorEntity],
+        identifyingFields: [],
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          professor_id: e._professor_remote_id ?? undefined,
+          month: e.month,
+          hours: e.hours,
+          hourly_rate: e.hourlyRate,
+          subject: e.subject,
+          validated: e.validated,
+        }),
+        transformFromSupabase: (d: any) => ({
+          month: d.month,
+          hours: d.hours,
+          hourlyRate: d.hourly_rate,
+          subject: d.subject,
+          validated: d.validated,
+          _professor_remote_id: d.professor_id,
+        }),
+      },
+      {
+        entity: SalarySlipEntity as any,
+        localRepository: this.appDataSourceInstance.getRepository(SalarySlipEntity),
+        supabaseTable: 'salary_slips',
+        dependsOn: [ProfessorEntity],
+        identifyingFields: [],
+        upsertConflict: 'professor_id,month',
+        transformToSupabase: (e: any) => ({
+          ...(e.remote_id && { id: e.remote_id }),
+          month: e.month,
+          hours_total: e.hoursTotal,
+          hourly_rate: e.hourlyRate,
+          gross_amount: e.grossAmount,
+          net_amount: e.netAmount,
+          deductions: e.deductions,
+          additions: e.additions,
+          status: e.status,
+          updated_at: e.updated_at,
+        }),
+        transformFromSupabase: (d: any) => ({
+          month: d.month,
+          hoursTotal: d.hours_total,
+          hourlyRate: d.hourly_rate,
+          grossAmount: d.gross_amount,
+          netAmount: d.net_amount,
+          deductions: d.deductions,
+          additions: d.additions,
+          status: d.status,
+          _professor_remote_id: d.professor_id,
         }),
       },
     ];
@@ -1743,105 +2007,6 @@ export class CloudSyncService {
     if (this.syncTimerId) {
       clearInterval(this.syncTimerId);
       this.syncTimerId = null;
-    }
-  }
-
-  // ==========================================
-  // BACKUP API (preserved from original)
-  // ==========================================
-
-  async createBackup(name?: string): Promise<{ success: boolean; data: any; error: string | null }> {
-    try {
-      const isAuthenticated = await this.checkSupabaseAvailability();
-      if (!isAuthenticated) return { success: false, data: null, error: "NOT_AUTHENTICATED" };
-
-      const authUser = await this.getSupabaseAuthUser();
-      if (!authUser) return { success: false, data: null, error: "NO_AUTH_USER" };
-
-      try {
-        const syncResult = await this.performBidirectionalSync(authUser.id);
-        return { success: true, data: syncResult, error: null };
-      } catch (error) {
-        return {
-          success: false, data: null,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
-      }
-    } catch (error) {
-      console.error('Error creating backup:', error);
-      return { success: false, data: null, error: error instanceof Error ? error.message : 'Unknown error' };
-    }
-  }
-
-  async deleteBackup(id: string): Promise<boolean> {
-    try {
-      const authUser = await this.getSupabaseAuthUser();
-      if (!authUser) throw new Error('Utilisateur non authentifie');
-
-      let deleted = false;
-      const backupRepository = AppDataSource.getInstance().getRepository(BackupEntity);
-      const backup = await backupRepository.findOne({ where: { id, user_id: authUser.id } });
-
-      if (backup) {
-        await backupRepository.remove(backup);
-        deleted = true;
-      }
-
-      if (this.supabase) {
-        try {
-          await this.supabase.rpc('delete_backup', { backup_id: id });
-          deleted = true;
-        } catch (error) {
-          console.error('Erreur suppression Supabase:', error);
-        }
-      }
-
-      if (!deleted) throw new Error('Sauvegarde non trouvee');
-      return true;
-    } catch (error) {
-      console.error('Erreur suppression sauvegarde:', error);
-      throw error;
-    }
-  }
-
-  async getBackups(): Promise<any[]> {
-    try {
-      const authUser = await this.getSupabaseAuthUser();
-      if (!authUser) return [];
-
-      const backupRepository = AppDataSource.getInstance().getRepository(BackupEntity);
-      const localBackups = await backupRepository.find({
-        where: { user_id: authUser.id },
-        order: { created_at: 'DESC' },
-      });
-
-      let supabaseBackups: any[] = [];
-      if (this.supabase && this.supabaseAvailable) {
-        try {
-          const { data, error } = await this.supabase
-            .from('backups')
-            .select('*')
-            .eq('user_id', authUser.id)
-            .order('created_at', { ascending: false });
-          if (!error) supabaseBackups = data || [];
-        } catch (error) {
-          console.error('Erreur recuperation sauvegardes Supabase:', error);
-        }
-      }
-
-      const allBackups = [...localBackups];
-      for (const sb of supabaseBackups) {
-        if (!allBackups.some(b => b.id === sb.id)) {
-          allBackups.push({ ...sb, source: 'cloud' });
-        }
-      }
-
-      return allBackups.sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    } catch (error) {
-      console.error('Erreur recuperation sauvegardes:', error);
-      return [];
     }
   }
 

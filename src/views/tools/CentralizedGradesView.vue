@@ -206,6 +206,7 @@ import {ref, computed, onMounted, watch} from 'vue';
 import * as XLSX from 'xlsx';
 import { ElMessage } from 'element-plus';
 import { Document, Download, Loading, Warning, School, Calendar, TrendCharts, EditPen } from '@element-plus/icons-vue';
+import { getAppreciation } from '@/utils/grade';
 
  interface CentralizedRanking {
    studentId: number;
@@ -223,16 +224,6 @@ import { Document, Download, Loading, Warning, School, Calendar, TrendCharts, Ed
      coefficient: number;
      weightedScore: number;
    }>;
- }
-
- enum ObservationType {
-   EXCELLENT = "Excellent",
-   TRES_BIEN = "Très Bien",
-   BIEN = "Bien",
-   ASSEZ_BIEN = "Assez Bien",
-   PASSABLE = "Passable",
-   INSUFFISANT = "Insuffisant",
-   TRES_INSUFFISANT = "Très Insuffisant"
  }
 
 interface GradeConfig {
@@ -389,13 +380,7 @@ const getStudentObservation = (student: CentralizedRanking): string => {
    const base = classConfig?.finalGradeBase || 20;
    const generalAvg = student.generalAverage;
 
-   if (generalAvg >= base - 1) return ObservationType.EXCELLENT;
-   if (generalAvg >= base - 2.5) return ObservationType.TRES_BIEN;
-   if (generalAvg >= base - 5) return ObservationType.BIEN;
-   if (generalAvg >= base - 7.5) return ObservationType.ASSEZ_BIEN;
-   if (generalAvg >= base - 10) return ObservationType.PASSABLE;
-   if (generalAvg >= base - 15) return ObservationType.INSUFFISANT;
-   return ObservationType.TRES_INSUFFISANT;
+   return getAppreciation(generalAvg, base);
  };
 
 const getWeightedScore = (student: CentralizedRanking, courseId: number): string | null => {

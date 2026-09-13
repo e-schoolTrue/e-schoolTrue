@@ -6,6 +6,7 @@ import { StudentEntity } from '../entities/students';
 import { ProfessorEntity } from '../entities/professor';
 import { ProfessorPaymentEntity } from '../entities/professorPayment';
 import { ScholarshipEntity } from '../entities/scholarship';
+import { CashMovementEntity, ReceiptCounterEntity } from '../entities/accounting';
 import { IPaymentData, IPaymentConfigData, IProfessorPaymentData, IPaymentServiceResponse, IPaymentServiceParams, IPaymentAnnualConfigData } from '../types/payment';
 
 import { ResultType as CentralResultType } from "#electron/command";
@@ -72,7 +73,7 @@ export class PaymentService {
     }
 
     async savePaymentAnnualConfig(configData: IPaymentAnnualConfigData){
-        AppDataSource.getInstance().transaction(async (entityManager) => {
+        return await AppDataSource.getInstance().transaction(async (entityManager) => {
             try {
                 const newConfig = entityManager.create(PaymentAnnualConfigEntity, {
                     id: configData.id,
@@ -117,7 +118,7 @@ export class PaymentService {
     }
 
     async getPaymentAnnualConfigs(){
-        AppDataSource.getInstance().transaction(async (entityManager) => {
+        return await AppDataSource.getInstance().transaction(async (entityManager) => {
             try {
                 const configs = await entityManager.find(PaymentAnnualConfigEntity, {
                     relations: {
@@ -266,82 +267,108 @@ export class PaymentService {
     async addPayment(paymentData: IPaymentData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            
-            console.log('=== Tentative d\'ajout de paiement ===');
-            console.log('Données reçues:', paymentData);
+            const ds = AppDataSource.getInstance();
 
-            // Vérifier l'étudiant
-            const student = await this.studentRepository.findOne({
-                where: { id: paymentData.studentId },
-                relations: ['scholarship']
-            });
-
-            if (!student) {
-                throw new Error('Étudiant non trouvé');
+            // B4: idempotence hors transaction (retourne le paiement existant si receiptNumber déjà connu).
+            const incomingReceipt = (paymentData as any)?.receiptNumber as string | undefined;
+            if (incomingReceipt) {
+                const existing = await this.paymentRepository.findOne({ where: { receiptNumber: incomingReceipt } as any });
+                if (existing) {
+                    return { success: true, data: existing, message: "Paiement déjà enregistré (idempotent)", error: null };
+                }
             }
 
-            // Si une bourse est spécifiée, créer ou mettre à jour la bourse
-            let activeScholarship = null;
-            const scholarshipPercentage = Number(paymentData.annualScholarshipPercentage || paymentData.scholarshipPercentage || 0);
-            const scholarshipApplied = paymentData.scholarshipAppliedOnAnnual || scholarshipPercentage > 0;
-            
-            console.log('=== DEBUG BOURSE DANS addPayment ===');
-            console.log('paymentData.scholarshipAppliedOnAnnual:', paymentData.scholarshipAppliedOnAnnual);
-            console.log('paymentData.annualScholarshipPercentage:', paymentData.annualScholarshipPercentage);
-            console.log('scholarshipPercentage calculé:', scholarshipPercentage);
-            console.log('scholarshipApplied:', scholarshipApplied);
-            
-            if (scholarshipApplied && scholarshipPercentage > 0) {
-                console.log('Création de la bourse avec pourcentage:', scholarshipPercentage);
-                
-                // Désactiver les bourses existantes
-                await this.scholarshipRepository.update(
-                    { 
-                        studentId: student.id,
-                        isActive: true,
-                        schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
-                    },
-                    { isActive: false }
-                );
+            // B4: compteur atomique SERIALIZABLE + création Payment + CashMovement dans la même tx.
+            return await ds.transaction("SERIALIZABLE", async (manager) => {
+                const studentRepo = manager.getRepository(StudentEntity);
+                const scholarshipRepo = manager.getRepository(ScholarshipEntity);
+                const paymentRepo = manager.getRepository(PaymentEntity);
+                const movementRepo = manager.getRepository(CashMovementEntity);
+                const counterRepo = manager.getRepository(ReceiptCounterEntity);
 
-                // Créer la nouvelle bourse
-                const scholarship = this.scholarshipRepository.create({
-                    studentId: student.id,
-                    percentage: scholarshipPercentage,
-                    schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
-                    isActive: true,
-                    created_at: new Date()
+                const student = await studentRepo.findOne({
+                    where: { id: paymentData.studentId },
+                    relations: ['scholarship']
                 });
+                if (!student) throw new Error('Étudiant non trouvé');
 
-                activeScholarship = await this.scholarshipRepository.save(scholarship);
-                console.log('Nouvelle bourse créée:', activeScholarship);
-            } else {
-                console.log('Aucune bourse à créer (scholarshipApplied:', scholarshipApplied, ', scholarshipPercentage:', scholarshipPercentage, ')');
-            }
+                let activeScholarship: any = null;
+                const scholarshipPercentage = Number(paymentData.annualScholarshipPercentage || paymentData.scholarshipPercentage || 0);
+                const scholarshipApplied = paymentData.scholarshipAppliedOnAnnual || scholarshipPercentage > 0;
+                if (scholarshipApplied && scholarshipPercentage > 0) {
+                    await scholarshipRepo.update(
+                        {
+                            studentId: student.id,
+                            isActive: true,
+                            schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
+                        } as any,
+                        { isActive: false } as any
+                    );
+                    activeScholarship = await scholarshipRepo.save(scholarshipRepo.create({
+                        studentId: student.id,
+                        percentage: scholarshipPercentage,
+                        schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
+                        isActive: true,
+                        created_at: new Date()
+                    } as any));
+                }
 
-            // Créer le paiement avec la bourse
-            const payment = this.paymentRepository.create({
-                ...paymentData,
-                student: student,
-                scholarshipPercentage: scholarshipPercentage,
-                scholarshipAmount: Number(paymentData.annualScholarshipAmount || paymentData.scholarshipAmount) || 0,
-                adjustedAmount: Number(paymentData.annualAmountAfterScholarship || paymentData.adjustedAmount || paymentData.baseAmount) || 0,
-                baseAmount: Number(paymentData.baseAnnualAmount || paymentData.baseAmount) || 0,
-                scholarshipId: activeScholarship?.id || null,
-                created_at: new Date()
-            } as PaymentCreateData);
+                // Idempotence intra-tx si un id explicite est rejoué.
+                if ((paymentData as any)?.id) {
+                    const byId = await paymentRepo.findOne({ where: { id: (paymentData as any).id } });
+                    if (byId && (byId as any).receiptNumber) {
+                        return { success: true, data: byId, message: "Paiement déjà enregistré (idempotent)", error: null };
+                    }
+                }
 
-            console.log('Paiement à sauvegarder:', payment);
+                // Compteur atomique avec verrou pessimiste.
+                const year = new Date().getFullYear();
+                let counter = await counterRepo.findOne({ where: { year }, lock: { mode: "pessimistic_write" } });
+                if (!counter) counter = counterRepo.create({ year, lastNumber: 0 });
+                counter.lastNumber = Number(counter.lastNumber || 0) + 1;
+                await counterRepo.save(counter);
+                const receiptNumber: string = (paymentData as any)?.receiptNumber
+                    || `R-${year}-${String(counter.lastNumber).padStart(4, "0")}`;
 
-            const savedPayment = await this.paymentRepository.save(payment);
-            console.log('Paiement sauvegardé:', savedPayment);
+                // Double-check idempotence sur le numéro généré/fourni.
+                const duplicate = await paymentRepo.findOne({ where: { receiptNumber } as any });
+                if (duplicate) {
+                    return { success: true, data: duplicate, message: "Paiement déjà enregistré (idempotent)", error: null };
+                }
 
-            return {
-                success: true,
-                data: savedPayment,
-                message: "Paiement enregistré avec succès",
-                error: null
-            };
+                const payment = paymentRepo.create({
+                    ...paymentData,
+                    student: student,
+                    studentId: student.id,
+                    receiptNumber,
+                    scholarshipPercentage: scholarshipPercentage,
+                    scholarshipAmount: Number(paymentData.annualScholarshipAmount || paymentData.scholarshipAmount) || 0,
+                    adjustedAmount: Number(paymentData.annualAmountAfterScholarship || paymentData.adjustedAmount || paymentData.baseAmount) || 0,
+                    baseAmount: Number(paymentData.baseAnnualAmount || paymentData.baseAmount) || 0,
+                    scholarshipId: activeScholarship?.id || null,
+                    created_at: new Date()
+                } as PaymentCreateData as any);
+
+                const savedPayment = await paymentRepo.save(payment as any);
+
+                // Mouvement de caisse append-only dans la même transaction.
+                await movementRepo.save(movementRepo.create({
+                    direction: "IN",
+                    amount: Math.round(Number((paymentData as any).amount) || 0),
+                    motive: `Encaissement scolarité ${(student as any)?.matricule ?? student.id}`,
+                    reference: receiptNumber,
+                    paymentId: (savedPayment as any).id,
+                    movementDate: new Date(),
+                    schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
+                } as any));
+
+                return {
+                    success: true,
+                    data: savedPayment,
+                    message: "Paiement enregistré avec succès",
+                    error: null
+                };
+            });
         } catch (error) {
             console.error("Erreur lors de l'ajout du paiement:", error);
             return {
@@ -409,7 +436,10 @@ export class PaymentService {
                 grossAmount: paymentData.grossAmount,
                 netAmount: paymentData.netAmount,
                 deductions: paymentData.deductions || [],
-                additions: paymentData.additions || []
+                additions: paymentData.additions || [],
+                hoursTotal: (paymentData as any).hoursTotal ?? 0,
+                hourlyRate: (paymentData as any).hourlyRate ?? 0,
+                salarySlipId: (paymentData as any).salarySlipId ?? null
             });
 
             const savedPayment = await this.professorPaymentRepository.save(payment);

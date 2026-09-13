@@ -1,6 +1,8 @@
 <template>
   <div class="sync-view">
-    <el-row :gutter="20">
+    <el-tabs v-model="activeTab">
+      <el-tab-pane label="Synchronisation Cloud" name="cloud">
+        <el-row :gutter="20">
       <!-- Panneau de contrôle de la synchronisation -->
       <el-col :span="24" :md="8">
         <el-card>
@@ -88,7 +90,12 @@
           />
         </el-card>
       </el-col>
-    </el-row>
+        </el-row>
+      </el-tab-pane>
+      <el-tab-pane label="Fichier local" name="local">
+        <LocalBackupTab />
+      </el-tab-pane>
+    </el-tabs>
 
     <!-- Dialogue d'authentification -->
     <el-dialog
@@ -154,11 +161,13 @@ import { Icon } from '@iconify/vue';
 
 import SyncSettings from '@/components/sync/SyncSettings.vue'; 
 import SyncHistory from '@/components/sync/SyncHistory.vue';   
+import LocalBackupTab from '@/components/sync/LocalBackupTab.vue';
 import type { SyncConfig, SyncHistoryType } from '../../types/sync'; 
 import LoginForm from '@/components/login/supabase/login-form.vue';
 import CreateAccount from '@/components/login/supabase/create-account.vue';
 
 // --- États du composant ---
+const activeTab = ref<'cloud' | 'local'>('cloud');
 const syncConfig = ref<SyncConfig>({
   autoSyncOnConnect: true,
   notifyBeforeSync: true,
@@ -319,27 +328,33 @@ const handleSignOut = () => {
 const confirmSignOut = async () => {
   isSigningOut.value = true;
   try {
-    const { success, error } = await window.ipcRenderer.invoke("auth:signOut");
-    if (success) {
-      // Réinitialiser l'état local
-      isAuthenticated.value = false;
-      syncHistory.value = [];
-      syncConfig.value = {
-        autoSyncOnConnect: true,
-        notifyBeforeSync: true,
-        syncIntervalMinutes: 60,
-      };
-      
-      showSignOutDialog.value = false;
-      ElMessage.success('Déconnexion réussie. Vos données locales sont conservées.');
-      
-      // Arrêter la vérification périodique
-      if (connectionCheckInterval) {
-        clearInterval(connectionCheckInterval);
+    // Déconnexion cloud seule (Supabase) : ne touche jamais la session locale.
+    // `auth:signOut` (logout total) reste réservé à UserMenu.
+    try {
+      const { success, error } = await window.ipcRenderer.invoke("auth:signOutCloud");
+      if (!success) {
+        ElMessage.error(`Erreur lors de la déconnexion cloud: ${error}`);
+        return;
       }
-      
-    } else {
-      ElMessage.error(`Erreur lors de la déconnexion: ${error}`);
+    } catch (err) {
+      // Fallback vieux backend sans canal `auth:signOutCloud` :
+      // on bascule quand même en état déconnecté côté UI, sans purger userStore.
+      console.warn("[SyncView] auth:signOutCloud indisponible, déconnexion cloud locale:", err);
+    }
+    // Réinitialiser l'état cloud local uniquement — session locale conservée.
+    isAuthenticated.value = false;
+    syncHistory.value = [];
+    syncConfig.value = {
+      autoSyncOnConnect: true,
+      notifyBeforeSync: true,
+      syncIntervalMinutes: 60,
+    };
+    showSignOutDialog.value = false;
+    ElMessage.success('Déconnexion cloud réussie. Votre session locale est conservée.');
+
+    // Arrêter la vérification périodique
+    if (connectionCheckInterval) {
+      clearInterval(connectionCheckInterval);
     }
   } catch (err) {
     ElMessage.error(`Erreur IPC: ${(err as Error).message}`);

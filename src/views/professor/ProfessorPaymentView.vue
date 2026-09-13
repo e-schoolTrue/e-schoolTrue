@@ -261,6 +261,8 @@ const paymentDialogVisible = ref(false);
 const selectedProfessor = ref<Professor | undefined>(undefined);
 const selectedPayment = ref<Payment | undefined>(undefined);
 
+const { currency } = useCurrency();
+
 const filters = ref<Filters>({
   professorName: '',
   month: undefined,
@@ -454,7 +456,6 @@ const printPayslip = async (paymentDetails: Payment) => {
     }
 
     const schoolData = schoolInfo.data;
-    const { currency } = useCurrency();
     const grossAmount = paymentDetails.grossAmount ?? 0;
     const netAmount = paymentDetails.netAmount ?? 0;
 

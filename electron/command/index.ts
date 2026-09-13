@@ -14,7 +14,8 @@ export enum FAMILY_SITUATION{
 export enum ROLE{
     admin="admin",
     professor="professor",
-    student="student"
+    student="student",
+    comptable="comptable"
 }
 
 export enum SCHOOL_TYPE {

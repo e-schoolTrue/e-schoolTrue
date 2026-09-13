@@ -38,6 +38,15 @@ export class ProfessorPaymentEntity {
     @Column({ type: "varchar", nullable: true })
     comment?: string;
 
+    @Column("decimal", { precision: 7, scale: 2, default: 0 })
+    hoursTotal!: number;
+
+    @Column("decimal", { precision: 12, scale: 0, default: 0 })
+    hourlyRate!: number;
+
+    @Column({ type: "integer", nullable: true })
+    salarySlipId?: number;
+
     @Column({ type: "boolean", default: false })
     isPaid!: boolean;
 

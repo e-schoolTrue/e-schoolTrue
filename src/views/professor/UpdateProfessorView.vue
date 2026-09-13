@@ -54,6 +54,7 @@ interface ProfessorUpdateData {
         name?: string;
         type?: string;
     };
+    removePhoto?: boolean;
     teaching?: ITeachingAssignment & {
         selectedClasses?: number[];
         selectedCourse?: number | null;
@@ -230,6 +231,8 @@ const handleUpdate = async (formData: ProfessorFormData) => {
             }
             
             professorData.photo = photoData;
+        } else if (formData.photo === null) {
+            professorData.removePhoto = true;
         }
         
         // Gestion des données d'enseignement

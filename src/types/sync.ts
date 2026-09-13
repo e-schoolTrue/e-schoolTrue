@@ -37,25 +37,6 @@ export interface SyncHistoryType {
 }
 
 
-/**
- * (Optionnel mais recommandé)
- * Définit le contrat de l'API IPC pour la synchronisation.
- * Cela aide à maintenir la cohérence entre les appels du frontend et les handlers du backend.
- */
-export interface SyncAPI {
-  // Déclenche une synchronisation manuelle
-  now(): Promise<{ success: boolean; data?: SyncHistoryType; error?: string }>;
-
-  // Récupère l'historique complet des synchronisations
-  getHistory(): Promise<{ success: boolean; data?: SyncHistoryType[]; error?: string }>;
-
-  // Récupère la configuration actuelle
-  getConfig(): Promise<{ success: boolean; data?: SyncConfig; error?: string }>;
-
-  // Met à jour la configuration
-  updateConfig(config: Partial<SyncConfig>): Promise<{ success: boolean; error?: string }>;
-}
-
 // --- Les types suivants ne sont plus nécessaires dans ce contexte "sync-first" ---
 // export interface SupabaseSyncConfig { ... }
 // export interface SyncService { ... } 

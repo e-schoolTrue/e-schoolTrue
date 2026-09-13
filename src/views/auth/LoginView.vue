@@ -5,8 +5,10 @@ import { ElMessage } from 'element-plus'
 import { User, Lock, Right } from '@element-plus/icons-vue' // J'ai ajouté l'icône Right
 import { useRouter } from 'vue-router'
 import type { FormInstance } from 'element-plus'
+import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(false)
 const loginForm = ref<FormInstance>()
 
@@ -40,7 +42,7 @@ const handleLogin = async () => {
             });
 
             if (result.success && result.data) {
-                localStorage.setItem('user', JSON.stringify(result.data));
+                userStore.setUser(result.data);
                 ElMessage.success("Bienvenue !");
                 await router.replace('/');
             } else {

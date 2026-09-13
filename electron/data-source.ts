@@ -24,7 +24,6 @@ import { ScholarshipEntity } from "./backend/entities/scholarship";
 import { PreferenceEntity } from "./backend/entities/preference";
 import { GradeConfigEntity } from "./backend/entities/gradeConfig";
 import { License } from "./backend/entities/licence";
-import { BackupEntity } from "./backend/entities/backup";
 import { ScheduleConfigEntity } from "./backend/entities/scheduleConfig";
 import { ScheduleEntity } from "./backend/entities/schedule";
 import { TranchConfigEntity } from "./backend/entities/paymentConfig";
@@ -34,6 +33,12 @@ import { PaymentAnnualConfigEntity } from "./backend/entities/paymentConfig";
 import { DocumentContentEntity } from "./backend/entities/documentContent";
 import { GradingConfigEntity, EvaluationCategoryEntity } from "./backend/entities/configNote";
 import { GradeEntryEntity, CalculatedGradeEntity } from "./backend/entities/gradeEntry";
+import { AuditLogEntity } from "./backend/entities/audit-log";
+import {
+    ExpenseEntity, CashRegisterEntity, CashMovementEntity, CashClosureEntity,
+    BankAccountEntity, BankTransactionEntity, TeacherHourLogEntity, SalarySlipEntity,
+    ReceiptCounterEntity, FeeItemEntity
+} from "./backend/entities/accounting";
 
 // --- ENSEMBLE DES ENTITÉS ---
 const entities = [
@@ -63,7 +68,6 @@ const entities = [
     GradeConfigEntity,
     SchoolSettingsEntity,
     License,
-    BackupEntity,
     ScheduleEntity,
     ScheduleConfigEntity,
     PaymentAnnualConfigEntity,
@@ -74,7 +78,18 @@ const entities = [
     GradingConfigEntity,
     EvaluationCategoryEntity,
     GradeEntryEntity,
-    CalculatedGradeEntity
+    CalculatedGradeEntity,
+    AuditLogEntity,
+    ExpenseEntity,
+    CashRegisterEntity,
+    CashMovementEntity,
+    CashClosureEntity,
+    BankAccountEntity,
+    BankTransactionEntity,
+    TeacherHourLogEntity,
+    SalarySlipEntity,
+    ReceiptCounterEntity,
+    FeeItemEntity
 ];
 
 export class AppDataSource {

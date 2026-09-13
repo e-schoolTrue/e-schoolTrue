@@ -10,6 +10,8 @@ import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 import { documentContentService } from './backend/services/document-content-service';
 import { ICreateConfigParams } from './backend/types/note';
 import { CentralizedPdfService } from './backend/services/centralizedPdfService';
+import { protectedHandle, ADMIN_ONLY, PROFESSOR_WRITE, type Role } from './backend/security';
+import type { AuditAction } from './backend/entities/audit-log';
 
 
 
@@ -33,6 +35,189 @@ const handleError = (error: any, message: string): ResultType => {
 };
 
 // =================================================================
+// AUDIT & RBAC (multi-utilisateur)
+// =================================================================
+
+const PROFESSOR_WRITE_EXACT = [
+  "save-student",
+  "update-student",
+  "delete-student",
+  "professor:create",
+  "professor:update",
+  "professor:delete",
+  "professor:payment:create",
+  "professor:payment:update"
+];
+
+// B1: canaux accessibles au rôle comptable (admin inclus).
+const COMPTABLE_ALLOW: string[] = ["payment:", "expense:", "cash:", "comptabilite:", "bank:", "teacher:", "receipt:"];
+
+const rolesForChannel = (channel: string): Role[] => {
+  if (PROFESSOR_WRITE.some(prefix => channel.startsWith(prefix)) || PROFESSOR_WRITE_EXACT.includes(channel)) {
+    return ["admin", "professor"];
+  }
+  if (COMPTABLE_ALLOW.some(prefix => channel.startsWith(prefix))) {
+    return ["admin", "comptable"];
+  }
+  if (ADMIN_ONLY.some(prefix => channel.startsWith(prefix))) {
+    return ["admin"];
+  }
+  return ["admin"];
+};
+
+const AUDIT_CHANNEL_ACTION: Record<string, AuditAction> = {
+  "save-student": "create",
+  "update-student": "update",
+  "delete-student": "delete",
+  "professor:create": "create",
+  "professor:update": "update",
+  "professor:delete": "delete",
+  "professor:payment:create": "create",
+  "professor:payment:update": "update",
+  "grade:new": "create",
+  "grade:update": "update",
+  "grade:delete": "delete",
+  "classRoom:new": "create",
+  "classRoom:update": "update",
+  "classRoom:delete": "delete",
+  "branch:new": "create",
+  "branch:update": "update",
+  "branch:delete": "delete",
+  "course:new": "create",
+  "courseGroup:add": "create",
+  "course:update": "update",
+  "course:delete": "delete",
+  "payment:create": "create",
+  "payment:saveConfig": "update",
+  "payment:saveCustomConfig": "update",
+  "payment:deleteCustomConfig": "delete",
+  "absence:add": "create",
+  "absence:createBatch": "create",
+  "homework:create": "create",
+  "homework:update": "update",
+  "homework:delete": "delete",
+  "vacation:create": "create",
+  "vacation:update": "update",
+  "vacation:updateStatus": "update",
+  "vacation:delete": "delete",
+  "school:save": "update",
+  "school:saveSettings": "update",
+  "yearRepartition:create": "create",
+  "yearRepartition:update": "update",
+  "yearRepartition:delete": "delete",
+  "yearRepartition:setCurrent": "update",
+  "schedule:create": "create",
+  "schedule:delete": "delete",
+  "schedule-config:save": "create",
+  "gradeEntry:bulkSave": "create",
+  "grade-config:save": "create",
+  "document-content:update": "update",
+  "expense:create": "create",
+  "expense:update": "update",
+  "expense:delete": "delete",
+  "cash:append": "create",
+  "cash:closure:create": "create",
+  "cash:register:create": "create",
+  "bank:create": "create",
+  "bank:update": "update",
+  "bank:transaction:create": "create",
+  "comptabilite:validate": "update",
+  "receipt:generate": "create",
+  "teacher:hourlog:create": "create",
+  "teacher:hourlog:update": "update",
+  "teacher:salaryslip:create": "create",
+  "backup:create": "create",
+  "backup:list": "system",
+  "backup:restore": "update",
+  "backup:import": "create",
+  "backup:previewImport": "create",
+  "backup:confirmImport": "update",
+  "backup:delete": "delete",
+  "backup:reveal": "system",
+  "backup:exportTo": "create"
+};
+
+interface EntityAuditSpec {
+  create: string;
+  update: string;
+  delete: string;
+  keys: string[];
+}
+
+const AUDIT_ENTITY: Record<string, EntityAuditSpec> = {
+  Student:          { create: "Création de l'élève",                update: "Mise à jour de l'élève",                delete: "Suppression de l'élève",                keys: ["firstname", "lastname"] },
+  Professor:        { create: "Création du professeur",             update: "Mise à jour du professeur",             delete: "Suppression du professeur",             keys: ["firstname", "lastname"] },
+  Grade:            { create: "Création du niveau",                 update: "Mise à jour du niveau",                 delete: "Suppression du niveau",                 keys: ["name"] },
+  ClassRoom:        { create: "Création de la classe",              update: "Mise à jour de la classe",              delete: "Suppression de la classe",              keys: ["name"] },
+  Branch:           { create: "Création de la filière",             update: "Mise à jour de la filière",             delete: "Suppression de la filière",             keys: ["name"] },
+  Course:           { create: "Ajout de la matière",                update: "Mise à jour de la matière",             delete: "Suppression de la matière",             keys: ["name"] },
+  InscriptionFee:   { create: "Création du frais d'inscription",    update: "Mise à jour du frais d'inscription",    delete: "Suppression du frais d'inscription",    keys: [] },
+  TrancheConfig:    { create: "Création de la tranche",             update: "Mise à jour de la tranche",             delete: "Suppression de la tranche",             keys: [] },
+  Absence:          { create: "Création de l'absence",              update: "Mise à jour de l'absence",              delete: "Suppression de l'absence",              keys: [] },
+  Homework:         { create: "Création du devoir",                 update: "Mise à jour du devoir",                 delete: "Suppression du devoir",                 keys: ["description"] },
+  Vacation:         { create: "Demande de congé",                   update: "Mise à jour du congé",                  delete: "Suppression du congé",                  keys: ["reason"] },
+  GradeEntry:       { create: "Enregistrement de la note",          update: "Mise à jour de la note",                delete: "Suppression de la note",                keys: [] },
+  School:           { create: "Création de l'école",                update: "Mise à jour des informations de l'école", delete: "Suppression de l'école",               keys: ["name"] },
+  YearRepartition:  { create: "Création de l'année scolaire",       update: "Mise à jour de l'année scolaire",       delete: "Suppression de l'année scolaire",       keys: ["schoolYear"] },
+  Schedule:         { create: "Création du créneau",                update: "Mise à jour du créneau",                delete: "Suppression du créneau",                keys: [] },
+  ScheduleConfig:   { create: "Configuration de l'emploi du temps enregistrée", update: "Configuration de l'emploi du temps modifiée", delete: "Configuration de l'emploi du temps supprimée", keys: [] },
+  NoteConfig:       { create: "Configuration de notation modifiée", update: "Configuration de notation modifiée",    delete: "Configuration de notation supprimée",    keys: [] },
+  DocumentContent:  { create: "Modèle de document créé",            update: "Modèle de document mis à jour",         delete: "Modèle de document supprimé",           keys: [] },
+  Payment:          { create: "Création du paiement",               update: "Mise à jour du paiement",               delete: "Suppression du paiement",               keys: [] },
+  ProfessorPayment: { create: "Paiement professeur enregistré",     update: "Paiement professeur mis à jour",        delete: "Paiement professeur supprimé",          keys: [] },
+  Expense:          { create: "Création de la dépense",             update: "Mise à jour de la dépense",             delete: "Suppression de la dépense",             keys: ["label"] },
+  CashMovement:     { create: "Mouvement de caisse enregistré",     update: "Mouvement de caisse mis à jour",        delete: "Suppression du mouvement de caisse",    keys: [] },
+  CashRegister:     { create: "Registre de caisse créé",            update: "Registre de caisse mis à jour",         delete: "Registre de caisse supprimé",           keys: ["name"] },
+  CashClosure:      { create: "Clôture de caisse enregistrée",      update: "Clôture de caisse mise à jour",         delete: "Suppression de la clôture de caisse",   keys: [] },
+  BankAccount:      { create: "Compte bancaire créé",               update: "Compte bancaire mis à jour",            delete: "Compte bancaire supprimé",              keys: ["accountNumber"] },
+  BankTransaction:  { create: "Transaction bancaire enregistrée",   update: "Transaction bancaire mise à jour",      delete: "Suppression de la transaction bancaire", keys: [] },
+  TeacherHourLog:   { create: "Heures enseignant enregistrées",     update: "Heures enseignant mises à jour",       delete: "Suppression des heures enseignant",     keys: [] },
+  SalarySlip:       { create: "Bulletin de paie créé",              update: "Bulletin de paie mis à jour",           delete: "Suppression du bulletin de paie",       keys: [] },
+  ReceiptCounter:   { create: "Compteur de reçus initialisé",       update: "Compteur de reçus mis à jour",         delete: "Suppression du compteur de reçus",      keys: [] },
+  FeeItem:          { create: "Élément de frais créé",              update: "Élément de frais mis à jour",           delete: "Suppression de l'élément de frais",   keys: ["name"] },
+  Backup:           { create: "Sauvegarde locale créée",             update: "Base locale restaurée",                 delete: "Sauvegarde locale supprimée",           keys: [] }
+};
+
+interface AuditSummary {
+  targetId?: string | number | null;
+  summary: string;
+  diff?: { before?: unknown; after?: unknown };
+  metadata?: Record<string, unknown>;
+}
+
+const pickField = (source: any, key: string): string => {
+  if (!source || typeof source !== "object") {
+    return "";
+  }
+  const value = source[key];
+  return value === undefined || value === null || value === "" ? "" : String(value);
+};
+
+const auditFor = (channel: string, entity: string, override?: {
+  summarize?: (args: any[], result: any) => AuditSummary;
+}): { action: AuditAction; entity: string; summarize: (args: any[], result: any) => AuditSummary } => {
+  const action = AUDIT_CHANNEL_ACTION[channel] ?? "update";
+  const actionKey = action === "create" || action === "delete" ? action : "update";
+  const spec = AUDIT_ENTITY[entity] ?? { create: "Création", update: "Mise à jour", delete: "Suppression", keys: [] };
+  const summarize: (args: any[], result: any) => AuditSummary = override?.summarize ?? ((args, result) => {
+    const payload = args[0] ?? {};
+    let data = result?.data ?? result ?? {};
+    if (Array.isArray(data)) {
+      data = data.find((item: any) =>
+        (payload?.name !== undefined && item?.name === payload.name) ||
+        (payload?.code !== undefined && item?.code === payload.code)
+      ) ?? {};
+    }
+    const name = spec.keys.map(key => pickField(data, key) || pickField(payload, key)).filter(Boolean).join(" ");
+    return {
+      targetId: payload?.id ?? data?.id ?? (typeof args[0] === "number" ? args[0] : null),
+      summary: (name ? `${spec[actionKey]} ${name}` : spec[actionKey]).trim()
+    };
+  });
+  return { action, entity, summarize };
+};
+
+// =================================================================
 // FONCTION D'ENREGISTREMENT DES HANDLERS
 // =================================================================
 
@@ -48,7 +233,10 @@ export function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle("document-content:update", async (_, data) => {
+  protectedHandle("document-content:update", {
+    roles: rolesForChannel("document-content:update"),
+    audit: auditFor("document-content:update", "DocumentContent")
+  }, async (_, data) => {
     try {
       const updatedContent = await documentContentService.update(data);
       return { success: true, data: updatedContent };
@@ -60,27 +248,113 @@ export function registerIpcHandlers() {
 
   // --- Authentification ---
   ipcMain.handle("auth:create", async (_, userData) => global.authService.createSupervisor(userData.username, userData.password, userData.securityQuestion, userData.securityAnswer));
-  ipcMain.handle("auth:validate", async (_, { username, password }) => global.authService.validateSupervisor(username, password));
   ipcMain.handle("auth:getSecurityQuestion", async (_, { username }) => global.authService.getSecurityQuestion(username));
-  ipcMain.handle("auth:validateSecurityAnswer", async (_, { username, answer }) => global.authService.validateSecurityAnswer(username, answer));
   ipcMain.handle("auth:resetPassword", async (_, { username, newPassword }) => global.authService.resetPassword(username, newPassword));
-  ipcMain.handle("auth:login", async (_, credentials) => global.authService.validateSupervisor(credentials.username, credentials.password));
+  protectedHandle("auth:validateSecurityAnswer", {
+    roles: ['admin', 'professor', 'student'],
+    auth: 'optional',
+    audit: {
+      action: 'system',
+      entity: 'User',
+      summarize: (args, result) => ({
+        targetId: args[0]?.username ?? null,
+        summary: `Validation de la réponse de sécurité de ${args[0]?.username ?? 'utilisateur'}`
+      })
+    }
+  }, async (_, { username, answer }) => global.authService.validateSecurityAnswer(username, answer));
+  ipcMain.handle("auth:login", async (_, credentials) => {
+    const result = await global.authService.validateSupervisor(credentials.username, credentials.password);
+    try {
+      if (result?.success) {
+        const user = result.data;
+        await global.auditLogService?.record({
+          action: 'login',
+          targetEntity: 'User',
+          targetId: user?.id ?? null,
+          summary: `Connexion de ${user?.username ?? credentials.username}`,
+          actor: user ? { id: user.id, username: user.username, role: user.role, displayName: user.displayName ?? null } : null
+        });
+      } else {
+        await global.auditLogService?.record({
+          action: 'login',
+          targetEntity: 'User',
+          summary: `Échec : ${result?.message ?? 'Connexion refusée'}`,
+          metadata: { status: 'error' },
+          actor: null
+        });
+      }
+    } catch (auditError) {
+      console.warn('[Audit] Échec de l\'enregistrement pour auth:login:', auditError);
+    }
+    return result;
+  });
 
   // --- Authentification Supabase ---
   ipcMain.handle("auth:createSupabaseAccount", async (_, { email, password }) => global.authService.createSupabaseAccount(email, password));
   ipcMain.handle("auth:loginSupabase", async (_, { email, password }) => global.authService.signInWithSupabase(email, password));
-  ipcMain.handle("auth:signOut", async () => {
+  protectedHandle("auth:signOut", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    // Idempotent : ne jamais throw UNAUTHENTICATED quand la session est déjà vide.
+    // Le bouton cloud (SyncView) et le menu utilisateur (UserMenu) appellent tous deux
+    // ce canal en best-effort ; un double-clic ou une session déjà purgée retourne success.
+    auth: 'optional',
+    audit: {
+      action: 'logout',
+      entity: 'User',
+      summarize: (args, result, ctx) => ({
+        targetId: ctx.actor?.id ?? null,
+        summary: ctx.actor ? `Déconnexion de ${ctx.actor.username}` : 'Déconnexion (session déjà vide)'
+      })
+    }
+  }, async () => {
     try {
+      // signOutFromSupabase() est déjà best-effort (offline => purge locale quand même).
       await global.authService.signOutFromSupabase();
+      await global.authService.logout();
       return {
         success: true,
         message: "Déconnexion réussie",
         data: null,
         error: null
       };
-    } catch (error) {
-      return handleError(error, "Erreur lors de la déconnexion");
+    } catch {
+      // Idempotence : même en cas d'erreur inattendue, purger le local et retourner success
+      // afin de ne jamais bloquer le frontend sur une session fantôme.
+      try { await global.authService.logout(); } catch { /* best-effort */ }
+      return {
+        success: true,
+        message: "Déconnexion locale effectuée",
+        data: null,
+        error: null
+      };
     }
+  });
+  // Déconnexion cloud seule (Supabase) : utilisée par SyncView pour couper le cloud
+  // sans tuer la session locale (users:list reste accessible après un signOut cloud).
+  // Idempotente elle aussi (auth: 'optional').
+  protectedHandle("auth:signOutCloud", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    auth: 'optional',
+    audit: {
+      action: 'logout',
+      entity: 'User',
+      summarize: (args, result, ctx) => ({
+        targetId: ctx.actor?.id ?? null,
+        summary: ctx.actor ? `Déconnexion cloud de ${ctx.actor.username}` : 'Déconnexion cloud (session déjà vide)'
+      })
+    }
+  }, async () => {
+    try {
+      await global.authService.signOutFromSupabase();
+    } catch {
+      // best-effort : signOutFromSupabase purge déjà le local en finally.
+    }
+    return {
+      success: true,
+      message: "Déconnexion cloud réussie",
+      data: null,
+      error: null
+    };
   });
   ipcMain.handle("auth:checkStatus", async () => {
     const localUser = await global.authService.getCurrentUser();
@@ -98,27 +372,6 @@ export function registerIpcHandlers() {
   });
 
   // --- Sauvegarde / Synchro (Backup) ---
-
-  ipcMain.handle('sync:provisionSchool', async (_event, schoolName: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-    try {
-      const result = await global.backupService.provisionSchoolSchema(schoolName);
-      if (!result) {
-        return { success: false, error: 'Impossible de provisionner le schema.' };
-      }
-      return { success: true, data: result };
-    } catch (error) {
-      return handleError(error, "sync:provisionSchool");
-    }
-  });
-
-  ipcMain.handle('sync:getMySchools', async (): Promise<{ success: boolean; data?: any[]; error?: string }> => {
-    try {
-      const schools = await global.backupService.getMySchools();
-      return { success: true, data: schools };
-    } catch (error) {
-      return handleError(error, "sync:getMySchools");
-    }
-  });
 
   ipcMain.handle('sync:now', async (): Promise<{ success: boolean; data?: SyncHistory; error?: string }> => {
     try {
@@ -193,6 +446,104 @@ export function registerIpcHandlers() {
     }
   });
 
+  // --- Sauvegardes locales (fichier .zip : database.db + uploads/) ---
+  // Rétention illimitée : aucune purge automatique, suppression manuelle uniquement.
+  // Sécurité : le renderer ne transmet que des basenames ; le main reconstruit les chemins
+  // (LocalBackupService.resolveBackupFile) + confirmed===true exigé pour restore/import.
+
+  protectedHandle("backup:create", {
+    roles: rolesForChannel("backup:create"),
+    audit: auditFor("backup:create", "Backup")
+  }, async () => {
+    try {
+      return await global.localBackupService.createBackup('manual');
+    } catch (error) {
+      return handleError(error, "backup:create");
+    }
+  });
+  protectedHandle("backup:list", {
+    roles: rolesForChannel("backup:list"),
+    audit: auditFor("backup:list", "Backup", {
+      summarize: () => ({ targetId: null, summary: "Consultation des sauvegardes locales" })
+    })
+  }, async () => {
+    try {
+      return await global.localBackupService.listBackups();
+    } catch (error) {
+      return handleError(error, "backup:list");
+    }
+  });
+  protectedHandle("backup:restore", {
+    roles: rolesForChannel("backup:restore"),
+    audit: auditFor("backup:restore", "Backup")
+  }, async (_, basename: string, confirmed: boolean) => {
+    try {
+      return await global.localBackupService.restoreBackup(basename, confirmed);
+    } catch (error) {
+      return handleError(error, "backup:restore");
+    }
+  });
+  const previewImportHandler = async () => {
+    try {
+      return await global.localBackupService.previewImport();
+    } catch (error) {
+      return handleError(error, "backup:import");
+    }
+  };
+  protectedHandle("backup:import", {
+    roles: rolesForChannel("backup:import"),
+    audit: auditFor("backup:import", "Backup")
+  }, previewImportHandler);
+  protectedHandle("backup:previewImport", {
+    roles: rolesForChannel("backup:previewImport"),
+    audit: auditFor("backup:previewImport", "Backup")
+  }, previewImportHandler);
+  protectedHandle("backup:confirmImport", {
+    roles: rolesForChannel("backup:confirmImport"),
+    audit: auditFor("backup:confirmImport", "Backup")
+  }, async (_, stagingPath: string, confirmed: boolean) => {
+    try {
+      return await global.localBackupService.confirmImport(stagingPath, confirmed);
+    } catch (error) {
+      return handleError(error, "backup:confirmImport");
+    }
+  });
+  protectedHandle("backup:delete", {
+    roles: rolesForChannel("backup:delete"),
+    audit: auditFor("backup:delete", "Backup")
+  }, async (_, basename: string) => {
+    try {
+      return await global.localBackupService.deleteBackup(basename);
+    } catch (error) {
+      return handleError(error, "backup:delete");
+    }
+  });
+  protectedHandle("backup:reveal", {
+    roles: rolesForChannel("backup:reveal"),
+    audit: auditFor("backup:reveal", "Backup", {
+      summarize: (args) => ({
+        targetId: typeof args[0] === "string" ? args[0] : null,
+        summary: `Affichage de la sauvegarde ${String(args[0] ?? "")} dans l'explorateur`.trim()
+      })
+    })
+  }, async (_, basename: string) => {
+    try {
+      return await global.localBackupService.revealBackup(basename);
+    } catch (error) {
+      return handleError(error, "backup:reveal");
+    }
+  });
+  protectedHandle("backup:exportTo", {
+    roles: rolesForChannel("backup:exportTo"),
+    audit: auditFor("backup:exportTo", "Backup")
+  }, async (_, basename: string) => {
+    try {
+      return await global.localBackupService.exportBackup(basename);
+    } catch (error) {
+      return handleError(error, "backup:exportTo");
+    }
+  });
+
   // --- Grades & Salles de classe ---
   ipcMain.handle("grade:all", async () => global.gradeService.getGrades());
   ipcMain.handle("grade:getAllGrades", async () => {
@@ -202,47 +553,58 @@ export function registerIpcHandlers() {
       return handleError(error, "grade:getAllGrades");
     }
   });
-ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
-    try {
-      const allClassrooms = await global.gradeService.getClassRooms();
-      const filteredClassrooms = allClassrooms.filter((c: any) => c.gradeId === gradeId);
-      return { success: true, data: filteredClassrooms };
-    } catch (error) {
-      return handleError(error, "classroom:getByGradeId");
-    }
-  });
-  ipcMain.handle("grade:new", async (_, command: GradeCommand) => global.gradeService.newGrade(command));
-  ipcMain.handle("grade:update", async (_, command: GradeCommand) => global.gradeService.updateGrade(command));
-  ipcMain.handle("grade:delete", async (_, id: number) => global.gradeService.deleteGrade(id));
-  ipcMain.handle("classRoom:new", async (_, command: ClassRoomCommand) => global.gradeService.newClassRoom(command));
-  ipcMain.handle("classRoom:delete", async (_, id: number) => global.gradeService.deleteClassRoom(id));
-  ipcMain.handle("classRoom:update", async (_, command: ClassRoomCommand) => global.gradeService.updateClassRoom(command));
+  protectedHandle("grade:new", {
+    roles: rolesForChannel("grade:new"),
+    audit: auditFor("grade:new", "Grade")
+  }, async (_, command: GradeCommand) => global.gradeService.newGrade(command));
+  protectedHandle("grade:update", {
+    roles: rolesForChannel("grade:update"),
+    audit: auditFor("grade:update", "Grade")
+  }, async (_, command: GradeCommand) => global.gradeService.updateGrade(command));
+  protectedHandle("grade:delete", {
+    roles: rolesForChannel("grade:delete"),
+    audit: auditFor("grade:delete", "Grade")
+  }, async (_, id: number) => global.gradeService.deleteGrade(id));
+  protectedHandle("classRoom:new", {
+    roles: rolesForChannel("classRoom:new"),
+    audit: auditFor("classRoom:new", "ClassRoom")
+  }, async (_, command: ClassRoomCommand) => global.gradeService.newClassRoom(command));
+  protectedHandle("classRoom:delete", {
+    roles: rolesForChannel("classRoom:delete"),
+    audit: auditFor("classRoom:delete", "ClassRoom")
+  }, async (_, id: number) => global.gradeService.deleteClassRoom(id));
+  protectedHandle("classRoom:update", {
+    roles: rolesForChannel("classRoom:update"),
+    audit: auditFor("classRoom:update", "ClassRoom")
+  }, async (_, command: ClassRoomCommand) => global.gradeService.updateClassRoom(command));
   ipcMain.handle("classRoom:all", async () => global.gradeService.getClassRooms());
-  ipcMain.handle("branch:new", async (_, command: BranchCommand) => global.gradeService.newBranch(command));
-  ipcMain.handle("branch:update", async (_, command: BranchCommand) => global.gradeService.updateBranch(command));
-  ipcMain.handle("branch:delete", async (_, id: number) => global.gradeService.deleteBranch(id));
+  protectedHandle("branch:new", {
+    roles: rolesForChannel("branch:new"),
+    audit: auditFor("branch:new", "Branch")
+  }, async (_, command: BranchCommand) => global.gradeService.newBranch(command));
+  protectedHandle("branch:update", {
+    roles: rolesForChannel("branch:update"),
+    audit: auditFor("branch:update", "Branch")
+  }, async (_, command: BranchCommand) => global.gradeService.updateBranch(command));
+  protectedHandle("branch:delete", {
+    roles: rolesForChannel("branch:delete"),
+    audit: auditFor("branch:delete", "Branch")
+  }, async (_, id: number) => global.gradeService.deleteBranch(id));
 
-
-  ipcMain.handle("student-grades", async (_, params: { studentId: number; period?: string }) => {
-    try {
-      return undefined;
-    } catch (error) {
-      return handleError(error, "student-grades");
-    }
-  });
-
-  ipcMain.handle("centralization-report", async (_, params: { classId?: number; schoolId?: number; schoolYear?: string }) => {
-    try {
-      return undefined;
-    } catch (error) {
-      return handleError(error, "centralization-report");
-    }
-  });
 
   // --- Cours ---
-  ipcMain.handle("course:new", async (_, command: CourseCommand) => global.courseService.newCourse(command));
-  ipcMain.handle("courseGroup:add", async (_, command: CourseCommand) => global.courseService.addCourseToGroupement(command));
-  ipcMain.handle("course:update", async (_, command: CourseCommand) =>
+  protectedHandle("course:new", {
+    roles: rolesForChannel("course:new"),
+    audit: auditFor("course:new", "Course")
+  }, async (_, command: CourseCommand) => global.courseService.newCourse(command));
+  protectedHandle("courseGroup:add", {
+    roles: rolesForChannel("courseGroup:add"),
+    audit: auditFor("courseGroup:add", "Course")
+  }, async (_, command: CourseCommand) => global.courseService.addCourseToGroupement(command));
+  protectedHandle("course:update", {
+    roles: rolesForChannel("course:update"),
+    audit: auditFor("course:update", "Course")
+  }, async (_, command: CourseCommand) =>
     global.courseService.updateCourse({
       id: command.id!,
       data: {
@@ -254,7 +616,10 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       }
     })
   );
-  ipcMain.handle("course:delete", async (_, id: number) => global.courseService.deleteCourse(id));
+  protectedHandle("course:delete", {
+    roles: rolesForChannel("course:delete"),
+    audit: auditFor("course:delete", "Course")
+  }, async (_, id: number) => global.courseService.deleteCourse(id));
   ipcMain.handle("course:all", async () => global.courseService.getAllCourse());
   ipcMain.handle("course:getByGrade", async (_, gradeId: number) => global.courseService.getCoursesByGrade(gradeId));
 
@@ -284,18 +649,45 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
   ipcMain.handle("student:getDetails", async (_, studentId: number) => global.studentService.getStudentDetails(studentId));
-  ipcMain.handle("save-student", async (_, studentData) => studentData.id ? global.studentService.updateStudent(studentData.id, studentData) : global.studentService.createStudent(studentData));
-  ipcMain.handle("update-student", async (_, { studentId, studentData }) => global.studentService.updateStudent(studentId, studentData));
-  ipcMain.handle("delete-student", async (_, studentId: number) => global.studentService.deleteStudent(studentId));
+  protectedHandle("save-student", {
+    roles: rolesForChannel("save-student"),
+    audit: auditFor("save-student", "Student", {
+      summarize: (args, result) => {
+        const payload = args[0] ?? {};
+        const data = result?.data ?? {};
+        const name = [data?.firstname, payload?.firstname, data?.lastname, payload?.lastname].filter(v => v).join(" ");
+        return {
+          targetId: payload?.id ?? data?.id ?? null,
+          summary: (payload?.id ? "Mise à jour de l'élève" : "Création de l'élève") + (name ? ` ${name}` : "")
+        };
+      }
+    })
+  }, async (_, studentData) => studentData.id ? global.studentService.updateStudent(studentData.id, studentData) : global.studentService.createStudent(studentData));
+  protectedHandle("update-student", {
+    roles: rolesForChannel("update-student"),
+    audit: auditFor("update-student", "Student")
+  }, async (_, { studentId, studentData }) => global.studentService.updateStudent(studentId, studentData));
+  protectedHandle("delete-student", {
+    roles: rolesForChannel("delete-student"),
+    audit: auditFor("delete-student", "Student")
+  }, async (_, studentId: number) => global.studentService.deleteStudent(studentId));
   ipcMain.handle("student:getByGrade", async (_, gradeId: number) => global.studentService.getStudentsByGrade(gradeId));
-  ipcMain.handle("student:getById", async (_, studentId: number) => global.studentService.getStudentById(studentId));
   ipcMain.handle("student:search", async (_, query: string) => global.studentService.searchStudents(query));
 
   // --- Professeurs ---
   ipcMain.handle("professor:all", async () => global.professorService.getAllProfessors());
-  ipcMain.handle("professor:create", async (_, professorData) => global.professorService.createProfessor(professorData));
-  ipcMain.handle("professor:update", async (_, { id, data }) => global.professorService.updateProfessor(id, data));
-  ipcMain.handle("professor:delete", async (_, professorId: number) => global.professorService.deleteProfessor(professorId));
+  protectedHandle("professor:create", {
+    roles: rolesForChannel("professor:create"),
+    audit: auditFor("professor:create", "Professor")
+  }, async (_, professorData) => global.professorService.createProfessor(professorData));
+  protectedHandle("professor:update", {
+    roles: rolesForChannel("professor:update"),
+    audit: auditFor("professor:update", "Professor")
+  }, async (_, { id, data }) => global.professorService.updateProfessor(id, data));
+  protectedHandle("professor:delete", {
+    roles: rolesForChannel("professor:delete"),
+    audit: auditFor("professor:delete", "Professor")
+  }, async (_, professorId: number) => global.professorService.deleteProfessor(professorId));
   ipcMain.handle("professor:getById", async (_, professorId: number) => global.professorService.getProfessorById(professorId));
   ipcMain.handle("professor:search", async (_, query: string) => global.professorService.searchProfessors(query));
   ipcMain.handle("professor:count", async () => global.professorService.getTotalProfessors());
@@ -323,86 +715,6 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       return handleError(error, "Erreur lors de l'upload du fichier");
     }
   });
-  ipcMain.handle('file:getUrl', async (_event, filePath) => {
-    try {
-      // Récupérer le fichier depuis le service
-      const fileId = typeof filePath === 'number' ? filePath : (filePath?.id || null);
-      if (!fileId) {
-        return {
-          success: false,
-          data: null,
-          error: "ID du fichier manquant",
-          message: "L'ID du fichier est requis"
-        };
-      }
-
-      const file = await global.fileService.getFileById({ fileId });
-      if (!file) {
-        return {
-          success: false,
-          data: null,
-          error: "Fichier non trouvé",
-          message: "Le fichier n'a pas pu être récupéré"
-        };
-      }
-
-      const content = Buffer.isBuffer(file.content)
-        ? file.content.toString('base64')
-        : Buffer.from(file.content).toString('base64');
-
-      return {
-        success: true,
-        data: {
-          content: content,
-          type: file.type,
-          name: file.name,
-          path: file.path
-        },
-        error: null,
-        message: "Fichier récupéré avec succès"
-      };
-    } catch (error) {
-      console.error('Erreur lors de la récupération du fichier:', error);
-      return handleError(error, 'Erreur lors de la récupération du fichier');
-    }
-  });
-  ipcMain.handle('file:download', async (_event, params) => {
-    try {
-      if (!params.path) {
-        return {
-          success: false,
-          data: null,
-          error: "Chemin du fichier manquant",
-          message: "Le chemin du fichier est requis"
-        };
-      }
-
-      const fileExists = await fs.access(params.path).then(() => true).catch(() => false);
-      if (!fileExists) {
-        return {
-          success: false,
-          data: null,
-          error: "Fichier introuvable",
-          message: "Le fichier demandé n'existe pas"
-        };
-      }
-
-      // Le téléchargement sera géré côté client
-      return {
-        success: true,
-        data: {
-          path: params.path,
-          name: params.name
-        },
-        error: null,
-        message: "Fichier prêt pour le téléchargement"
-      };
-    } catch (error) {
-      console.error('Erreur lors du téléchargement du fichier:', error);
-      return handleError(error, 'Erreur lors du téléchargement du fichier');
-    }
-  });
-
   ipcMain.handle("getStudentPhoto", async (_event: Electron.IpcMainInvokeEvent, photoId: number): Promise<ResultType> => {
     try {
       const photo = await global.fileService.getFileById({ fileId: photoId });
@@ -589,101 +901,71 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
 
   // --- Paiements ---
   ipcMain.handle("payment:getConfigs", async () => global.paymentService.getConfigs());
-  ipcMain.handle("payment:getAnnualConfigs", async () => global.paymentService.getPaymentAnnualConfigs());
-  ipcMain.handle("payment:saveAnnualConfig", async (_, configData) => global.paymentService.savePaymentAnnualConfig(configData));
-  ipcMain.handle("payment:saveConfig", async (_, configData) => global.paymentService.saveConfig(configData));
+  protectedHandle("payment:saveConfig", {
+    roles: rolesForChannel("payment:saveConfig"),
+    audit: auditFor("payment:saveConfig", "Payment", {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? null,
+        summary: "Configuration de paiement mise à jour"
+      })
+    })
+  }, async (_, configData) => global.paymentService.saveConfig(configData));
 
   // --- Configurations Personnalisées des Paiements ---
   ipcMain.handle("payment:getCustomConfigs", async () => global.paymentService.getCustomConfigs());
-  ipcMain.handle("payment:saveCustomConfig", async (_, configData) => global.paymentService.saveCustomConfig(configData));
-  ipcMain.handle("payment:deleteCustomConfig", async (_, configId) => global.paymentService.deleteCustomConfig(configId));
+  protectedHandle("payment:saveCustomConfig", {
+    roles: rolesForChannel("payment:saveCustomConfig"),
+    audit: auditFor("payment:saveCustomConfig", "Payment", {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? args[0]?.id ?? null,
+        summary: "Configuration personnalisée enregistrée"
+      })
+    })
+  }, async (_, configData) => global.paymentService.saveCustomConfig(configData));
+  protectedHandle("payment:deleteCustomConfig", {
+    roles: rolesForChannel("payment:deleteCustomConfig"),
+    audit: auditFor("payment:deleteCustomConfig", "Payment", {
+      summarize: (args, result) => ({
+        targetId: typeof args[0] === "number" ? args[0] : null,
+        summary: "Suppression de la configuration personnalisée"
+      })
+    })
+  }, async (_, configId) => global.paymentService.deleteCustomConfig(configId));
 
   ipcMain.handle("payment:getByStudent", async (_, studentId) => global.paymentService.getPaymentsByStudent(studentId));
   ipcMain.handle("payment:getByDate", async (_, date) => global.paymentService.getPaymentsByDate(date));
-  ipcMain.handle("payment:getConfig", async (_, classId) => global.paymentService.getConfigByClass(String(classId)));
-  ipcMain.handle("payment:create", async (_, paymentData) => global.paymentService.addPayment(paymentData));
-  ipcMain.handle("payment:getRemainingAmount", async (_, studentId) => global.paymentService.getRemainingAmount(studentId));
+  protectedHandle("payment:create", {
+    roles: rolesForChannel("payment:create"),
+    audit: auditFor("payment:create", "Payment", {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? null,
+        summary: args[0]?.amount != null ? `Encaissement de ${args[0].amount}` : "Encaissement d'un paiement"
+      })
+    })
+  }, async (_, paymentData) => global.paymentService.addPayment(paymentData));
   ipcMain.handle("professor:payments:list", async (_, filters) => global.paymentService.getProfessorPayments(filters));
   ipcMain.handle("professor:payments:stats", async () => global.paymentService.getProfessorPaymentStats());
-  ipcMain.handle("professor:payment:create", async (_, paymentData) => global.paymentService.addProfessorPayment(paymentData));
-  ipcMain.handle("professor:payment:update", async (_, paymentData) => global.paymentService.updateProfessorPayment(paymentData));
-  ipcMain.handle("professor:payment:getById", async (_, paymentId) => global.paymentService.getProfessorPaymentById(paymentId));
-
-  // --- Payment Fees ---
-  ipcMain.handle("payment-fee:all", async () => {
-    try {
-      const fees = await global.paymentFeeService.findAll();
-      return { success: true, data: fees };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("payment-fee:get", async (_, id: number) => {
-    try {
-      const fee = await global.paymentFeeService.findOne(id);
-      if (!fee) return { success: false, error: 'Payment fee not found' };
-      return { success: true, data: fee };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("payment-fee:delete", async (_, id: number) => {
-    try {
-      const result = await global.paymentFeeService.delete(id);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // --- Inscription Fees ---
-  ipcMain.handle("inscription-fee:all", async () => {
-    try {
-      const fees = await global.inscriptionFeeService.findAll();
-      return { success: true, data: fees };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("inscription-fee:get", async (_, id: number) => {
-    try {
-      const fee = await global.inscriptionFeeService.findOne(id);
-      if (!fee) return { success: false, error: 'Inscription fee not found' };
-      return { success: true, data: fee };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("inscription-fee:create", async (_, data: InscriptionFeeEntity) => {
-    try {
-      const result = await global.inscriptionFeeService.create(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("inscription-fee:update", async (_, data: InscriptionFeeEntity) => {
-    try {
-      const result = await global.inscriptionFeeService.update(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("inscription-fee:delete", async (_, id: number) => {
-    try {
-      const result = await global.inscriptionFeeService.delete(id);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
+  protectedHandle("professor:payment:create", {
+    roles: rolesForChannel("professor:payment:create"),
+    audit: auditFor("professor:payment:create", "ProfessorPayment", {
+      summarize: (args, result) => {
+        const amount = args[0]?.amount ?? result?.data?.amount;
+        return {
+          targetId: result?.data?.id ?? null,
+          summary: `Paiement professeur ${amount != null ? `de ${amount} enregistré` : "enregistré"}`
+        };
+      }
+    })
+  }, async (_, paymentData) => global.paymentService.addProfessorPayment(paymentData));
+  protectedHandle("professor:payment:update", {
+    roles: rolesForChannel("professor:payment:update"),
+    audit: auditFor("professor:payment:update", "ProfessorPayment", {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? args[0]?.id ?? null,
+        summary: "Paiement professeur mis à jour"
+      })
+    })
+  }, async (_, paymentData) => global.paymentService.updateProfessorPayment(paymentData));
 
   // --- Tranch Configurations ---
   ipcMain.handle("tranche-config:all", async () => {
@@ -696,43 +978,26 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
 
-  ipcMain.handle("tranche-config:create", async (_, data) => {
-    try {
-      const result = await global.paymentAnnualConfigService.create(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return handleError(error, "tranche-config:create");
-    }
-  });
-
-  ipcMain.handle("tranche-config:update", async (_, data) => {
-    try {
-      const result = await global.paymentAnnualConfigService.update(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return handleError(error, "tranche-config:update");
-    }
-  });
-
-  ipcMain.handle("tranche-config:delete", async (_, id: number) => {
-    try {
-      const result = await global.paymentAnnualConfigService.delete(id);
-      return { success: true, data: result };
-    } catch (error) {
-      return handleError(error, "tranch-config:delete");
-    }
-  });
-
   // --- Absences ---
   ipcMain.handle("absence:allStudent", async () => global.absenceService.getAllAbsences("STUDENT"));
   ipcMain.handle("absence:allProfessor", async () => global.absenceService.getAllAbsences("PROFESSOR"));
-  ipcMain.handle("absence:add", async (_, absenceData) => global.absenceService.addAbsence(absenceData));
-  ipcMain.handle("absence:addProfessor", async (_, data) => global.absenceService.createProfessorAbsence(data));
-  ipcMain.handle("absence:updateProfessor", async (_, data) => global.absenceService.updateProfessorAbsence(data));
-  ipcMain.handle("absence:getAllProfessor", async () => global.absenceService.getAllProfessorAbsences());
+  protectedHandle("absence:add", {
+    roles: rolesForChannel("absence:add"),
+    audit: auditFor("absence:add", "Absence")
+  }, async (_, absenceData) => global.absenceService.addAbsence(absenceData));
   ipcMain.handle("absence:getTotalAbsencesGroupedByStudent", async (_, gradeId?: number) => global.absenceService.getTotalAbsencesGroupedByStudent(gradeId));
-  ipcMain.handle("absence:deleteProfessor", async (_, id) => global.absenceService.deleteProfessorAbsence(id));
-  ipcMain.handle("absence:createBatch", async (_, absencesData) => {
+  protectedHandle("absence:createBatch", {
+    roles: rolesForChannel("absence:createBatch"),
+    audit: auditFor("absence:createBatch", "Absence", {
+      summarize: (args, result) => ({
+        targetId: null,
+        summary: `Création de ${Array.isArray(args[0]) ? args[0].length : 0} absences`,
+        metadata: {
+          ids: Array.isArray(result?.data) ? result.data.map((a: any) => a?.id ?? null).filter((id: any) => id != null) : []
+        }
+      })
+    })
+  }, async (_, absencesData) => {
     try {
       const result = await global.absenceService.createProfessorAbsencesBatch(absencesData);
       return result;
@@ -742,31 +1007,42 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   });
 
   // --- Devoirs (Homework) ---
-  ipcMain.handle("homework:create", async (_, data) => global.homeworkService.createHomework(data));
+  protectedHandle("homework:create", {
+    roles: rolesForChannel("homework:create"),
+    audit: auditFor("homework:create", "Homework")
+  }, async (_, data) => global.homeworkService.createHomework(data));
   ipcMain.handle("homework:getByGrade", async (_, gradeId) => global.homeworkService.getHomeworkByGrade(gradeId));
-  ipcMain.handle("homework:delete", async (_, id) => global.homeworkService.deleteHomework(id));
-  ipcMain.handle("homework:update", async (_, data) => global.homeworkService.updateHomework(data.id, data));
+  protectedHandle("homework:delete", {
+    roles: rolesForChannel("homework:delete"),
+    audit: auditFor("homework:delete", "Homework")
+  }, async (_, id) => global.homeworkService.deleteHomework(id));
+  protectedHandle("homework:update", {
+    roles: rolesForChannel("homework:update"),
+    audit: auditFor("homework:update", "Homework")
+  }, async (_, data) => global.homeworkService.updateHomework(data.id, data));
   ipcMain.handle("homework:notify", async (_, data) => ({ success: true, message: "Notifications simulées envoyées." }));
 
   // --- Congés (Vacation) ---
   ipcMain.handle("vacation:getByStudent", async (_, studentId) => global.vacationService.getVacationsByStudent(studentId));
   ipcMain.handle("vacation:getByProfessor", async (_, professorId) => global.vacationService.getVacationsByProfessor(professorId));
-  ipcMain.handle("vacation:create", async (_, data) => global.vacationService.createVacation(data));
-  ipcMain.handle("vacation:update", async (_, data) => data.id && data.status ? global.vacationService.updateVacationStatus(data.id, data.status, data.comment) : { success: false, error: "INVALID_DATA" });
-  ipcMain.handle("vacation:updateStatus", async (_, { id, status, comment }) => global.vacationService.updateVacationStatus(id, status, comment));
-  ipcMain.handle("vacation:delete", async (_, id) => global.vacationService.deleteVacation(id));
-
-  // --- Bulletins (Report Card) ---
-  ipcMain.handle("report:generateMultiple", async (_, data) => global.reportCardService.generateReportCards(data));
-  ipcMain.handle("report:preview", async (_, data) => global.reportCardService.generateReportCards({ studentIds: [data.studentId], period: data.period, templateId: "preview" }));
-  ipcMain.handle("grades:save", async (_, data) => global.reportCardService.saveStudentGrades(data));
-  ipcMain.handle("grades:get", async (_, { studentId, period }) => global.reportCardService.getStudentGrades(studentId, period));
+  protectedHandle("vacation:create", {
+    roles: rolesForChannel("vacation:create"),
+    audit: auditFor("vacation:create", "Vacation")
+  }, async (_, data) => global.vacationService.createVacation(data));
+  protectedHandle("vacation:update", {
+    roles: rolesForChannel("vacation:update"),
+    audit: auditFor("vacation:update", "Vacation")
+  }, async (_, data) => data.id && data.status ? global.vacationService.updateVacationStatus(data.id, data.status, data.comment) : { success: false, error: "INVALID_DATA" });
+  protectedHandle("vacation:updateStatus", {
+    roles: rolesForChannel("vacation:updateStatus"),
+    audit: auditFor("vacation:updateStatus", "Vacation")
+  }, async (_, { id, status, comment }) => global.vacationService.updateVacationStatus(id, status, comment));
+  protectedHandle("vacation:delete", {
+    roles: rolesForChannel("vacation:delete"),
+    audit: auditFor("vacation:delete", "Vacation")
+  }, async (_, id) => global.vacationService.deleteVacation(id));
 
   // --- Configuration ---
-  ipcMain.handle("gradeConfig:save", async (_, config) => global.gradeConfigService.saveConfiguration(config));
-  ipcMain.handle("gradeConfig:get", async (_, { gradeId }) => global.gradeConfigService.getConfigurationByGrade(gradeId));
-  ipcMain.handle("preference:saveTemplate", async (_, templateId) => global.preferenceService.saveTemplatePreference(templateId));
-  ipcMain.handle("preference:getTemplate", async () => global.preferenceService.getTemplatePreference());
   ipcMain.handle("preference:get", async (_, key: string) => {
     try {
       const result = await global.preferenceService.getPreference(key);
@@ -816,25 +1092,55 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
 
   // --- École ---
   ipcMain.handle("school:get", async () => global.schoolService.getSchool());
-  ipcMain.handle("school:save", async (_, schoolData) => global.schoolService.saveOrUpdateSchool(schoolData));
-  ipcMain.handle("school:saveSettings", async (_, settings) => global.schoolService.saveOrUpdateSettings(settings));
+  protectedHandle("school:save", {
+    roles: rolesForChannel("school:save"),
+    audit: auditFor("school:save", "School", {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? null,
+        summary: "Mise à jour des informations de l'école"
+      })
+    })
+  }, async (_, schoolData) => global.schoolService.saveOrUpdateSchool(schoolData));
+  protectedHandle("school:saveSettings", {
+    roles: rolesForChannel("school:saveSettings"),
+    audit: auditFor("school:saveSettings", "School", {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? null,
+        summary: "Mise à jour des informations de l'école"
+      })
+    })
+  }, async (_, settings) => global.schoolService.saveOrUpdateSettings(settings));
 
   // --- Dashboard ---
   ipcMain.handle("dashboard:stats", async () => global.dashboardService.getStats());
   ipcMain.handle("dashboard:paymentStats", async () => global.dashboardService.getPaymentStats());
+  ipcMain.handle("dashboard:professorPaymentStats", async () => global.dashboardService.getProfessorPaymentStats());
   ipcMain.handle("dashboard:absenceStats", async () => global.dashboardService.getAbsenceStats());
 
   // --- Année Scolaire ---
   ipcMain.handle("yearRepartition:getAll", async () => global.yearRepartitionService.getAllYearRepartitions());
   ipcMain.handle("yearRepartition:getCurrent", async () => global.yearRepartitionService.getCurrentYearRepartition());
-  ipcMain.handle("yearRepartition:create", async (_, data) => global.yearRepartitionService.createYearRepartition(data));
-  ipcMain.handle("yearRepartition:update", async (_, { id, data }) => global.yearRepartitionService.updateYearRepartition(id, data));
-  ipcMain.handle("yearRepartition:delete", async (_, id) => global.yearRepartitionService.deleteYearRepartition(id));
-  ipcMain.handle("yearRepartition:setCurrent", async (_, id) => global.yearRepartitionService.setCurrentYearRepartition(id));
-
-  // --- Bourses ---
-  ipcMain.handle("scholarship:getByStudent", async (_, studentId) => global.scholarshipService.getByStudent(studentId));
-  ipcMain.handle("scholarship:getActiveByStudent", async (_, studentId) => global.paymentService.getActiveByStudent(studentId));
+  protectedHandle("yearRepartition:create", {
+    roles: rolesForChannel("yearRepartition:create"),
+    audit: auditFor("yearRepartition:create", "YearRepartition")
+  }, async (_, data) => global.yearRepartitionService.createYearRepartition(data));
+  protectedHandle("yearRepartition:update", {
+    roles: rolesForChannel("yearRepartition:update"),
+    audit: auditFor("yearRepartition:update", "YearRepartition")
+  }, async (_, { id, data }) => global.yearRepartitionService.updateYearRepartition(id, data));
+  protectedHandle("yearRepartition:delete", {
+    roles: rolesForChannel("yearRepartition:delete"),
+    audit: auditFor("yearRepartition:delete", "YearRepartition")
+  }, async (_, id) => global.yearRepartitionService.deleteYearRepartition(id));
+  protectedHandle("yearRepartition:setCurrent", {
+    roles: rolesForChannel("yearRepartition:setCurrent"),
+    audit: auditFor("yearRepartition:setCurrent", "YearRepartition", {
+      summarize: (args, result) => ({
+        targetId: typeof args[0] === "number" ? args[0] : result?.data?.id ?? null,
+        summary: `Année scolaire ${result?.data?.schoolYear ?? ""} définie comme courante`.trim()
+      })
+    })
+  }, async (_, id) => global.yearRepartitionService.setCurrentYearRepartition(id));
 
   // --- Licence ---
   ipcMain.handle("license:getMachineId", async () => ({ success: true, data: { machineId: global.licenseService.getMachineId() } }));
@@ -850,10 +1156,98 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   ipcMain.handle("license:getStatus", async () => global.licenseService.getStatus());
   ipcMain.handle("license:getDetails", async () => global.licenseService.getDetails());
 
+  // --- Administration ---
+  protectedHandle("users:list", {
+    roles: ['admin']
+  }, async (_, params) => {
+    const data = await global.userAdminService.list({
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 20,
+      search: params?.search
+    });
+    return { success: true, data, message: "Liste des utilisateurs", error: null };
+  });
+
+  protectedHandle("users:create", {
+    roles: ['admin'],
+    audit: {
+      action: 'create',
+      entity: 'User',
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? null,
+        summary: `Création du compte ${result?.data?.username ?? args[0]?.username ?? 'utilisateur'}`
+      })
+    }
+  }, async (_, payload) => {
+    const data = await global.userAdminService.create(payload);
+    return { success: true, data, message: "Utilisateur créé avec succès", error: null };
+  });
+
+  protectedHandle("users:update", {
+    roles: ['admin'],
+    audit: {
+      action: 'update',
+      entity: 'User',
+      before: (args) => global.userAdminService.getById(args[0]?.id),
+      summarize: (args, result, ctx) => ({
+        targetId: args[0]?.id ?? null,
+        summary: `Mise à jour du compte ${result?.data?.username ?? (ctx.before as any)?.username ?? 'utilisateur'}`,
+        diff: { before: ctx.before, after: result?.data }
+      })
+    }
+  }, async (_, payload) => {
+    const data = await global.userAdminService.update(payload);
+    return { success: true, data, message: "Utilisateur mis à jour avec succès", error: null };
+  });
+
+  protectedHandle("users:setActive", {
+    roles: ['admin'],
+    audit: {
+      action: 'status_change',
+      entity: 'User',
+      summarize: (args, result) => ({
+        targetId: args[0]?.id ?? null,
+        summary: args[0]?.isActive ? `Activation du compte ${result?.data?.username ?? 'utilisateur'}` : `Désactivation du compte ${result?.data?.username ?? 'utilisateur'}`
+      })
+    }
+  }, async (_, payload) => {
+    const data = await global.userAdminService.setActive(payload);
+    return { success: true, data, message: "Statut mis à jour", error: null };
+  });
+
+  protectedHandle("users:resetPassword", {
+    roles: ['admin'],
+    audit: {
+      action: 'password_reset',
+      entity: 'User',
+      summarize: (args, result) => ({
+        targetId: args[0]?.id ?? null,
+        summary: `Réinitialisation du mot de passe de ${result?.data?.username ?? 'utilisateur'}`
+      })
+    }
+  }, async (_, payload) => {
+    const data = await global.userAdminService.resetPassword(payload);
+    return { success: true, data, message: "Mot de passe réinitialisé", error: null };
+  });
+
+  protectedHandle("audit:list", {
+    roles: ['admin']
+  }, async (_, params) => {
+    const data = await global.auditLogService.list({
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 20,
+      filters: params?.filters ?? {}
+    });
+    return { success: true, data, message: "Journal d'audit", error: null };
+  });
+
 
   //shedule
   // Handler pour créer un emploi du temps
-  ipcMain.handle('schedule:create', async (event, command: ScheduleCommand) => {
+  protectedHandle('schedule:create', {
+    roles: rolesForChannel('schedule:create'),
+    audit: auditFor('schedule:create', 'Schedule')
+  }, async (event, command: ScheduleCommand) => {
     try {
       return await global.scheduleService.createSchedule(command);
     } catch (error) {
@@ -912,23 +1306,11 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
 
-  // Handler pour récupérer l'emploi du temps par professeur
-  ipcMain.handle('schedule:by-professor', async (event, professorId: number) => {
-    try {
-      return await global.scheduleService.getScheduleByProfessor(professorId);
-    } catch (error) {
-      console.error('Error in schedule:by-professor handler:', error);
-      return {
-        success: false,
-        message: 'Erreur serveur lors de la récupération de l\'emploi du temps du professeur',
-        data: null,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  });
-
   // Handler pour supprimer un créneau
-  ipcMain.handle('schedule:delete', async (event, scheduleId: number) => {
+  protectedHandle('schedule:delete', {
+    roles: rolesForChannel('schedule:delete'),
+    audit: auditFor('schedule:delete', 'Schedule')
+  }, async (event, scheduleId: number) => {
     try {
       return await global.scheduleService.deleteSchedule(scheduleId);
     } catch (error) {
@@ -936,21 +1318,6 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       return {
         success: false,
         message: 'Erreur serveur lors de la suppression du créneau',
-        data: null,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  });
-
-  // Handler pour mettre à jour un créneau
-  ipcMain.handle('schedule:update', async (event, scheduleId: number, command: Partial<ScheduleCommand>) => {
-    try {
-      return await global.scheduleService.updateSchedule(scheduleId, command);
-    } catch (error) {
-      console.error('Error in schedule:update handler:', error);
-      return {
-        success: false,
-        message: 'Erreur serveur lors de la mise à jour du créneau',
         data: null,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
@@ -966,19 +1333,19 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
 
-  ipcMain.handle('schedule-config:save', async (_event, data) => {
+  protectedHandle('schedule-config:save', {
+    roles: rolesForChannel('schedule-config:save'),
+    audit: auditFor('schedule-config:save', 'ScheduleConfig', {
+      summarize: (args, result) => ({
+        targetId: result?.data?.id ?? null,
+        summary: "Configuration de l'emploi du temps enregistrée"
+      })
+    })
+  }, async (_event, data) => {
     try {
       return await global.scheduleConfigService.saveConfig(data);
     } catch (error) {
       return { success: false, message: 'Erreur lors de l\'enregistrement', error };
-    }
-  });
-
-  ipcMain.handle('schedule-config:delete', async (_event, { id }) => {
-    try {
-      return await global.scheduleConfigService.deleteConfig(id);
-    } catch (error) {
-      return { success: false, message: 'Erreur lors de la suppression', error };
     }
   });
 
@@ -987,7 +1354,10 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
   // ===================================================================
   
   // Sauvegarder une configuration de notation
-  ipcMain.handle('grade-config:save', async (_event, params: ICreateConfigParams) => {
+  protectedHandle('grade-config:save', {
+    roles: rolesForChannel('grade-config:save'),
+    audit: auditFor('grade-config:save', 'NoteConfig')
+  }, async (_event, params: ICreateConfigParams) => {
     try {
       return await global.configNoteService.saveConfig(params);
     } catch (error) {
@@ -1004,63 +1374,24 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
 
-  // Récupérer la configuration exacte (sans cascade)
-  ipcMain.handle('grade-config:getExact', async (_event, { schoolId, classId, subjectId, period }) => {
-    try {
-      return await global.configNoteService.getExactConfig({ schoolId, classId, subjectId, period });
-    } catch (error) {
-      return handleError(error, "grade-config:getExact");
-    }
-  });
-
-  // Lister toutes les configurations d'une école
-  ipcMain.handle('grade-config:getAllForSchool', async (_event, schoolId: number) => {
-    try {
-      return await global.configNoteService.getAllConfigsForSchool(schoolId);
-    } catch (error) {
-      return handleError(error, "grade-config:getAllForSchool");
-    }
-  });
-
-  // Supprimer une configuration
-  ipcMain.handle('grade-config:delete', async (_event, configId: number) => {
-    try {
-      return await global.configNoteService.deleteConfig(configId);
-    } catch (error) {
-      return handleError(error, "grade-config:delete");
-    }
-  });
-
-  // Calculer la moyenne d'une matière
-  ipcMain.handle('grade-config:calculateAverage', async (_event, { studentId, subjectId, classId, schoolId, period, grades, options }) => {
-    try {
-      return await global.configNoteService.calculateSubjectAverage(
-        studentId, subjectId, classId, schoolId, period, grades, options
-      );
-    } catch (error) {
-      return handleError(error, "grade-config:calculateAverage");
-    }
-  });
-
   // ===================================================================
   // SAISIE DES NOTES (GradeEntryService)
   // ===================================================================
 
-  // Sauvegarder une note individuelle
-  // Note: le recalcul des moyennes est déclenché par le frontend via gradeEntry:calculate
-  // qui dispose du classId et schoolId corrects
-  ipcMain.handle('gradeEntry:save', async (_event, input) => {
-    try {
-      const result = await global.gradeEntryService.saveGradeEntry(input);
-
-      return result;
-    } catch (error) {
-      return handleError(error, "gradeEntry:save");
-    }
-  });
-
   // Sauvegarder plusieurs notes
-  ipcMain.handle('gradeEntry:bulkSave', async (_event, input) => {
+  protectedHandle('gradeEntry:bulkSave', {
+    roles: rolesForChannel('gradeEntry:bulkSave'),
+    audit: auditFor('gradeEntry:bulkSave', 'GradeEntry', {
+      summarize: (args, result) => {
+        const count = Array.isArray(args[0]?.grades) ? args[0].grades.length : 0;
+        return {
+          targetId: args[0]?.studentId ?? null,
+          summary: `Enregistrement de ${count} note${count > 1 ? "s" : ""}`,
+          metadata: { count }
+        };
+      }
+    })
+  }, async (_event, input) => {
     try {
       console.log('=== IPC: gradeEntry:bulkSave called ===');
       console.log('Input:', input);
@@ -1097,24 +1428,6 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
     }
   });
 
-  // Récupérer une moyenne calculée
-  ipcMain.handle('gradeEntry:getCalculated', async (_event, { studentId, courseId, classId, schoolId, period }) => {
-    try {
-      return await global.gradeEntryService.getCalculatedGrade(studentId, courseId, classId, schoolId, period);
-    } catch (error) {
-      return handleError(error, "gradeEntry:getCalculated");
-    }
-  });
-
-  // Supprimer une note
-  ipcMain.handle('gradeEntry:delete', async (_event, entryId: number) => {
-    try {
-      return await global.gradeEntryService.deleteGradeEntry(entryId);
-    } catch (error) {
-      return handleError(error, "gradeEntry:delete");
-    }
-  });
-
   // Récupérer toutes les moyennes d'un élève
   ipcMain.handle('gradeEntry:getStudentAverages', async (_event, { studentId, classId, schoolId, period }) => {
     try {
@@ -1129,23 +1442,6 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
       return await global.gradeEntryService.getClassRankings(classId, schoolId, period);
     } catch (error) {
       return handleError(error, "gradeEntry:getClassRankings");
-    }
-  });
-
-  ipcMain.handle('gradeEntry:getStudentRank', async (_event, { studentId, classId, schoolId, period }) => {
-    try {
-      return await global.gradeEntryService.getStudentRank(studentId, classId, schoolId, period);
-    } catch (error) {
-      return handleError(error, "gradeEntry:getStudentRank");
-    }
-  });
-
-  // Invalider le cache des moyennes calculées
-  ipcMain.handle('gradeEntry:invalidateCache', async (_event, { classId, period }) => {
-    try {
-      return await global.gradeEntryService.invalidateCacheByClass(classId, period);
-    } catch (error) {
-      return handleError(error, "gradeEntry:invalidateCache");
     }
   });
 
@@ -1221,191 +1517,6 @@ ipcMain.handle("classroom:getByGradeId", async (_, gradeId: number) => {
         data: null,
         message: `Erreur lors du calcul du classement annuel: ${errorMessage}`,
         error: errorMessage
-      };
-    }
-  });
-
-  // Handler pour vérifier les conflits
-  ipcMain.handle('schedule:check-conflicts', async (event, professorId: number, day: string, timeSlot: string, excludeScheduleId?: number) => {
-    try {
-      return await global.scheduleService.checkConflicts(professorId, day, timeSlot, excludeScheduleId);
-    } catch (error) {
-      console.error('Error in schedule:check-conflicts handler:', error);
-      return {
-        success: false,
-        message: 'Erreur serveur lors de la vérification des conflits',
-        data: null,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  });
-
-  // --- Centralized Grades PDF ---
-  ipcMain.handle('centralized-grades:generatePDF', async (event, data) => {
-    try {
-      return await global.centralizedPdfService.generateCentralizedGradesPdf(data, {
-         generatePdfWithPrintDialog: async (htmlContent: string) => {
-          const win = new BrowserWindow({
-            width: 1600,
-            height: 950,
-            show: true,
-            webPreferences: {
-              nodeIntegration: true,
-              contextIsolation: false
-            }
-          });
-
-          const htmlWithPrintButton = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="UTF-8">
-              <title>Fiche de Centralisation des Notes</title>
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                  background: #f5f5f5;
-                }
-                .page {
-                  background: white;
-                  padding: 8px;
-                  min-height: 100vh;
-                  page-break-after: always;
-                }
-                .page:last-child {
-                  page-break-after: avoid;
-                }
-                .header {
-                  text-align: center;
-                  margin-bottom: 20px;
-                  border-bottom: 2px solid #333;
-                  padding-bottom: 15px;
-                }
-                .header h1 {
-                  color: #333;
-                  font-size: 20px;
-                  margin-bottom: 8px;
-                }
-                .header-info {
-                  color: #666;
-                  font-size: 13px;
-                }
-                table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  margin-bottom: 15px;
-                }
-                th, td {
-                  border: 1px solid #ddd;
-                  padding: 8px;
-                  text-align: center;
-                  font-size: 10px;
-                }
-                th {
-                  background-color: #2c3e50;
-                  color: white;
-                  font-weight: 600;
-                }
-                .rank-cell {
-                  background-color: #2c3e50 !important;
-                  color: white !important;
-                  font-weight: bold;
-                }
-                .average-row td {
-                  background-color: #e8f4f8;
-                  font-weight: bold;
-                  color: #2c3e50;
-                }
-                .print-section {
-                  margin-top: 20px;
-                  padding: 15px;
-                  background: #f9f9f9;
-                  border: 2px dashed #ccc;
-                  border-radius: 4px;
-                  text-align: center;
-                }
-                .print-btn {
-                  background: #4CAF50;
-                  color: white;
-                  border: none;
-                  padding: 12px 24px;
-                  font-size: 14px;
-                  border-radius: 4px;
-                  cursor: pointer;
-                  font-weight: 600;
-                }
-                .print-btn:hover {
-                  background: #45a049;
-                }
-                .page-info {
-                  font-size: 11px;
-                  color: #666;
-                  margin-top: 8px;
-                }
-                @media print {
-                  @page {
-                    size: landscape;
-                    margin: 5mm;
-                  }
-                  body {
-                    background: white;
-                    padding: 0;
-                  }
-                  .page {
-                    box-shadow: none;
-                    border-radius: 0;
-                    padding: 5mm;
-                    min-height: auto;
-                  }
-                  .print-section {
-                    display: none;
-                  }
-                  thead {
-                    display: table-header-group;
-                  }
-                  tfoot {
-                    display: table-footer-group;
-                  }
-                  tr {
-                    page-break-inside: avoid;
-                  }
-                  th, td {
-                    padding: 4px;
-                    font-size: 9px;
-                  }
-                }
-              </style>
-            </head>
-            <body>
-              ${htmlContent}
-              <div class="print-section">
-                <button class="print-btn" onclick="window.print()">🖨️ Imprimer le PDF</button>
-              </div>
-            </body>
-            <script>
-              window.onload = function() {
-                setTimeout(() => {
-                  window.print();
-                }, 500);
-              };
-
-              window.onafterprint = function() {
-                setTimeout(() => { window.close(); }, 500);
-              };
-            </script>
-          `;
-
-          await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlWithPrintButton)}`);
-        }
-      });
-    } catch (error) {
-      console.error('Error in centralized-grades:generatePDF handler:', error);
-      return {
-        success: false,
-        message: 'Erreur serveur lors de la génération du PDF',
-        data: null,
-        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   });
