@@ -314,6 +314,7 @@ import BulletinTemplateOne from '@/components/bulletin/templates/BulletinTemplat
 import BulletinTemplateTwo from '@/components/bulletin/templates/BulletinTemplateTwo.vue';
 import BulletinConfigDialog from '@/components/bulletin/BulletinConfigDialog.vue';
 import { getAppreciation, formatNumber } from '@/utils/grade';
+import { useYearStore } from '@/stores/yearStore';
 
 // --- Helpers ---
 const escapeHtml = (str: string): string => {
@@ -381,7 +382,8 @@ const studentSearch = ref('');
 
 // Données
 const schoolInfo = ref<any>(null);
-const currentYear = ref('2024-2025');
+// Verrou année scolaire : valeur initiale = année du menu (`YearSwitcher`) — jamais '2024-2025' en dur.
+const currentYear = ref(useYearStore().currentSchoolYear || '');
 const previewStudent = ref<Student | null>(null);
 const previewGradesData = ref<GradeData[]>([]);
 const previewRank = ref(0);
@@ -517,10 +519,15 @@ const loadInitialData = async () => {
     const classesRes = await window.ipcRenderer.invoke('grade:all');
     if (classesRes.success) classes.value = classesRes.data || [];
 
-    // Année scolaire et périodes
+    // Année scolaire et périodes — verrou : année du menu (`YearSwitcher`).
     const yearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (yearRes.success && yearRes.data) {
-      currentYear.value = yearRes.data.schoolYear;
+      try {
+        const loginYear = useYearStore().currentSchoolYear;
+        currentYear.value = loginYear || yearRes.data.schoolYear || currentYear.value;
+      } catch {
+        currentYear.value = yearRes.data.schoolYear || currentYear.value;
+      }
       periods.value = yearRes.data.periodConfigurations?.map((p: any) => p.name) || ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];
     } else {
       periods.value = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'];

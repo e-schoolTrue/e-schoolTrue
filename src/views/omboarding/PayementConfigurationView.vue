@@ -147,6 +147,20 @@ import { PaymentConfig, PaymentConfigCreateInput } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
 import WizardViewBase from './WizardViewBase.vue';
+import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError, openGuardedForm } from '@/composables/useAccountingGuard';
+import { strictInvoke } from '@/utils/ipc';
+
+/** Garde STRICT avant chaque écriture compta : modale systématique (mot de passe de connexion). */
+async function guardAccountingWrite(): Promise<void> {
+  try {
+    await ensureUnlock({ force: true, fresh: true });
+    } catch (guardErr) {
+      if (isNoSecretError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+      }
+      throw guardErr;
+    }
+}
 
 const emit = defineEmits(['configuration-saved', 'go-back']);
 const { currency } = useCurrency();
@@ -171,22 +185,43 @@ const modalTitle = computed(() =>
 );
 
 const openCreateModal = () => {
-  if (configurations.value.length === 0) {
-    ElMessage.warning("Aucune classe n'est disponible pour configuration");
-    return;
-  }
+  // Garde d'OUVERTURE : popup AVANT l'ouverture du formulaire (onboarding).
+  void (async () => {
+    try {
+      await openGuardedForm(() => {
+        if (configurations.value.length === 0) {
+          ElMessage.warning("Aucune classe n'est disponible pour configuration");
+          return;
+        }
+        const nonConfigured = configurations.value.find(c => c.annualAmount === 0);
+        currentConfig.value = nonConfigured ? { ...nonConfigured } : { ...configurations.value[0] };
+        showModal.value = true;
+      });
+    } catch (err) {
+        if (isNoSecretError(err)) {
+          ElMessage.warning(mapAccountingError(err));
+        }
+      }
+    })();
+  };
+
+  const editConfiguration = (config: PaymentConfig) => {
+  // Garde d'OUVERTURE « Modifier » : popup AVANT l'ouverture du dialogue.
+  void (async () => {
+    try {
+      await openGuardedForm(() => {
+        currentConfig.value = { ...config };
+        showModal.value = true;
+      });
+    } catch (err) {
+        if (isNoSecretError(err)) {
+          ElMessage.warning(mapAccountingError(err));
+        }
+      }
+    })();
+  };
   
-  const nonConfigured = configurations.value.find(c => c.annualAmount === 0);
-  currentConfig.value = nonConfigured ? { ...nonConfigured } : { ...configurations.value[0] };
-  showModal.value = true;
-};
-
-const editConfiguration = (config: PaymentConfig) => {
-  currentConfig.value = { ...config };
-  showModal.value = true;
-};
-
-const saveConfiguration = async () => {
+  const saveConfiguration = async () => {
   try {
     isSaving.value = true;
     
@@ -222,15 +257,23 @@ const saveConfiguration = async () => {
       scholarshipCriteria: String(currentConfig.value.scholarshipCriteria || '')
     };
 
-    const result = await window.ipcRenderer.invoke('payment:saveConfig', configData);
-
-    if (result.success) {
-      ElMessage.success('Configuration sauvegardée avec succès');
-      await loadConfigurations();
-      showModal.value = false;
-    } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde');
+    // Garde mot de passe de connexion AVANT chaque écriture (modale systématique).
+    await guardAccountingWrite();
+    try {
+      await strictInvoke('payment:saveConfig', configData);
+    } catch (ipcErr) {
+        if (isNoSecretError(ipcErr)) {
+          ElMessage.warning(mapAccountingError(ipcErr));
+          throw ipcErr;
+        }
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      await strictInvoke('payment:saveConfig', configData);
     }
+
+    ElMessage.success('Configuration sauvegardée avec succès');
+    await loadConfigurations();
+    showModal.value = false;
   } catch (error) {
     console.error('Erreur lors de la sauvegarde:', error);
     ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
@@ -242,17 +285,16 @@ const saveConfiguration = async () => {
 const loadConfigurations = async () => {
   isLoading.value = true;
   try {
-    const [gradesResult, configsResult] = await Promise.all([
-      window.ipcRenderer.invoke('grade:all'),
-      window.ipcRenderer.invoke('payment:getConfigs')
+    const [grades, configsRaw] = await Promise.all([
+      strictInvoke<Array<{ id: string; name: string }>>('grade:all'),
+      strictInvoke<PaymentConfig[]>('payment:getConfigs').catch(() => [] as PaymentConfig[]),
     ]);
 
-    if (!gradesResult.success || !gradesResult.data) {
+    if (!grades || !grades.length) {
       throw new Error('Erreur lors du chargement des classes');
     }
 
-    const grades = gradesResult.data;
-    const configs = configsResult.success ? configsResult.data : [];
+    const configs = Array.isArray(configsRaw) ? configsRaw : [];
     
     configurations.value = grades.map((grade: { id: string; name: string }) => {
       const config = configs.find((c: PaymentConfig) => String(c.classId) === String(grade.id));
@@ -260,6 +302,8 @@ const loadConfigurations = async () => {
         classId: String(grade.id),
         className: grade.name,
         annualAmount: config ? Number(config.annualAmount) : 0,
+        inscriptionFee: config ? Number(config.inscriptionFee ?? 0) : 0,
+        reInscriptionFee: config ? Number(config.reInscriptionFee ?? 0) : 0,
         allowScholarship: config ? config.allowScholarship : false,
         scholarshipPercentages: config ? config.scholarshipPercentages : [],
         scholarshipCriteria: config ? config.scholarshipCriteria : ''

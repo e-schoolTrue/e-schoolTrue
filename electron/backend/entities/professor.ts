@@ -50,8 +50,8 @@ export class ProfessorEntity {
     @Column({ type: 'varchar', length: 9, nullable: true, default: '#409EFF' })
     color?: string;
 
-    /** Taux horaire en GNF (decimal entier, pas de float). */
-    @Column("decimal", { precision: 12, scale: 0, default: 0 })
+    /** Taux horaire (decimal 14,2, devise école via snapshot). */
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     hourlyRate!: number;
 
     /** Mode de paiement: monthly | hourly | custom. */

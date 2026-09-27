@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/673</span>
+                <span class='fraction'>0/680</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/673</span>
+                <span class='fraction'>0/680</span>
             </div>
         
             
@@ -736,7 +736,21 @@
 <a name='L671'></a><a href='#L671'>671</a>
 <a name='L672'></a><a href='#L672'>672</a>
 <a name='L673'></a><a href='#L673'>673</a>
-<a name='L674'></a><a href='#L674'>674</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L674'></a><a href='#L674'>674</a>
+<a name='L675'></a><a href='#L675'>675</a>
+<a name='L676'></a><a href='#L676'>676</a>
+<a name='L677'></a><a href='#L677'>677</a>
+<a name='L678'></a><a href='#L678'>678</a>
+<a name='L679'></a><a href='#L679'>679</a>
+<a name='L680'></a><a href='#L680'>680</a>
+<a name='L681'></a><a href='#L681'>681</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1672,6 +1686,8 @@
 <span class="cstat-no" title="statement not covered" >const selectedProfessor = ref&lt;Professor | undefined&gt;(undefined);</span>
 <span class="cstat-no" title="statement not covered" >const selectedPayment = ref&lt;Payment | undefined&gt;(undefined);</span>
 <span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >const { currency } = useCurrency();</span>
+<span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >const filters = ref&lt;Filters&gt;({</span>
 <span class="cstat-no" title="statement not covered" >  professorName: '',</span>
 <span class="cstat-no" title="statement not covered" >  month: undefined,</span>
@@ -1768,12 +1784,18 @@
 <span class="cstat-no" title="statement not covered" >  await loadData();</span>
 <span class="cstat-no" title="statement not covered" >};</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >// Filtrage</span>
+<span class="cstat-no" title="statement not covered" >// Filtrage - support nom complet</span>
 <span class="cstat-no" title="statement not covered" >const handleFilter = () =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  filteredPayments.value = payments.value.filter(payment =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    const nameMatch = filters.value.professorName</span>
-<span class="cstat-no" title="statement not covered" >      ? payment.professor.firstname.toLowerCase().includes(filters.value.professorName.toLowerCase()) ||</span>
-<span class="cstat-no" title="statement not covered" >        payment.professor.lastname.toLowerCase().includes(filters.value.professorName.toLowerCase())</span>
+<span class="cstat-no" title="statement not covered" >      ? (() =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >          const q = filters.value.professorName.toLowerCase().trim();</span>
+<span class="cstat-no" title="statement not covered" >          const first = payment.professor.firstname.toLowerCase();</span>
+<span class="cstat-no" title="statement not covered" >          const last = payment.professor.lastname.toLowerCase();</span>
+<span class="cstat-no" title="statement not covered" >          const full = `${first} ${last}`;</span>
+<span class="cstat-no" title="statement not covered" >          const rev = `${last} ${first}`;</span>
+<span class="cstat-no" title="statement not covered" >          return full.includes(q) || rev.includes(q) || first.includes(q) || last.includes(q);</span>
+<span class="cstat-no" title="statement not covered" >        })()</span>
 <span class="cstat-no" title="statement not covered" >      : true;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    const monthMatch = filters.value.month</span>
@@ -1859,7 +1881,6 @@
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    const schoolData = schoolInfo.data;</span>
-<span class="cstat-no" title="statement not covered" >    const { currency } = useCurrency();</span>
 <span class="cstat-no" title="statement not covered" >    const grossAmount = paymentDetails.grossAmount ?? 0;</span>
 <span class="cstat-no" title="statement not covered" >    const netAmount = paymentDetails.netAmount ?? 0;</span>
 <span class="cstat-no" title="statement not covered" ></span>
@@ -2089,7 +2110,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:09.920Z
+                at 2026-09-13T14:37:13.270Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

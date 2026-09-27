@@ -322,6 +322,127 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- Dialogue de création d'absence élève -->
+    <el-dialog
+      v-model="showAddDialog"
+      title="Nouvelle absence"
+      width="560px"
+      destroy-on-close
+      @closed="resetAddForm"
+    >
+      <el-form :model="addForm" label-position="top">
+        <el-form-item label="Classe" required>
+          <el-select
+            v-model="addForm.gradeId"
+            placeholder="Sélectionner une classe"
+            clearable
+            filterable
+            class="w-full"
+            @change="handleAddGradeChange"
+          >
+            <el-option
+              v-for="grade in grades"
+              :key="grade.id"
+              :label="grade.name"
+              :value="grade.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="Élève" required>
+          <el-select
+            v-model="addForm.studentId"
+            placeholder="Sélectionner un élève"
+            clearable
+            filterable
+            class="w-full"
+            no-data-text="Aucun élève (chargez / filtrez par classe)"
+            @change="handleAddStudentChange"
+          >
+            <el-option
+              v-for="student in filteredAddStudents"
+              :key="student.id"
+              :label="`${student.firstname} ${student.lastname}${student.grade ? ` - ${student.grade.name}` : ''}`"
+              :value="student.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="Recherche élève">
+          <el-input
+            v-model="addStudentSearch"
+            placeholder="Filtrer par nom, prénom ou matricule"
+            clearable
+            class="w-full"
+          />
+        </el-form-item>
+
+        <el-form-item label="Date" required>
+          <el-date-picker
+            v-model="addForm.date"
+            type="date"
+            placeholder="Sélectionner une date"
+            format="DD/MM/YYYY"
+            value-format="YYYY-MM-DD"
+            class="w-full"
+          />
+        </el-form-item>
+
+        <el-form-item label="Type d'absence" required>
+          <el-select
+            v-model="addForm.absenceType"
+            placeholder="Type d'absence"
+            class="w-full"
+          >
+            <el-option
+              v-for="type in absenceTypes"
+              :key="type.value"
+              :label="type.label"
+              :value="type.value"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="Motif" required>
+          <el-select
+            v-model="addForm.reasonType"
+            placeholder="Motif de l'absence"
+            class="w-full"
+          >
+            <el-option
+              v-for="reason in reasonTypes"
+              :key="reason.value"
+              :label="reason.label"
+              :value="reason.value"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="Détail du motif">
+          <el-input
+            v-model="addForm.reason"
+            type="textarea"
+            :rows="2"
+            placeholder="Précisez le motif (optionnel)"
+            class="w-full"
+          />
+        </el-form-item>
+
+        <el-form-item>
+          <el-checkbox v-model="addForm.justified">Absence justifiée</el-checkbox>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showAddDialog = false">Annuler</el-button>
+          <el-button type="primary" :loading="addLoading" @click="submitAddAbsence">
+            Enregistrer
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -378,10 +499,31 @@ interface Filters {
 // États
 const loading = ref(false);
 const showAddDialog = ref(false);
+const addLoading = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
 const grades = ref<Grade[]>([]);
 const absences = ref<Absence[]>([]);
+
+interface AddStudent {
+  id: number;
+  firstname: string;
+  lastname: string;
+  matricule?: string;
+  grade?: { id: number; name: string } | null;
+}
+
+const studentsForAdd = ref<AddStudent[]>([]);
+const addStudentSearch = ref('');
+const addForm = ref({
+  gradeId: null as number | null,
+  studentId: null as number | null,
+  date: null as string | null,
+  absenceType: 'FULL_DAY' as string,
+  reasonType: null as string | null,
+  reason: '',
+  justified: false
+});
 const filters = ref<Filters>({
   dateRange: null,
   gradeId: null,
@@ -480,6 +622,18 @@ const paginatedAbsences = computed(() => {
   return filteredAbsences.value.slice(start, end);
 });
 
+const filteredAddStudents = computed(() => {
+  const search = addStudentSearch.value.trim().toLowerCase();
+  return studentsForAdd.value.filter((student) => {
+    if (addForm.value.gradeId && student.grade?.id !== addForm.value.gradeId) {
+      return false;
+    }
+    if (!search) return true;
+    const haystack = `${student.firstname} ${student.lastname} ${student.matricule ?? ''}`.toLowerCase();
+    return haystack.includes(search);
+  });
+});
+
 const statistics = computed(() => {
   const total = filteredAbsences.value.length;
   const justified = filteredAbsences.value.filter(a => a.justified).length;
@@ -546,8 +700,107 @@ const loadAbsences = async () => {
 watch(() => showAddDialog.value, (newValue) => {
   if (!newValue) { // Si le dialogue vient de se fermer
     loadAbsences(); // Recharger les absences
+  } else {
+    // (Re)charger les élèves à l'ouverture pour une liste à jour
+    loadStudentsForAdd();
   }
 });
+
+const loadStudentsForAdd = async () => {
+  try {
+    const result = await window.ipcRenderer.invoke('student:all');
+    if (result?.success === false) {
+      throw new Error(result?.message || result?.error || 'Erreur lors du chargement des élèves');
+    }
+    const raw = Array.isArray(result?.data) ? result.data : (result?.data?.students ?? []);
+    if (!Array.isArray(raw)) return;
+    studentsForAdd.value = raw;
+  } catch (error) {
+    console.error('Erreur lors du chargement des élèves:', error);
+    ElMessage.error("Erreur lors du chargement des élèves");
+  }
+};
+
+const resetAddForm = () => {
+  addForm.value = {
+    gradeId: null,
+    studentId: null,
+    date: null,
+    absenceType: 'FULL_DAY',
+    reasonType: null,
+    reason: '',
+    justified: false
+  };
+  addStudentSearch.value = '';
+};
+
+const handleAddGradeChange = () => {
+  const selected = studentsForAdd.value.find((s) => s.id === addForm.value.studentId);
+  if (selected && addForm.value.gradeId && selected.grade?.id !== addForm.value.gradeId) {
+    addForm.value.studentId = null;
+  }
+};
+
+const handleAddStudentChange = (studentId: number | null) => {
+  if (studentId == null) return;
+  const selected = studentsForAdd.value.find((s) => s.id === studentId);
+  if (selected?.grade?.id && !addForm.value.gradeId) {
+    addForm.value.gradeId = selected.grade.id;
+  }
+};
+
+const submitAddAbsence = async () => {
+  if (!addForm.value.gradeId) {
+    ElMessage.warning('Veuillez sélectionner une classe');
+    return;
+  }
+  if (!addForm.value.studentId) {
+    ElMessage.warning('Veuillez sélectionner un élève');
+    return;
+  }
+  if (!addForm.value.date) {
+    ElMessage.warning('Veuillez sélectionner une date');
+    return;
+  }
+  if (!addForm.value.absenceType) {
+    ElMessage.warning("Veuillez sélectionner un type d'absence");
+    return;
+  }
+  if (!addForm.value.reasonType) {
+    ElMessage.warning('Veuillez sélectionner un motif');
+    return;
+  }
+
+  addLoading.value = true;
+  try {
+    const reasonLabel = reasonTypes.find((r) => r.value === addForm.value.reasonType)?.label ?? '';
+    const payload = {
+      studentId: addForm.value.studentId,
+      gradeId: addForm.value.gradeId,
+      date: new Date(addForm.value.date),
+      absenceType: addForm.value.absenceType,
+      type: 'STUDENT' as const,
+      reason: addForm.value.reason?.trim() || reasonLabel,
+      reasonType: addForm.value.reasonType,
+      justified: addForm.value.justified,
+      parentNotified: false
+    };
+    const result = await window.ipcRenderer.invoke('absence:add', payload);
+    if (result?.success) {
+      ElMessage.success('Absence enregistrée avec succès');
+      showAddDialog.value = false;
+      resetAddForm();
+      await loadAbsences();
+    } else {
+      throw new Error(result?.message || result?.error || "Erreur lors de l'enregistrement de l'absence");
+    }
+  } catch (error) {
+    console.error("Erreur lors de la création de l'absence:", error);
+    ElMessage.error(error instanceof Error ? error.message : "Erreur lors de l'enregistrement de l'absence");
+  } finally {
+    addLoading.value = false;
+  }
+};
 
 // Gestion des notifications
 
@@ -599,7 +852,8 @@ onMounted(async () => {
   try {
     await Promise.all([
       loadGrades(),
-      loadAbsences()
+      loadAbsences(),
+      loadStudentsForAdd()
     ]);
   } catch (error) {
     console.error('Erreur lors de l\'initialisation:', error);

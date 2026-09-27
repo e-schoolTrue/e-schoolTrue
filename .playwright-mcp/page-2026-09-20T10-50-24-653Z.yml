@@ -1,0 +1,182 @@
+- generic [ref=f2e3]:
+  - generic [ref=f2e5]:
+    - menubar [ref=f2e6]:
+      - menuitem "Dashboard" [ref=f2e7] [cursor=pointer]
+      - menuitem "Gestion des Elèves" [ref=f2e8]
+      - menuitem "Gestion des Professeurs" [ref=f2e19]
+      - menuitem "Comptabilité" [ref=f2e30]
+      - menuitem "Gestion des Plannings" [ref=f2e41]
+      - menuitem "Outils" [ref=f2e80]
+      - menuitem "Administration" [ref=f2e125]
+      - menuitem "Paramètres" [ref=f2e136]
+    - button "Menu utilisateur" [ref=f2e149] [cursor=pointer]:
+      - generic [ref=f2e150]: O
+      - generic [ref=f2e151]: oumar
+  - generic [ref=f2e156]:
+    - generic [ref=f2e157]:
+      - generic [ref=f2e158]:
+        - heading "Paiement élèves" [level=1] [ref=f2e159]
+        - paragraph [ref=f2e160]: Recherche Nom / matricule / téléphone — 100% dynamique, zéro mock.
+      - button "Tableau de bord" [ref=f2e161] [cursor=pointer]
+    - generic [ref=f2e164]:
+      - generic [ref=f2e165]:
+        - textbox "Nom, matricule, téléphone…" [ref=f2e172]: Oumar
+        - button "Rechercher" [ref=f2e173] [cursor=pointer]
+      - generic [ref=f2e201]:
+        - table [ref=f2e203]:
+          - rowgroup [ref=f2e208]:
+            - row [ref=f2e209]:
+              - columnheader "Élève" [ref=f2e210]
+              - columnheader "Téléphone" [ref=f2e212]
+              - columnheader "Actions" [ref=f2e214]
+        - table [ref=f2e220]:
+          - rowgroup [ref=f2e225]:
+            - row [ref=f2e226]:
+              - cell "Oumar Diane E-S264234 — SixiemeA" [ref=f2e227]:
+                - generic [ref=f2e228]:
+                  - strong [ref=f2e229]: Oumar Diane
+                  - generic [ref=f2e230]: E-S264234 — SixiemeA
+              - cell [ref=f2e231]
+              - cell [ref=f2e232]:
+                - button "Sélectionner" [active] [ref=f2e234] [cursor=pointer]
+    - generic [ref=f2e237]:
+      - generic [ref=f2e238]:
+        - strong [ref=f2e240]: Carte élève
+        - generic [ref=f2e242]:
+          - generic [ref=f2e243]: OD
+          - generic [ref=f2e244]:
+            - heading "Oumar Diane" [level=3] [ref=f2e245]
+            - paragraph [ref=f2e246]:
+              - strong [ref=f2e247]: "Matricule :"
+              - text: E-S264234
+            - paragraph [ref=f2e248]:
+              - strong [ref=f2e249]: "Classe :"
+              - text: SixiemeA
+            - paragraph [ref=f2e250]:
+              - strong [ref=f2e251]: "Parent :"
+              - text: —
+            - paragraph [ref=f2e252]:
+              - strong [ref=f2e253]: "Téléphone :"
+            - paragraph [ref=f2e254]:
+              - strong [ref=f2e255]: "Inscrit :"
+              - text: 21/08/2026
+            - paragraph [ref=f2e256]:
+              - strong [ref=f2e257]: "Statut :"
+              - generic [ref=f2e258]: Partiel
+      - generic [ref=f2e260]:
+        - strong [ref=f2e262]: Situation financière
+        - generic [ref=f2e265]:
+          - table [ref=f2e267]:
+            - rowgroup [ref=f2e275]:
+              - row [ref=f2e276]:
+                - columnheader "Nature" [ref=f2e277]
+                - columnheader "Montant" [ref=f2e279]
+                - columnheader "Payé" [ref=f2e281]
+                - columnheader "Reste" [ref=f2e283]
+                - columnheader "Échéance" [ref=f2e285]
+                - columnheader "Statut" [ref=f2e287]
+          - table [ref=f2e293]:
+            - rowgroup [ref=f2e301]:
+              - row [ref=f2e302]:
+                - cell "Inscription" [ref=f2e303]
+                - cell "225 000 GNF" [ref=f2e305]
+                - cell "100 000 GNF" [ref=f2e307]
+                - cell [ref=f2e309]:
+                  - strong [ref=f2e311]: 125 000 GNF
+                - cell "—" [ref=f2e312]
+                - cell "Partiel" [ref=f2e314]
+              - row [ref=f2e318]:
+                - cell "Scolarité — Tranche 1" [ref=f2e319]
+                - cell "225 000 GNF" [ref=f2e321]
+                - cell "0 GNF" [ref=f2e323]
+                - cell [ref=f2e325]:
+                  - strong [ref=f2e327]: 225 000 GNF
+                - cell "—" [ref=f2e328]
+                - cell "Dû" [ref=f2e330]
+              - row [ref=f2e334]:
+                - cell "Scolarité — Tranche 2" [ref=f2e335]
+                - cell "225 000 GNF" [ref=f2e337]
+                - cell "0 GNF" [ref=f2e339]
+                - cell [ref=f2e341]:
+                  - strong [ref=f2e343]: 225 000 GNF
+                - cell "—" [ref=f2e344]
+                - cell "Dû" [ref=f2e346]
+              - row [ref=f2e350]:
+                - cell "Scolarité — Tranche 3" [ref=f2e351]
+                - cell "225 000 GNF" [ref=f2e353]
+                - cell "0 GNF" [ref=f2e355]
+                - cell [ref=f2e357]:
+                  - strong [ref=f2e359]: 225 000 GNF
+                - cell "—" [ref=f2e360]
+                - cell "Dû" [ref=f2e362]
+      - generic [ref=f2e367]:
+        - strong [ref=f2e369]: Historique
+        - generic [ref=f2e372]:
+          - table [ref=f2e374]:
+            - rowgroup [ref=f2e382]:
+              - row [ref=f2e383]:
+                - columnheader "Date" [ref=f2e384]
+                - columnheader "Nature" [ref=f2e386]
+                - columnheader "Montant" [ref=f2e388]
+                - columnheader "Mode" [ref=f2e390]
+                - columnheader "Reçu" [ref=f2e392]
+                - columnheader "Caissier" [ref=f2e394]
+          - table [ref=f2e400]:
+            - rowgroup [ref=f2e408]:
+              - row [ref=f2e409]:
+                - cell "21/08/2026" [ref=f2e410]
+                - cell "Inscription" [ref=f2e412]
+                - cell "100 000 GNF" [ref=f2e414]
+                - cell "Espèces" [ref=f2e416]
+                - cell "R-1" [ref=f2e418]
+                - cell "—" [ref=f2e420]
+    - generic [ref=f2e423]:
+      - strong [ref=f2e425]: Enregistrer un paiement — Oumar Diane
+      - generic [ref=f2e427]:
+        - generic [ref=f2e428]:
+          - generic [ref=f2e429]:
+            - generic [ref=f2e430]:
+              - generic [ref=f2e431]: Nature
+              - generic [ref=f2e434] [cursor=pointer]:
+                - generic:
+                  - combobox "Nature" [ref=f2e436]
+                  - generic [ref=f2e437]: Scolarité — Tranche 1
+            - generic [ref=f2e442]:
+              - generic [ref=f2e443]: Montant
+              - generic [ref=f2e445]:
+                - button "Décrémenter" [ref=f2e446]
+                - button "Incrémenter" [ref=f2e450] [cursor=pointer]
+                - spinbutton "Montant" [ref=f2e456]: "0"
+            - generic [ref=f2e457]:
+              - generic [ref=f2e458]: Remise
+              - generic [ref=f2e460]:
+                - button "Décrémenter" [ref=f2e461]
+                - button "Incrémenter" [ref=f2e465]
+                - spinbutton "Remise" [ref=f2e471]: "0"
+            - generic [ref=f2e472]:
+              - generic [ref=f2e473]: Montant à payer
+              - textbox "Montant à payer" [disabled] [ref=f2e477]: 0 GNF
+          - generic [ref=f2e478]:
+            - generic [ref=f2e479]:
+              - generic [ref=f2e480]: Mode
+              - generic [ref=f2e483] [cursor=pointer]:
+                - generic:
+                  - combobox "Mode" [ref=f2e485]
+                  - generic [ref=f2e486]: Espèces
+            - generic [ref=f2e491]:
+              - generic [ref=f2e492]: Date
+              - combobox "Date" [ref=f2e500]: 20/09/2026
+            - generic [ref=f2e501]:
+              - generic [ref=f2e502]: Référence
+              - textbox "Référence" [ref=f2e506]:
+                - /placeholder: N° chèque, ID transaction…
+            - generic [ref=f2e507]:
+              - generic [ref=f2e508]: Observation
+              - textbox "Observation" [ref=f2e511]:
+                - /placeholder: Observation optionnelle…
+        - paragraph [ref=f2e512]:
+          - text: "En lettres :"
+          - emphasis [ref=f2e513]: zéro franc guinéen
+        - generic [ref=f2e514]:
+          - button "Encaisser" [disabled] [ref=f2e515]
+          - button "Imprimer reçu" [disabled] [ref=f2e517]

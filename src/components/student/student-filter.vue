@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import type { IFilterForm, IGradeOption, ISchoolYearOption } from '@/types/shared';
+import { useYearStore } from '@/stores/yearStore';
+import type { IFilterForm, IGradeOption } from '@/types/shared';
 
 const emit = defineEmits(['filter', 'reset']);
+
+/**
+ * GARDE-FOU année scolaire (verrou global) :
+ * toute l'app est verrouillée sur l'année du badge readonly du menu
+ * (store `yearStore.activeYear`). AUCUNE UI année ici — consommation
+ * silencieuse : `filterForm.schoolYear` est rempli en interne et transmis
+ * au serveur, sans champ visible.
+ * Seuls `LoginView` (choix) et `YearRepartitionView`
+ * (gouvernance admin) peuvent appeler `setActiveYear` (menu en lecture seule).
+ */
+const yearStore = useYearStore();
 
 const filterForm = reactive<IFilterForm>({
   schoolYear: '',
@@ -14,17 +26,20 @@ const filterForm = reactive<IFilterForm>({
 const grades = ref<IGradeOption[]>([]);
 const loading = ref(false);
 
-const schoolYearOptions: ISchoolYearOption[] = [
-  { value: '2019-2020', label: '2019-2020' },
-  { value: '2020-2021', label: '2020-2021' },
-  { value: '2021-2022', label: '2021-2022' },
-  { value: '2022-2023', label: '2022-2023' },
-  { value: '2023-2024', label: '2023-2024' },
-  { value: '2024-2025', label: '2024-2025' },
-  { value: '2025-2026', label: '2025-2026' },
-  { value: '2026-2027', label: '2026-2027' },
-  { value: '2027-2028', label: '2027-2028' },
-];
+/**
+ * Année du menu (badge readonly) : `fetchList()` en interne (canal unique,
+ * warm du store) mais AUCUNE liste / switch exposé — consommation silencieuse.
+ */
+const loadSchoolYears = async () => {
+  try {
+    const items = yearStore.list.length > 0 ? yearStore.list : await yearStore.fetchList();
+    // Verrou : la valeur silencieuse est TOUJOURS l'année du menu.
+    if (yearStore.currentSchoolYear) filterForm.schoolYear = yearStore.currentSchoolYear;
+    else if (items.length > 0 && !filterForm.schoolYear) await fetchCurrentSchoolYear();
+  } catch {
+    /* fail-open : valeur conservée */
+  }
+};
 
 const loadGrades = async () => {
   loading.value = true;
@@ -56,14 +71,25 @@ const applyFilter = () => {
 };
 
 const resetFilter = () => {
-  filterForm.schoolYear = '';
+  // Verrou : l'année du menu est conservée au reset (pas de retour multi-années).
+  filterForm.schoolYear = yearStore.currentSchoolYear || filterForm.schoolYear;
   filterForm.classId = '';
   filterForm.studentFullName = '';
-  emit('reset', filterForm);
+  emit('reset', { ...filterForm });
 };
 
 const fetchCurrentSchoolYear = async () => {
   try {
+    // yearStore en priorité (menu), repli IPC direct.
+    if (yearStore.currentSchoolYear) {
+      filterForm.schoolYear = yearStore.currentSchoolYear;
+      return;
+    }
+    const current = await yearStore.fetchCurrent().catch(() => null);
+    if (current?.schoolYear) {
+      filterForm.schoolYear = current.schoolYear;
+      return;
+    }
     const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
     if (result.success && result.data) {
       filterForm.schoolYear = result.data.schoolYear;
@@ -73,9 +99,12 @@ const fetchCurrentSchoolYear = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   loadGrades();
-  fetchCurrentSchoolYear();
+  await loadSchoolYears();
+  // Verrou : ré-applique l'année du menu après warm.
+  await fetchCurrentSchoolYear();
+  if (yearStore.currentSchoolYear) filterForm.schoolYear = yearStore.currentSchoolYear;
 });
 </script>
 
@@ -83,19 +112,7 @@ onMounted(() => {
   <el-card>
     <el-form :model="filterForm" label-position="top">
       <el-row :gutter="20">
-        <el-col :span="8">
-          <el-form-item label="Année scolaire">
-            <el-select v-model="filterForm.schoolYear" placeholder="Année scolaire" clearable>
-              <el-option
-                v-for="item in schoolYearOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="Classe">
             <el-select 
               v-model="filterForm.classId" 
@@ -112,7 +129,7 @@ onMounted(() => {
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="Nom complet">
             <el-input 
               v-model="filterForm.studentFullName" 

@@ -174,12 +174,16 @@ export class CloudSyncService {
           name: e.name,
           code: e.code,
           type: e.type,
+          order: (e as any).order ?? null,
+          next_grade_id: (e as any).nextGradeId ?? null,
           updated_at: e.updated_at,
         }),
         transformFromSupabase: (d: any) => ({
           name: d.name,
           code: d.code,
           type: d.type,
+          order: d.order ?? null,
+          nextGradeId: d.next_grade_id ?? null,
         }),
       },
       {
@@ -220,11 +224,15 @@ export class CloudSyncService {
           school_year: e.schoolYear,
           period_configurations: e.periodConfigurations,
           is_current: e.isCurrent ?? false,
+          status: (e as any).status ?? "active",
+          closed_at: (e as any).closedAt ?? null,
         }),
         transformFromSupabase: (d: any) => ({
           schoolYear: d.school_year,
           periodConfigurations: d.period_configurations,
           isCurrent: d.is_current,
+          status: d.status ?? "active",
+          closedAt: d.closed_at ?? null,
         }),
       },
       {
@@ -242,6 +250,7 @@ export class CloudSyncService {
           allow_scholarship: e.allowScholarship,
           scholarship_percentages: e.scholarshipPercentages,
           scholarship_criteria: e.scholarshipCriteria,
+          school_year: (e as any).schoolYear ?? null,
         }),
         transformFromSupabase: (d: any) => ({
           classId: d.class_id,
@@ -252,6 +261,7 @@ export class CloudSyncService {
           allowScholarship: d.allow_scholarship,
           scholarshipPercentages: d.scholarship_percentages,
           scholarshipCriteria: d.scholarship_criteria,
+          schoolYear: d.school_year ?? null,
         }),
       },
       {
@@ -269,6 +279,7 @@ export class CloudSyncService {
           calculation_strategy: e.calculationStrategy,
           normalize_scores: e.normalizeScores,
           description: e.description,
+          school_year: e.schoolYear ?? null,
         }),
         transformFromSupabase: (d: any) => ({
           schoolId: d.school_id_local,
@@ -278,6 +289,7 @@ export class CloudSyncService {
           calculationStrategy: d.calculation_strategy,
           normalizeScores: d.normalize_scores,
           description: d.description,
+          schoolYear: d.school_year ?? null,
         }),
       },
 
@@ -451,9 +463,11 @@ export class CloudSyncService {
           ...(e.remote_id && { id: e.remote_id }),
           tranche_count: e.trancheCount,
           grade_id: e.grade?.remote_id,
+          school_year: e.schoolYear ?? null,
         }),
         transformFromSupabase: (d: any) => ({
           trancheCount: d.tranche_count,
+          schoolYear: d.school_year ?? null,
           _grade_remote_id: d.grade_id,
         }),
       },

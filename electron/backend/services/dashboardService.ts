@@ -10,16 +10,42 @@ import { IDashboardServiceResponse, IRecentPayment, IRecentAbsence, IProfessorRe
 import { StudentService } from "./studentService";
 
 export class DashboardService {
-    async getTotalStudents(): Promise<ResultType> {
+    /**
+     * Verrou année scolaire : effectif scopé sur l'année du login quand elle est
+     * passée explicitement (le frontend envoie toujours l'année du login).
+     * Sans paramètre : délégation historique à `StudentService` (aucun changement).
+     * Lignes legacy sans schoolYear conservées (rétro-compat).
+     */
+    async getTotalStudents(schoolYear?: string): Promise<ResultType> {
         try {
             const studentService = new StudentService();
             const result = await studentService.getTotalStudents();
-            return {
-                success: result.success,
-                data: result.data,
-                message: result.message ?? "",
-                error: result.error
-            };
+            if (schoolYear == null || schoolYear === '') {
+                return {
+                    success: result.success,
+                    data: result.data,
+                    message: result.message ?? "",
+                    error: result.error
+                };
+            }
+            // Scopage explicite : recompte filtré sur l'année du login.
+            try {
+                const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+                const { matchesSchoolYearValue } = await import("../lib/schoolYear");
+                const { StudentEntity } = await import("../entities/students");
+                const sy = await resolveTargetSchoolYear(schoolYear);
+                const repo = AppDataSource.getInstance().getRepository(StudentEntity);
+                const all: Array<{ schoolYear?: unknown }> = await repo.find({} as never);
+                const scoped = all.filter((s) => matchesSchoolYearValue(s?.schoolYear, sy));
+                return { success: true, data: scoped.length, message: result.message ?? "", error: result.error };
+            } catch {
+                return {
+                    success: result.success,
+                    data: result.data,
+                    message: result.message ?? "",
+                    error: result.error
+                };
+            }
         } catch (error) {
             return {
                 success: false,
@@ -74,17 +100,24 @@ export class DashboardService {
         }
     }
 
-    async getRecentPayments(limit: number = 5): Promise<ResultType> {
+    /** Verrou : paiements récents scopés sur l'année du login (tag "Cette année"). */
+    async getRecentPayments(limit: number = 5, schoolYear?: string): Promise<ResultType> {
         try {
+            const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+            const { matchesSchoolYearValue } = await import("../lib/schoolYear");
+            const sy = await resolveTargetSchoolYear(schoolYear);
             const dataSource = AppDataSource.getInstance();
             const paymentRepo = dataSource.getRepository(PaymentEntity);
             const payments = await paymentRepo.find({
                 relations: ['student'],
                 order: { created_at: 'DESC' },
-                take: limit
+                take: Math.max(limit * 3, limit + 10)
             });
+            const scoped = payments.filter((p: unknown) =>
+                matchesSchoolYearValue((p as { schoolYear?: unknown })?.schoolYear, sy)
+            ).slice(0, limit);
 
-            const formattedPayments: IRecentPayment[] = payments.map(payment => ({
+            const formattedPayments: IRecentPayment[] = scoped.map(payment => ({
                 id: payment.id,
                 studentName: `${payment.student.firstname} ${payment.student.lastname}`,
                 amount: payment.amount,
@@ -107,8 +140,13 @@ export class DashboardService {
         }
     }
 
-    async getPaymentStats(): Promise<ResultType> {
+    /** Verrou : courbe "Cette année" scopée sur l'année scolaire du login (pas 6 mois civils toutes années). */
+    async getPaymentStats(schoolYear?: string): Promise<ResultType> {
         try {
+            const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+            const { matchesSchoolYearValue, schoolYearMatchValues } = await import("../lib/schoolYear");
+            const sy = await resolveTargetSchoolYear(schoolYear);
+            const sys = schoolYearMatchValues(sy);
             const dataSource = AppDataSource.getInstance();
             const paymentRepo = dataSource.getRepository(PaymentEntity);
             
@@ -119,10 +157,15 @@ export class DashboardService {
                 .createQueryBuilder('payment')
                 .where('payment.created_at >= :startDate', { startDate: lastSixMonths })
                 .andWhere('payment.created_at <= :endDate', { endDate: new Date() })
+                .andWhere('(payment.schoolYear IS NULL OR payment.schoolYear IN (:...sys))', { sys })
                 .orderBy('payment.created_at', 'ASC')
                 .getMany();
+            // Filet mémoire (lignes legacy) : conserve ce qui matche le canon.
+            const scoped = payments.filter((p: unknown) =>
+                matchesSchoolYearValue((p as { schoolYear?: unknown })?.schoolYear, sy)
+            );
 
-            const monthlyPayments = payments.reduce((acc: { [key: string]: number }, payment:any) => {
+            const monthlyPayments = scoped.reduce((acc: { [key: string]: number }, payment:any) => {
                     const month = new Date(payment.created_at).toLocaleString('fr-FR', { month: 'long' });
                 acc[month] = (acc[month] || 0) + payment.amount;
                 return acc;
@@ -321,14 +364,14 @@ export class DashboardService {
         }
     }
 
-    async getStats(): Promise<IDashboardServiceResponse> {
+    async getStats(schoolYear?: string): Promise<IDashboardServiceResponse> {
         try {
             const [totalStudents, totalProfessors, totalClasses, recentPayments, recentProfessorPayments, recentAbsences] = 
                 await Promise.all([
-                    this.getTotalStudents(),
+                    this.getTotalStudents(schoolYear),
                     this.getTotalProfessors(),
                     this.getTotalClasses(),
-                    this.getRecentPayments(5),
+                    this.getRecentPayments(5, schoolYear),
                     this.getRecentProfessorPayments(5),
                     this.getRecentAbsences(5)
                 ]);

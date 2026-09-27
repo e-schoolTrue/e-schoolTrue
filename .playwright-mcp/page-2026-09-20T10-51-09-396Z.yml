@@ -1,0 +1,66 @@
+- generic [ref=f5e2]:
+  - generic [ref=f5e3]:
+    - generic [ref=f5e5]:
+      - menubar [ref=f5e6]:
+        - menuitem "Dashboard" [ref=f5e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f5e8]
+        - menuitem "Gestion des Professeurs" [ref=f5e19]
+        - menuitem "Comptabilité" [ref=f5e30]
+        - menuitem "Gestion des Plannings" [ref=f5e41]
+        - menuitem "Outils" [ref=f5e80]
+        - menuitem "Administration" [ref=f5e125]
+        - menuitem "Paramètres" [ref=f5e136]
+      - button "Menu utilisateur" [ref=f5e149] [cursor=pointer]:
+        - generic [ref=f5e150]: O
+        - generic [ref=f5e151]: oumar
+    - generic [ref=f5e156]:
+      - generic [ref=f5e157]:
+        - generic [ref=f5e158]:
+          - heading "Caisse du jour" [level=1] [ref=f5e159]
+          - paragraph [ref=f5e160]: Ouverture, mouvements (entrées / sorties) et clôture avec écart.
+        - generic [ref=f5e161]:
+          - combobox [ref=f5e168]: 20/09/2026
+          - button "Ouvrir la caisse" [ref=f5e169] [cursor=pointer]
+          - button "Verrouiller la caisse" [ref=f5e171] [cursor=pointer]
+      - generic [ref=f5e173]:
+        - generic [ref=f5e180]:
+          - generic [ref=f5e181]: Fond d'ouverture
+          - generic [ref=f5e182]: 0 GNF
+        - generic [ref=f5e189]:
+          - generic [ref=f5e190]: Entrées
+          - generic [ref=f5e191]: 0 GNF
+        - generic [ref=f5e198]:
+          - generic [ref=f5e199]: Sorties
+          - generic [ref=f5e200]: 0 GNF
+        - generic [ref=f5e207]:
+          - generic [ref=f5e208]: Solde théorique
+          - generic [ref=f5e209]: 0 GNF
+      - generic [ref=f5e210]:
+        - generic [ref=f5e212]:
+          - strong [ref=f5e213]: Mouvements du 2026-09-20
+          - button "Ajouter un mouvement" [disabled] [ref=f5e214]
+        - generic [ref=f5e218]:
+          - table [ref=f5e220]:
+            - rowgroup [ref=f5e228]:
+              - row [ref=f5e229]:
+                - columnheader "Heure" [ref=f5e230]
+                - columnheader "Motif" [ref=f5e232]
+                - columnheader "Sens" [ref=f5e234]
+                - columnheader "Montant" [ref=f5e236]
+                - columnheader "Mode" [ref=f5e238]
+                - columnheader "Référence" [ref=f5e240]
+          - generic [ref=f5e245]:
+            - table:
+              - rowgroup
+            - generic [ref=f5e246]: Aucun mouvement
+  - generic [ref=f5e250]:
+    - generic [ref=f5e251]:
+      - generic [ref=f5e257]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f5e269]
+        - paragraph [ref=f5e259]: v1.0.1
+      - button "×" [ref=f5e260] [cursor=pointer]
+    - generic [ref=f5e261]:
+      - paragraph [ref=f5e262]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f5e268]:
+        - button "Redémarrer maintenant" [ref=f5e270] [cursor=pointer]
+        - button "Plus tard" [ref=f5e272] [cursor=pointer]

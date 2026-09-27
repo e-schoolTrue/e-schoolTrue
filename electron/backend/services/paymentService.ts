@@ -21,6 +21,17 @@ export interface StudentPaymentResponse {
     adjustedAmount: number;
 }
 
+/** Ligne de mensualité — forme contractuelle avec MensualityView.vue ({mois, eleve, montant, statut}). */
+export interface MensualiteRow {
+    /** Mois calendaire au format 'YYYY-MM'. */
+    mois: string;
+    /** Nom d'affichage de l'élève ('Prénom Nom', repli matricule). */
+    eleve: string;
+    /** Échéance mensuelle due (part annuelle/12 si config, sinon somme versée). */
+    montant: number;
+    statut: 'payé' | 'partiel' | 'impayé';
+}
+
 // Créer un type pour les données de paiement
 type PaymentCreateData = Omit<PaymentEntity, 'id'> & {
     scholarshipPercentage?: number;
@@ -189,6 +200,78 @@ export class PaymentService {
         }
     }
 
+    /**
+     * Frais de réinscription idempotent : pre-check (studentId + schoolYear + paymentType='reinscription'),
+     * idempotencyKey `reinsc-{studentId}-{schoolYear}`, reçu via compteur existant (ReceiptCounterEntity).
+     * Retourne le paiement existant si déjà présent (ne duplique jamais).
+     */
+    async createReInscriptionFee(studentId: number, schoolYear: string, externalManager?: any): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            const ds = AppDataSource.getInstance();
+            const { normalizeSchoolYear } = await import("../lib/schoolYear");
+            const canon = normalizeSchoolYear(schoolYear) ?? String(schoolYear);
+            const run = async (manager: any) => {
+                const studentRepo = manager.getRepository(StudentEntity);
+                const paymentRepo = manager.getRepository(PaymentEntity);
+                const counterRepo = manager.getRepository(ReceiptCounterEntity);
+                const student: any = await studentRepo.findOne({ where: { id: studentId }, relations: ["grade"] });
+                if (!student) return { success: false, data: null, message: "Étudiant non trouvé", error: "NOT_FOUND" };
+                const idempotencyKey = `reinsc-${studentId}-${canon}`;
+                const existing = await paymentRepo.findOne({ where: { idempotencyKey } as any });
+                if (existing) return { success: true, data: existing, message: "Réinscription déjà facturée (idempotent)", error: null };
+                const dupe = await paymentRepo.findOne({ where: { studentId, schoolYear: canon, paymentType: "reinscription" } as any });
+                if (dupe) return { success: true, data: dupe, message: "Réinscription déjà facturée (idempotent)", error: null };
+                const cfgRepo = manager.getRepository(PaymentConfigEntity);
+                // B6: config canonique d'abord ; fallback legacy EXPLICITE (tracé).
+                let config: any = student.grade ? await cfgRepo.findOne({ where: { classId: String(student.grade.id), schoolYear: canon } as any }) : null;
+                let configSource: string = config ? "canon" : "none";
+                if (!config && student.grade) {
+                    const legacy = await cfgRepo.findOne({ where: { classId: String(student.grade.id) } as any });
+                    if (legacy) {
+                        console.warn(`[reinscription] fallback config legacy sans schoolYear (classId=${student.grade.id}) → année ${canon}. Configurer payment_configs.schoolYear=${canon}.`);
+                        config = legacy;
+                        configSource = "fallback-legacy";
+                    }
+                }
+                const amount = Number(config?.reInscriptionFee ?? 0);
+                if (!(amount > 0)) return { success: false, data: null, message: "Frais de réinscription non configurés", error: "NO_FEE_CONFIG" };
+                const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+                const canonYear = await resolveTargetSchoolYear(canon);
+                const year = Number(canonYear.slice(0, 4));
+                let counter: any = await counterRepo.findOne({ where: { year } }).catch(() => null);
+                if (!counter) counter = counterRepo.create({ year, lastNumber: 0 });
+                counter.lastNumber = Number(counter.lastNumber || 0) + 1;
+                await counterRepo.save(counter);
+                const receiptNumber = `R-${year}-${String(counter.lastNumber).padStart(4, "0")}`;
+                const payment: any = paymentRepo.create({
+                    student, studentId, amount, paymentType: "reinscription", paymentMethod: "cash",
+                    schoolYear: canon, installmentNumber: 1, baseAmount: amount, adjustedAmount: amount,
+                    scholarshipAmount: 0, scholarshipPercentage: 0, receiptNumber, idempotencyKey,
+                    created_at: new Date(),
+                } as any);
+                const saved = await paymentRepo.save(payment);
+                // Mouvement de caisse append-only (best-effort, même tx)
+                try {
+                    const movRepo = manager.getRepository(CashMovementEntity);
+                    await movRepo.save(movRepo.create({
+                        direction: "IN", amount, currency: (saved as any).currency ?? undefined,
+                        motive: `Réinscription ${student.matricule ?? student.id} ${canon}`.slice(0, 255),
+                        reference: receiptNumber, paymentId: (saved as any).id,
+                        movementDate: new Date(), schoolYear: canon, idempotencyKey: `pay-${idempotencyKey}`,
+                    } as any));
+                } catch (e) { console.warn("[reinscription] cash movement ignoré:", e); }
+                // B6: metadata audit du choix source (canon vs fallback-legacy).
+                const withMeta: any = { ...saved, _configSource: configSource, _schoolYear: canon };
+                return { success: true, data: withMeta, message: configSource === "fallback-legacy" ? "Frais de réinscription créés (config legacy, à migrer)" : "Frais de réinscription créés", error: null };
+            };
+            if (externalManager) return await run(externalManager);
+            return await ds.transaction(run);
+        } catch (error) {
+            return { success: false, data: null, message: "Erreur réinscription", error: error instanceof Error ? error.message : "Erreur inconnue" };
+        }
+    }
+
     async saveConfig(configData: IPaymentConfigData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
@@ -264,22 +347,56 @@ export class PaymentService {
         }
     }
 
+    /** Colonnes réellement présentes en base (PRAGMA) — fallback vieilles bases pré-migration. */
+    private async getTableColumns(ds: { query: (sql: string) => Promise<any[]> }, table: string): Promise<Set<string>> {
+        try {
+            const rows = await ds.query(`PRAGMA table_info("${table}")`);
+            if (Array.isArray(rows)) return new Set(rows.map((r: any) => String(r?.name ?? "")));
+        } catch { /* ignore — on suppose le schéma à jour */ }
+        return new Set();
+    }
+
     async addPayment(paymentData: IPaymentData): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
             const ds = AppDataSource.getInstance();
+            // B3: année canonique YYYY-YYYY (jamais civile brute).
+            const { resolveTargetSchoolYear: resolveSYAdd } = await import("../lib/yearGuard");
+            const canonSYAdd = await resolveSYAdd((paymentData as any)?.schoolYear);
 
-            // B4: idempotence hors transaction (retourne le paiement existant si receiptNumber déjà connu).
+            // Rétro-compat : vérifie que les colonnes existent avant usage (vieilles bases pré-migration).
+            // PRAGMA vide => suppose schéma à jour (synchronize:true), ne bloque pas.
+            const paymentCols = await this.getTableColumns(ds as any, "payments");
+            const assumeFullSchema = paymentCols.size === 0;
+            const hasReceipt = assumeFullSchema || paymentCols.has("receiptNumber");
+            const hasIdem = assumeFullSchema || paymentCols.has("idempotencyKey");
+            const hasCurrency = assumeFullSchema || paymentCols.has("currency");
+            const hasComment = assumeFullSchema || paymentCols.has("comment");
+
             const incomingReceipt = (paymentData as any)?.receiptNumber as string | undefined;
-            if (incomingReceipt) {
-                const existing = await this.paymentRepository.findOne({ where: { receiptNumber: incomingReceipt } as any });
-                if (existing) {
-                    return { success: true, data: existing, message: "Paiement déjà enregistré (idempotent)", error: null };
-                }
+            if (incomingReceipt && hasReceipt) {
+                try {
+                    const existing = await this.paymentRepository.findOne({ where: { receiptNumber: incomingReceipt } as any });
+                    if (existing) {
+                        return { success: true, data: existing, message: "Paiement déjà enregistré (idempotent)", error: null };
+                    }
+                } catch (e) { console.warn("[payment] pré-check receiptNumber ignoré (colonne absente ?):", e); }
+            }
+            const incomingIdem = (paymentData as any)?.idempotencyKey as string | undefined;
+            if (incomingIdem && hasIdem) {
+                try {
+                    const existing = await this.paymentRepository.findOne({ where: { idempotencyKey: incomingIdem } as any });
+                    if (existing) {
+                        return { success: true, data: existing, message: "Paiement déjà enregistré (idempotent)", error: null };
+                    }
+                } catch (e) { console.warn("[payment] pré-check idempotencyKey ignoré (colonne absente ?):", e); }
             }
 
-            // B4: compteur atomique SERIALIZABLE + création Payment + CashMovement dans la même tx.
-            return await ds.transaction("SERIALIZABLE", async (manager) => {
+            // B4: compteur atomique + création Payment + CashMovement append-only dans la même tx.
+            // NOTE better-sqlite3 : pas d'isolation SERIALIZABLE (incompatible) — transaction
+            // standard suffit (1 writer SQLite sérialisé). Verrou pessimistic_write conservé
+            // avec fallback si le driver le refuse.
+            return await ds.transaction(async (manager) => {
                 const studentRepo = manager.getRepository(StudentEntity);
                 const scholarshipRepo = manager.getRepository(ScholarshipEntity);
                 const paymentRepo = manager.getRepository(PaymentEntity);
@@ -300,14 +417,14 @@ export class PaymentService {
                         {
                             studentId: student.id,
                             isActive: true,
-                            schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
+                            schoolYear: canonSYAdd
                         } as any,
                         { isActive: false } as any
                     );
                     activeScholarship = await scholarshipRepo.save(scholarshipRepo.create({
                         studentId: student.id,
                         percentage: scholarshipPercentage,
-                        schoolYear: paymentData.schoolYear || new Date().getFullYear().toString(),
+                        schoolYear: canonSYAdd,
                         isActive: true,
                         created_at: new Date()
                     } as any));
@@ -316,51 +433,122 @@ export class PaymentService {
                 // Idempotence intra-tx si un id explicite est rejoué.
                 if ((paymentData as any)?.id) {
                     const byId = await paymentRepo.findOne({ where: { id: (paymentData as any).id } });
-                    if (byId && (byId as any).receiptNumber) {
+                    if (byId && (!hasReceipt || (byId as any).receiptNumber)) {
                         return { success: true, data: byId, message: "Paiement déjà enregistré (idempotent)", error: null };
                     }
                 }
 
-                // Compteur atomique avec verrou pessimiste.
-                const year = new Date().getFullYear();
-                let counter = await counterRepo.findOne({ where: { year }, lock: { mode: "pessimistic_write" } });
+                // Compteur atomique avec verrou pessimiste (fallback si driver sans lock).
+                // better-sqlite3 = 1 writer sérialisé par la transaction : le compteur reste atomique.
+                // B3: compteur calé sur l'année canonique (pas l'année civile brute).
+                const year = Number(String(canonSYAdd).slice(0, 4)) || new Date().getFullYear();
+                let counter: any = null;
+                try {
+                    counter = await counterRepo.findOne({ where: { year }, lock: { mode: "pessimistic_write" } });
+                } catch (lockErr) {
+                    console.warn("[payment] pessimistic_write indisponible, fallback lecture simple:", lockErr);
+                    counter = await counterRepo.findOne({ where: { year } });
+                }
                 if (!counter) counter = counterRepo.create({ year, lastNumber: 0 });
                 counter.lastNumber = Number(counter.lastNumber || 0) + 1;
                 await counterRepo.save(counter);
-                const receiptNumber: string = (paymentData as any)?.receiptNumber
-                    || `R-${year}-${String(counter.lastNumber).padStart(4, "0")}`;
+                const receiptNumber: string | undefined = hasReceipt
+                    ? ((paymentData as any)?.receiptNumber
+                        || `R-${year}-${String(counter.lastNumber).padStart(4, "0")}`)
+                    : undefined;
 
-                // Double-check idempotence sur le numéro généré/fourni.
-                const duplicate = await paymentRepo.findOne({ where: { receiptNumber } as any });
-                if (duplicate) {
-                    return { success: true, data: duplicate, message: "Paiement déjà enregistré (idempotent)", error: null };
+                // Double-check idempotence sur le numéro généré/fourni (si colonne présente).
+                if (hasReceipt && receiptNumber) {
+                    try {
+                        const duplicate = await paymentRepo.findOne({ where: { receiptNumber } as any });
+                        if (duplicate) {
+                            return { success: true, data: duplicate, message: "Paiement déjà enregistré (idempotent)", error: null };
+                        }
+                    } catch (e) { console.warn("[payment] duplicate-check receiptNumber ignoré:", e); }
                 }
 
-                const payment = paymentRepo.create({
-                    ...paymentData,
+                const { currencyForCountry: cfc, roundMoney: rm } = await import("../utils/countryCurrency");
+                const { SchoolEntity: SE } = await import("../entities/school");
+                let cur: any = "GNF";
+                try { const sr = manager.getRepository(SE); const sc: any = await sr.findOne({ where: {} }); cur = cfc(sc?.country, "GNF"); } catch { /* défaut */ }
+                const roundedAmount = rm(Number((paymentData as any).amount) || 0, cur);
+
+                // Mapping rétro-compatible des champs frontend sans colonne dédiée :
+                // reference / paymentDate / remise -> comment (payments) + motive/reference (cash_movements).
+                // Jamais de perte silencieuse : tout est concaténé et loggé.
+                const frontendRef: string = String((paymentData as any)?.reference ?? "").trim();
+                const frontendDateRaw: any = (paymentData as any)?.paymentDate;
+                const frontendRemise: number = Number((paymentData as any)?.remise ?? 0) || 0;
+                const baseComment: string = String((paymentData as any)?.comment ?? "").trim();
+                const extraBits: string[] = [];
+                if (frontendRef) extraBits.push(`[Réf: ${frontendRef}]`);
+                if (frontendRemise > 0) extraBits.push(`[Remise: ${frontendRemise}]`);
+                if (frontendDateRaw) extraBits.push(`[Date saisie: ${String(frontendDateRaw)}]`);
+                const enrichedComment = [baseComment, ...extraBits].filter(Boolean).join(" | ").slice(0, 500) || undefined;
+                if (frontendRef || frontendRemise > 0 || frontendDateRaw) {
+                    console.log("[payment] champs mappés -> comment/cash:", { frontendRef, frontendDateRaw, frontendRemise, enrichedComment });
+                }
+
+                // Construction whitelistée (pas de spread aveugle : reference/paymentDate/remise
+                // ne sont pas des colonnes payments et seraient perdues/ignorées sinon).
+                const paymentToCreate: any = {
+                    amount: roundedAmount,
+                    paymentType: (paymentData as any).paymentType,
+                    paymentMethod: (paymentData as any).paymentMethod,
                     student: student,
                     studentId: student.id,
-                    receiptNumber,
+                    installmentNumber: Number((paymentData as any).installmentNumber ?? 1),
+                    schoolYear: canonSYAdd,
                     scholarshipPercentage: scholarshipPercentage,
                     scholarshipAmount: Number(paymentData.annualScholarshipAmount || paymentData.scholarshipAmount) || 0,
                     adjustedAmount: Number(paymentData.annualAmountAfterScholarship || paymentData.adjustedAmount || paymentData.baseAmount) || 0,
                     baseAmount: Number(paymentData.baseAnnualAmount || paymentData.baseAmount) || 0,
                     scholarshipId: activeScholarship?.id || null,
                     created_at: new Date()
-                } as PaymentCreateData as any);
+                };
+                if (hasReceipt && receiptNumber) paymentToCreate.receiptNumber = receiptNumber;
+                if (hasIdem) paymentToCreate.idempotencyKey = (paymentData as any).idempotencyKey ?? null;
+                if (hasCurrency) paymentToCreate.currency = cur;
+                if (hasComment && enrichedComment) paymentToCreate.comment = enrichedComment;
+
+                const payment = paymentRepo.create(paymentToCreate as PaymentCreateData as any);
 
                 const savedPayment = await paymentRepo.save(payment as any);
 
-                // Mouvement de caisse append-only dans la même transaction.
-                await movementRepo.save(movementRepo.create({
+                // Mouvement de caisse append-only dans la même transaction (jamais UPDATE/DELETE).
+                let movementDate: Date = new Date();
+                if (frontendDateRaw) {
+                    const parsed = new Date(String(frontendDateRaw));
+                    if (!Number.isNaN(parsed.getTime())) movementDate = parsed;
+                    else console.warn("[payment] paymentDate invalide, fallback aujourd'hui:", frontendDateRaw);
+                }
+                let motive = `Encaissement scolarité ${(student as any)?.matricule ?? student.id}`;
+                if (frontendRef) motive += ` | Réf: ${frontendRef}`;
+                if (frontendRemise > 0) motive += ` | Remise: ${frontendRemise}`;
+                motive = motive.slice(0, 255);
+                const movementToCreate: any = {
                     direction: "IN",
-                    amount: Math.round(Number((paymentData as any).amount) || 0),
-                    motive: `Encaissement scolarité ${(student as any)?.matricule ?? student.id}`,
-                    reference: receiptNumber,
+                    amount: roundedAmount,
+                    currency: cur,
+                    motive,
                     paymentId: (savedPayment as any).id,
-                    movementDate: new Date(),
-                    schoolYear: paymentData.schoolYear || new Date().getFullYear().toString()
-                } as any));
+                    movementDate,
+                    schoolYear: canonSYAdd,
+                };
+                // cash_movements.reference porte le n° de reçu (réconciliation) ; si pas de
+                // receiptNumber (vieille base), y reporter la référence frontend pour ne rien perdre.
+                try {
+                    const cashCols = await this.getTableColumns(manager as any, "cash_movements");
+                    const assumeCashFull = cashCols.size === 0;
+                    const hasCashRef = assumeCashFull || cashCols.has("reference");
+                    const hasCashIdem = assumeCashFull || cashCols.has("idempotencyKey");
+                    if (hasCashRef) movementToCreate.reference = receiptNumber ?? (frontendRef.slice(0, 20) || undefined);
+                    if (hasCashIdem && (paymentData as any).idempotencyKey) movementToCreate.idempotencyKey = `pay-${(paymentData as any).idempotencyKey}`;
+                } catch {
+                    movementToCreate.reference = receiptNumber ?? (frontendRef.slice(0, 20) || undefined);
+                    if ((paymentData as any).idempotencyKey) movementToCreate.idempotencyKey = `pay-${(paymentData as any).idempotencyKey}`;
+                }
+                await movementRepo.save(movementRepo.create(movementToCreate as any));
 
                 return {
                     success: true,
@@ -405,51 +593,20 @@ export class PaymentService {
         }
     }
 
-    async addProfessorPayment(paymentData: IProfessorPaymentData): Promise<IPaymentServiceResponse> {
+    // Façade fusion paie → accountingService.teacherPay (source unique).
+    // Garanties conservées : référence PAY-ENS-YYYY-XXXX, CashMovement OUT,
+    // UQ prof+month, idempotence scopée key+prof+month. Ancien code conservé
+    // via délégation (aucune duplication de transaction).
+    async addProfessorPayment(paymentData: IProfessorPaymentData & { idempotencyKey?: string } & { prime?: number; transport?: number; avance?: number; retenue?: number }): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            
-            const professor = await this.professorRepository.findOne({
-                where: { id: paymentData.professorId },
-                relations: ['teaching']
-            });
-
-            if (!professor) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Professeur non trouvé",
-                    error: "PROFESSOR_NOT_FOUND"
-                };
-            }
-
-            const payment = this.professorPaymentRepository.create({
-                professor,
-                professorId: professor.id,
-                amount: paymentData.amount,
-                type: paymentData.type,
-                paymentMethod: paymentData.paymentMethod,
-                month: paymentData.month,
-                reference: paymentData.reference || '',
-                comment: paymentData.comment || '',
-                isPaid: true,
-                grossAmount: paymentData.grossAmount,
-                netAmount: paymentData.netAmount,
-                deductions: paymentData.deductions || [],
-                additions: paymentData.additions || [],
-                hoursTotal: (paymentData as any).hoursTotal ?? 0,
-                hourlyRate: (paymentData as any).hourlyRate ?? 0,
-                salarySlipId: (paymentData as any).salarySlipId ?? null
-            });
-
-            const savedPayment = await this.professorPaymentRepository.save(payment);
-
-            return {
-                success: true,
-                data: savedPayment,
-                message: "Paiement enregistré avec succès",
-                error: null
-            };
+            const { accountingService } = await import("./accountingService");
+            const r: any = await accountingService.teacherPay(
+                Number((paymentData as any).professorId),
+                (paymentData as any).month,
+                { ...(paymentData as any) },
+            );
+            return { success: r.success, data: r.data, message: r.message, error: r.error };
         } catch (error) {
             console.error('Erreur détaillée:', error);
             return {
@@ -461,40 +618,54 @@ export class PaymentService {
         }
     }
 
-    async getPaymentsByStudent(studentId: number): Promise<IPaymentServiceResponse> {
+    // B3: somme scopée par schoolYear canonique (2e arg optionnel, défaut année courante).
+    // Évite la fuite inter-années : seuls les paiements de l'année comptent.
+    async getPaymentsByStudent(studentId: number, schoolYear?: string): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
+            const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+            const canonSY = await resolveTargetSchoolYear(schoolYear);
     
             const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
             if (!student) {
                 return { success: false, data: null, error: "", message: "Étudiant non trouvé" };
             }
 
-            const config = student.grade ? await this.configRepository.findOne({ where: { classId: student.grade.id.toString() } }) : null;
+            // Config canonique d'abord, fallback legacy tracé (B6).
+            let config: any = student.grade ? await this.configRepository.findOne({ where: { classId: student.grade.id.toString(), schoolYear: canonSY } as any }).catch(() => null) : null;
+            if (!config && student.grade) {
+                const legacy = await this.configRepository.findOne({ where: { classId: student.grade.id.toString() } }).catch(() => null);
+                if (legacy) console.warn(`[getPaymentsByStudent] fallback config legacy (classId=${student.grade.id}) → année ${canonSY}.`);
+                config = legacy;
+            }
             
             const inscriptionFeeDue = student.isNew === false ? (config?.reInscriptionFee || 0) : (config?.inscriptionFee || 0);
             const tuitionFeeDue = config?.annualAmount || 0;
 
-            const payments = await this.paymentRepository.find({ where: { student: { id: studentId } } });
+            const allPayments = await this.paymentRepository.find({ where: { student: { id: studentId } } });
+            // B3 + rétro-compat legacy civile ('2026' vs '2026-2027', lignes sans schoolYear conservées).
+            const { matchesSchoolYearValue: matchesSY } = await import("../lib/schoolYear");
+            const payments = allPayments.filter((p: any) => matchesSY((p as any)?.schoolYear, canonSY));
 
             let paidInscriptionFee = 0;
             let paidTuition = 0;
 
             payments.forEach(p => {
-                if (p.paymentType === 'inscription') {
+                if (p.paymentType === 'inscription' || p.paymentType === 'reinscription') {
                     paidInscriptionFee += Number(p.amount);
                 } else {
                     paidTuition += Number(p.amount);
                 }
             });
 
-            const activeScholarship = await this.scholarshipRepository.findOne({ where: { studentId, isActive: true } });
+            const activeScholarship = await this.scholarshipRepository.findOne({ where: { studentId, isActive: true, schoolYear: canonSY } as any }).catch(async () => await this.scholarshipRepository.findOne({ where: { studentId, isActive: true } }));
             const scholarshipPercentage = activeScholarship?.percentage || 0;
             const scholarshipAmount = tuitionFeeDue * (scholarshipPercentage / 100);
             const adjustedTuitionFee = tuitionFeeDue - scholarshipAmount;
             const totalDue = inscriptionFeeDue + adjustedTuitionFee;
 
             const responseData = {
+                schoolYear: canonSY,
                 inscriptionFeeDue,
                 tuitionFeeDue,
                 paidInscriptionFee,
@@ -597,31 +768,13 @@ export class PaymentService {
         }
     }
 
+    // Façade : mise à jour whitelistée via accountingService (montant/net/caisse intouchables).
     async updateProfessorPayment(paymentData: IPaymentServiceParams['updateProfessorPayment']): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            const payment = await this.professorPaymentRepository.findOne({
-                where: { id: paymentData.id }
-            });
-
-            if (!payment) {
-                return {
-                    success: false,
-                    data: null,
-                    message: "Paiement non trouvé",
-                    error: "PAYMENT_NOT_FOUND"
-                };
-            }
-
-            Object.assign(payment, paymentData);
-            const updatedPayment = await this.professorPaymentRepository.save(payment);
-
-            return {
-                success: true,
-                data: updatedPayment,
-                message: "Paiement mis à jour avec succès",
-                error: null
-            };
+            const { accountingService } = await import("./accountingService");
+            const r: any = await accountingService.professorPaymentUpdate(Number((paymentData as any).id), paymentData);
+            return { success: r.success, data: r.data, message: r.message, error: r.error };
         } catch (error) {
             return {
                 success: false,
@@ -632,29 +785,13 @@ export class PaymentService {
         }
     }
 
+    // Façade lecture seule vers accountingService.professorPaymentsList.
     async getProfessorPayments(filters: any): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            const where: any = {};
-            if (filters?.month) {
-                where.month = filters.month;
-            }
-            if (filters?.status) {
-                where.isPaid = filters.status === 'paid';
-            }
-
-            const payments = await this.professorPaymentRepository.find({
-                where,
-                relations: ['professor'],
-                order: { month: 'DESC' }
-            });
-
-            return {
-                success: true,
-                data: payments,
-                message: "Paiements récupérés avec succès",
-                error: null
-            };
+            const { accountingService } = await import("./accountingService");
+            const r: any = await accountingService.professorPaymentsList(filters ?? {});
+            return { success: r.success, data: r.data, message: r.message, error: r.error };
         } catch (error) {
             return {
                 success: false,
@@ -665,37 +802,13 @@ export class PaymentService {
         }
     }
 
+    // Façade lecture seule vers accountingService.professorPaymentsStats.
     async getProfessorPaymentStats(): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
-            
-            // Calculer le total des paiements
-            const totalPaidResult = await this.professorPaymentRepository
-                .createQueryBuilder('payment')
-                .select('SUM(payment.amount)', 'totalPaid')
-                .where('payment.isPaid = :isPaid', { isPaid: true })
-                .getRawOne();
-
-            // Calculer le total en attente
-            const totalPendingResult = await this.professorPaymentRepository
-                .createQueryBuilder('payment')
-                .select('SUM(payment.amount)', 'totalPending')
-                .where('payment.isPaid = :isPaid', { isPaid: false })
-                .getRawOne();
-
-            const stats = {
-                totalPaid: Number(totalPaidResult?.totalPaid || 0),
-                totalPending: Number(totalPendingResult?.totalPending || 0)
-            };
-
-            console.log('Statistiques des paiements calculées:', stats);
-
-            return {
-                success: true,
-                data: stats,
-                message: "Statistiques récupérées avec succès",
-                error: null
-            };
+            const { accountingService } = await import("./accountingService");
+            const r: any = await accountingService.professorPaymentsStats();
+            return { success: r.success, data: r.data, message: r.message, error: r.error };
         } catch (error) {
             console.error('Erreur lors du calcul des statistiques:', error);
             return {
@@ -740,15 +853,17 @@ export class PaymentService {
         }
     }
 
-    async getActiveByStudent(studentId: number): Promise<IPaymentServiceResponse> {
+    async getActiveByStudent(studentId: number, schoolYear?: string): Promise<IPaymentServiceResponse> {
         try {
             await this.ensureRepositoriesInitialized();
+            const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+            const canonSY = await resolveTargetSchoolYear(schoolYear);
             const scholarship = await this.scholarshipRepository.findOne({
                 where: { 
                     studentId,
                     isActive: true,
-                    schoolYear: new Date().getFullYear().toString()
-                }
+                    schoolYear: canonSY
+                } as any
             });
 
             return {
@@ -949,6 +1064,134 @@ export class PaymentService {
                 success: false,
                 data: null,
                 message: "Erreur lors de la sauvegarde de la configuration",
+                error: error instanceof Error ? error.message : "Erreur inconnue"
+            };
+        }
+    }
+
+    /**
+     * Mensualités — échéances mensuelles par élève, données réelles uniquement, zéro mock.
+     * Sources : paiements `tuition` existants (groupés par mois civil de `created_at`)
+     * et/ou calendrier des tranches (`TrancheEntryEntity.startDate..endDate`).
+     * - Univers des mois : mois couverts par les tranches si configurées, sinon mois
+     *   observés dans les paiements (aucun mois inventé).
+     * - Échéance attendue par élève : `PaymentConfigEntity.annualAmount / 12` du niveau
+     *   (config canonique `schoolYear` d'abord, repli legacy tracé). Sans config :
+     *   seules les lignes avec versement sont émises (montant = somme versée).
+     * - Statut : 'payé' (versé >= attendu, ou versement sans config), 'partiel',
+     *   'impayé' (mois planifié par les tranches, zéro versement).
+     * - Scope année scolaire canonique (défaut année courante, anti fuite inter-années).
+     * - Retourne `[]` valide si aucune donnée. Fail-closed : toute erreur => envelope
+     *   `{ success: false }` (jamais dethrow vers l'IPC, jamais de données forgées).
+     */
+    async getMensualites(schoolYear?: string): Promise<IPaymentServiceResponse> {
+        try {
+            await this.ensureRepositoriesInitialized();
+            const { resolveTargetSchoolYear } = await import("../lib/yearGuard");
+            const { matchesSchoolYearValue } = await import("../lib/schoolYear");
+            const canonSY = await resolveTargetSchoolYear(schoolYear);
+
+            const students = await this.studentRepository.find({ relations: ["grade"] });
+            const inYearStudents = students.filter((s: any) =>
+                matchesSchoolYearValue((s as any)?.schoolYear, canonSY)
+            );
+
+            const allPayments = await this.paymentRepository.find({ relations: ["student"] });
+            const payments = allPayments.filter((p: any) =>
+                matchesSchoolYearValue((p as any)?.schoolYear, canonSY) &&
+                (p as any)?.paymentType !== "inscription" &&
+                (p as any)?.paymentType !== "reinscription"
+            );
+
+            // Configs annuelles par niveau (canon d'abord, repli legacy).
+            const configs = await this.configRepository.find().catch(() => []);
+            const configByClass = new Map<string, any>();
+            for (const c of configs) {
+                const key = String((c as any)?.classId ?? "");
+                if (!key) continue;
+                const prev = configByClass.get(key);
+                if (!prev) { configByClass.set(key, c); continue; }
+                const prevCanon = (prev as any)?.schoolYear === canonSY;
+                const curCanon = (c as any)?.schoolYear === canonSY;
+                if (curCanon && !prevCanon) configByClass.set(key, c);
+            }
+            if (configs.length > 0 && configByClass.size === 0) {
+                console.warn(`[mensualites] configs présentes mais aucune rattachable (année ${canonSY})`);
+            }
+
+            // Mois planifiés par les tranches (startDate..endDate -> YYYY-MM).
+            const scheduled = new Set<string>();
+            try {
+                const entries = await this.tranchEntryRepository.find();
+                for (const e of entries) {
+                    const rawS = (e as any)?.startDate;
+                    const rawE = (e as any)?.endDate;
+                    const s = rawS ? new Date(rawS) : null;
+                    const en = rawE ? new Date(rawE) : null;
+                    if (!s || !en || Number.isNaN(s.getTime()) || Number.isNaN(en.getTime()) || s > en) continue;
+                    const cur = new Date(s.getFullYear(), s.getMonth(), 1);
+                    const last = new Date(en.getFullYear(), en.getMonth(), 1);
+                    while (cur <= last) {
+                        scheduled.add(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`);
+                        cur.setMonth(cur.getMonth() + 1);
+                    }
+                }
+            } catch (e) {
+                console.warn("[mensualites] lecture tranches ignorée (best-effort):", e);
+            }
+
+            // Versements groupés par (élève, mois civil de created_at).
+            const paidByKey = new Map<string, number>();
+            const observed = new Set<string>();
+            for (const p of payments) {
+                const raw = (p as any)?.created_at;
+                const d = raw ? new Date(raw) : null;
+                if (!d || Number.isNaN(d.getTime())) continue;
+                const mois = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                const sid = Number((p as any)?.studentId ?? (p as any)?.student?.id);
+                if (!Number.isFinite(sid)) continue;
+                observed.add(mois);
+                const key = `${sid}|${mois}`;
+                paidByKey.set(key, (paidByKey.get(key) ?? 0) + (Number((p as any)?.amount ?? 0) || 0));
+            }
+
+            const monthsUniverse = (scheduled.size > 0 ? [...scheduled] : [...observed]).sort();
+
+            const rows: MensualiteRow[] = [];
+            for (const s of inYearStudents) {
+                const sid = Number((s as any)?.id);
+                if (!Number.isFinite(sid)) continue;
+                const gradeId = (s as any)?.grade?.id != null ? String((s as any).grade.id) : null;
+                const cfg = gradeId ? configByClass.get(gradeId) : null;
+                const annual = Number((cfg as any)?.annualAmount ?? 0) || 0;
+                const expected = annual > 0 ? Math.round((annual / 12) * 100) / 100 : 0;
+                const fullName = [String((s as any)?.firstname ?? "").trim(), String((s as any)?.lastname ?? "").trim()].filter(Boolean).join(" ");
+                const eleve = fullName || String((s as any)?.matricule ?? "").trim() || `Élève #${sid}`;
+                for (const mois of monthsUniverse) {
+                    const paid = paidByKey.get(`${sid}|${mois}`) ?? 0;
+                    // Sans échéance attendue ni versement : aucun signal réel -> pas de ligne inventée.
+                    if (expected <= 0 && paid <= 0) continue;
+                    const statut: MensualiteRow["statut"] = expected > 0
+                        ? (paid >= expected ? "payé" : paid > 0 ? "partiel" : "impayé")
+                        : "payé";
+                    rows.push({ mois, eleve, montant: expected > 0 ? expected : paid, statut });
+                }
+            }
+            rows.sort((a, b) => a.mois.localeCompare(b.mois) || a.eleve.localeCompare(b.eleve));
+
+            console.log(`[mensualites] année=${canonSY} élèves=${inYearStudents.length} paiements=${payments.length} mois=${monthsUniverse.length} lignes=${rows.length}`);
+            return {
+                success: true,
+                data: rows,
+                message: rows.length > 0 ? `${rows.length} mensualité(s) récupérée(s)` : "Aucune mensualité enregistrée",
+                error: null
+            };
+        } catch (error) {
+            console.error("[mensualites] erreur calcul:", error);
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors du calcul des mensualités",
                 error: error instanceof Error ? error.message : "Erreur inconnue"
             };
         }

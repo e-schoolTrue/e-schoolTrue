@@ -3,7 +3,10 @@ import "reflect-metadata";
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
+import * as fs from 'node:fs';
 import { AppDataSource } from "#electron/data-source.ts";
+import { runMigrationsSafely } from './migration-runner';
+import { isValidNativeBinary, readBinaryHeader, expectedBinaryLabel, toLoadableNativePath } from './backend/lib/native-binding';
 import './config/env';
 import { registerIpcHandlers } from './events';
 import { ConfigService } from './backend/services/configService';
@@ -36,6 +39,8 @@ import { GradeEntryService } from "./backend/services/gradeEntryService";
 import { CentralizedPdfService } from "./backend/services/centralizedPdfService";
 import { AuditLogService } from "./backend/services/auditLogService";
 import { UserAdminService } from "./backend/services/userAdminService";
+import { accountingService } from "./backend/services/accountingService";
+import { accountingAuthService } from "./backend/services/accountingAuthService";
 
 
 
@@ -44,6 +49,14 @@ import { UserAdminService } from "./backend/services/userAdminService";
 // INITIALISATION DE L'ENVIRONNEMENT
 // =================================================================
 console.log('Démarrage de l\'application...');
+
+// CDP pour playwright-mcp (dev-only). MUST be before app.whenReady().
+if (!app.isPackaged) {
+  const cdpPort = process.env.CDP_PORT ?? '9222';
+  app.commandLine.appendSwitch('remote-debugging-port', cdpPort);
+  app.commandLine.appendSwitch('remote-allow-origins', '*');
+  console.log(`[CDP] remote-debugging-port=${cdpPort} (dev-only)`);
+}
 
 process.env.DIST = path.join(__dirname, '../dist');
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
@@ -85,7 +98,89 @@ function initializeServices() {
   global.centralizedPdfService = new CentralizedPdfService();
   global.auditLogService = new AuditLogService();
   global.userAdminService = new UserAdminService();
+  (global as any).accountingService = accountingService;
+  (global as any).accountingAuthService = accountingAuthService;
 }
+
+// =================================================================
+// GARDE PILOTE NATIF (better-sqlite3) — PLATFORM-AWARE.
+// Le binaire natif a déjà été retrouvé remplacé par un build d'une autre
+// plateforme (ex. DLL Windows sur Linux → "invalid ELF header"), ce qui
+// faisait échouer TypeORM avec une erreur cryptique. Inversement, exiger
+// ELF partout BLOQUE les postes Windows (binaire PE légitime) : la
+// validation dépend donc de process.platform (voir lib/native-binding).
+// Fail-closed avec message actionnable (jamais de consigne npm en packagé).
+// =================================================================
+function verifyNativeBinding(): void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require('node:fs') as typeof import('node:fs');
+  const candidates: string[] = [];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    candidates.push(require.resolve('better-sqlite3/build/Release/better_sqlite3.node'));
+  } catch { /* résolu via replis ci-dessous */ }
+  // Replis : dev (repo) et prod (asar.unpacked voisin du bundle).
+  candidates.push(
+    path.join(__dirname, '..', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    path.join(process.resourcesPath ?? '', 'app.asar.unpacked', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+  );
+  const isOk = (p: string): boolean => {
+    const header = readBinaryHeader(p, fs);
+    return header !== null && isValidNativeBinary(header, process.platform);
+  };
+  // En packagé, require.resolve pointe DANS app.asar, mais dlopen charge en
+  // réalité la copie dépaquetée (voir toLoadableNativePath).
+  if (app.isPackaged) {
+    const resolved = candidates.length > 0 ? toLoadableNativePath(candidates[0]) : null;
+    if (resolved && isOk(resolved)) return; // cas nominal packagé
+    const fallback = candidates
+      .slice(1)
+      .map(toLoadableNativePath)
+      .find((p) => isOk(p));
+    if (fallback) {
+      console.log(`[0/4] Pilote natif packagé OK via ${fallback}`);
+      return;
+    }
+    // Pas de restauration auto en packagé (Program Files, installateur
+    // partiel…) : fail-closed avec consigne de réinstallation.
+    throw new Error(
+      `Pilote natif better-sqlite3 invalide ou absent (attendu : ${expectedBinaryLabel(process.platform)}). ` +
+        'Réinstallez l\u2019application depuis le dernier installeur puis redémarrez.'
+    );
+  }
+  const target = candidates.find((p) => { try { return fs.existsSync(p); } catch { return false; } });
+  if (target && isOk(target)) return; // cas nominal dev
+  // Tentative de restauration (dev uniquement) : première copie saine (même plateforme).
+  const healthy = candidates.find((p) => p !== target && isOk(p));
+  if (target && healthy) {
+    try {
+      fs.copyFileSync(healthy, target);
+      console.log(`[0/4] Pilote natif restauré depuis ${healthy}`);
+      if (isOk(target)) return;
+    } catch (e) {
+      console.error('[0/4] Restauration du pilote natif échouée:', (e as Error)?.message ?? e);
+    }
+  }
+  const expected = expectedBinaryLabel(process.platform);
+  throw new Error(
+    app.isPackaged
+      ? `Pilote natif better-sqlite3 invalide ou absent (attendu : ${expected}). ` +
+        'Réinstallez l\u2019application depuis le dernier installeur puis redémarrez.'
+      : `Pilote natif better-sqlite3 invalide ou absent (attendu : ${expected}). ` +
+        'Relancez `npm run rebuild:db-driver` puis redémarrez.'
+  );
+}
+
+// =================================================================
+// PRE-BOOT FROID [1.5/4] — fix 1.1.31 (auto-repair Oui, synchronize:false).
+// Problème : synchronize:true AVANT runMigrations créait
+// temporary_tranch_config SANS IF NOT EXISTS ; après interruption le
+// fantôme faisait échouer initialize() en boucle AVANT tout backup.
+// Implémentation dédupliquée dans ./preboot (stamp/pid, prune keep=5,
+// trio WAL, garde hasReal, integrity_check). Ce fichier ne fait que
+// réimporter pour startApplication (évite les miroirs main/runner/repair).
+// =================================================================
+import { preBootRepair } from './preboot';
 
 // =================================================================
 // FONCTION PRINCIPALE DE DÉMARRAGE
@@ -95,10 +190,24 @@ function initializeServices() {
 async function startApplication() {
   console.log('--- DÉBUT DU FLUX DE DÉMARRAGE ---');
 
+  console.log('[0/4] Vérification du pilote natif better-sqlite3...');
+  verifyNativeBinding();
+  console.log('[0/4] Pilote natif OK.');
+
   console.log('[1/4] Initialisation du ConfigService...');
   const configService = ConfigService.getInstance();
   const isFirstLaunch = configService.isFirstLaunch();
   console.log(`[1/4] État détecté : Premier lancement = ${isFirstLaunch}`);
+
+  console.log('[1.5/4] Repair froid pré-boot (backup + purge temporary_* + integrity_check)...');
+  try {
+    const coldDbPath = path.join(app.getPath('userData'), 'database.db');
+    preBootRepair(coldDbPath);
+  } catch (error) {
+    console.error('[1.5/4] Pre-boot repair ÉCHEC — arrêt avant initialize:', error);
+    try { dialog.showErrorBox('Base corrompue (pré-démarrage)', `Vérification pré-démarrage impossible. Un backup froid .pre-boot-*.db a été conservé à côté de database.db. Erreur: ${(error as Error)?.message ?? error}`); } catch { /* headless */ }
+    throw error;
+  }
 
   console.log('[2/4] Initialisation de la source de données...');
   try {
@@ -109,10 +218,39 @@ async function startApplication() {
     throw error;
   }
 
+  console.log('[2b/4] Migrations sécurisées (backup + baseline + vérifs)...');
+  const prevAutoDownload = autoUpdater.autoDownload;
+  const prevAutoInstall = autoUpdater.autoInstallOnAppQuit;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  try {
+    const ds = AppDataSource.getInstance();
+    const dbPath = (ds.options as unknown as { database?: string }).database
+      ?? path.join(app.getPath('userData'), 'database.db');
+    const res = await runMigrationsSafely(ds, dbPath);
+    console.log(`[2b/4] Migrations OK (ran=${res.ran.length}, baselineMarked=${res.baselineMarked}, backup=${res.backupPath || '(fresh-sans-backup)'}).`);
+  } catch (error) {
+    console.error('[2b/4] Échec migrations — restore auto tenté par le runner:', error);
+    try { dialog.showErrorBox('Échec de Migration', `Migration impossible. Un backup pré-migration a été restauré automatiquement. Erreur: ${(error as Error)?.message ?? error}`); } catch { /* headless */ }
+    throw error;
+  } finally {
+    autoUpdater.autoDownload = prevAutoDownload;
+    autoUpdater.autoInstallOnAppQuit = prevAutoInstall;
+  }
+
 
   console.log('[3/4] Initialisation des services métier...');
   initializeServices();
   console.log('[3/4] Services métier initialisés avec succès.');
+
+  // V3 : rattrapage auto-création année N+1 (best-effort, ne bloque jamais createWindow).
+  try {
+    await (global as any).yearRepartitionService?.ensureSchoolYear?.(new Date()).then((r: any) => {
+      if (r?.data) console.log(`[3c/4] Année auto-créée : ${(r.data as any).schoolYear}`);
+    }).catch((e: any) => console.warn("[3c/4] ensureSchoolYear différé:", e?.message ?? e));
+  } catch (e: any) {
+    console.warn("[3c/4] ensureSchoolYear ignoré (best-effort):", e?.message ?? e);
+  }
 
   console.log('[3b/4] Restauration de la session locale...');
   try {

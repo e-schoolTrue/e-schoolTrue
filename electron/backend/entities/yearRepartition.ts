@@ -3,9 +3,11 @@ import {
     CreateDateColumn,
     Entity,
     PrimaryGeneratedColumn,
-    UpdateDateColumn
+    UpdateDateColumn,
+    Check
 } from "typeorm";
 @Entity('year_repartition')
+@Check(`"status" IN ('active','closed')`)
 export class YearRepartitionEntity {
     @PrimaryGeneratedColumn()
     id?: number;
@@ -34,4 +36,10 @@ export class YearRepartitionEntity {
 
     @Column({ type: 'boolean', default: false })
     isCurrent?: boolean;
+
+    @Column({ type: 'varchar', length: 10, default: 'active' })
+    status?: string;
+
+    @Column({ type: 'datetime', nullable: true })
+    closedAt?: Date | null;
 }

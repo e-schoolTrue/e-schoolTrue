@@ -1,0 +1,83 @@
+- generic [ref=f5e2]:
+  - generic [ref=f5e3]:
+    - generic [ref=f5e5]:
+      - menubar [ref=f5e6]:
+        - menuitem "Dashboard" [ref=f5e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f5e8]
+        - menuitem "Gestion des Professeurs" [ref=f5e19]
+        - menuitem "Comptabilité" [ref=f5e30]
+        - menuitem "Gestion des Plannings" [ref=f5e41]
+        - menuitem "Outils" [ref=f5e80]
+        - menuitem "Administration" [ref=f5e125]
+        - menuitem "Paramètres" [ref=f5e136]
+      - button "Menu utilisateur" [ref=f5e149] [cursor=pointer]:
+        - generic [ref=f5e150]: O
+        - generic [ref=f5e151]: oumar
+    - generic [ref=f5e274]:
+      - generic [ref=f5e275]:
+        - generic [ref=f5e276]:
+          - heading "Impayés" [level=1] [ref=f5e277]
+          - paragraph [ref=f5e278]:
+            - text: "Total restant filtré :"
+            - strong [ref=f5e279]: 800 000 GNF
+        - button "Exporter Excel" [ref=f5e280] [cursor=pointer]
+      - generic [ref=f5e283]:
+        - generic [ref=f5e284]:
+          - textbox "Nom, matricule…" [ref=f5e287]
+          - generic [ref=f5e289] [cursor=pointer]:
+            - generic:
+              - combobox [ref=f5e291]
+              - generic [ref=f5e292]: Classe
+          - generic [ref=f5e298] [cursor=pointer]:
+            - generic:
+              - combobox [ref=f5e300]
+              - generic [ref=f5e301]: Statut
+          - generic [ref=f5e306]:
+            - button "Décrémenter" [ref=f5e307] [cursor=pointer]
+            - button "Incrémenter" [ref=f5e311] [cursor=pointer]
+            - spinbutton "Montant min" [ref=f5e317]
+          - generic [ref=f5e318]:
+            - button "Décrémenter" [ref=f5e319] [cursor=pointer]
+            - button "Incrémenter" [ref=f5e323] [cursor=pointer]
+            - spinbutton "Retard min (j)" [ref=f5e329]
+        - generic [ref=f5e331]:
+          - table [ref=f5e333]:
+            - rowgroup [ref=f5e340]:
+              - row [ref=f5e341]:
+                - columnheader "Élève" [ref=f5e342]
+                - columnheader [ref=f5e344] [cursor=pointer]:
+                  - generic [ref=f5e345]:
+                    - text: Reste
+                    - button "Sort by Reste" [ref=f5e346]
+                - columnheader [ref=f5e349] [cursor=pointer]:
+                  - generic [ref=f5e350]:
+                    - text: Retard (j)
+                    - button "Sort by Retard (j)" [ref=f5e351]
+                - columnheader "Statut" [ref=f5e354]
+                - columnheader "Relances" [ref=f5e356]
+          - table [ref=f5e362]:
+            - rowgroup [ref=f5e369]:
+              - row [ref=f5e370]:
+                - cell "Oumar Diane E-S264234 — SixiemeA" [ref=f5e371]:
+                  - generic [ref=f5e373]:
+                    - strong [ref=f5e374]: Oumar Diane
+                    - generic [ref=f5e375]: E-S264234 — SixiemeA
+                - cell [ref=f5e376]:
+                  - strong [ref=f5e378]: 800 000 GNF
+                - cell "19" [ref=f5e379]
+                - cell "Partiel" [ref=f5e381]
+                - cell [ref=f5e385]:
+                  - generic [ref=f5e387]:
+                    - button "WhatsApp" [ref=f5e388] [cursor=pointer]
+                    - button "SMS" [ref=f5e392] [cursor=pointer]
+  - generic [ref=f5e250]:
+    - generic [ref=f5e251]:
+      - generic [ref=f5e257]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f5e269]
+        - paragraph [ref=f5e259]: v1.0.1
+      - button "×" [ref=f5e260] [cursor=pointer]
+    - generic [ref=f5e261]:
+      - paragraph [ref=f5e262]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f5e268]:
+        - button "Redémarrer maintenant" [ref=f5e270] [cursor=pointer]
+        - button "Plus tard" [ref=f5e272] [cursor=pointer]

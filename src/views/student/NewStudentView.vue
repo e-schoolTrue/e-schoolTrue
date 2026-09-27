@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import StudentForm from '@/components/student/student-form.vue';
 import FileUploader from '@/components/student/student-file.vue';
 import { ElMessage } from 'element-plus';
+import { useYearStore } from '@/stores/yearStore';
 import type { IStudentData } from '@/types/student';
 import type { StudentFormInstance } from '@/components/student/student-form.vue';
 
@@ -26,10 +27,21 @@ const fetchClasses = async () => {
 };
 
 const fetchCurrentSchoolYear = async () => {
+  // Verrou : l'année du login fait foi (readonly). Replis : store → IPC → borne calculée.
+  const yearStore = useYearStore();
+  if (yearStore.currentSchoolYear) {
+    currentSchoolYear.value = yearStore.currentSchoolYear;
+    return;
+  }
+  const storeCurrent = await yearStore.fetchCurrent().catch(() => null);
+  if (storeCurrent?.schoolYear) {
+    currentSchoolYear.value = storeCurrent.schoolYear;
+    return;
+  }
   try {
     const result = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (result.success && result.data) {
-      currentSchoolYear.value = result.data.year;
+      currentSchoolYear.value = result.data.schoolYear ?? result.data.year;
       console.log('Année scolaire courante récupérée:', currentSchoolYear.value);
     } else {
       console.warn('Impossible de récupérer l\'année scolaire courante, utilisation de la valeur par défaut');
@@ -163,8 +175,15 @@ const convertSex = (value: any): "male" | "female" => {
   return sexValue.includes("f") || sexValue.includes("fille") || sexValue.includes("femme") ? "female" : "male";
 };
 
-// Fonction pour déterminer l'année scolaire en cours
+// Repli civil uniquement si AUCUNE année de login/store/IPC (ne doit pas arriver en session normale).
+// L'année de travail reste celle du login (`yearStore.currentSchoolYear`).
 const getCurrentSchoolYear = (): string => {
+  try {
+    const loginYear = useYearStore().currentSchoolYear;
+    if (loginYear) return loginYear;
+  } catch {
+    /* Pinia indisponible : repli civil ci-dessous */
+  }
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-11 (janvier = 0)

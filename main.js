@@ -1,0 +1,1 @@
+"use strict";Object.defineProperty(exports,Symbol.toStringTag,{value:"Module"});require("./main-CZojcA6C.js");const e=require("electron");require("node:path");Object.defineProperty(exports,"ipcMain",{enumerable:!0,get:()=>e.ipcMain});

@@ -1,0 +1,88 @@
+- generic [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - generic [ref=f3e5]:
+      - menubar [ref=f3e6]:
+        - menuitem "Dashboard" [ref=f3e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f3e8]
+        - menuitem "Gestion des Professeurs" [ref=f3e19]
+        - menuitem "Comptabilité" [ref=f3e30]
+        - menuitem "Gestion des Plannings" [ref=f3e41]
+        - menuitem "Outils" [ref=f3e80]
+        - menuitem "Administration" [ref=f3e125]
+        - menuitem [ref=f3e136]:
+          - generic [ref=f3e137] [cursor=pointer]
+      - button "Menu utilisateur" [ref=f3e143] [cursor=pointer]:
+        - generic [ref=f3e144]: O
+        - generic [ref=f3e145]: oumar
+    - generic [ref=f3e150]:
+      - generic [ref=f3e151]:
+        - generic [ref=f3e152]:
+          - heading "Tableau de bord comptable" [level=1] [ref=f3e153]
+          - paragraph [ref=f3e154]: Pilotage des encaissements, impayés, dépenses et caisse.
+        - button "Actualiser" [ref=f3e155] [cursor=pointer]
+      - generic [ref=f3e157]:
+        - generic [ref=f3e164]:
+          - generic [ref=f3e165]: Encaissé (mois)
+          - generic [ref=f3e166]: 0 GNF
+          - generic [ref=f3e167]: 30 derniers jours (IPC)
+        - generic [ref=f3e174]:
+          - generic [ref=f3e175]: Impayés
+          - generic [ref=f3e176]: 800 000 GNF
+          - generic [ref=f3e177]: 1 élèves en retard
+        - generic [ref=f3e184]:
+          - generic [ref=f3e185]: Dépenses (mois)
+          - generic [ref=f3e186]: 0 GNF
+          - generic [ref=f3e187]: Dépenses validées + en attente
+        - generic [ref=f3e194]:
+          - generic [ref=f3e195]: Solde caisse
+          - generic [ref=f3e196]: 0 GNF
+          - generic [ref=f3e197]: Théorique du jour (IPC)
+        - generic [ref=f3e204]:
+          - generic [ref=f3e205]: Élèves à jour
+          - generic [ref=f3e206]: "0"
+          - generic [ref=f3e207]: "Effectif total : 1"
+        - generic [ref=f3e214]:
+          - generic [ref=f3e215]: Élèves en retard
+          - generic [ref=f3e216]: "1"
+          - generic [ref=f3e217]: Dossiers impayés (IPC)
+        - generic [ref=f3e224]:
+          - generic [ref=f3e225]: Effectif total
+          - generic [ref=f3e226]: "1"
+          - generic [ref=f3e227]: Élèves inscrits
+        - generic [ref=f3e234]:
+          - generic [ref=f3e235]: Taux recouvrement
+          - generic [ref=f3e236]: 0 %
+          - generic [ref=f3e237]: À jour / effectif
+      - generic [ref=f3e238]:
+        - strong [ref=f3e242]: Flux des 30 derniers jours
+        - generic [ref=f3e246]:
+          - strong [ref=f3e249]: Encaissements par type
+          - strong [ref=f3e255]: Encaissements par mode
+      - generic [ref=f3e259]:
+        - generic [ref=f3e261]:
+          - strong [ref=f3e263]: Raccourcis
+          - generic [ref=f3e265]:
+            - button "Encaissements" [ref=f3e266] [cursor=pointer]
+            - button "Impayés" [ref=f3e268] [cursor=pointer]
+            - button "Caisse" [ref=f3e270] [cursor=pointer]
+            - button "Rapports" [ref=f3e272] [cursor=pointer]
+        - generic [ref=f3e275]:
+          - strong [ref=f3e277]: Situation
+          - generic [ref=f3e278]:
+            - paragraph [ref=f3e279]:
+              - text: "Élèves à jour :"
+              - strong [ref=f3e280]: "0"
+            - paragraph [ref=f3e281]:
+              - text: "Élèves en retard :"
+              - strong [ref=f3e282]: "1"
+  - generic [ref=f3e284]:
+    - generic [ref=f3e285]:
+      - generic [ref=f3e291]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f3e292]
+        - paragraph [ref=f3e293]: v1.0.1
+      - button "×" [ref=f3e294] [cursor=pointer]
+    - generic [ref=f3e295]:
+      - paragraph [ref=f3e296]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f3e297]:
+        - button "Redémarrer maintenant" [ref=f3e298] [cursor=pointer]
+        - button "Plus tard" [ref=f3e300] [cursor=pointer]

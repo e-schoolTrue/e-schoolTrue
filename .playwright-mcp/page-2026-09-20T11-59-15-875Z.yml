@@ -1,0 +1,113 @@
+- generic [ref=f2e2]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e5]:
+      - menubar [ref=f2e6]:
+        - menuitem "Dashboard" [ref=f2e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f2e8]
+        - menuitem "Gestion des Professeurs" [ref=f2e19]
+        - menuitem "Comptabilité" [ref=f2e30]
+        - menuitem "Gestion des Plannings" [ref=f2e41]
+        - menuitem "Outils" [ref=f2e80]
+        - menuitem "Administration" [ref=f2e125]
+        - menuitem [ref=f2e136]:
+          - generic [ref=f2e137] [cursor=pointer]
+      - button "Menu utilisateur" [ref=f2e143] [cursor=pointer]:
+        - generic [ref=f2e144]: O
+        - generic [ref=f2e145]: oumar
+    - generic [ref=f2e288]:
+      - generic [ref=f2e289]:
+        - generic [ref=f2e290]:
+          - heading "Rapports financiers" [level=1] [ref=f2e291]
+          - paragraph [ref=f2e292]: 9 rapports d'aide à la décision, exportables en Excel et PDF.
+        - button "Nouvelle transaction bancaire" [ref=f2e294] [cursor=pointer]
+      - generic [ref=f2e298]:
+        - combobox "Date début" [ref=f2e306]
+        - combobox "Date fin" [ref=f2e314]
+        - generic [ref=f2e317] [cursor=pointer]:
+          - generic:
+            - combobox [ref=f2e319]
+            - generic [ref=f2e320]: Toutes les classes
+      - generic [ref=f2e325]:
+        - generic [ref=f2e326]:
+          - strong [ref=f2e328]: Journal des encaissements
+          - generic [ref=f2e329]:
+            - paragraph [ref=f2e330]: Toutes les entrées
+            - paragraph [ref=f2e331]: 0 GNF
+            - generic [ref=f2e332]:
+              - button "Excel" [ref=f2e333] [cursor=pointer]
+              - button "PDF" [ref=f2e335] [cursor=pointer]
+        - generic [ref=f2e337]:
+          - strong [ref=f2e339]: État des impayés
+          - generic [ref=f2e340]:
+            - paragraph [ref=f2e341]: Soldes restants
+            - paragraph [ref=f2e342]: 800 000 GNF
+            - generic [ref=f2e343]:
+              - button "Excel" [ref=f2e344] [cursor=pointer]
+              - button "PDF" [ref=f2e346] [cursor=pointer]
+        - generic [ref=f2e348]:
+          - strong [ref=f2e350]: État des dépenses
+          - generic [ref=f2e351]:
+            - paragraph [ref=f2e352]: Sorties par catégorie
+            - paragraph [ref=f2e353]: 0 GNF
+            - generic [ref=f2e354]:
+              - button "Excel" [ref=f2e355] [cursor=pointer]
+              - button "PDF" [ref=f2e357] [cursor=pointer]
+        - generic [ref=f2e359]:
+          - strong [ref=f2e361]: Brouillard de caisse
+          - generic [ref=f2e362]:
+            - paragraph [ref=f2e363]: Mouvements journaliers
+            - paragraph [ref=f2e364]: 0 GNF
+            - generic [ref=f2e365]:
+              - button "Excel" [ref=f2e366] [cursor=pointer]
+              - button "PDF" [ref=f2e368] [cursor=pointer]
+        - generic [ref=f2e370]:
+          - strong [ref=f2e372]: Livre de paie
+          - generic [ref=f2e373]:
+            - paragraph [ref=f2e374]: Bruts enseignants
+            - paragraph [ref=f2e375]: 0 GNF
+            - generic [ref=f2e376]:
+              - button "Excel" [ref=f2e377] [cursor=pointer]
+              - button "PDF" [ref=f2e379] [cursor=pointer]
+        - generic [ref=f2e381]:
+          - strong [ref=f2e383]: Recettes par classe
+          - generic [ref=f2e384]:
+            - paragraph [ref=f2e385]: Ventilation
+            - paragraph [ref=f2e386]: 1 classes
+            - generic [ref=f2e387]:
+              - button "Excel" [ref=f2e388] [cursor=pointer]
+              - button "PDF" [ref=f2e390] [cursor=pointer]
+        - generic [ref=f2e392]:
+          - strong [ref=f2e394]: Recettes par mode
+          - generic [ref=f2e395]:
+            - paragraph [ref=f2e396]: Espèces / Orange Money / MTN / Virement
+            - paragraph [ref=f2e397]: 0 GNF
+            - generic [ref=f2e398]:
+              - button "Excel" [ref=f2e399] [cursor=pointer]
+              - button "PDF" [ref=f2e401] [cursor=pointer]
+        - generic [ref=f2e403]:
+          - strong [ref=f2e405]: Balance âgée
+          - generic [ref=f2e406]:
+            - paragraph [ref=f2e407]: Retards 0-30 / 30-60 / 60+ jours
+            - paragraph [ref=f2e408]: 1 dossiers
+            - generic [ref=f2e409]:
+              - button "Excel" [ref=f2e410] [cursor=pointer]
+              - button "PDF" [ref=f2e412] [cursor=pointer]
+        - generic [ref=f2e414]:
+          - strong [ref=f2e416]: Compte de résultat
+          - generic [ref=f2e417]:
+            - paragraph [ref=f2e418]: Entrées − sorties
+            - paragraph [ref=f2e419]: 0 GNF
+            - generic [ref=f2e420]:
+              - button "Excel" [ref=f2e421] [cursor=pointer]
+              - button "PDF" [ref=f2e423] [cursor=pointer]
+  - generic [ref=f2e270]:
+    - generic [ref=f2e271]:
+      - generic [ref=f2e277]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f2e278]
+        - paragraph [ref=f2e279]: v1.0.1
+      - button "×" [ref=f2e280] [cursor=pointer]
+    - generic [ref=f2e281]:
+      - paragraph [ref=f2e282]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f2e283]:
+        - button "Redémarrer maintenant" [ref=f2e284] [cursor=pointer]
+        - button "Plus tard" [ref=f2e286] [cursor=pointer]

@@ -1,0 +1,33 @@
+- generic [ref=f5e2]:
+  - generic [ref=f5e3]:
+    - generic [ref=f5e5]:
+      - menubar [ref=f5e6]:
+        - menuitem "Dashboard" [ref=f5e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f5e8]
+        - menuitem "Gestion des Professeurs" [ref=f5e19]
+        - menuitem "Comptabilité" [ref=f5e30]
+        - menuitem "Gestion des Plannings" [ref=f5e41]
+        - menuitem "Outils" [ref=f5e80]
+        - menuitem "Administration" [ref=f5e125]
+        - menuitem "Paramètres" [ref=f5e136]
+      - button "Menu utilisateur" [ref=f5e149] [cursor=pointer]:
+        - generic [ref=f5e150]: O
+        - generic [ref=f5e151]: oumar
+    - generic [ref=f5e567]:
+      - generic [ref=f5e568]:
+        - button "Retour" [ref=f5e569] [cursor=pointer]
+        - generic [ref=f5e571]:
+          - button "Imprimer" [ref=f5e572] [cursor=pointer]
+          - button "Exporter PDF" [ref=f5e574] [cursor=pointer]
+      - paragraph [ref=f5e597]: Bulletin 1 introuvable — validez d'abord les heures (zéro mock)
+  - generic [ref=f5e250]:
+    - generic [ref=f5e251]:
+      - generic [ref=f5e257]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f5e269]
+        - paragraph [ref=f5e259]: v1.0.1
+      - button "×" [ref=f5e260] [cursor=pointer]
+    - generic [ref=f5e261]:
+      - paragraph [ref=f5e262]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f5e268]:
+        - button "Redémarrer maintenant" [ref=f5e270] [cursor=pointer]
+        - button "Plus tard" [ref=f5e272] [cursor=pointer]

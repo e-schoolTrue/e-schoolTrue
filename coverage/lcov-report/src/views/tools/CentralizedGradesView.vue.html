@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/1339</span>
+                <span class='fraction'>0/1324</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/1339</span>
+                <span class='fraction'>0/1324</span>
             </div>
         
             
@@ -1387,37 +1387,7 @@
 <a name='L1322'></a><a href='#L1322'>1322</a>
 <a name='L1323'></a><a href='#L1323'>1323</a>
 <a name='L1324'></a><a href='#L1324'>1324</a>
-<a name='L1325'></a><a href='#L1325'>1325</a>
-<a name='L1326'></a><a href='#L1326'>1326</a>
-<a name='L1327'></a><a href='#L1327'>1327</a>
-<a name='L1328'></a><a href='#L1328'>1328</a>
-<a name='L1329'></a><a href='#L1329'>1329</a>
-<a name='L1330'></a><a href='#L1330'>1330</a>
-<a name='L1331'></a><a href='#L1331'>1331</a>
-<a name='L1332'></a><a href='#L1332'>1332</a>
-<a name='L1333'></a><a href='#L1333'>1333</a>
-<a name='L1334'></a><a href='#L1334'>1334</a>
-<a name='L1335'></a><a href='#L1335'>1335</a>
-<a name='L1336'></a><a href='#L1336'>1336</a>
-<a name='L1337'></a><a href='#L1337'>1337</a>
-<a name='L1338'></a><a href='#L1338'>1338</a>
-<a name='L1339'></a><a href='#L1339'>1339</a>
-<a name='L1340'></a><a href='#L1340'>1340</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<a name='L1325'></a><a href='#L1325'>1325</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2949,6 +2919,7 @@
 <span class="cstat-no" title="statement not covered" >import * as XLSX from 'xlsx';</span>
 <span class="cstat-no" title="statement not covered" >import { ElMessage } from 'element-plus';</span>
 <span class="cstat-no" title="statement not covered" >import { Document, Download, Loading, Warning, School, Calendar, TrendCharts, EditPen } from '@element-plus/icons-vue';</span>
+<span class="cstat-no" title="statement not covered" >import { getAppreciation } from '@/utils/grade';</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" > interface CentralizedRanking {</span>
 <span class="cstat-no" title="statement not covered" >   studentId: number;</span>
@@ -2966,16 +2937,6 @@
 <span class="cstat-no" title="statement not covered" >     coefficient: number;</span>
 <span class="cstat-no" title="statement not covered" >     weightedScore: number;</span>
 <span class="cstat-no" title="statement not covered" >   }&gt;;</span>
-<span class="cstat-no" title="statement not covered" > }</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" > enum ObservationType {</span>
-<span class="cstat-no" title="statement not covered" >   EXCELLENT = "Excellent",</span>
-<span class="cstat-no" title="statement not covered" >   TRES_BIEN = "Très Bien",</span>
-<span class="cstat-no" title="statement not covered" >   BIEN = "Bien",</span>
-<span class="cstat-no" title="statement not covered" >   ASSEZ_BIEN = "Assez Bien",</span>
-<span class="cstat-no" title="statement not covered" >   PASSABLE = "Passable",</span>
-<span class="cstat-no" title="statement not covered" >   INSUFFISANT = "Insuffisant",</span>
-<span class="cstat-no" title="statement not covered" >   TRES_INSUFFISANT = "Très Insuffisant"</span>
 <span class="cstat-no" title="statement not covered" > }</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >interface GradeConfig {</span>
@@ -3132,13 +3093,7 @@
 <span class="cstat-no" title="statement not covered" >   const base = classConfig?.finalGradeBase || 20;</span>
 <span class="cstat-no" title="statement not covered" >   const generalAvg = student.generalAverage;</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >   if (generalAvg &gt;= base - 1) return ObservationType.EXCELLENT;</span>
-<span class="cstat-no" title="statement not covered" >   if (generalAvg &gt;= base - 2.5) return ObservationType.TRES_BIEN;</span>
-<span class="cstat-no" title="statement not covered" >   if (generalAvg &gt;= base - 5) return ObservationType.BIEN;</span>
-<span class="cstat-no" title="statement not covered" >   if (generalAvg &gt;= base - 7.5) return ObservationType.ASSEZ_BIEN;</span>
-<span class="cstat-no" title="statement not covered" >   if (generalAvg &gt;= base - 10) return ObservationType.PASSABLE;</span>
-<span class="cstat-no" title="statement not covered" >   if (generalAvg &gt;= base - 15) return ObservationType.INSUFFISANT;</span>
-<span class="cstat-no" title="statement not covered" >   return ObservationType.TRES_INSUFFISANT;</span>
+<span class="cstat-no" title="statement not covered" >   return getAppreciation(generalAvg, base);</span>
 <span class="cstat-no" title="statement not covered" > };</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >const getWeightedScore = (student: CentralizedRanking, courseId: number): string | null =&gt; {</span>
@@ -4087,7 +4042,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:09.920Z
+                at 2026-09-13T14:37:13.270Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

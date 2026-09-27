@@ -14,6 +14,8 @@ import {accountingRoutes} from '@/routes/accounting';
 import {adminRoutes} from '@/routes/admin';
 import {profileRoutes} from '@/routes/profile';
 import {useUserStore} from '@/stores/userStore';
+import {useYearStore} from '@/stores/yearStore';
+import { isAllowedByRoles } from '@/utils/rbac';
 
 
 const routes = [
@@ -142,6 +144,55 @@ router.beforeEach(async (to, _from, next) => {
 
         // Si l'utilisateur est sur /login et est déjà connecté, rediriger vers le dashboard
         if (to.path === '/login' && appUser) {
+            next('/');
+            return;
+        }
+
+        // Plan V3 : une année active est exigée pour tout écran authentifié.
+        // Sans année → redirect vers le sélecteur (`/school-repartition`).
+        // Exemptions : routes publiques, onboarding, et le sélecteur lui-même
+        // (sinon boucle de redirection).
+        const yearExemptPaths = ['/school-repartition'];
+        const isYearExempt =
+            publicRoutes.includes(to.path) ||
+            to.path.startsWith('/onboarding') ||
+            yearExemptPaths.includes(to.path);
+        if (!isYearExempt) {
+            try {
+                const yearStore = useYearStore();
+                if (!yearStore.initialized) {
+                    await yearStore.init(null).catch(() => undefined);
+                }
+                if (!yearStore.activeYear) {
+                    next('/school-repartition');
+                    return;
+                }
+            } catch {
+                // Fail-open : le backend reste garde-fou (YEAR_CLOSED / FORBIDDEN).
+            }
+        }
+
+        // Contrôle d'accès par rôle (defense-in-depth, le backend reste
+        // l'autorité via UNAUTHENTICATED/FORBIDDEN).
+        // - `meta.roles: UserRole[]` (comptabilité : ['admin', 'comptable']).
+        // - `meta.requiresRole: UserRole` legacy (admin : 'admin').
+        // Single source : `isAllowedByRoles` de `@/utils/rbac`
+        // (même fonction importée par les tests — pas de copie logique).
+        // On inspecte `to.matched` pour couvrir les routes enfants.
+        // `userStore` est déjà résolu plus haut (pas d'import circulaire
+        // supplémentaire : Pinia est monté avant le router dans main.ts).
+        const role: string | undefined = appUser?.role;
+        const allowed = isAllowedByRoles(
+            to.matched.map((r) => r.meta as { roles?: string[]; requiresRole?: string }),
+            role,
+        );
+        if (!allowed) {
+            try {
+                const { ElMessage } = await import('element-plus');
+                ElMessage.warning("Accès refusé : vous n'avez pas le rôle requis.");
+            } catch {
+                console.warn("Accès refusé : rôle insuffisant pour", to.path);
+            }
             next('/');
             return;
         }

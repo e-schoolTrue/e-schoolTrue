@@ -99,7 +99,7 @@ const handleAdd = () => {
   router.push('/professor/add');
 };
 
-const handleSearch = (value: string) => {
+function handleSearch(value: string) {
   if (value) {
     const q = value.toLowerCase().trim();
     filteredProfessors.value = props.professors.filter(prof => {
@@ -113,7 +113,7 @@ const handleSearch = (value: string) => {
   } else {
     filteredProfessors.value = props.professors;
   }
-};
+}
 
 const handleExport = () => {
   try {

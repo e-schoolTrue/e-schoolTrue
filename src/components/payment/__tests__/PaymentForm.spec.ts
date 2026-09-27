@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { setActivePinia, createPinia } from 'pinia'
+import { useYearStore } from '@/stores/yearStore'
 
 // Hoisted ElMessage mock that is both callable and has methods
 const { mockElMessage } = vi.hoisted(() => {
@@ -21,7 +23,21 @@ vi.mock('element-plus', async () => {
   }
 })
 
+// Garde comptable : en test jsdom aucun AccountingGuardHost n'est monté
+// (doEnsure rejetterait en fail-fast). On isole le formulaire en résolvant
+// ensureUnlock, en gardant les helpers purs réels (is*Error/mapError).
+vi.mock('@/composables/useAccountingGuard', async () => {
+  const actual = await vi.importActual<typeof import('@/composables/useAccountingGuard')>(
+    '@/composables/useAccountingGuard',
+  )
+  return {
+    ...actual,
+    ensureUnlock: vi.fn(() => Promise.resolve()),
+  }
+})
+
 import PaymentForm from '@/components/payment/PaymentForm.vue'
+import { ensureUnlock } from '@/composables/useAccountingGuard'
 
 const mockInvoke = vi.fn()
 function setupIpcMock() {
@@ -66,8 +82,22 @@ async function mountForm(propsOverride: any = {}) {
 describe('PaymentForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Le composant lit useYearStore().currentSchoolYear au submit (année du login).
+    setActivePinia(createPinia())
+    useYearStore().activeYear = { schoolYear: '2026-2027' } as any
     setupIpcMock()
-    mockInvoke.mockResolvedValue({ success: true, data: { id: 1 } })
+    vi.mocked(ensureUnlock).mockResolvedValue(undefined)
+    // Garde comptable (useAccountingGuard.ensureUnlock) lit `comptabilite:status` :
+    // filtrer par canal pour ne pas polluer les assertions `payment:create`.
+    mockInvoke.mockImplementation((channel: string) => {
+      if (channel === 'comptabilite:status') {
+        return Promise.resolve({
+          success: true,
+          data: { isSet: true, unlocked: true, fresh: true, locked: false, retryAfterMs: 0, failedAttempts: 0 },
+        })
+      }
+      return Promise.resolve({ success: true, data: { id: 1 } })
+    })
     mockElMessage.mockClear()
     mockElMessage.success?.mockClear?.()
     mockElMessage.error?.mockClear?.()
@@ -154,14 +184,19 @@ describe('PaymentForm', () => {
     expect(wrapper.vm.isValid).toBe(true)
     await wrapper.vm.submitForm()
     await flushPromises()
-    expect(mockInvoke).toHaveBeenCalledWith('payment:add', expect.objectContaining({
+    expect(mockInvoke).toHaveBeenCalledWith('payment:create', expect.objectContaining({
       paymentDate: expect.any(String),
       amount: 20000,
       studentId: 1,
     }))
-    const payload = mockInvoke.mock.calls[0][1]
+    const createCall = mockInvoke.mock.calls.find(([ch]: any[]) => ch === 'payment:create')
+    expect(createCall).toBeTruthy()
+    const payload = createCall![1] as Record<string, any>
     expect(new Date(payload.paymentDate).toString()).not.toBe('Invalid Date')
     expect(payload.schoolYear).toMatch(/^\d{4}-\d{4}$/)
+    expect(payload.paymentType).toBe('tuition')
+    expect(payload.paymentMethod).toBe('cash')
+    expect(typeof payload.idempotencyKey).toBe('string')
     wrapper.unmount()
   })
 
@@ -232,7 +267,15 @@ describe('PaymentForm', () => {
   })
 
   it('submitForm handles ipc error and shows error message', async () => {
-    mockInvoke.mockResolvedValue({ success: false, message: 'insufficient funds' })
+    mockInvoke.mockImplementation((channel: string) => {
+      if (channel === 'comptabilite:status') {
+        return Promise.resolve({
+          success: true,
+          data: { isSet: true, unlocked: true, fresh: true, locked: false, retryAfterMs: 0, failedAttempts: 0 },
+        })
+      }
+      return Promise.resolve({ success: false, message: 'insufficient funds' })
+    })
     setupIpcMock()
     const wrapper: any = await mountForm()
     wrapper.vm.form.amount = 10000
@@ -240,7 +283,7 @@ describe('PaymentForm', () => {
     await nextTick()
     await wrapper.vm.submitForm()
     await flushPromises()
-    expect(mockElMessage).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('erreur'), type: 'error' }))
+    expect(mockElMessage).toHaveBeenCalledWith(expect.objectContaining({ message: 'insufficient funds', type: 'error' }))
     wrapper.unmount()
   })
 

@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/522</span>
+                <span class='fraction'>0/537</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/522</span>
+                <span class='fraction'>0/537</span>
             </div>
         
             
@@ -584,7 +584,37 @@
 <a name='L519'></a><a href='#L519'>519</a>
 <a name='L520'></a><a href='#L520'>520</a>
 <a name='L521'></a><a href='#L521'>521</a>
-<a name='L522'></a><a href='#L522'>522</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L522'></a><a href='#L522'>522</a>
+<a name='L523'></a><a href='#L523'>523</a>
+<a name='L524'></a><a href='#L524'>524</a>
+<a name='L525'></a><a href='#L525'>525</a>
+<a name='L526'></a><a href='#L526'>526</a>
+<a name='L527'></a><a href='#L527'>527</a>
+<a name='L528'></a><a href='#L528'>528</a>
+<a name='L529'></a><a href='#L529'>529</a>
+<a name='L530'></a><a href='#L530'>530</a>
+<a name='L531'></a><a href='#L531'>531</a>
+<a name='L532'></a><a href='#L532'>532</a>
+<a name='L533'></a><a href='#L533'>533</a>
+<a name='L534'></a><a href='#L534'>534</a>
+<a name='L535'></a><a href='#L535'>535</a>
+<a name='L536'></a><a href='#L536'>536</a>
+<a name='L537'></a><a href='#L537'>537</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1107,7 +1137,9 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >&lt;template&gt;</span></span></span>
 <span class="cstat-no" title="statement not covered" >  &lt;div class="sync-view"&gt;</span>
-<span class="cstat-no" title="statement not covered" >    &lt;el-row :gutter="20"&gt;</span>
+<span class="cstat-no" title="statement not covered" >    &lt;el-tabs v-model="activeTab"&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;el-tab-pane label="Synchronisation Cloud" name="cloud"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;el-row :gutter="20"&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;!-- Panneau de contrôle de la synchronisation --&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;el-col :span="24" :md="8"&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;el-card&gt;</span>
@@ -1195,7 +1227,12 @@
 <span class="cstat-no" title="statement not covered" >          /&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;/el-card&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;/el-col&gt;</span>
-<span class="cstat-no" title="statement not covered" >    &lt;/el-row&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;/el-row&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/el-tab-pane&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;el-tab-pane label="Fichier local" name="local"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;LocalBackupTab /&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/el-tab-pane&gt;</span>
+<span class="cstat-no" title="statement not covered" >    &lt;/el-tabs&gt;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    &lt;!-- Dialogue d'authentification --&gt;</span>
 <span class="cstat-no" title="statement not covered" >    &lt;el-dialog</span>
@@ -1261,11 +1298,13 @@
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >import SyncSettings from '@/components/sync/SyncSettings.vue'; </span>
 <span class="cstat-no" title="statement not covered" >import SyncHistory from '@/components/sync/SyncHistory.vue';   </span>
+<span class="cstat-no" title="statement not covered" >import LocalBackupTab from '@/components/sync/LocalBackupTab.vue';</span>
 <span class="cstat-no" title="statement not covered" >import type { SyncConfig, SyncHistoryType } from '../../types/sync'; </span>
 <span class="cstat-no" title="statement not covered" >import LoginForm from '@/components/login/supabase/login-form.vue';</span>
 <span class="cstat-no" title="statement not covered" >import CreateAccount from '@/components/login/supabase/create-account.vue';</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >// --- États du composant ---</span>
+<span class="cstat-no" title="statement not covered" >const activeTab = ref&lt;'cloud' | 'local'&gt;('cloud');</span>
 <span class="cstat-no" title="statement not covered" >const syncConfig = ref&lt;SyncConfig&gt;({</span>
 <span class="cstat-no" title="statement not covered" >  autoSyncOnConnect: true,</span>
 <span class="cstat-no" title="statement not covered" >  notifyBeforeSync: true,</span>
@@ -1426,27 +1465,33 @@
 <span class="cstat-no" title="statement not covered" >const confirmSignOut = async () =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  isSigningOut.value = true;</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
-<span class="cstat-no" title="statement not covered" >    const { success, error } = await window.ipcRenderer.invoke("auth:signOut");</span>
-<span class="cstat-no" title="statement not covered" >    if (success) {</span>
-<span class="cstat-no" title="statement not covered" >      // Réinitialiser l'état local</span>
-<span class="cstat-no" title="statement not covered" >      isAuthenticated.value = false;</span>
-<span class="cstat-no" title="statement not covered" >      syncHistory.value = [];</span>
-<span class="cstat-no" title="statement not covered" >      syncConfig.value = {</span>
-<span class="cstat-no" title="statement not covered" >        autoSyncOnConnect: true,</span>
-<span class="cstat-no" title="statement not covered" >        notifyBeforeSync: true,</span>
-<span class="cstat-no" title="statement not covered" >        syncIntervalMinutes: 60,</span>
-<span class="cstat-no" title="statement not covered" >      };</span>
-<span class="cstat-no" title="statement not covered" >      </span>
-<span class="cstat-no" title="statement not covered" >      showSignOutDialog.value = false;</span>
-<span class="cstat-no" title="statement not covered" >      ElMessage.success('Déconnexion réussie. Vos données locales sont conservées.');</span>
-<span class="cstat-no" title="statement not covered" >      </span>
-<span class="cstat-no" title="statement not covered" >      // Arrêter la vérification périodique</span>
-<span class="cstat-no" title="statement not covered" >      if (connectionCheckInterval) {</span>
-<span class="cstat-no" title="statement not covered" >        clearInterval(connectionCheckInterval);</span>
+<span class="cstat-no" title="statement not covered" >    // Déconnexion cloud seule (Supabase) : ne touche jamais la session locale.</span>
+<span class="cstat-no" title="statement not covered" >    // `auth:signOut` (logout total) reste réservé à UserMenu.</span>
+<span class="cstat-no" title="statement not covered" >    try {</span>
+<span class="cstat-no" title="statement not covered" >      const { success, error } = await window.ipcRenderer.invoke("auth:signOutCloud");</span>
+<span class="cstat-no" title="statement not covered" >      if (!success) {</span>
+<span class="cstat-no" title="statement not covered" >        ElMessage.error(`Erreur lors de la déconnexion cloud: ${error}`);</span>
+<span class="cstat-no" title="statement not covered" >        return;</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
-<span class="cstat-no" title="statement not covered" >      </span>
-<span class="cstat-no" title="statement not covered" >    } else {</span>
-<span class="cstat-no" title="statement not covered" >      ElMessage.error(`Erreur lors de la déconnexion: ${error}`);</span>
+<span class="cstat-no" title="statement not covered" >    } catch (err) {</span>
+<span class="cstat-no" title="statement not covered" >      // Fallback vieux backend sans canal `auth:signOutCloud` :</span>
+<span class="cstat-no" title="statement not covered" >      // on bascule quand même en état déconnecté côté UI, sans purger userStore.</span>
+<span class="cstat-no" title="statement not covered" >      console.warn("[SyncView] auth:signOutCloud indisponible, déconnexion cloud locale:", err);</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    // Réinitialiser l'état cloud local uniquement — session locale conservée.</span>
+<span class="cstat-no" title="statement not covered" >    isAuthenticated.value = false;</span>
+<span class="cstat-no" title="statement not covered" >    syncHistory.value = [];</span>
+<span class="cstat-no" title="statement not covered" >    syncConfig.value = {</span>
+<span class="cstat-no" title="statement not covered" >      autoSyncOnConnect: true,</span>
+<span class="cstat-no" title="statement not covered" >      notifyBeforeSync: true,</span>
+<span class="cstat-no" title="statement not covered" >      syncIntervalMinutes: 60,</span>
+<span class="cstat-no" title="statement not covered" >    };</span>
+<span class="cstat-no" title="statement not covered" >    showSignOutDialog.value = false;</span>
+<span class="cstat-no" title="statement not covered" >    ElMessage.success('Déconnexion cloud réussie. Votre session locale est conservée.');</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >    // Arrêter la vérification périodique</span>
+<span class="cstat-no" title="statement not covered" >    if (connectionCheckInterval) {</span>
+<span class="cstat-no" title="statement not covered" >      clearInterval(connectionCheckInterval);</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >  } catch (err) {</span>
 <span class="cstat-no" title="statement not covered" >    ElMessage.error(`Erreur IPC: ${(err as Error).message}`);</span>
@@ -1633,7 +1678,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:09.920Z
+                at 2026-09-13T14:37:13.270Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

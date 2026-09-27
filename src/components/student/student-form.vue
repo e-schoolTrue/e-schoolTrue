@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, defineAsyncComponent, PropType, onMounted, watch} from 'vue';
 import { ElMessage } from 'element-plus';
+import { useYearStore } from '@/stores/yearStore';
 import type { IStudentData } from '@/types/student';
 
 export interface StudentFormInstance {
@@ -111,6 +112,10 @@ const validateRequiredFields = () => {
     ElMessage.error('Le nom est obligatoire');
     return false;
   }
+  if (!formData.birthDay) {
+    ElMessage.error('La date de naissance est obligatoire');
+    return false;
+  }
   if (!formData.gradeId) {
     ElMessage.error('La classe est obligatoire');
     return false;
@@ -173,6 +178,16 @@ const sections = [
 ];
 
 onMounted(async () => {
+  // Verrou : année du login (readonly). Store d'abord, IPC en repli.
+  try {
+    const loginYear = useYearStore().currentSchoolYear;
+    if (loginYear) {
+      formData.schoolYear = loginYear;
+      return;
+    }
+  } catch {
+    /* Pinia indisponible : repli IPC */
+  }
   try {
     const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
     if (result.success && result.data) {

@@ -4,6 +4,8 @@ export interface PeriodConfiguration {
     end: string | Date;
 }
 
+export type YearStatus = "active" | "closed";
+
 export interface YearRepartition {
     id: number;
     schoolYear: string;
@@ -11,6 +13,8 @@ export interface YearRepartition {
     createdAt: Date;
     updatedAt: Date;
     isCurrent: boolean;
+    status: YearStatus;
+    closedAt: Date | null;
 }
 
 export interface YearRepartitionCreateInput {
@@ -28,6 +32,8 @@ export interface YearRepartitionResponse {
     schoolYear: string;
     periodConfigurations: PeriodConfiguration[];
     isCurrent: boolean;
+    status: YearStatus;
+    closedAt: string | null;
     createdAt: string;
     updatedAt: string;
 }

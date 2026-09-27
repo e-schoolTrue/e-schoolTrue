@@ -76,6 +76,7 @@
                 />
               </el-select>
 
+              <!-- Année de travail : celle du `YearSwitcher` du menu (store) — AUCUNE UI année ici. -->
               <el-select 
                 v-model="filters.paymentStatus" 
                   placeholder="Statut"
@@ -307,11 +308,11 @@
                   <el-icon><Document /></el-icon>
                 </el-button>
                 </el-tooltip>
-                <el-tooltip content="Imprimer un reçu" placement="top">
+                <el-tooltip content="Imprimer un reçu CASY" placement="top">
                 <el-button
                   type="success"
                   size="small"
-                  @click="printReceipt(row)"
+                  @click="printReceiptCasy(row)"
                 >
                   <el-icon><Printer /></el-icon>
                 </el-button>
@@ -378,14 +379,30 @@ import autoTable from 'jspdf-autotable';
 import { PaymentConfig } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
+import { amountInWordsFR } from '@/utils/amountInWordsFR';
+import {
+  buildCasyMonthlyGrid,
+  buildCasyReceiptHtml,
+  buildCasyTranchesFallback,
+  dateEnLettres,
+  defaultEcheanceISO,
+  formatJJMMAAAA,
+  markTranchesPaid,
+  maskRef,
+  openCasyPrintWindow,
+} from '@/utils/receiptCasy';
 import { PaymentAnnualConfig } from "@/types/payment";
 import { YearRepartition } from "@/types/year";
+import { useYearStore } from "@/stores/yearStore";
+import { useRouter } from "vue-router";
+import { isNoSecretError, mapAccountingError, openGuardedForm } from "@/composables/useAccountingGuard";
 
 interface Student {
   id: number;
   firstname: string;
   lastname: string;
   matricule: string;
+  schoolYear?: string;
   grade?: {
     id: number;
     name: string;
@@ -403,6 +420,8 @@ interface Filters {
   studentFullName: string;
   grade?: number;
   paymentStatus?: 'paid' | 'partial' | 'unpaid';
+  /** Année scolaire — filtre serveur (`student:all`) + repli client. */
+  schoolYear?: string;
 }
 
 interface PaymentAmounts {
@@ -441,10 +460,26 @@ const yearRepartition = ref<YearRepartition | null>(null);
 const filters = ref<Filters>({
   studentFullName: "",
   grade: undefined,
-  paymentStatus: undefined
+  paymentStatus: undefined,
+  schoolYear: undefined,
 });
 
+/** Année du menu (`YearSwitcher`) : `yearStore.fetchList()` en interne (warm store
+ * uniquement), valeur silencieuse dans `filters.schoolYear` — AUCUNE UI année ici. */
+const loadSchoolYears = async () => {
+  try {
+    const yearStore = useYearStore();
+    if (yearStore.list.length === 0) await yearStore.fetchList();
+    // Verrou : l'année du menu fait foi, repli serveur — jamais de switch utilisateur.
+    const current = yearStore.currentSchoolYear || (await yearStore.fetchCurrent().catch(() => null))?.schoolYear;
+    if (current) filters.value.schoolYear = current;
+  } catch {
+    /* fail-open : valeur conservée */
+  }
+};
+
 const { formatCurrency, currency } = useCurrency();
+const router = useRouter();
 
 
 const loadPaymentConfigs = async () => {
@@ -538,14 +573,19 @@ const loadStudents = async () => {
       pageSize: pageSize.value,
       filters: {
         studentFullName: filters.value.studentFullName,
-        grade: filters.value.grade
+        grade: filters.value.grade,
+        schoolYear: filters.value.schoolYear,
       }
     });
     
     // P0 FIX: tolerant to both array and {students,total} shapes
     if (result.success !== false && result.data !== undefined && result.data !== null) {
       const payload = Array.isArray(result.data) ? { students: result.data, total: result.data.length } : result.data;
-      students.value = payload.students ?? [];
+      const fetched: Student[] = payload.students ?? [];
+      // Repli client : le backend ignore `schoolYear` — on filtre ici.
+      students.value = filters.value.schoolYear
+        ? fetched.filter((s) => (s.schoolYear || '') === filters.value.schoolYear)
+        : fetched;
       totalStudents.value = payload.total ?? payload.students?.length ?? 0;
 
       for (const student of students.value) {
@@ -604,9 +644,20 @@ const handleFilter = () => {
     loadStudents();
 };
 
-const openPaymentDialog = (student: Student) => {
-  selectedStudent.value = student;
-  paymentDialogVisible.value = true;
+const openPaymentDialog = async (student: Student) => {
+  // Garde d'OUVERTURE : popup AVANT l'ouverture du PaymentDialog.
+  // Annuler/NO_SECRET_SET -> ne pas ouvrir. Double garde au submit conservée (PaymentDialog).
+  try {
+    await openGuardedForm(() => {
+      selectedStudent.value = student;
+      paymentDialogVisible.value = true;
+    });
+  } catch (err) {
+    if (isNoSecretError(err)) {
+      ElMessage.warning(mapAccountingError(err));
+      void router.push('/comptabilite/setup');
+    }
+  }
 };
 
 const showPaymentHistory = (student: Student) => {
@@ -634,7 +685,8 @@ const exportToExcel = async () => {
       pageSize: totalStudents.value === 0 ? 1000 : totalStudents.value, // Fetch all, with a fallback
       filters: {
         studentFullName: filters.value.studentFullName,
-        grade: filters.value.grade
+        grade: filters.value.grade,
+        schoolYear: filters.value.schoolYear,
       }
     });
 
@@ -645,6 +697,10 @@ const exportToExcel = async () => {
     }
 
     let allStudents: Student[] = Array.isArray(result.data) ? result.data : (result.data.students ?? []);
+    // Repli client (backend sans filtre `schoolYear`).
+    if (filters.value.schoolYear) {
+      allStudents = allStudents.filter((s) => (s.schoolYear || '') === filters.value.schoolYear);
+    }
 
     // 2. Fetch payment info for all students
     await Promise.all(allStudents.map((s: Student) => loadStudentPayments(s.id)));
@@ -710,793 +766,128 @@ const refreshData = async () => {
   }
 };
 
-const printReceipt = async (student: Student) => {
+/**
+ * Impression reçu maquette CASY — factorisée (`@/utils/receiptCasy`).
+ * Même HTML que `ReceiptTemplate.vue` : 2 colonnes mensuel/tranches côte-à-côte,
+ * barcode, totaux, mention EMO. Fallbacks si photo/tél/sexe absents.
+ */
+const printReceiptCasy = async (student: Student) => {
   if (!student) {
     ElMessage.error("Aucun étudiant sélectionné pour l'impression.");
     return;
   }
-
   try {
-    // 1. Récupérer toutes les données nécessaires
-    const [paymentsResult, schoolInfoResult, customConfigsResult, paymentConfigResult, trancheConfigResult] = await Promise.all([
-      window.ipcRenderer.invoke('payment:getByStudent', student.id),
-      window.ipcRenderer.invoke('school:get'),
-      window.ipcRenderer.invoke('payment:getCustomConfigs'),
-      window.ipcRenderer.invoke('payment:getConfigs'),
-      window.ipcRenderer.invoke('tranche-config:all')
-    ]);
-    
-    if (!paymentsResult.success) {
-      ElMessage.error("Erreur lors de la récupération des paiements de l'étudiant.");
-      return;
-    }
-    
-    // Extraire les paiements de la réponse
-    const payments = paymentsResult.data?.payments || [];
-    const paymentInfo = paymentAmounts.value.get(student.id);
-    const schoolInfo = schoolInfoResult?.data || {};
-    
-    // Récupérer la configuration de paiement pour cette classe
-    const classPaymentConfig = paymentConfigResult.success ?
-      paymentConfigResult.data.find((config: any) => config.classId === student.grade?.id) : null;
-    
-    // Récupérer la configuration personnalisée pour cette classe
-    const customConfig = customConfigsResult.success ?
-      customConfigsResult.data.find((config: any) => config.gradeId === student.grade?.id && config.isDefault) : null;
-    
-    // Calculer le nombre de mois payés
-    const totalPaidTuition = paymentInfo?.paidTuition || 0;
-    const totalTuition = paymentInfo?.adjustedTuitionFee || classPaymentConfig?.annualAmount || 0;
-    let monthsPaid = 0;
-    let monthlyAmount = 0;
-    
-    if (customConfig && customConfig.paymentType === 'monthly' && customConfig.monthlyConfig) {
-      const config = customConfig.monthlyConfig;
-      monthlyAmount = totalTuition / config.numberOfMonths;
-      monthsPaid = Math.floor(totalPaidTuition / monthlyAmount);
-    } else if (totalTuition > 0) {
-      // Par défaut, considérer 10 mois (septembre à juin)
-      monthlyAmount = totalTuition / 10;
-      monthsPaid = Math.floor(totalPaidTuition / monthlyAmount);
-    }
-    
-    // Récupérer le logo de l'école si disponible (même structure que SchoolInfoView.vue)
-    let logoBase64 = '';
-    
-    // Vérifier si l'école a un logo (objet avec id)
-    if (schoolInfo && schoolInfo.logo && schoolInfo.logo.id) {
-      try {
-        const logoResult = await window.ipcRenderer.invoke('school:getLogo', schoolInfo.logo.id);
-        
-        if (logoResult.success && logoResult.data && logoResult.data.content) {
-          // Construire l'URL base64 comme dans SchoolInfoView.vue
-          logoBase64 = `data:${logoResult.data.type};base64,${logoResult.data.content}`;
-        }
-      } catch (error) {
-        console.error('Erreur lors de la récupération du logo:', error);
+    const invoke = window.ipcRenderer.invoke.bind(window.ipcRenderer);
+    const unwrap = (res: unknown): unknown => {
+      if (res && typeof res === 'object' && 'success' in (res as Record<string, unknown>)) {
+        const r = res as { success?: boolean; data?: unknown };
+        return r.success ? r.data : null;
       }
-    }
-
-    // Fonction pour générer la grille de mois
-    const generateMonthlyGrid = (monthsPaid: number, _monthlyAmount: number, customConfig: any) => {
-      const allMonths = [
-        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-      ];
-      
-      let monthsToShow = [];
-      let startMonth = 8; // Septembre par défaut (index 8)
-      let excludedMonths: number[] = [];
-      
-      if (customConfig && customConfig.paymentType === 'monthly' && customConfig.monthlyConfig) {
-        const config = customConfig.monthlyConfig;
-        startMonth = config.startMonth - 1; // Convertir en index 0-based
-        excludedMonths = config.excludedMonths || [];
-        
-        // Créer la liste des mois à afficher en fonction de la configuration
-        for (let i = 0; i < config.numberOfMonths; i++) {
-          let currentMonthIndex = (startMonth + i) % 12;
-          // Sauter les mois exclus
-          while (excludedMonths.includes(currentMonthIndex + 1)) {
-            currentMonthIndex = (currentMonthIndex + 1) % 12;
-          }
-          monthsToShow.push({
-            name: allMonths[currentMonthIndex],
-            index: currentMonthIndex,
-            isPaid: i < monthsPaid
-          });
-        }
-      } else {
-        // Configuration par défaut : Septembre à Juin (10 mois)
-        const defaultMonths = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5]; // Sep, Oct, Nov, Dec, Jan, Fev, Mar, Avr, Mai, Juin
-        monthsToShow = defaultMonths.map((monthIndex, i) => ({
-          name: allMonths[monthIndex],
-          index: monthIndex,
-          isPaid: i < monthsPaid
-        }));
-      }
-      
-      return monthsToShow.map(month => `
-        <div class="month-box">
-          <span class="month-checkbox ${month.isPaid ? 'checked' : ''}">
-            ${month.isPaid ? '✓' : ''}
-          </span>
-          <span class="month-name">${month.name}</span>
-        </div>
-      `).join('');
+      return res;
     };
-
-    // 2. Create HTML for the receipt with improved styling
-    const receiptHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Reçu de paiement - ${student.firstname} ${student.lastname}</title>
-        <style>
-          @media print {
-            @page { 
-              margin: 10mm; 
-              size: A4;
-            }
-            body { 
-              margin: 0; 
-              padding: 0;
-              -webkit-print-color-adjust: exact;
-              color-adjust: exact;
-            }
-            .receipt-container {
-              padding: 10px !important;
-              box-shadow: none !important;
-            }
-            .no-print { display: none !important; }
-          }
-          
-          * {
-            box-sizing: border-box;
-          }
-          
-          body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 0;
-            padding: 10px;
-            font-size: 12px; 
-            line-height: 1.3;
-            color: #333;
-            background: white;
-          }
-          
-          .receipt-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-          }
-          
-          .header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-start; 
-            border-bottom: 2px solid #007bff; 
-            padding-bottom: 10px; 
-            margin-bottom: 15px;
-            position: relative;
-          }
-          
-          .school-logo {
-            width: 80px;
-            height: 80px;
-            max-width: 80px;
-            max-height: 80px;
-            object-fit: contain;
-            margin-right: 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 5px;
-            background: white;
-            display: block;
-          }
-          
-          .school-header {
-            display: flex;
-            align-items: center;
-            flex: 1;
-          }
-          
-          .school-info h1 { 
-            font-size: 18px; 
-            margin: 0 0 5px 0; 
-            color: #007bff;
-            font-weight: bold;
-          }
-          
-          .school-info p { 
-            margin: 2px 0; 
-            color: #666;
-            font-size: 11px;
-          }
-          
-          .receipt-info { 
-            text-align: right; 
-          }
-          
-          .receipt-info h2 { 
-            font-size: 16px; 
-            margin: 0 0 5px 0; 
-            color: #007bff;
-            font-weight: bold;
-          }
-          
-          .receipt-info p {
-            margin: 2px 0;
-            color: #666;
-            font-size: 11px;
-          }
-          
-          .student-section {
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            border-left: 3px solid #007bff;
-          }
-
-          .payment-schedule-section {
-            background: #fff8e1;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            border-left: 3px solid #ff9800;
-          }
-
-          .payment-schedule-section h3 {
-            margin: 0 0 8px 0;
-            font-size: 13px;
-            color: #e65100;
-          }
-          
-          .monthly-payment-grid {
-            background: #f0f8ff;
-            padding: 12px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            border-left: 3px solid #2196f3;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          }
-          
-          .monthly-payment-grid h3 {
-            margin: 0 0 10px 0;
-            font-size: 13px;
-            color: #1565c0;
-          }
-          
-          .months-grid {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 8px;
-          }
-          
-          .month-box {
-            display: flex;
-            align-items: center;
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            font-size: 10px;
-          }
-          
-          .month-checkbox {
-            width: 14px;
-            height: 14px;
-            border: 1px solid #333;
-            border-radius: 2px;
-            margin-right: 5px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #4caf50;
-          }
-          
-          .month-checkbox.checked {
-            background: #e8f5e9;
-          }
-          
-          .month-name {
-            flex: 1;
-            font-weight: 500;
-          }
-          
-          .month-amount {
-            font-size: 9px;
-            color: #666;
-            margin-left: 5px;
-          }
-
-          .schedule-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 5px;
-            font-size: 10px;
-          }
-
-          .schedule-table th,
-          .schedule-table td {
-            border: 1px solid #ddd;
-            padding: 4px;
-            text-align: left;
-          }
-
-          .schedule-table th {
-            background-color: #ff9800;
-            color: white;
-            font-weight: 600;
-            text-align: center;
-          }
-
-          .status-payé {
-            color: #4caf50;
-            font-weight: bold;
-          }
-
-          .status-partiel {
-            color: #ff9800;
-            font-weight: bold;
-          }
-
-          .status-non-payé {
-            color: #f44336;
-            font-weight: bold;
-          }
-          
-          .student-section h3 { 
-            margin: 0 0 5px 0; 
-            font-size: 14px;
-            color: #333;
-          }
-          
-          .student-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 8px;
-            margin-top: 8px;
-          }
-          
-          .detail-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            border-bottom: 1px solid #e9ecef;
-          }
-          
-          .detail-label {
-            font-weight: 600;
-            color: #495057;
-          }
-          
-          .detail-value {
-            color: #007bff;
-            font-weight: 500;
-          }
-          
-          .payments-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin: 15px 0;
-            background: white;
-            border-radius: 4px;
-            overflow: hidden;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-          }
-          
-          .payments-table th { 
-            background: #007bff; 
-            color: white;
-            padding: 8px 6px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-          }
-          
-          .payments-table td { 
-            border-bottom: 1px solid #e9ecef; 
-            padding: 6px; 
-            font-size: 11px;
-          }
-          
-          .payments-table tbody tr:hover {
-            background-color: #f8f9fa;
-          }
-          
-          .payments-table tbody tr:last-child td {
-            border-bottom: none;
-          }
-          
-          .no-payments {
-            text-align: center;
-            color: #6c757d;
-            font-style: italic;
-            padding: 15px;
-          }
-          
-          .summary { 
-            margin-top: 15px;
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 4px;
-            border: 1px solid #e9ecef;
-          }
-          
-          .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          
-          .summary-table td { 
-            padding: 5px 0;
-            border: none;
-            font-size: 12px;
-          }
-          
-          .summary-table .label {
-            font-weight: 600;
-            color: #495057;
-            width: 60%;
-          }
-          
-          .summary-table .value {
-            text-align: right;
-            font-weight: 600;
-            color: #007bff;
-          }
-          
-          .summary-table .total-row {
-            border-top: 2px solid #007bff;
-            padding-top: 8px;
-          }
-          
-          .summary-table .total-row td {
-            font-size: 14px;
-            font-weight: bold;
-            color: #007bff;
-            padding-top: 8px;
-          }
-          
-          .footer { 
-            margin-top: 20px; 
-            text-align: center; 
-            font-size: 10px; 
-            color: #6c757d;
-            border-top: 1px solid #e9ecef;
-            padding-top: 10px;
-          }
-          
-          .print-button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            margin: 10px 0;
-            transition: background-color 0.3s;
-          }
-          
-          .print-button:hover {
-            background: #0056b3;
-          }
-          
-          @media (max-width: 600px) {
-            .header {
-              flex-direction: column;
-              gap: 20px;
-            }
-            
-            .receipt-info {
-              text-align: left;
-            }
-            
-            .student-details {
-              grid-template-columns: 1fr;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="receipt-container">
-          <div class="header">
-            <div class="school-header">
-              ${logoBase64 ? `
-                <div style="width: 90px; margin-right: 15px;">
-                  <img 
-                    src="${logoBase64}" 
-                    alt="Logo de l'école" 
-                    class="school-logo" 
-                    onerror="this.style.display='none'; console.error('Erreur chargement logo');" 
-                  />
-                </div>
-              ` : ''}
-              <div class="school-info">
-                <h1>${schoolInfo.name || 'École'}</h1>
-                <p><strong>Adresse:</strong> ${schoolInfo.address || 'Non renseignée'}</p>
-                <p><strong>Téléphone:</strong> ${schoolInfo.phone || 'Non renseigné'}</p>
-                <p><strong>Email:</strong> ${schoolInfo.email || 'Non renseigné'}</p>
-                ${schoolInfo.website ? `<p><strong>Site web:</strong> ${schoolInfo.website}</p>` : ''}
-                ${schoolInfo.director ? `<p><strong>Directeur:</strong> ${schoolInfo.director}</p>` : ''}
-              </div>
-            </div>
-            <div class="receipt-info">
-              <h2>Reçu de Paiement</h2>
-              <p><strong>N° Reçu:</strong> ${Date.now().toString().slice(-8)}</p>
-              <p><strong>Date:</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-              <p><strong>Heure:</strong> ${new Date().toLocaleTimeString('fr-FR')}</p>
-            </div>
-          </div>
-
-          <div class="student-section">
-            <h3>Informations de l'étudiant</h3>
-            <div class="student-details">
-              <div class="detail-item">
-                <span class="detail-label">Nom complet:</span>
-                <span class="detail-value">${student.firstname} ${student.lastname}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Matricule:</span>
-                <span class="detail-value">${student.matricule || 'N/A'}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Classe:</span>
-                <span class="detail-value">${student.grade?.name || 'N/A'}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Statut:</span>
-                <span class="detail-value">${getPaymentStatusLabel(student.id)}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Section de la grille de paiements mensuels -->
-          ${totalTuition > 0 ? `
-          <div class="monthly-payment-grid">
-            <h3>Suivi des Paiements Mensuels</h3>
-            <div class="months-grid">
-              ${generateMonthlyGrid(monthsPaid, monthlyAmount, customConfig)}
-            </div>
-            <div style="margin-top: 8px; font-size: 10px; color: #666;">
-              <strong>Montant mensuel:</strong> ${formatCurrency(monthlyAmount)} | 
-              <strong>Mois payés:</strong> ${monthsPaid} / ${customConfig?.monthlyConfig?.numberOfMonths || 10}
-            </div>
-          </div>
-          ` : ''}
-
-          <!-- Section des échéances de paiement (tranches personnalisées) si disponibles -->
-          ${customConfig && customConfig.paymentType === 'installments' && customConfig.installmentConfig ? `
-          <div class="payment-schedule-section">
-            <h3>Échéancier de Paiement - ${student.grade?.name}</h3>
-            <table class="schedule-table">
-              <thead>
-                <tr>
-                  <th>Tranche</th>
-                  <th>Mois</th>
-                  <th>Montant</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${customConfig.installmentConfig.installments.map((tranche: any, index: number) => {
-                  const amount = formatCurrency(tranche.amount);
-                  
-                  // Calculer le statut de paiement pour cette tranche
-                  const paidAmount = payments
-                    .filter((p: any) => p.paymentType === 'tuition')
-                    .reduce((sum: number, p: any) => sum + p.amount, 0);
-                  
-                  const tranchesTotal = customConfig.installmentConfig.installments
-                    .slice(0, index + 1)
-                    .reduce((sum: number, t: any) => sum + t.amount, 0);
-                  
-                  let status = 'Non payé';
-                  if (paidAmount >= tranchesTotal) status = 'Payé';
-                  else if (paidAmount > tranchesTotal - tranche.amount) status = 'Partiel';
-                  
-                  const monthNames = [
-                    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-                  ];
-                  const monthName = monthNames[tranche.month - 1] || `Mois ${tranche.month}`;
-                  
-                  return `
-                    <tr>
-                      <td>Tranche ${index + 1}</td>
-                      <td>${monthName}</td>
-                      <td>${amount}</td>
-                      <td class="status-${status.toLowerCase().replace(' ', '-')}">${status}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-          ` : ''}
-          
-          <!-- Section des tranches (ancienne méthode) si disponibles -->
-          ${(!customConfig || customConfig.paymentType !== 'installments') && trancheConfigResult.success && trancheConfigResult.data ? (() => {
-            const studentTranche = trancheConfigResult.data.find((config: any) => config.grade?.id === student.grade?.id);
-            if (studentTranche && studentTranche.tranches) {
-              return `
-              <div class="payment-schedule-section">
-                <h3>Échéancier de Paiement - ${student.grade?.name}</h3>
-                <table class="schedule-table">
-                  <thead>
-                    <tr>
-                      <th>Tranche</th>
-                      <th>Montant</th>
-                      <th>Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${studentTranche.tranches.map((tranche: any, index: number) => {
-                      const amount = formatCurrency(tranche.amount);
-                      const paidAmount = payments
-                        .filter((p: any) => p.paymentType === 'tuition')
-                        .reduce((sum: number, p: any) => sum + p.amount, 0);
-                      const tranchesTotal = studentTranche.tranches
-                        .slice(0, index + 1)
-                        .reduce((sum: number, t: any) => sum + t.amount, 0);
-                      
-                      let status = 'Non payé';
-                      if (paidAmount >= tranchesTotal) status = 'Payé';
-                      else if (paidAmount > tranchesTotal - tranche.amount) status = 'Partiel';
-                      
-                      return `
-                        <tr>
-                          <td>${tranche.name || tranche.tranchName || `Tranche ${index + 1}`}</td>
-                          <td>${amount}</td>
-                          <td class="status-${status.toLowerCase().replace(' ', '-')}">${status}</td>
-                        </tr>
-                      `;
-                    }).join('')}
-                  </tbody>
-                </table>
-              </div>
-              `;
-            }
-            return '';
-          })() : ''}
-          
-          <table class="payments-table">
-            <thead>
-              <tr>
-                <th>Date de paiement</th>
-                <th>Type de frais</th>
-                <th>Montant payé</th>
-                <th>Méthode de paiement</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${payments.length > 0 ? 
-                payments.map((p: any) => `
-                  <tr>
-                    <td>${new Date(p.created_at).toLocaleDateString('fr-FR')}</td>
-                    <td>${p.paymentType === 'inscription' ? "Frais d'inscription" : 'Frais de scolarité'}</td>
-                    <td>${formatCurrency(p.amount)}</td>
-                    <td>${p.paymentMethod || 'N/A'}</td>
-                  </tr>
-                `).join('') :
-                '<tr><td colspan="4" class="no-payments">Aucun paiement enregistré pour cet étudiant</td></tr>'
-              }
-            </tbody>
-          </table>
-
-          <div class="summary">
-            <h3 style="margin: 0 0 8px 0; color: #007bff; font-size: 14px;">Résumé Financier</h3>
-            <table class="summary-table">
-              <tr>
-                <td class="label">Frais d'inscription:</td>
-                <td class="value">${formatCurrency(paymentInfo?.inscriptionFeeDue || 0)}</td>
-              </tr>
-              <tr>
-                <td class="label">Payé (inscription):</td>
-                <td class="value">${formatCurrency(paymentInfo?.paidInscriptionFee || 0)}</td>
-              </tr>
-              <tr>
-                <td class="label">Frais de scolarité:</td>
-                <td class="value">${formatCurrency(paymentInfo?.adjustedTuitionFee || 0)}</td>
-              </tr>
-              <tr>
-                <td class="label">Payé (scolarité):</td>
-                <td class="value">${formatCurrency(paymentInfo?.paidTuition || 0)}</td>
-              </tr>
-              ${paymentInfo?.scholarshipAmount ? `
-              <tr>
-                <td class="label">Réduction bourse (${paymentInfo.scholarshipPercentage}%):</td>
-                <td class="value" style="color: #4caf50;">-${formatCurrency(paymentInfo.scholarshipAmount)}</td>
-              </tr>
-              ` : ''}
-              <tr style="border-top: 2px solid #007bff;">
-                <td class="label"><strong>Total des frais dus:</strong></td>
-                <td class="value"><strong>${formatCurrency(paymentInfo?.totalDue || 0)}</strong></td>
-              </tr>
-              <tr>
-                <td class="label"><strong>Total payé:</strong></td>
-                <td class="value" style="color: #4caf50;"><strong>${formatCurrency(paymentInfo?.totalPaid || 0)}</strong></td>
-              </tr>
-              <tr class="total-row">
-                <td class="label"><strong>Reste à payer:</strong></td>
-                <td class="value" style="color: ${(paymentInfo?.totalRemaining || 0) > 0 ? '#f44336' : '#4caf50'};"><strong>${formatCurrency(paymentInfo?.totalRemaining || 0)}</strong></td>
-              </tr>
-            </table>
-          </div>
-
-          <button class="print-button no-print" onclick="window.print()">
-            🖨️ Imprimer ce reçu
-          </button>
-
-          <div class="footer">
-            <p>Merci pour votre confiance • Document généré automatiquement le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // 3. Try different approaches for printing
-    try {
-      // Method 1: Try to open in new window
-      const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
-      
-      if (printWindow) {
-        printWindow.document.write(receiptHtml);
-        printWindow.document.close();
-        
-        // Wait for content to load
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-          }, 500);
-        };
-        
-        // Fallback if onload doesn't fire
-        setTimeout(() => {
-          if (printWindow && !printWindow.closed) {
-            printWindow.focus();
-            printWindow.print();
-          }
-        }, 1000);
-        
-        ElMessage.success('Fenêtre d\'impression ouverte');
-      } else {
-        // Method 2: Fallback - create blob and download
-        const blob = new Blob([receiptHtml], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `recu_${student.firstname}_${student.lastname}_${new Date().toISOString().slice(0,10)}.html`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
-        ElMessage.warning('Pop-up bloqué. Le reçu a été téléchargé en tant que fichier HTML.');
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'impression:', error);
-      ElMessage.error('Erreur lors de l\'ouverture de la fenêtre d\'impression.');
+    const [payRaw, schoolRaw] = await Promise.all([
+      invoke('payment:getByStudent', student.id).catch(() => null),
+      invoke('school:get').catch(() => null),
+    ]);
+    const payData = (unwrap(payRaw) ?? {}) as {
+      inscriptionFeeDue?: number; tuitionFeeDue?: number; adjustedTuitionFee?: number;
+      scholarshipAmount?: number; totalDue?: number; totalPaid?: number; totalRemaining?: number;
+      paidTuition?: number; paidInscriptionFee?: number; payments?: Array<{ amount?: number; created_at?: string; paymentType?: string }>;
+    };
+    const schoolInfo = ((unwrap(schoolRaw) ?? {}) as Record<string, unknown>) ?? {};
+    let logoBase64 = '';
+    const logoId = (schoolInfo.logo as { id?: number } | undefined)?.id;
+    if (logoId) {
+      try {
+        const logoRes = (unwrap(await invoke('school:getLogo', logoId).catch(() => null)) ?? {}) as { type?: string; content?: string };
+        if (logoRes.content) logoBase64 = `data:${logoRes.type ?? 'image/png'};base64,${logoRes.content}`;
+      } catch { /* logo optionnel */ }
     }
-
+    // Photo élève (optionnelle — même canal que StudentDetailsView).
+    let photoBase64 = '';
+    const photoId = ((student as unknown as { photo?: { id?: number; url?: string } }).photo)?.id;
+    const photoUrl = ((student as unknown as { photo?: { url?: string } }).photo)?.url;
+    if (photoUrl && photoUrl.startsWith('data:')) photoBase64 = photoUrl;
+    else if (photoId != null) {
+      try {
+        const pres = (unwrap(await invoke('getStudentPhoto', photoId).catch(() => null)) ?? {}) as { type?: string; content?: string };
+        if ((pres as { content?: string }).content) photoBase64 = `data:${pres.type ?? 'image/jpeg'};base64,${pres.content}`;
+      } catch { /* photo optionnelle */ }
+    }
+    // Détails élève (sexe, tél) — best effort.
+    let sexe = '—';
+    let telephone = '—';
+    try {
+      const det = (unwrap(await invoke('student:getDetails', Number(student.id)).catch(() => null)) ?? {}) as Record<string, unknown>;
+      const sx = String((det.sex ?? det.sexe ?? '') as string).toLowerCase();
+      if (['male', 'm', 'masculin'].includes(sx)) sexe = 'Masculin';
+      else if (['female', 'f', 'feminin', 'féminin'].includes(sx)) sexe = 'Féminin';
+      telephone = String((det.famillyPhone ?? det.personalPhone ?? '') as string) || '—';
+    } catch { /* optionnel */ }
+    const inscription = Number(payData.inscriptionFeeDue ?? 0);
+    const coutAnnuel = Number(payData.tuitionFeeDue ?? 0);
+    const rabais = Number(payData.scholarshipAmount ?? 0);
+    const net = Number(payData.totalDue ?? (inscription + Number(payData.adjustedTuitionFee ?? (coutAnnuel - rabais))));
+    const totalPaye = Number(payData.totalPaid ?? 0);
+    const solde = Number(payData.totalRemaining ?? Math.max(0, net - totalPaye));
+    const paidTuition = Number(payData.paidTuition ?? 0);
+    const monthly = buildCasyMonthlyGrid(coutAnnuel, paidTuition);
+    let tranches = buildCasyTranchesFallback(coutAnnuel, paidTuition);
+    try {
+      const trancheRaw = (unwrap(await invoke('tranche-config:all').catch(() => null)) ?? []) as Array<{ grade?: { id?: number }; tranches?: Array<{ name?: string; tranchName?: string; amount?: number }> }>;
+      const mine = Array.isArray(trancheRaw) ? trancheRaw.find((c) => Number(c?.grade?.id) === Number(student.grade?.id)) : undefined;
+      if (mine?.tranches?.length) {
+        tranches = markTranchesPaid(mine.tranches.map((t, i) => ({ nom: String(t?.name ?? t?.tranchName ?? `Tranche ${i + 1}`), montant: Number(t?.amount ?? 0) })), paidTuition);
+      }
+    } catch { /* tranches repli déjà calculées */ }
+    const fmt = (n: unknown): string => {
+      try { return formatCurrency(Number(n ?? 0)); } catch { return `${Number(n ?? 0)} ${currency.value}`; }
+    };
+    const now = new Date();
+    const numero = `R-${now.getFullYear()}-${String(student.id).padStart(4, '0')}-${Date.now().toString().slice(-4)}`;
+    const html = buildCasyReceiptHtml({
+      schoolName: String(schoolInfo.name ?? 'COMPLEXE SCOLAIRE'),
+      schoolTels: String(schoolInfo.phone ?? '—'),
+      schoolEmail: String(schoolInfo.email ?? '—'),
+      schoolYear: String((student.schoolYear ?? schoolInfo.schoolYear ?? '') || '—'),
+      logo: logoBase64 || undefined,
+      numero,
+      maskedRef: maskRef(''),
+      dateJJMMAAAA: now.toLocaleDateString('fr-FR'),
+      dateLettres: dateEnLettres(now.toISOString()),
+      matricule: String(student.matricule ?? '—'),
+      prenomsNom: `${student.firstname ?? ''} ${student.lastname ?? ''}`.trim() || '—',
+      sexe,
+      telephone,
+      classe: String(student.grade?.name ?? '—'),
+      motif: 'Scolarité',
+      mode: 'Espèces',
+      montantJour: fmt(totalPaye),
+      montantDigits: fmt(totalPaye),
+      montantLettres: amountInWordsFR(totalPaye, currency.value),
+      monthly,
+      monthlyCells: monthly.map((m) => fmt(m.montant)),
+      tranches,
+      trancheCells: tranches.map((t) => fmt(t.montant)),
+      annuel: fmt(coutAnnuel),
+      prochainPaiement: solde <= 0 ? 'Soldé' : formatJJMMAAAA(defaultEcheanceISO(now)),
+      totaux: { inscription: fmt(inscription), coutAnnuel: fmt(coutAnnuel), rabais: fmt(rabais), net: fmt(net), totalPaye: fmt(totalPaye), solde: fmt(solde) },
+      barcodeValue: numero,
+      caissier: '—',
+      photo: photoBase64 || undefined,
+    }, { title: `Reçu de paiement - ${student.firstname} ${student.lastname}` });
+    const opened = openCasyPrintWindow(html, `recu_${student.firstname}_${student.lastname}_${now.toISOString().slice(0, 10)}.html`);
+    if (opened) ElMessage.success("Fenêtre d'impression ouverte");
+    else ElMessage.warning('Pop-up bloquée. Le reçu a été téléchargé en tant que fichier HTML.');
   } catch (error) {
-    console.error('Erreur lors de la génération du reçu:', error);
+    console.error('Erreur lors de la génération du reçu CASY:', error);
     ElMessage.error('Erreur lors de la génération du reçu de paiement.');
   }
 };
+
+/** Compatibilité historique : l'ancien `printReceipt` pointait vers la maquette CASY factorisée. */
+const printReceipt = printReceiptCasy;
+void printReceipt;
 
 // La fonction generateMonthlyGrid est déjà définie dans printReceipt - suppression du doublon
 
@@ -1723,6 +1114,7 @@ onMounted(async () => {
     await loadPaymentConfigs();
     await loadTrancheConfigs();
     await loadGrades();
+    await loadSchoolYears();
     const yearResult = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (yearResult.success) {
       yearRepartition.value = yearResult.data;

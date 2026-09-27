@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import { Chart, registerables } from 'chart.js';
 import { useCurrency } from '@/composables/useCurrency';
 import { useRouter } from 'vue-router';
+import { useYearStore } from '@/stores/yearStore';
 
 const router = useRouter();
 
@@ -97,12 +98,21 @@ const navigateToProfessorPayments = () => {
 };
 
 // --- Logic ---
+// Verrou année scolaire : requêtes scopées sur l'année du menu (`YearSwitcher`).
+// Paie profs / absences restent civiles (mois de paie, dates planning) — non touchées.
 const loadDashboardStats = async () => {
+  let loginSchoolYear: string | undefined;
+  try {
+    loginSchoolYear = useYearStore().currentSchoolYear || undefined;
+  } catch {
+    loginSchoolYear = undefined;
+  }
+  const yearArg = loginSchoolYear ? { schoolYear: loginSchoolYear } : undefined;
   try {
     const results = await Promise.allSettled([
-      window.ipcRenderer.invoke('dashboard:stats'),
+      window.ipcRenderer.invoke('dashboard:stats', yearArg),
       window.ipcRenderer.invoke('school:get'),
-      window.ipcRenderer.invoke('dashboard:paymentStats'),
+      window.ipcRenderer.invoke('dashboard:paymentStats', yearArg),
       window.ipcRenderer.invoke('dashboard:professorPaymentStats'),
       window.ipcRenderer.invoke('dashboard:absenceStats'),
       window.ipcRenderer.invoke('professor:all')

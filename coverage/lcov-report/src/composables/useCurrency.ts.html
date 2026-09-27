@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">96.07% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>49/51</span>
+                <span class='fraction'>0/51</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">77.77% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>7/9</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/3</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">96.07% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>49/51</span>
+                <span class='fraction'>0/51</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -113,114 +113,114 @@
 <a name='L48'></a><a href='#L48'>48</a>
 <a name='L49'></a><a href='#L49'>49</a>
 <a name='L50'></a><a href='#L50'>50</a>
-<a name='L51'></a><a href='#L51'>51</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
+<a name='L51'></a><a href='#L51'>51</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span></td><td class="text"><pre class="prettyprint lang-js">import { ref, onMounted } from 'vue';
-import { formatCurrency as formatCurrencyUtil } from '@/components/util/currencyFormatter';
-&nbsp;
-const currency = ref('FCFA');
-const currencyCode = ref('XOF'); // Code ISO par défaut
-&nbsp;
-export function useCurrency() {
-  const loadCurrency = async () =&gt; {
-    try {
-      const schoolInfo = await window.ipcRenderer.invoke('school:get');
-      if (schoolInfo?.success &amp;&amp; schoolInfo.data?.country) {
-        // Déterminer la devise en fonction du pays
-        const currencyMap: { [key: string]: string } = {
-          'MAR': 'MAD',
-          'SEN': 'FCFA',
-          'CAF': 'FCFA',
-          'GIN': 'GNF'
-        };
-        
-        // Mapping vers les codes ISO pour les devises qui en ont
-        const isoMap: { [key: string]: string } = {
-          'MAR': 'MAD',
-          'SEN': 'XOF',  // Franc CFA BCEAO
-          'CAF': 'XAF',  // Franc CFA BEAC
-          'GIN': 'GNF'
-        };
-        
-        currency.value = currencyMap[schoolInfo.data.country<span class="branch-0 cbranch-no" title="branch not covered" >] || 'FCFA';</span>
-        currencyCode.value = isoMap[schoolInfo.data.country<span class="branch-0 cbranch-no" title="branch not covered" >] || 'XOF';</span>
-      }
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la devise:', error);
-    }
-  };
-&nbsp;
-  // Fonction de formatage qui utilise l'utilitaire
-  const formatCurrency = <span class="fstat-no" title="function not covered" >(value: number) =&gt; {</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { ref, onMounted } from 'vue';<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cstat-no" title="statement not covered" >import { formatCurrency as formatCurrencyUtil } from '@/components/util/currencyFormatter';</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >const currency = ref('FCFA');</span>
+<span class="cstat-no" title="statement not covered" >const currencyCode = ref('XOF'); // Code ISO par défaut</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export function useCurrency() {</span>
+<span class="cstat-no" title="statement not covered" >  const loadCurrency = async () =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    try {</span>
+<span class="cstat-no" title="statement not covered" >      const schoolInfo = await window.ipcRenderer.invoke('school:get');</span>
+<span class="cstat-no" title="statement not covered" >      if (schoolInfo?.success &amp;&amp; schoolInfo.data?.country) {</span>
+<span class="cstat-no" title="statement not covered" >        // Déterminer la devise en fonction du pays</span>
+<span class="cstat-no" title="statement not covered" >        const currencyMap: { [key: string]: string } = {</span>
+<span class="cstat-no" title="statement not covered" >          'MAR': 'MAD',</span>
+<span class="cstat-no" title="statement not covered" >          'SEN': 'FCFA',</span>
+<span class="cstat-no" title="statement not covered" >          'CAF': 'FCFA',</span>
+<span class="cstat-no" title="statement not covered" >          'GIN': 'GNF'</span>
+<span class="cstat-no" title="statement not covered" >        };</span>
+<span class="cstat-no" title="statement not covered" >        </span>
+<span class="cstat-no" title="statement not covered" >        // Mapping vers les codes ISO pour les devises qui en ont</span>
+<span class="cstat-no" title="statement not covered" >        const isoMap: { [key: string]: string } = {</span>
+<span class="cstat-no" title="statement not covered" >          'MAR': 'MAD',</span>
+<span class="cstat-no" title="statement not covered" >          'SEN': 'XOF',  // Franc CFA BCEAO</span>
+<span class="cstat-no" title="statement not covered" >          'CAF': 'XAF',  // Franc CFA BEAC</span>
+<span class="cstat-no" title="statement not covered" >          'GIN': 'GNF'</span>
+<span class="cstat-no" title="statement not covered" >        };</span>
+<span class="cstat-no" title="statement not covered" >        </span>
+<span class="cstat-no" title="statement not covered" >        currency.value = currencyMap[schoolInfo.data.country] || 'FCFA';</span>
+<span class="cstat-no" title="statement not covered" >        currencyCode.value = isoMap[schoolInfo.data.country] || 'XOF';</span>
+<span class="cstat-no" title="statement not covered" >      }</span>
+<span class="cstat-no" title="statement not covered" >    } catch (error) {</span>
+<span class="cstat-no" title="statement not covered" >      console.error('Erreur lors de la récupération de la devise:', error);</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // Fonction de formatage qui utilise l'utilitaire</span>
+<span class="cstat-no" title="statement not covered" >  const formatCurrency = (value: number) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    return formatCurrencyUtil(value, currency.value);</span>
 <span class="cstat-no" title="statement not covered" >  };</span>
-&nbsp;
-  onMounted(() =&gt; {
-    loadCurrency();
-  });
-&nbsp;
-  return {
-    currency,
-    currencyCode,
-    loadCurrency,
-    formatCurrency
-  };
-}</pre></td></tr></table></pre>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  onMounted(() =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    loadCurrency();</span>
+<span class="cstat-no" title="statement not covered" >  });</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  return {</span>
+<span class="cstat-no" title="statement not covered" >    currency,</span>
+<span class="cstat-no" title="statement not covered" >    currencyCode,</span>
+<span class="cstat-no" title="statement not covered" >    loadCurrency,</span>
+<span class="cstat-no" title="statement not covered" >    formatCurrency</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+<span class="cstat-no" title="statement not covered" >}</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:09.920Z
+                at 2026-09-13T14:37:13.270Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

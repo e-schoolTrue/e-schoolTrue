@@ -55,7 +55,7 @@
             </tr>
             <tr>
               <td>Contact parents:</td>
-              <td>{{ student?.famillyPhone }}</td>
+              <td>{{ contactPhone }}</td>
             </tr>
           </tbody>
         </table>
@@ -99,6 +99,11 @@ const cardStyle = computed(() => ({
 const currentYear = computed(() => {
   const now = new Date();
   return `${now.getFullYear()}-${now.getFullYear() + 1}`;
+});
+
+const contactPhone = computed(() => {
+  const v = String(props.student?.famillyPhone ?? '').trim() || String(props.student?.personalPhone ?? '').trim();
+  return v || '—';
 });
 
 const validUntil = computed(() => {

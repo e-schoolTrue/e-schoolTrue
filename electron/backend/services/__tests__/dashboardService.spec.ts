@@ -141,10 +141,11 @@ describe('DashboardService', () => {
     const result = await service.getRecentPayments(5)
 
     expect(result.success).toBe(true)
+    // Verrou année : sur-récupération (take élargi) puis filtre mémoire sur l'année du login.
     expect(mockPaymentRepo.find).toHaveBeenCalledWith({
       relations: ['student'],
       order: { created_at: 'DESC' },
-      take: 5,
+      take: 15,
     })
     expect(result.data).toHaveLength(5)
     expect(result.data[0]).toEqual(
@@ -395,11 +396,20 @@ describe('DashboardService', () => {
     expect(result.data.stats.recentAbsences).toHaveLength(1)
 
     // Verify parallel execution: all called
+    // Verrou année : `getStats` propage l'année du login (ici `undefined` = défaut serveur).
     expect((service as any).getTotalStudents).toHaveBeenCalled()
     expect((service as any).getTotalProfessors).toHaveBeenCalled()
     expect((service as any).getTotalClasses).toHaveBeenCalled()
-    expect((service as any).getRecentPayments).toHaveBeenCalledWith(5)
+    expect((service as any).getRecentPayments).toHaveBeenCalledWith(5, undefined)
     expect((service as any).getRecentAbsences).toHaveBeenCalledWith(5)
+  })
+
+  it('6a-bis. getTotalStudents scopé sur année explicite (verrou login)', async () => {
+    const scoped = new DashboardService()
+    const result = await scoped.getTotalStudents('2024-2025')
+    // Dépôt mocké vide → effectif scopé 0, sans casser la délégation sans paramètre.
+    expect(result.success).toBe(true)
+    expect(result.data).toBe(0)
   })
 
   it('6b. getStats handles partial null data gracefully', async () => {

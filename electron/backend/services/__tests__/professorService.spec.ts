@@ -624,7 +624,7 @@ describe('ProfessorService (unit, transactionalEntityManager InMemory)', () => {
     expect(result.success).toBe(true)
     const teaching: any = (result.data as any).teaching?.[0]
     expect(teaching.schoolType).toBe('SECONDARY')
-    expect(teaching.course).toEqual({ id: 1, name: 'Mathematiques' })
+    expect(teaching.course).toEqual({ id: 1, name: 'Mathematiques', coefficient: 4 })
     expect(teaching.grades).toHaveLength(3)
     expect(teaching.gradeIds).toBe('1,2,3')
     expect(teaching.gradeNames).toBe('CP, CE1, CE2')
@@ -666,7 +666,7 @@ describe('ProfessorService (unit, transactionalEntityManager InMemory)', () => {
 
     expect(result.success).toBe(true)
     const teaching: any = (result.data as any).teaching?.[0]
-    expect(teaching.course).toEqual({ id: 5, name: 'Histoire' })
+    expect(teaching.course).toEqual({ id: 5, name: 'Histoire', coefficient: 2 })
   })
 
   // -------------------------------------------------------------
@@ -718,7 +718,7 @@ describe('ProfessorService (unit, transactionalEntityManager InMemory)', () => {
     expect(updateRes.success).toBe(true)
     const teaching: any = (updateRes.data as any).teaching?.[0]
     // Must have course even without gradeIds
-    expect(teaching.course).toEqual({ id: 2, name: 'Francais' })
+    expect(teaching.course).toEqual({ id: 2, name: 'Francais', coefficient: 3 })
     // gradeIds may be undefined, but course persists
     expect(teachingStore.size).toBe(1)
   })
@@ -1120,7 +1120,7 @@ describe('ProfessorService (unit, transactionalEntityManager InMemory)', () => {
     const updateRes: any = await service.updateProfessor(id, {
       firstname: 'Jean',
       lastname: 'Dupont',
-      photo: { name: 'new-photo.jpg', type: 'image/jpeg', content: 'data:image/jpeg;base64,xyz' },
+      photo: { name: 'new-photo.jpg', type: 'image/jpeg', content: 'data:image/jpeg;base64,xyz', id:0 },
     })
 
     expect(updateRes.success).toBe(true)

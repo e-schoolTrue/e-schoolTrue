@@ -1,9 +1,8 @@
-import { 
-  BeforeInsert, Column, CreateDateColumn, DeleteDateColumn, 
-  Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, 
-  UpdateDateColumn 
+import {
+  Column, CreateDateColumn, DeleteDateColumn,
+  Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn,
+  UpdateDateColumn, Check
 } from "typeorm";
-import { v4 as uuidv4 } from "uuid";
 import { FileEntity } from "./file";
 
 export type CountryCode = 'MAR' | 'SEN' | 'CAF' | 'GIN';
@@ -42,6 +41,7 @@ export class SchoolSettingsEntity {
 }
 
 @Entity("school")
+@Check(`"country" IN ('MAR','SEN','CAF','GIN')`)
 export class SchoolEntity {
     @PrimaryGeneratedColumn()
     id?: number;

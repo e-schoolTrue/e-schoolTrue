@@ -1,20 +1,55 @@
 <script setup lang="ts">
 // @ts-nocheck
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Right } from '@element-plus/icons-vue' // J'ai ajouté l'icône Right
+import { User, Lock, Right, Calendar } from '@element-plus/icons-vue' // J'ai ajouté l'icône Right
 import { useRouter } from 'vue-router'
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
+import { useYearStore } from '@/stores/yearStore'
 
 const router = useRouter()
 const userStore = useUserStore()
+const yearStore = useYearStore()
 const loading = ref(false)
+const yearsLoading = ref(false)
 const loginForm = ref<FormInstance>()
 
 const formData = reactive({
   username: '',
-  password: ''
+  password: '',
+  /** Année choisie au login. `null` = aucune sélection (init serveur seule). */
+  yearId: null as number | null,
+})
+
+/** Années passées → courante, puis option de création N+1. */
+const yearOptions = computed(() => [...yearStore.list].sort((a, b) => a.schoolYear.localeCompare(b.schoolYear)))
+
+const nextYearLabel = computed(() => {
+  const last = yearOptions.value[yearOptions.value.length - 1]?.schoolYear
+  if (!last) {
+    const y = new Date().getFullYear()
+    return `${y}-${y + 1}`
+  }
+  return yearStore.nextSchoolYearLabel(last) ?? null
+})
+
+const loadYears = async () => {
+  yearsLoading.value = true
+  try {
+    const years = await yearStore.fetchList()
+    // Défaut : année `isCurrent`, sinon dernière.
+    const current = years.find((y) => y.isCurrent) ?? years[years.length - 1]
+    formData.yearId = current?.id ?? null
+  } catch {
+    formData.yearId = null
+  } finally {
+    yearsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadYears()
 })
 
 const rules = {
@@ -36,13 +71,29 @@ const handleLogin = async () => {
 
         loading.value = true;
         try {
+            // `yearId` transmis au backend (ignoré s'il ne le gère pas encore) ;
+            // la bascule validée serveur suit juste après via `year:switch`.
             const result = await window.ipcRenderer.invoke("auth:login", {
                 username: formData.username,
-                password: formData.password
+                password: formData.password,
+                yearId: formData.yearId,
             });
 
             if (result.success && result.data) {
+                // Chaînage plan V3 : user PUIS année.
                 userStore.setUser(result.data);
+                const chosen = yearStore.list.find((y) => y.id === formData.yearId) ?? null;
+                if (chosen?.id != null) {
+                    try {
+                        await yearStore.setActiveYear(chosen.id);
+                    } catch (switchErr) {
+                        console.warn('Bascule année post-login impossible, init serveur :', switchErr);
+                        await yearStore.init(null).catch(() => undefined);
+                    }
+                } else {
+                    // Aucune année choisie (null) : init depuis le serveur / le stock.
+                    await yearStore.init(null).catch(() => undefined);
+                }
                 ElMessage.success("Bienvenue !");
                 await router.replace('/');
             } else {
@@ -107,6 +158,30 @@ const handleLogin = async () => {
                 show-password
                 class="custom-input"
               />
+            </el-form-item>
+
+            <el-form-item prop="yearId">
+              <el-select
+                v-model="formData.yearId"
+                placeholder="Année scolaire (optionnel)"
+                :prefix-icon="Calendar"
+                :loading="yearsLoading"
+                clearable
+                class="custom-input year-select"
+              >
+                <el-option
+                  v-for="y in yearOptions"
+                  :key="y.id"
+                  :value="y.id"
+                  :label="`${y.schoolYear}${y.isCurrent ? ' (en cours)' : ''}${y.status === 'closed' ? ' — clôturée' : ''}`"
+                />
+                <el-option
+                  v-if="nextYearLabel && !yearOptions.some((y) => y.schoolYear === nextYearLabel)"
+                  :value="null"
+                  :label="`${nextYearLabel} (sera créée automatiquement)`"
+                  disabled
+                />
+              </el-select>
             </el-form-item>
 
             <div class="forgot-password">
@@ -279,6 +354,14 @@ const handleLogin = async () => {
   justify-content: flex-end;
   margin-bottom: 24px;
   margin-top: -10px;
+}
+
+/* Le select année occupe toute la largeur comme les inputs */
+.year-select {
+  width: 100%;
+}
+.year-select :deep(.el-input__wrapper) {
+  width: 100%;
 }
 
 /* Bouton sombre pour contraster avec le fond rouge/orange */

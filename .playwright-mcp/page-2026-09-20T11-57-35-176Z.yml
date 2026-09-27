@@ -1,0 +1,26 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - menubar [ref=e6]:
+      - menuitem "Dashboard" [ref=e7] [cursor=pointer]
+      - menuitem "Gestion des Elèves" [ref=e8]
+      - menuitem "Gestion des Professeurs" [ref=e19]
+      - menuitem "Comptabilité" [ref=e30]
+      - menuitem "Gestion des Plannings" [ref=e41]
+      - menuitem "Outils" [ref=e80]
+      - menuitem "Administration" [ref=e125]
+      - menuitem [ref=e136]:
+        - generic [ref=e137] [cursor=pointer]
+    - button "Menu utilisateur" [ref=e143] [cursor=pointer]:
+      - generic [ref=e144]: O
+      - generic [ref=e145]: oumar
+  - generic [ref=e150]:
+    - generic [ref=e151]:
+      - generic [ref=e157]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=e158]
+        - paragraph [ref=e159]: v1.0.1
+      - button "×" [ref=e160] [cursor=pointer]
+    - generic [ref=e161]:
+      - paragraph [ref=e162]: La version 1.0.1 est prête à être installée.
+      - generic [ref=e163]:
+        - button "Redémarrer maintenant" [ref=e164] [cursor=pointer]
+        - button "Plus tard" [ref=e166] [cursor=pointer]

@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/2092</span>
+                <span class='fraction'>0/2090</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/2092</span>
+                <span class='fraction'>0/2090</span>
             </div>
         
             
@@ -2152,11 +2152,7 @@
 <a name='L2087'></a><a href='#L2087'>2087</a>
 <a name='L2088'></a><a href='#L2088'>2088</a>
 <a name='L2089'></a><a href='#L2089'>2089</a>
-<a name='L2090'></a><a href='#L2090'>2090</a>
-<a name='L2091'></a><a href='#L2091'>2091</a>
-<a name='L2092'></a><a href='#L2092'>2092</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<a name='L2090'></a><a href='#L2090'>2090</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -4624,6 +4620,7 @@
 <span class="cstat-no" title="statement not covered" >import autoTable from 'jspdf-autotable';</span>
 <span class="cstat-no" title="statement not covered" >import { PaymentConfig } from '@/types/payment';</span>
 <span class="cstat-no" title="statement not covered" >import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';</span>
+<span class="cstat-no" title="statement not covered" >import { useCurrency } from '@/composables/useCurrency';</span>
 <span class="cstat-no" title="statement not covered" >import { PaymentAnnualConfig } from "@/types/payment";</span>
 <span class="cstat-no" title="statement not covered" >import { YearRepartition } from "@/types/year";</span>
 <span class="cstat-no" title="statement not covered" ></span>
@@ -4689,6 +4686,8 @@
 <span class="cstat-no" title="statement not covered" >  grade: undefined,</span>
 <span class="cstat-no" title="statement not covered" >  paymentStatus: undefined</span>
 <span class="cstat-no" title="statement not covered" >});</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >const { formatCurrency, currency } = useCurrency();</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >const loadPaymentConfigs = async () =&gt; {</span>
@@ -4786,9 +4785,11 @@
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    });</span>
 <span class="cstat-no" title="statement not covered" >    </span>
-<span class="cstat-no" title="statement not covered" >    if (result.success &amp;&amp; result.data) {</span>
-<span class="cstat-no" title="statement not covered" >      students.value = result.data.students;</span>
-<span class="cstat-no" title="statement not covered" >      totalStudents.value = result.data.total;</span>
+<span class="cstat-no" title="statement not covered" >    // P0 FIX: tolerant to both array and {students,total} shapes</span>
+<span class="cstat-no" title="statement not covered" >    if (result.success !== false &amp;&amp; result.data !== undefined &amp;&amp; result.data !== null) {</span>
+<span class="cstat-no" title="statement not covered" >      const payload = Array.isArray(result.data) ? { students: result.data, total: result.data.length } : result.data;</span>
+<span class="cstat-no" title="statement not covered" >      students.value = payload.students ?? [];</span>
+<span class="cstat-no" title="statement not covered" >      totalStudents.value = payload.total ?? payload.students?.length ?? 0;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >      for (const student of students.value) {</span>
 <span class="cstat-no" title="statement not covered" >        await loadStudentPayments(student.id);</span>
@@ -4880,12 +4881,13 @@
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    });</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    if (!result.success || !result.data) {</span>
+<span class="cstat-no" title="statement not covered" >    // P0 FIX: tolerant to both shapes</span>
+<span class="cstat-no" title="statement not covered" >    if (result.success === false || result.data === undefined || result.data === null) {</span>
 <span class="cstat-no" title="statement not covered" >      ElMessage.error("Erreur lors de la récupération des données à exporter.");</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    let allStudents: Student[] = result.data.students;</span>
+<span class="cstat-no" title="statement not covered" >    let allStudents: Student[] = Array.isArray(result.data) ? result.data : (result.data.students ?? []);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    // 2. Fetch payment info for all students</span>
 <span class="cstat-no" title="statement not covered" >    await Promise.all(allStudents.map((s: Student) =&gt; loadStudentPayments(s.id)));</span>
@@ -5739,15 +5741,6 @@
 <span class="cstat-no" title="statement not covered" >  }</span>
 <span class="cstat-no" title="statement not covered" >};</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >const formatCurrency = (amount: number) =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >  return new Intl.NumberFormat('fr-FR', { </span>
-<span class="cstat-no" title="statement not covered" >    style: 'currency', </span>
-<span class="cstat-no" title="statement not covered" >    currency: 'XOF',</span>
-<span class="cstat-no" title="statement not covered" >    minimumFractionDigits: 0,</span>
-<span class="cstat-no" title="statement not covered" >    maximumFractionDigits: 0</span>
-<span class="cstat-no" title="statement not covered" >  }).format(amount);</span>
-<span class="cstat-no" title="statement not covered" >};</span>
-<span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >// La fonction generateMonthlyGrid est déjà définie dans printReceipt - suppression du doublon</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >const exportToPdf = async () =&gt; {</span>
@@ -5763,12 +5756,13 @@
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    });</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    if (!result.success || !result.data) {</span>
+<span class="cstat-no" title="statement not covered" >    // P0 FIX: tolerant to both shapes</span>
+<span class="cstat-no" title="statement not covered" >    if (result.success === false || result.data === undefined || result.data === null) {</span>
 <span class="cstat-no" title="statement not covered" >      ElMessage.error("Erreur lors de la récupération des données à exporter.");</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    let allStudents: Student[] = result.data.students;</span>
+<span class="cstat-no" title="statement not covered" >    let allStudents: Student[] = Array.isArray(result.data) ? result.data : (result.data.students ?? []);</span>
 <span class="cstat-no" title="statement not covered" >    await Promise.all(allStudents.map((s: Student) =&gt; loadStudentPayments(s.id)));</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >    // Calculer les dates d'échéance</span>
@@ -5924,7 +5918,7 @@
 <span class="cstat-no" title="statement not covered" >const formatCurrencySimple = (amount: number): string =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  // Utiliser une approche simple pour éviter les problèmes d'encodage dans le PDF</span>
 <span class="cstat-no" title="statement not covered" >  const formattedAmount = amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');</span>
-<span class="cstat-no" title="statement not covered" >  return formattedAmount + ' FCFA';</span>
+<span class="cstat-no" title="statement not covered" >  return `${formattedAmount} ${currency.value}`;</span>
 <span class="cstat-no" title="statement not covered" >};</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" ></span>
@@ -6343,7 +6337,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:10.196Z
+                at 2026-09-13T14:37:13.771Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

@@ -5,6 +5,20 @@ import { PaymentConfig, PaymentConfigCreateInput, CustomPaymentConfig, PaymentSc
 import { useCurrency } from '@/composables/useCurrency';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { Delete, Plus, Calendar, Money, Setting } from '@element-plus/icons-vue';
+import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError, openGuardedForm } from '@/composables/useAccountingGuard';
+import { strictInvoke } from '@/utils/ipc';
+
+/** Garde STRICT avant chaque écriture compta : modale systématique (mot de passe de connexion). */
+async function guardAccountingWrite(): Promise<void> {
+  try {
+    await ensureUnlock({ force: true, fresh: true });
+  } catch (guardErr) {
+    if (isNoSecretError(guardErr)) {
+      ElMessage.warning(mapAccountingError(guardErr));
+    }
+    throw guardErr;
+  }
+}
 
 // Assuming Grade has at least id and name
 interface Grade {
@@ -100,7 +114,19 @@ const totalCustomScheduleAmount = computed(() => {
 });
 
 
+/** Garde d'OUVERTURE générique : popup AVANT d'afficher le formulaire cible. */
+async function guardOpen(openFn: () => void): Promise<void> {
+  try {
+    await openGuardedForm(openFn);
+  } catch (err) {
+    if (isNoSecretError(err)) {
+      ElMessage.warning(mapAccountingError(err));
+    }
+  }
+}
+
 const openCustomConfigModal = () => {
+  void guardOpen(() => {
   currentCustomConfig.value = {
     gradeId: 0,
     name: '',
@@ -127,6 +153,7 @@ const openCustomConfigModal = () => {
   };
   selectedGradeForCustom.value = '';
   showCustomConfigModal.value = true;
+  });
 };
 
 const updateMonthlyConfig = () => {
@@ -227,19 +254,23 @@ const modalTitle = computed(() =>
 );
 
 const openCreateModal = () => {
+  void guardOpen(() => {
   if (paymentConfigs.value.length === 0) {
     ElMessage.warning("Aucune classe n'est disponible pour configuration");
     return;
   }
-  
+
   const nonConfigured = paymentConfigs.value.find(c => c.annualAmount === 0);
   currentPaymentConfig.value = nonConfigured ? { ...nonConfigured } : { ...paymentConfigs.value[0] };
   showModal.value = true;
+  });
 };
 
 const editPaymentConfiguration = (config: PaymentConfig) => {
+  void guardOpen(() => {
   currentPaymentConfig.value = { ...config };
   showModal.value = true;
+  });
 };
 
 
@@ -278,15 +309,22 @@ const savePaymentConfiguration = async () => {
       scholarshipCriteria: String(currentPaymentConfig.value.scholarshipCriteria || '')
     };
 
-    const result = await window.ipcRenderer.invoke('payment:saveConfig', configData);
-
-    if (result.success) {
-      ElMessage.success('Configuration sauvegardée avec succès');
-      await loadConfigurations();
-      showModal.value = false;
-    } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde');
+    await guardAccountingWrite();
+    try {
+      await strictInvoke('payment:saveConfig', configData);
+    } catch (ipcErr) {
+      if (isNoSecretError(ipcErr)) {
+        ElMessage.warning(mapAccountingError(ipcErr));
+        throw ipcErr;
+      }
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      await strictInvoke('payment:saveConfig', configData);
     }
+
+    ElMessage.success('Configuration sauvegardée avec succès');
+    await loadConfigurations();
+    showModal.value = false;
   } catch (error) {
     console.error('Erreur lors de la sauvegarde:', error);
     ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
@@ -333,16 +371,23 @@ const saveCustomPaymentConfig = async () => {
     
     // Nettoyer l'objet pour l'envoi via IPC
     const configToSave = serializeForIPC(currentCustomConfig.value);
-    
-    const result = await window.ipcRenderer.invoke('payment:saveCustomConfig', configToSave);
 
-    if (result.success) {
-      ElMessage.success('Configuration personnalisée sauvegardée avec succès');
-      showCustomConfigModal.value = false;
-      await loadCustomConfigs();
-    } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde');
+    await guardAccountingWrite();
+    try {
+      await strictInvoke('payment:saveCustomConfig', configToSave);
+    } catch (ipcErr) {
+      if (isNoSecretError(ipcErr)) {
+        ElMessage.warning(mapAccountingError(ipcErr));
+        throw ipcErr;
+      }
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      await strictInvoke('payment:saveCustomConfig', configToSave);
     }
+
+    ElMessage.success('Configuration personnalisée sauvegardée avec succès');
+    showCustomConfigModal.value = false;
+    await loadCustomConfigs();
   } catch (error) {
     console.error('Erreur lors de la sauvegarde:', error);
     ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde');
@@ -354,16 +399,25 @@ const saveCustomPaymentConfig = async () => {
 
 const loadCustomConfigs = async () => {
   try {
-    const result = await window.ipcRenderer.invoke('payment:getCustomConfigs');
-    if (result.success) {
-      customPaymentConfigs.value = result.data || [];
-    }
+    const data = await strictInvoke<CustomPaymentConfig[]>('payment:getCustomConfigs');
+    customPaymentConfigs.value = Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Erreur lors du chargement des configurations personnalisées:', error);
   }
 };
 
 const editCustomConfig = async (config: CustomPaymentConfig) => {
+  // Garde d'OUVERTURE « Modifier » : popup AVANT l'ouverture du dialogue.
+  let opened = false;
+  try {
+    opened = await openGuardedForm(async () => undefined);
+  } catch (err) {
+    if (isNoSecretError(err)) {
+      ElMessage.warning(mapAccountingError(err));
+    }
+    return;
+  }
+  if (!opened) return;
   // Convertir les dates strings en objets Date pour l'édition
   const configWithDates = {
     ...config,
@@ -381,6 +435,17 @@ const editCustomConfig = async (config: CustomPaymentConfig) => {
 
 const deleteCustomConfig = async (config: CustomPaymentConfig) => {
   try {
+    // Garde d'OUVERTURE AVANT la confirmation de suppression (double garde au submit conservée).
+    let opened = false;
+    try {
+      opened = await openGuardedForm(async () => undefined);
+    } catch (guardErr) {
+      if (isNoSecretError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+      }
+      return;
+    }
+    if (!opened) return;
     await ElMessageBox.confirm(
       `Êtes-vous sûr de vouloir supprimer la configuration "${config.name}" ?`,
       'Confirmation',
@@ -391,13 +456,20 @@ const deleteCustomConfig = async (config: CustomPaymentConfig) => {
       }
     );
 
-    const result = await window.ipcRenderer.invoke('payment:deleteCustomConfig', config.id);
-    if (result.success) {
-      ElMessage.success('Configuration supprimée avec succès');
-      await loadCustomConfigs();
-    } else {
-      throw new Error(result.message || 'Erreur lors de la suppression');
+    await guardAccountingWrite();
+    try {
+      await strictInvoke('payment:deleteCustomConfig', config.id);
+    } catch (ipcErr) {
+      if (isNoSecretError(ipcErr)) {
+        ElMessage.warning(mapAccountingError(ipcErr));
+        throw ipcErr;
+      }
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      await strictInvoke('payment:deleteCustomConfig', config.id);
     }
+    ElMessage.success('Configuration supprimée avec succès');
+    await loadCustomConfigs();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Erreur lors de la suppression:', error);
@@ -409,17 +481,17 @@ const deleteCustomConfig = async (config: CustomPaymentConfig) => {
 const loadConfigurations = async () => {
   isLoading.value = true;
   try {
-    const [gradesResult, configsResult] = await Promise.all([
-      window.ipcRenderer.invoke('grade:all'),
-      window.ipcRenderer.invoke('payment:getConfigs')
+    const [gradesData, configsData] = await Promise.all([
+      strictInvoke<Array<{ id: string; name: string }>>('grade:all'),
+      strictInvoke<PaymentConfig[]>('payment:getConfigs').catch(() => [] as PaymentConfig[]),
     ]);
 
-    if (!gradesResult.success || !gradesResult.data) {
+    if (!gradesData || !gradesData.length) {
       throw new Error('Erreur lors du chargement des classes');
     }
 
-    grades.value = gradesResult.data;
-    const configs = configsResult.success ? configsResult.data : [];
+    grades.value = gradesData;
+    const configs = Array.isArray(configsData) ? configsData : [];
 
     paymentConfigs.value = grades.value.map((grade: { id: string; name: string; }) => {
       const config = configs.find((c: PaymentConfig) => String(c.classId) === String(grade.id));

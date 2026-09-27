@@ -1,0 +1,205 @@
+- generic [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - generic [ref=f3e5]:
+      - menubar [ref=f3e6]:
+        - menuitem "Dashboard" [ref=f3e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f3e8]
+        - menuitem "Gestion des Professeurs" [ref=f3e19]
+        - menuitem "Comptabilité" [ref=f3e30]
+        - menuitem "Gestion des Plannings" [ref=f3e41]
+        - menuitem "Outils" [ref=f3e80]
+        - menuitem "Administration" [ref=f3e125]
+        - menuitem [ref=f3e136]:
+          - generic [ref=f3e137] [cursor=pointer]
+      - button "Menu utilisateur" [ref=f3e143] [cursor=pointer]:
+        - generic [ref=f3e144]: O
+        - generic [ref=f3e145]: oumar
+    - generic [ref=f3e565]:
+      - generic [ref=f3e566]:
+        - generic [ref=f3e567]:
+          - heading "Paiement élèves" [level=1] [ref=f3e568]
+          - paragraph [ref=f3e569]: Recherche Nom / matricule / téléphone — 100% dynamique, zéro mock.
+        - button "Tableau de bord" [ref=f3e570] [cursor=pointer]
+      - generic [ref=f3e573]:
+        - generic [ref=f3e574]:
+          - textbox "Nom, matricule, téléphone…" [ref=f3e581]: Oumar
+          - button "Rechercher" [ref=f3e582] [cursor=pointer]
+        - generic [ref=f3e590]:
+          - table [ref=f3e592]:
+            - rowgroup [ref=f3e597]:
+              - row [ref=f3e598]:
+                - columnheader "Élève" [ref=f3e599]
+                - columnheader "Téléphone" [ref=f3e601]
+                - columnheader "Actions" [ref=f3e603]
+          - table [ref=f3e609]:
+            - rowgroup [ref=f3e614]:
+              - row [ref=f3e615]:
+                - cell "Oumar Diane E-S264234 — SixiemeA" [ref=f3e616]:
+                  - generic [ref=f3e617]:
+                    - strong [ref=f3e618]: Oumar Diane
+                    - generic [ref=f3e619]: E-S264234 — SixiemeA
+                - cell [ref=f3e620]
+                - cell [ref=f3e621]:
+                  - button "Sélectionner" [active] [ref=f3e623] [cursor=pointer]
+      - generic [ref=f3e626]:
+        - generic [ref=f3e627]:
+          - strong [ref=f3e629]: Carte élève
+          - generic [ref=f3e631]:
+            - generic [ref=f3e632]: OD
+            - generic [ref=f3e633]:
+              - heading "Oumar Diane" [level=3] [ref=f3e634]
+              - paragraph [ref=f3e635]:
+                - strong [ref=f3e636]: "Matricule :"
+                - text: E-S264234
+              - paragraph [ref=f3e637]:
+                - strong [ref=f3e638]: "Classe :"
+                - text: SixiemeA
+              - paragraph [ref=f3e639]:
+                - strong [ref=f3e640]: "Parent :"
+                - text: —
+              - paragraph [ref=f3e641]:
+                - strong [ref=f3e642]: "Téléphone :"
+              - paragraph [ref=f3e643]:
+                - strong [ref=f3e644]: "Inscrit :"
+                - text: 21/08/2026
+              - paragraph [ref=f3e645]:
+                - strong [ref=f3e646]: "Statut :"
+                - generic [ref=f3e647]: Partiel
+        - generic [ref=f3e649]:
+          - strong [ref=f3e651]: Situation financière
+          - generic [ref=f3e654]:
+            - table [ref=f3e656]:
+              - rowgroup [ref=f3e664]:
+                - row [ref=f3e665]:
+                  - columnheader "Nature" [ref=f3e666]
+                  - columnheader "Montant (GNF)" [ref=f3e668]
+                  - columnheader "Payé" [ref=f3e670]
+                  - columnheader "Reste" [ref=f3e672]
+                  - columnheader "Échéance" [ref=f3e674]
+                  - columnheader "Statut" [ref=f3e676]
+            - table [ref=f3e682]:
+              - rowgroup [ref=f3e690]:
+                - row [ref=f3e691]:
+                  - cell "Inscription" [ref=f3e692]
+                  - cell "180 000 GNF" [ref=f3e694]
+                  - cell "100 000 GNF" [ref=f3e696]
+                  - cell [ref=f3e698]:
+                    - strong [ref=f3e700]: 80 000 GNF
+                  - cell "—" [ref=f3e701]
+                  - cell "Partiel" [ref=f3e703]
+                - row [ref=f3e707]:
+                  - cell "Réinscription" [ref=f3e708]
+                  - cell "180 000 GNF" [ref=f3e710]
+                  - cell "0 GNF" [ref=f3e712]
+                  - cell [ref=f3e714]:
+                    - strong [ref=f3e716]: 180 000 GNF
+                  - cell "—" [ref=f3e717]
+                  - cell "Non payé" [ref=f3e719]
+                - row [ref=f3e723]:
+                  - cell "Scolarité — Tranche 1" [ref=f3e724]
+                  - cell "180 000 GNF" [ref=f3e726]
+                  - cell "0 GNF" [ref=f3e728]
+                  - cell [ref=f3e730]:
+                    - strong [ref=f3e732]: 180 000 GNF
+                  - cell "—" [ref=f3e733]
+                  - cell "Non payé" [ref=f3e735]
+                - row [ref=f3e739]:
+                  - cell "Scolarité — Tranche 2" [ref=f3e740]
+                  - cell "180 000 GNF" [ref=f3e742]
+                  - cell "0 GNF" [ref=f3e744]
+                  - cell [ref=f3e746]:
+                    - strong [ref=f3e748]: 180 000 GNF
+                  - cell "—" [ref=f3e749]
+                  - cell "Non payé" [ref=f3e751]
+                - row [ref=f3e755]:
+                  - cell "Scolarité — Tranche 3" [ref=f3e756]
+                  - cell "180 000 GNF" [ref=f3e758]
+                  - cell "0 GNF" [ref=f3e760]
+                  - cell [ref=f3e762]:
+                    - strong [ref=f3e764]: 180 000 GNF
+                  - cell "—" [ref=f3e765]
+                  - cell "Non payé" [ref=f3e767]
+        - generic [ref=f3e772]:
+          - strong [ref=f3e774]: Historique
+          - generic [ref=f3e777]:
+            - table [ref=f3e779]:
+              - rowgroup [ref=f3e787]:
+                - row [ref=f3e788]:
+                  - columnheader "Date" [ref=f3e789]
+                  - columnheader "Nature" [ref=f3e791]
+                  - columnheader "Montant (GNF)" [ref=f3e793]
+                  - columnheader "Mode" [ref=f3e795]
+                  - columnheader "Reçu" [ref=f3e797]
+                  - columnheader "Caissier" [ref=f3e799]
+            - table [ref=f3e805]:
+              - rowgroup [ref=f3e813]:
+                - row [ref=f3e814]:
+                  - cell "21/08/2026" [ref=f3e815]
+                  - cell "Inscription" [ref=f3e817]
+                  - cell "100 000 GNF" [ref=f3e819]
+                  - cell "Espèces" [ref=f3e821]
+                  - cell "R-1" [ref=f3e823]
+                  - cell "—" [ref=f3e825]
+      - generic [ref=f3e828]:
+        - strong [ref=f3e830]: Enregistrer un paiement — Oumar Diane
+        - generic [ref=f3e832]:
+          - generic [ref=f3e833]:
+            - generic [ref=f3e834]:
+              - generic [ref=f3e835]:
+                - generic [ref=f3e836]: Nature
+                - generic [ref=f3e839] [cursor=pointer]:
+                  - generic:
+                    - combobox "Nature" [ref=f3e841]
+                    - generic [ref=f3e842]: Scolarité — Tranche 1
+              - generic [ref=f3e847]:
+                - generic [ref=f3e848]: Montant (GNF)
+                - generic [ref=f3e850]:
+                  - button "Décrémenter" [ref=f3e851]
+                  - button "Incrémenter" [ref=f3e855] [cursor=pointer]
+                  - spinbutton "Montant (GNF)" [ref=f3e861]: "0"
+              - generic [ref=f3e862]:
+                - generic [ref=f3e863]: Remise
+                - generic [ref=f3e865]:
+                  - button "Décrémenter" [ref=f3e866]
+                  - button "Incrémenter" [ref=f3e870]
+                  - spinbutton "Remise" [ref=f3e876]: "0"
+              - generic [ref=f3e877]:
+                - generic [ref=f3e878]: Montant à payer
+                - textbox "Montant à payer" [disabled] [ref=f3e882]: 0 GNF
+            - generic [ref=f3e883]:
+              - generic [ref=f3e884]:
+                - generic [ref=f3e885]: Mode
+                - generic [ref=f3e888] [cursor=pointer]:
+                  - generic:
+                    - combobox "Mode" [ref=f3e890]
+                    - generic [ref=f3e891]: Espèces
+              - generic [ref=f3e896]:
+                - generic [ref=f3e897]: Date
+                - combobox "Date" [ref=f3e905]: 20/09/2026
+              - generic [ref=f3e906]:
+                - generic [ref=f3e907]: Référence
+                - textbox "Référence" [ref=f3e911]:
+                  - /placeholder: N° chèque, ID transaction…
+              - generic [ref=f3e912]:
+                - generic [ref=f3e913]: Observation
+                - textbox "Observation" [ref=f3e916]:
+                  - /placeholder: Observation optionnelle…
+          - paragraph [ref=f3e917]:
+            - text: "En lettres :"
+            - emphasis [ref=f3e918]: zéro franc guinéen
+          - generic [ref=f3e919]:
+            - button "Encaisser" [disabled] [ref=f3e920]
+            - button "Imprimer" [disabled] [ref=f3e922]
+            - button "PDF" [disabled] [ref=f3e924]
+            - button "Envoyer" [disabled] [ref=f3e926]
+  - generic [ref=f3e284]:
+    - generic [ref=f3e285]:
+      - generic [ref=f3e291]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f3e292]
+        - paragraph [ref=f3e293]: v1.0.1
+      - button "×" [ref=f3e294] [cursor=pointer]
+    - generic [ref=f3e295]:
+      - paragraph [ref=f3e296]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f3e297]:
+        - button "Redémarrer maintenant" [ref=f3e298] [cursor=pointer]
+        - button "Plus tard" [ref=f3e300] [cursor=pointer]

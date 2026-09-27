@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/520</span>
+                <span class='fraction'>0/531</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/520</span>
+                <span class='fraction'>0/531</span>
             </div>
         
             
@@ -582,7 +582,29 @@
 <a name='L517'></a><a href='#L517'>517</a>
 <a name='L518'></a><a href='#L518'>518</a>
 <a name='L519'></a><a href='#L519'>519</a>
-<a name='L520'></a><a href='#L520'>520</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L520'></a><a href='#L520'>520</a>
+<a name='L521'></a><a href='#L521'>521</a>
+<a name='L522'></a><a href='#L522'>522</a>
+<a name='L523'></a><a href='#L523'>523</a>
+<a name='L524'></a><a href='#L524'>524</a>
+<a name='L525'></a><a href='#L525'>525</a>
+<a name='L526'></a><a href='#L526'>526</a>
+<a name='L527'></a><a href='#L527'>527</a>
+<a name='L528'></a><a href='#L528'>528</a>
+<a name='L529'></a><a href='#L529'>529</a>
+<a name='L530'></a><a href='#L530'>530</a>
+<a name='L531'></a><a href='#L531'>531</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1290,17 +1312,28 @@
 <span class="cstat-no" title="statement not covered" >const getTeachingInfo = (teachings: Teaching[]) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  if (!teachings || teachings.length === 0) return 'Non assigné';</span>
 <span class="cstat-no" title="statement not covered" >  </span>
-<span class="cstat-no" title="statement not covered" >  const teaching = teachings[0];</span>
+<span class="cstat-no" title="statement not covered" >  const teaching: any = teachings[0];</span>
 <span class="cstat-no" title="statement not covered" >  console.log("Teaching data being processed:", teaching);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >  if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {</span>
 <span class="cstat-no" title="statement not covered" >    return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 <span class="cstat-no" title="statement not covered" >  </span>
-<span class="cstat-no" title="statement not covered" >  // Pour les enseignants du secondaire</span>
+<span class="cstat-no" title="statement not covered" >  // Pour les enseignants du secondaire - handles both string and array gradeIds with Number.isFinite guards (&gt;0)</span>
 <span class="cstat-no" title="statement not covered" >  if (teaching.schoolType === SCHOOL_TYPE.SECONDARY) {</span>
-<span class="cstat-no" title="statement not covered" >    const courseName = teaching.course?.name || 'Matière non assignée';</span>
-<span class="cstat-no" title="statement not covered" >    const gradeNames = teaching.grades?.map(grade =&gt; grade.name).join(', ') || 'Classes non assignées';</span>
+<span class="cstat-no" title="statement not covered" >    const baseCourseName = teaching.course?.name || 'Matière non assignée';</span>
+<span class="cstat-no" title="statement not covered" >    const rawType = (teaching as any).course?.type || teaching.grades?.[0]?.type || teaching.schoolType || '';</span>
+<span class="cstat-no" title="statement not covered" >    const typeLabel = rawType ? String(rawType).charAt(0).toUpperCase() + String(rawType).slice(1).toLowerCase() : '';</span>
+<span class="cstat-no" title="statement not covered" >    const coeff = (teaching.course as any)?.coefficient ?? (teaching as any).course?.coefficient ?? '';</span>
+<span class="cstat-no" title="statement not covered" >    const coeffStr = coeff !== '' &amp;&amp; coeff != null ? `, ${coeff}` : '';</span>
+<span class="cstat-no" title="statement not covered" >    const courseName = baseCourseName !== 'Matière non assignée' &amp;&amp; typeLabel ? `${baseCourseName} (${typeLabel}${coeffStr})` : baseCourseName;</span>
+<span class="cstat-no" title="statement not covered" >    const rawGradeIds: (number | string)[] = Array.isArray((teaching as any).gradeIds) ? (teaching as any).gradeIds : (typeof (teaching as any).gradeIds==='string' ? (teaching as any).gradeIds.split(',').filter(Boolean) : []);</span>
+<span class="cstat-no" title="statement not covered" >    const gradeIdsArr = rawGradeIds</span>
+<span class="cstat-no" title="statement not covered" >      .map((v: any) =&gt; Number(v))</span>
+<span class="cstat-no" title="statement not covered" >      .filter((n: number) =&gt; Number.isFinite(n) &amp;&amp; n &gt; 0);</span>
+<span class="cstat-no" title="statement not covered" >    // Prefer gradeNames, then grades relation, then gradeIds</span>
+<span class="cstat-no" title="statement not covered" >    const gradeNamesFromRelation = Array.isArray(teaching.grades) &amp;&amp; teaching.grades.length &gt; 0 ? teaching.grades.map((grade: any) =&gt; grade.name).join(', ') : '';</span>
+<span class="cstat-no" title="statement not covered" >    const gradeNames = teaching.gradeNames ? String(teaching.gradeNames) : (gradeNamesFromRelation || (gradeIdsArr.length &gt; 0 ? gradeIdsArr.join(', ') : 'Classes non assignées'));</span>
 <span class="cstat-no" title="statement not covered" >    return `Enseignant - ${courseName} (${gradeNames})`;</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 <span class="cstat-no" title="statement not covered" >  </span>
@@ -1627,7 +1660,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:09.920Z
+                at 2026-09-13T14:37:13.270Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

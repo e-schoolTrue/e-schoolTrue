@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index } from "typeorm";
 import { ScholarshipEntity } from "./scholarship";
 import { GradeEntity } from "./grade";
 
 @Entity("payment_configs")
+@Index("IDX_payment_configs_schoolYear", ["schoolYear"])
 export class PaymentConfigEntity {
     @PrimaryGeneratedColumn()
     id!: number;
@@ -16,13 +17,13 @@ export class PaymentConfigEntity {
     @Column({ type: "varchar", nullable: true })
     className?: string;
 
-    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     annualAmount!: number;
 
-    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     inscriptionFee!: number;
 
-    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     reInscriptionFee!: number;
 
     @Column("boolean", { default: false })
@@ -33,6 +34,9 @@ export class PaymentConfigEntity {
 
     @Column("text", { nullable: true })
     scholarshipCriteria?: string;
+
+    @Column({ type: "varchar", nullable: true })
+    schoolYear?: string;
 
     @OneToMany(() => ScholarshipEntity, scholarship => scholarship.config)
     scholarships!: ScholarshipEntity[];
@@ -45,7 +49,7 @@ export class InscriptionFeeEntity {
     id?: number;
     @Column({ type: "varchar", length: 36, nullable: true, unique: true })
     remote_id?: string;
-    @Column({ type: "decimal", precision: 10, scale: 2 })
+    @Column({ type: "decimal", precision: 14, scale: 2 })
     inscriptionFeeAmount?: number;
     @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
     @JoinColumn()
@@ -54,6 +58,7 @@ export class InscriptionFeeEntity {
 
 
 @Entity("payment_annual_config")
+@Index("IDX_payment_annual_config_schoolYear", ["schoolYear"])
 export class PaymentAnnualConfigEntity{
     @PrimaryGeneratedColumn()
     id?: number;
@@ -61,6 +66,8 @@ export class PaymentAnnualConfigEntity{
     remote_id?: string;
     @Column({ type: "numeric"})
     trancheCount?: number;
+    @Column({ type: "varchar", nullable: true })
+    schoolYear?: string;
     @OneToOne(() => GradeEntity, {onDelete: 'CASCADE'})
     @JoinColumn()
     grade?:GradeEntity
@@ -77,7 +84,7 @@ export class TranchConfigEntity {
     remote_id?: string;
     @Column({ type: "varchar"})
     tranchName?: string;
-    @Column({ type: "decimal", precision: 10, scale: 2, default: 0 })
+    @Column({ type: "decimal", precision: 14, scale: 2, default: 0 })
     amount!: number;
     @Column({ type: "integer", nullable: true })
     tranchMonthCount?: number;

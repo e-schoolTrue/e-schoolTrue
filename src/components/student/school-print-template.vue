@@ -14,7 +14,7 @@ const schoolInfo = ref<ISchoolData>({
   name: '',
   address: '',
   town: '',
-  country: 'SN',
+  country: 'SEN',
   phone: '',
   email: '',
   type: 'publique',

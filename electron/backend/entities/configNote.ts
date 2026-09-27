@@ -16,6 +16,7 @@ export enum CalculationStrategy {
  */
 @Entity("grading_config")
 @Index(["schoolId", "classId", "subjectId", "period"], { unique: true })
+@Index("IDX_grading_config_schoolYear", ["schoolYear"])
 export class GradingConfigEntity {
     @PrimaryGeneratedColumn()
     id: number;
@@ -49,6 +50,9 @@ export class GradingConfigEntity {
 
     @Column({ type: 'varchar', nullable: true })
     description: string | null; // Description optionnelle de cette config
+
+    @Column({ type: 'varchar', nullable: true })
+    schoolYear: string | null; // Année scolaire canonique YYYY-YYYY ; null = fallback lecture (toutes années)
 
     // Cascade pour sauvegarder les catégories en même temps
     @OneToMany(() => EvaluationCategoryEntity, (category) => category.config, {

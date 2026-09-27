@@ -1,0 +1,12 @@
+- generic [ref=e3]:
+  - generic [ref=e4]: "[plugin:vite:esbuild] The service is no longer running"
+  - generic [ref=e5]: /home/oumar/projects/e-schoolTrue/src/routes/accounting.ts
+  - generic [ref=e7]: at /home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:737:38 at sendRequest (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:618:36) at start (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:736:9) at Object.transform2 [as transform] (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:797:5) at /home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:2040:77 at new Promise (<anonymous>) at Object.transform (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:2040:36) at transform (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:1875:62) at transformWithEsbuild (file:///home/oumar/projects/e-schoolTrue/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:19232:26) at async TransformPluginContext.transform (file:///home/oumar/projects/e-schoolTrue/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:19297:24
+  - generic [ref=e8]:
+    - text: Click outside, press Esc key, or fix the code to dismiss.You can also disable this overlay by setting
+    - code [ref=e9]: server.hmr.overlay
+    - text: to
+    - code [ref=e10]: "false"
+    - text: in
+    - code [ref=e11]: vite.config.ts
+    - text: .

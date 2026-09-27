@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/315</span>
+                <span class='fraction'>0/323</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/315</span>
+                <span class='fraction'>0/323</span>
             </div>
         
             
@@ -377,7 +377,15 @@
 <a name='L312'></a><a href='#L312'>312</a>
 <a name='L313'></a><a href='#L313'>313</a>
 <a name='L314'></a><a href='#L314'>314</a>
-<a name='L315'></a><a href='#L315'>315</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a>
+<a name='L322'></a><a href='#L322'>322</a>
+<a name='L323'></a><a href='#L323'>323</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -691,7 +699,15 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >&lt;template&gt;<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >&lt;template&gt;</span></span></span>
 <span class="cstat-no" title="statement not covered" >  &lt;div class="configuration-wizard"&gt;</span>
 <span class="cstat-no" title="statement not covered" >    &lt;el-card class="wizard-card"&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;template #header&gt;</span>
@@ -775,9 +791,17 @@
 <span class="cstat-no" title="statement not covered" >        const response = await window.ipcRenderer.invoke('is-first-launch');</span>
 <span class="cstat-no" title="statement not covered" >        console.log('Réponse du serveur:', response);</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >        if (!response.success) {</span>
+<span class="cstat-no" title="statement not covered" >        // P0 FIX: backend now returns {success:true, data:boolean, error:null, message:''}</span>
+<span class="cstat-no" title="statement not covered" >        // Be tolerant: only treat as error when success === false explicitly.</span>
+<span class="cstat-no" title="statement not covered" >        if (response.success === false) {</span>
 <span class="cstat-no" title="statement not covered" >          console.error('Erreur lors de la vérification:', response.error);</span>
 <span class="cstat-no" title="statement not covered" >           ElMessage.error(`Erreur de vérification: ${response.error || 'Inconnue'}`);</span>
+<span class="cstat-no" title="statement not covered" >          return;</span>
+<span class="cstat-no" title="statement not covered" >        }</span>
+<span class="cstat-no" title="statement not covered" >        // Fallback for old IPC shape without success field: if data is undefined, treat as error</span>
+<span class="cstat-no" title="statement not covered" >        if (response.data === undefined) {</span>
+<span class="cstat-no" title="statement not covered" >          console.error('Erreur lors de la vérification: réponse sans data', response);</span>
+<span class="cstat-no" title="statement not covered" >          ElMessage.error(`Erreur de vérification: ${response.error || 'Réponse invalide'}`);</span>
 <span class="cstat-no" title="statement not covered" >          return;</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
 <span class="cstat-no" title="statement not covered" ></span>
@@ -793,7 +817,7 @@
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >  } catch (error: any) {</span>
 <span class="cstat-no" title="statement not covered" >    console.error('Erreur lors de la vérification du premier lancement:', error);</span>
-<span class="cstat-no" title="statement not covered" >     ElMessage.error(`Erreur critique: ${error.message || 'Impossible de vérifier le statut de lancement.'}`);</span>
+<span class="cstat-no" title="statement not covered" >    ElMessage.error(`Erreur critique: ${error.message || 'Impossible de vérifier le statut de lancement.'}`);</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >  }</span>
 <span class="cstat-no" title="statement not covered" >});</span>
@@ -1012,7 +1036,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:10.196Z
+                at 2026-09-13T14:37:13.771Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

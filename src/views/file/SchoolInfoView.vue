@@ -4,11 +4,11 @@ import { ElMessage } from 'element-plus'
 import { ISchoolData, ISchoolServiceParams } from '@/types/school'
 import { IFileUpload } from '@/types/file'
 
-// Constantes pour les pays
+// Constantes pour les pays — MAR:MAD, SEN:XOF, CAF:XAF, GIN:GNF (canonique backend).
 const countries = [
   { code: 'MAR', name: 'Maroc', currency: 'MAD' },
-  { code: 'SEN', name: 'Sénégal', currency: 'FCFA' },
-  { code: 'CAF', name: 'Centrafrique', currency: 'FCFA' },
+  { code: 'SEN', name: 'Sénégal', currency: 'XOF' },
+  { code: 'CAF', name: 'Centrafrique', currency: 'XAF' },
   { code: 'GIN', name: 'Guinée', currency: 'GNF' }
 ];
 
@@ -18,7 +18,7 @@ const initialSchoolInfo: ISchoolData = {
   name: '',
   address: '',
   town: '',
-  country: 'SN',
+  country: 'SEN',
   phone: '',
   email: '',
   type: 'publique',

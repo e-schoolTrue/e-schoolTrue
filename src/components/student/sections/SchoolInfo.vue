@@ -11,13 +11,8 @@
         />
       </el-select>
     </el-form-item>
-    <el-form-item label="Année Scolaire">
-      <el-input 
-        v-model="formData.schoolYear" 
-        placeholder="Année scolaire"
-        disabled
-      />
-    </el-form-item>
+    <!-- Année scolaire : AUCUNE UI — champ masqué, valeur auto = année du
+         `YearSwitcher` du menu (remplie dans `fetchCurrentSchoolYear`). -->
     <el-form-item label="Nouvel étudiant ?">
       <el-checkbox v-model="formData.isNew" label="Cochez si l'étudiant est nouveau" />
     </el-form-item>
@@ -27,6 +22,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { useYearStore } from '@/stores/yearStore';
 
 interface ClassItem {
   id: number;
@@ -58,6 +54,16 @@ const safeClasses = computed(() => {
 });
 
 const fetchCurrentSchoolYear = async () => {
+  // Verrou : valeur auto = année du menu (`YearSwitcher`), AUCUNE UI. Store d'abord, IPC en repli.
+  try {
+    const loginYear = useYearStore().currentSchoolYear;
+    if (loginYear) {
+      props.formData.schoolYear = loginYear;
+      return;
+    }
+  } catch {
+    /* Pinia indisponible : repli IPC */
+  }
   try {
     const result = await window.ipcRenderer.invoke("yearRepartition:getCurrent");
     if (result.success && result.data) {

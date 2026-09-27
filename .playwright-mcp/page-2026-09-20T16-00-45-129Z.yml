@@ -1,0 +1,54 @@
+- generic [ref=f23e3]:
+  - generic [ref=f23e5]:
+    - menubar [ref=f23e6]:
+      - menuitem "Dashboard" [ref=f23e7] [cursor=pointer]
+      - menuitem "Gestion des Elèves" [ref=f23e8]
+      - menuitem "Gestion des Professeurs" [ref=f23e18]
+      - menuitem "Comptabilité" [ref=f23e28]
+      - menuitem "Gestion des Plannings" [ref=f23e38]
+      - menuitem "Outils" [ref=f23e48]
+      - menuitem "Administration" [ref=f23e58]
+      - menuitem "Paramètres" [ref=f23e68]
+    - button "Menu utilisateur" [ref=f23e80] [cursor=pointer]:
+      - generic [ref=f23e81]: QA
+      - generic [ref=f23e82]: QA Admin
+  - generic [ref=f23e87]:
+    - generic [ref=f23e88]:
+      - generic [ref=f23e89]:
+        - heading "Dépenses" [level=1] [ref=f23e90]
+        - paragraph [ref=f23e91]: Saisie, justificatifs et historique des sorties.
+      - generic [ref=f23e92]: 0 F CFA
+    - generic [ref=f23e93]:
+      - generic [ref=f23e95]:
+        - strong [ref=f23e97]: Nouvelle dépense
+        - generic [ref=f23e99]:
+          - group "* Date" [ref=f23e100]:
+            - combobox [ref=f23e109]
+          - group "* Catégorie" [ref=f23e110]:
+            - combobox [ref=f23e116]
+          - group "* Libellé" [ref=f23e122]:
+            - 'textbox "Ex : Achat de craies" [ref=f23e127]': QA-TEST-999
+          - group "* Montant" [ref=f23e128]:
+            - generic [ref=f23e131]:
+              - button "Décrémenter" [ref=f23e132] [cursor=pointer]
+              - button "Incrémenter" [ref=f23e136] [cursor=pointer]
+              - spinbutton [ref=f23e142]: "9999"
+          - group "* Mode" [ref=f23e143]:
+            - combobox [ref=f23e149]
+          - group "Justificatif" [ref=f23e154]:
+            - generic [ref=f23e157]:
+              - button [ref=f23e158] [cursor=pointer]:
+                - button "Choisir un fichier" [ref=f23e159]
+              - list
+          - button "Enregistrer la dépense" [active] [ref=f23e163] [cursor=pointer]
+      - generic [ref=f23e166]:
+        - strong [ref=f23e168]: Historique
+        - generic [ref=f23e171]:
+          - generic:
+            - table:
+              - rowgroup:
+                - row
+          - generic [ref=f23e175]:
+            - table:
+              - rowgroup
+            - generic [ref=f23e176]: Aucune dépense

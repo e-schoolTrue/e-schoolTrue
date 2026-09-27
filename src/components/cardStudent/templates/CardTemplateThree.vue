@@ -66,7 +66,7 @@
           </div>
           <div class="info-item">
             <span class="info-label">Contact</span>
-            <span class="info-value">{{ student?.famillyPhone }}</span>
+            <span class="info-value">{{ contactPhone }}</span>
           </div>
         </div>
 
@@ -123,6 +123,11 @@ const isValidDataUrl = (url: string) => {
 const currentYear = computed(() => {
   const now = new Date();
   return `${now.getFullYear()}-${now.getFullYear() + 1}`;
+});
+
+const contactPhone = computed(() => {
+  const v = String(props.student?.famillyPhone ?? '').trim() || String(props.student?.personalPhone ?? '').trim();
+  return v || '—';
 });
 
 const validUntil = computed(() => {

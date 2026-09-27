@@ -129,6 +129,22 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="Professeur" required>
+          <el-select
+            v-model="form.professorId"
+            placeholder="Sélectionner un professeur"
+            filterable
+            :loading="professorsLoading"
+          >
+            <el-option
+              v-for="prof in professors"
+              :key="prof.id"
+              :label="`${prof.firstname} ${prof.lastname}`"
+              :value="prof.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="Description" required>
           <el-input
             v-model="form.description"
@@ -203,6 +219,7 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
+import { useUserStore } from '@/stores/userStore';
 
 interface Grade {
   id: number;
@@ -221,10 +238,18 @@ interface Homework {
   course: Course;
   grade: Grade;
   professor: {
+    id?: number;
     firstname: string;
     lastname: string;
   };
+  professorId?: number;
   isCompleted: boolean;
+}
+
+interface Professor {
+  id: number;
+  firstname: string;
+  lastname: string;
 }
 
 // États
@@ -233,6 +258,8 @@ const dialogVisible = ref(false);
 const isEditing = ref(false);
 const grades = ref<Grade[]>([]);
 const courses = ref<Course[]>([]);
+const professors = ref<Professor[]>([]);
+const professorsLoading = ref(false);
 const homework = ref<Homework[]>([]);
 const selectedGrade = ref<number | null>(null);
 const selectedCourse = ref<number | null>(null);
@@ -248,6 +275,7 @@ const selectedHomework = ref<Homework | null>(null);
 const form = ref({
   gradeId: null as number | null,
   courseId: null as number | null,
+  professorId: null as number | null,
   description: '',
   dueDate: null as string | null
 });
@@ -279,41 +307,152 @@ const loadHomework = async () => {
   }
 };
 
-const showAddDialog = () => {
+const loadProfessors = async () => {
+  professorsLoading.value = true;
+  try {
+    const result: any = await window.ipcRenderer.invoke('professor:all');
+    const list = Array.isArray(result) ? result : result?.data;
+    if (Array.isArray(list)) {
+      professors.value = list.filter((p: any) => Number(p?.id) > 0);
+      return;
+    }
+    throw new Error(result?.message || 'Réponse professor:all inattendue');
+  } catch (error) {
+    // Fallback : professor:search (retourne un tableau brut, pas {success,data}).
+    try {
+      const res: any = await window.ipcRenderer.invoke('professor:search', '');
+      const list = Array.isArray(res) ? res : res?.data;
+      professors.value = Array.isArray(list) ? list.filter((p: any) => Number(p?.id) > 0) : [];
+    } catch (fallbackError) {
+      console.error('Erreur lors du chargement des professeurs:', fallbackError ?? error);
+    }
+  } finally {
+    professorsLoading.value = false;
+  }
+};
+
+const ensureProfessorsLoaded = async () => {
+  if (professors.value.length === 0 && !professorsLoading.value) {
+    await loadProfessors();
+  }
+};
+
+const showAddDialog = async () => {
   isEditing.value = false;
+  selectedHomework.value = null;
+  await ensureProfessorsLoaded();
+  // Suggestion par défaut (best-effort) — l'utilisateur reste libre de changer.
+  const suggested = await resolveProfessorId();
   form.value = {
     gradeId: selectedGrade.value,
     courseId: null,
+    professorId: suggested,
     description: '',
     dueDate: null
   };
   dialogVisible.value = true;
 };
 
-const editHomework = (row: Homework) => {
+const editHomework = async (row: Homework) => {
   isEditing.value = true;
+  // FIX bloquant : mémorise le devoir édité (id indispensable pour homework:update).
+  selectedHomework.value = row;
+  await ensureProfessorsLoaded();
+  const existingProfId = Number((row as any)?.professor?.id ?? (row as any)?.professorId ?? NaN);
   form.value = {
     gradeId: row.grade.id,
     courseId: row.course.id,
+    // En édition, pré-remplir avec le professeur existant, sinon suggestion.
+    professorId: Number.isFinite(existingProfId) && existingProfId > 0
+      ? existingProfId
+      : await resolveProfessorId(),
     description: row.description,
     dueDate: row.dueDate
   };
   dialogVisible.value = true;
 };
 
+/**
+ * Résout le professorId de l'utilisateur connecté (rétro-compatible, jamais de hardcode).
+ * - Si le store user porte un professorId / professor_id (évolutions futures), l'utilise.
+ * - Si l'utilisateur est admin/comptable et qu'on édite, conserve le professeur existant.
+ * - Sinon tente une résolution best-effort via professor:search (displayName/username).
+ * - Retourne null si introuvable (l'appelant affiche PROFESSOR_NOT_FOUND au lieu d'envoyer 1).
+ */
+const resolveProfessorId = async (): Promise<number | null> => {
+  try {
+    const store = useUserStore();
+    const current = store.user ?? store.hydrate();
+    const anyUser = current as any;
+    const direct = Number(anyUser?.professorId ?? anyUser?.professor_id ?? anyUser?.professor?.id ?? NaN);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    // Édition : préserver le professeur d'origine (évite de réattribuer).
+    const existingProfId = Number((selectedHomework.value as any)?.professor?.id ?? NaN);
+    if (isEditing.value && Number.isFinite(existingProfId) && existingProfId > 0) return existingProfId;
+    // Best-effort : cherche un professeur homonyme de l'utilisateur connecté.
+    const needle = String(anyUser?.displayName ?? anyUser?.username ?? '').trim();
+    if (needle && (window as any)?.ipcRenderer?.invoke) {
+      try {
+        const res: any = await (window as any).ipcRenderer.invoke('professor:search', needle);
+        const list = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(list) && list.length > 0 && Number(list[0]?.id) > 0) return Number(list[0].id);
+      } catch { /* best-effort : ignore */ }
+    }
+  } catch { /* ignore — fallback null ci-dessous */ }
+  return null;
+};
+
+/** Messages d'erreur distincts selon le code backend (COURSE/GRADE/PROFESSOR_NOT_FOUND). */
+const homeworkErrorMessage = (result: any, fallback: string): string => {
+  const code = String(result?.error ?? '');
+  if (code.includes('COURSE_NOT_FOUND')) return "Matière introuvable — vérifiez la matière sélectionnée.";
+  if (code.includes('GRADE_NOT_FOUND')) return "Classe introuvable — vérifiez la classe sélectionnée.";
+  if (code.includes('PROFESSOR_NOT_FOUND')) return "Professeur introuvable — reconnectez-vous ou contactez un administrateur.";
+  return (result?.message as string) || fallback;
+};
+
 const saveHomework = async () => {
+  await ensureProfessorsLoaded();
   if (!form.value.gradeId || !form.value.courseId || !form.value.description || !form.value.dueDate) {
     ElMessage.warning('Veuillez remplir tous les champs');
     return;
   }
+  // Professeur requis (même UX que Classe/Matière). PROFESSOR_NOT_FOUND
+  // seulement si aucun professeur sélectionnable.
+  if (!form.value.professorId) {
+    if (professors.value.length === 0) {
+      const fallbackId = await resolveProfessorId();
+      if (!fallbackId) {
+        console.error('[homework] aucun professeur sélectionnable, resolveProfessorId()=null');
+        ElMessage.error('Professeur introuvable — reconnectez-vous ou contactez un administrateur. (PROFESSOR_NOT_FOUND)');
+        return;
+      }
+      form.value.professorId = fallbackId;
+    } else {
+      ElMessage.warning('Veuillez sélectionner un professeur');
+      return;
+    }
+  }
 
   try {
+    const professorId = form.value.professorId ?? await resolveProfessorId();
+    if (!professorId) {
+      console.error('[homework] professorId introuvable pour utilisateur connecté:', JSON.stringify(useUserStore().user ?? null));
+      ElMessage.error('Professeur introuvable — reconnectez-vous ou contactez un administrateur. (PROFESSOR_NOT_FOUND)');
+      return;
+    }
+    if (isEditing.value && !selectedHomework.value?.id) {
+      console.error('[homework] édition sans selectedHomework.id — annulation.');
+      ElMessage.error('Devoir à modifier introuvable — rouvrez la liste et réessayez.');
+      return;
+    }
+
     const data = {
       gradeId: form.value.gradeId,
       courseId: form.value.courseId,
       description: form.value.description,
       dueDate: form.value.dueDate,
-      professorId: 1
+      professorId
     };
 
     const result = await window.ipcRenderer.invoke(
@@ -324,16 +463,24 @@ const saveHomework = async () => {
     if (result.success) {
       ElMessage.success(isEditing.value ? 'Devoir modifié avec succès' : 'Devoir créé avec succès');
       dialogVisible.value = false;
+      // Reset du pointeur d'édition pour éviter un rejeu sur un autre devoir.
+      if (isEditing.value) selectedHomework.value = null;
       if (!selectedGrade.value) {
         selectedGrade.value = form.value.gradeId;
       }
       await loadHomework();
     } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde');
+      const msg = homeworkErrorMessage(result, 'Erreur lors de la sauvegarde');
+      console.error('[homework] échec sauvegarde:', { code: result?.error, message: result?.message, data });
+      ElMessage.error(msg);
     }
   } catch (error) {
-    console.error('Erreur détaillée:', error);
-    ElMessage.error('Erreur lors de la sauvegarde du devoir');
+    console.error('[homework] Erreur détaillée:', error);
+    const raw = error instanceof Error ? error.message : String(error ?? '');
+    if (raw.includes('COURSE_NOT_FOUND')) ElMessage.error("Matière introuvable — vérifiez la matière sélectionnée.");
+    else if (raw.includes('GRADE_NOT_FOUND')) ElMessage.error("Classe introuvable — vérifiez la classe sélectionnée.");
+    else if (raw.includes('PROFESSOR_NOT_FOUND')) ElMessage.error("Professeur introuvable — reconnectez-vous ou contactez un administrateur.");
+    else ElMessage.error('Erreur lors de la sauvegarde du devoir');
   }
 };
 
@@ -387,7 +534,7 @@ onMounted(async () => {
       window.ipcRenderer.invoke('grade:all'),
       window.ipcRenderer.invoke('course:all')
     ]);
-
+    await loadProfessors();
     if (gradesResult.success) {
       grades.value = gradesResult.data;
       // Sélectionner automatiquement la première classe

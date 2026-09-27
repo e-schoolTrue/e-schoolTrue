@@ -125,9 +125,11 @@ describe('DashboardView', () => {
 
   it('loadDashboardStats sets stats correctly and handles Promise.all success', async () => {
     const wrapper: any = await mountDashboard()
-    expect(mockInvoke).toHaveBeenCalledWith('dashboard:stats')
+    // Verrou année scolaire : requêtes scopées sur l'année du menu (`YearSwitcher`),
+    // `undefined` ici (pas de Pinia en test → `useYearStore()` lève, repli `undefined`).
+    expect(mockInvoke).toHaveBeenCalledWith('dashboard:stats', undefined)
     expect(mockInvoke).toHaveBeenCalledWith('school:get')
-    expect(mockInvoke).toHaveBeenCalledWith('dashboard:paymentStats')
+    expect(mockInvoke).toHaveBeenCalledWith('dashboard:paymentStats', undefined)
     expect(mockInvoke).toHaveBeenCalledWith('dashboard:professorPaymentStats')
     expect(mockInvoke).toHaveBeenCalledWith('dashboard:absenceStats')
     expect(wrapper.vm.stats).toBeTruthy()

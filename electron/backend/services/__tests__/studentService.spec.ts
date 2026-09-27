@@ -142,6 +142,8 @@ describe('StudentService', () => {
       error: null,
     })
     createFeeSpy = vi.spyOn(PaymentService.prototype as any, 'createInitialInscriptionFee').mockResolvedValue(undefined)
+    // B1: updateStudent (grade change) délègue aux frais de RÉINSCRIPTION idempotents.
+    vi.spyOn(PaymentService.prototype as any, 'createReInscriptionFee').mockResolvedValue({ success: true, data: { id: 100 }, message: 'Frais de réinscription créés', error: null } as any)
     getStatsSpy = vi.spyOn(DashboardService.prototype as any, 'getStats').mockResolvedValue({
       success: true,
       data: { stats: {} },
@@ -278,7 +280,9 @@ describe('StudentService', () => {
     expect(existing.isNew).toBe(false) // re-enrollment flips to false
     expect(existing.grade).toEqual({ id: 2, name: '5eme', code: '5E' })
     expect(saveFileSpy).toHaveBeenCalled()
-    expect(createFeeSpy).toHaveBeenCalledWith(existing) // inscription fee on re-enrollment
+    // B1: grade change → createReInscriptionFee idempotente (jamais createInitial).
+    expect(PaymentService.prototype.createReInscriptionFee).toHaveBeenCalled()
+    expect(createFeeSpy).not.toHaveBeenCalled()
     expect(result.data?.isNew).toBe(false)
   })
 

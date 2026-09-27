@@ -5,6 +5,14 @@
     width="900px"
     class="payment-dialog"
   >
+    <el-alert
+      v-if="yearMismatch"
+      :title="`Attention : cet élève est rattaché à l'année ${props.student?.schoolYear} alors que l'année courante est ${currentSchoolYear}. Vérifiez l'année avant d'encaisser.`"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="year-alert"
+    />
     <div class="dialog-content">
       <div class="left-column">
     <div class="student-header">
@@ -188,6 +196,21 @@ import { Student } from '@/types/card';
 import { PaymentConfig, IPaymentData, StudentPaymentData } from '@/types/payment';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { useCurrency } from '@/composables/useCurrency';
+import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError } from '@/composables/useAccountingGuard';
+import { strictInvoke } from '@/utils/ipc';
+import { useRouter } from 'vue-router';
+import { useYearStore } from '@/stores/yearStore';
+
+const router = useRouter();
+
+function uuidv4(): string {
+  const c = window.crypto as unknown as { randomUUID?: () => string };
+  if (c?.randomUUID) return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 interface Props {
   visible: boolean;
@@ -273,6 +296,39 @@ const dialogTitle = computed(() => {
 });
 
 const totalPaid = ref(0);
+const currentSchoolYear = ref('');
+
+const yearMismatch = computed(() => {
+  const sYear = props.student?.schoolYear;
+  return !!sYear && !!currentSchoolYear.value && sYear !== currentSchoolYear.value;
+});
+
+const fetchCurrentSchoolYear = async () => {
+  // Verrou : l'année du login fait foi (readonly).
+  try {
+    const loginYear = useYearStore().currentSchoolYear;
+    if (loginYear) {
+      currentSchoolYear.value = loginYear;
+      return;
+    }
+  } catch {
+    /* Pinia indisponible : repli IPC */
+  }
+  try {
+    const res = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+    if (res?.success && res.data?.schoolYear) currentSchoolYear.value = res.data.schoolYear;
+  } catch {
+    /* avertissement indisponible : on n'affiche rien */
+  }
+};
+
+watch(
+  () => props.visible,
+  (open) => {
+    if (open) void fetchCurrentSchoolYear();
+  },
+  { immediate: true },
+);
 
 const totalAmountDue = computed(() => {
   if (!props.config) return 0;
@@ -323,23 +379,22 @@ const handleSubmit = async () => {
 
     loading.value = true;
 
-    // Debug des valeurs du formulaire
-    console.log('=== DEBUG FORMULAIRE AVANT SOUMISSION ===');
-    console.log('form.value.hasScholarship:', form.value.hasScholarship);
-    console.log('form.value.scholarshipPercentage:', form.value.scholarshipPercentage);
-    console.log('Type de scholarshipPercentage:', typeof form.value.scholarshipPercentage);
-    console.log('Résultat de hasScholarship && !!scholarshipPercentage:', form.value.hasScholarship && !!form.value.scholarshipPercentage);
-    console.log('Résultat de scholarshipPercentage > 0:', form.value.scholarshipPercentage && form.value.scholarshipPercentage > 0);
-
+    // Rétro-compat : `reference` n'a pas de colonne payments dédiée — le backend la
+    // reporte vers comment + cash_movements.reference/motive. On la duplique ici dans
+    // `comment` pour ne jamais la perdre silencieusement (vieilles bases / vieux backend).
+    const refTag = form.value.reference?.trim() ? `[Réf: ${form.value.reference.trim()}]` : '';
+    const enrichedComment = [form.value.comment?.trim(), refTag].filter(Boolean).join(' | ') || undefined;
     const paymentDataToSend: PaymentDataToSend = {
       studentId: props.student?.id ?? 0,
       amount: form.value.amount,
       paymentType: form.value.type,
       paymentMethod: form.value.paymentMethod,
-      reference: form.value.reference,
-      comment: form.value.comment,
+      reference: form.value.reference || undefined,
+      comment: enrichedComment,
       installmentNumber: 1,
-      schoolYear: props.config?.classId.split('-')[1] || new Date().getFullYear().toString(),
+      // Verrou année scolaire : rattachement à l'année du login (readonly).
+      // `currentSchoolYear` vaut déjà l'année du login via `fetchCurrentSchoolYear`.
+      schoolYear: currentSchoolYear.value || (() => { try { return useYearStore().currentSchoolYear } catch { return '' } })(),
       
       scholarshipAppliedOnAnnual: form.value.hasScholarship && !!form.value.scholarshipPercentage && form.value.scholarshipPercentage > 0,
       annualScholarshipPercentage: form.value.hasScholarship && form.value.scholarshipPercentage ? form.value.scholarshipPercentage : 0,
@@ -348,20 +403,53 @@ const handleSubmit = async () => {
       baseAnnualAmount: totalAmountDue.value,
     };
 
-    console.log('Données finales du paiement envoyées:', JSON.stringify(paymentDataToSend, null, 2));
-
-    const result = await window.ipcRenderer.invoke('payment:create', paymentDataToSend);
-
-    if (result?.success) {
-      ElMessage.success('Paiement enregistré avec succès');
-      emit('payment-added');
-      handleClose();
-    } else {
-      throw new Error(result?.message || 'Erreur lors de l\'enregistrement');
+    // Garde mot de passe comptable avant CHAQUE saisie (STRICT : force + frais, modale systématique).
+    // Messages distincts conservés (NO_SECRET / LOCK / FRESH) — jamais de toast générique.
+    try {
+      await ensureUnlock({ force: true, fresh: true });
+    } catch (guardErr) {
+      if (isNoSecretError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+        void router.push('/comptabilite/setup');
+      } else if (isAccountingLockError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+      }
+      throw guardErr;
     }
+
+    // Clé générée UNE fois : le rejeu sur verrouillage réutilise le même objet.
+    const payloadWithKey = { ...paymentDataToSend, idempotencyKey: uuidv4() };
+    try {
+      await strictInvoke('payment:create', payloadWithKey);
+    } catch (ipcErr) {
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      await strictInvoke('payment:create', payloadWithKey);
+    }
+
+    ElMessage.success('Paiement enregistré avec succès');
+    emit('payment-added');
+    handleClose();
   } catch (error: any) {
-    console.error('Erreur lors de la soumission:', error);
-    ElMessage.error(error.message || 'Erreur lors de l\'enregistrement du paiement');
+    // NO_SECRET déjà notifié + redirection : pas de 2e toast d'erreur générique.
+    if (isNoSecretError(error)) {
+      console.warn('[payment-dialog] abandon (NO_SECRET_SET déjà notifié).');
+      return;
+    }
+    // Log détaillé : ne jamais perdre silencieusement reference/comment/montant.
+    console.error('[payment-dialog] Échec enregistrement:', {
+      message: error?.message,
+      studentId: props.student?.id,
+      amount: form.value.amount,
+      paymentType: form.value.type,
+      paymentMethod: form.value.paymentMethod,
+      reference: form.value.reference,
+      comment: form.value.comment,
+      error,
+    });
+    // mapAccountingError préserve les codes verrou (LOCK/FRESH) au lieu d'un générique.
+    const userMsg = isAccountingLockError(error) ? mapAccountingError(error) : (error?.message || 'Erreur lors de l\'enregistrement du paiement');
+    ElMessage.error(userMsg);
   } finally {
     loading.value = false;
   }
@@ -431,22 +519,22 @@ const loadPaymentData = async () => {
   try {
     if (!props.student?.id) return;
     
-    const result: { success: boolean, data: StudentPaymentData | null, message?: string } = 
-      await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
-    
-    if (result.success && result.data) {
-      const payments = Array.isArray(result.data.payments) ? result.data.payments : [];
+    const data: StudentPaymentData | null =
+      await strictInvoke<StudentPaymentData | null>('payment:getByStudent', props.student.id);
+
+    if (data) {
+      const payments = Array.isArray(data.payments) ? data.payments : [];
       totalPaid.value = payments.reduce((sum: number, payment: IPaymentData) => {
         return sum + (Number(payment.amount) || 0);
       }, 0);
       
-      if (props.config?.allowScholarship && result.data.scholarshipPercentage > 0) {
-        studentScholarshipPercentageFromLoad.value = result.data.scholarshipPercentage;
+      if (props.config?.allowScholarship && Number(data.scholarshipPercentage ?? 0) > 0) {
+        studentScholarshipPercentageFromLoad.value = data.scholarshipPercentage;
         form.value.hasScholarship = true;
-        form.value.scholarshipPercentage = result.data.scholarshipPercentage;
+        form.value.scholarshipPercentage = data.scholarshipPercentage;
       }
     } else {
-      console.warn("Impossible de charger les données de paiement:", result.message)
+      console.warn('Impossible de charger les données de paiement: réponse vide')
     }
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);
@@ -477,6 +565,10 @@ watch(() => props.config?.annualAmount, () => {
   gap: 24px;
   max-height: 70vh;
   overflow: hidden;
+}
+
+.year-alert {
+  margin-bottom: 12px;
 }
 
 .left-column, .right-column {

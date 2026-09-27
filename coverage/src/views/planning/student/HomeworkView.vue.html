@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/558</span>
+                <span class='fraction'>0/561</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/558</span>
+                <span class='fraction'>0/561</span>
             </div>
         
             
@@ -620,7 +620,10 @@
 <a name='L555'></a><a href='#L555'>555</a>
 <a name='L556'></a><a href='#L556'>556</a>
 <a name='L557'></a><a href='#L557'>557</a>
-<a name='L558'></a><a href='#L558'>558</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L558'></a><a href='#L558'>558</a>
+<a name='L559'></a><a href='#L559'>559</a>
+<a name='L560'></a><a href='#L560'>560</a>
+<a name='L561'></a><a href='#L561'>561</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1177,7 +1180,10 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >&lt;template&gt;</span></span></span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >&lt;template&gt;<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
 <span class="cstat-no" title="statement not covered" >  &lt;div class="homework-view"&gt;</span>
 <span class="cstat-no" title="statement not covered" >    &lt;el-card class="homework-card"&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;template #header&gt;</span>
@@ -1220,11 +1226,11 @@
 <span class="cstat-no" title="statement not covered" >          &lt;el-option</span>
 <span class="cstat-no" title="statement not covered" >            v-for="course in courses"</span>
 <span class="cstat-no" title="statement not covered" >            :key="course.id"</span>
-<span class="cstat-no" title="statement not covered" >            :label="course.name"</span>
+<span class="cstat-no" title="statement not covered" >            :label="`${course.name} (${(course as any).type ? String((course as any).type).charAt(0).toUpperCase() + String((course as any).type).slice(1).toLowerCase() : 'Matière'}${(course as any).coefficient ? ', ' + (course as any).coefficient : ''})`"</span>
 <span class="cstat-no" title="statement not covered" >            :value="course.id"</span>
 <span class="cstat-no" title="statement not covered" >          &gt;</span>
 <span class="cstat-no" title="statement not covered" >            &lt;Icon icon="mdi:book" class="option-icon" /&gt;</span>
-<span class="cstat-no" title="statement not covered" >            {{ course.name }}</span>
+<span class="cstat-no" title="statement not covered" >            {{ course.name }} ({{ (course as any).type ? String((course as any).type).charAt(0).toUpperCase() + String((course as any).type).slice(1).toLowerCase() : 'Matière' }}{{ (course as any).coefficient ? ', ' + (course as any).coefficient : '' }})</span>
 <span class="cstat-no" title="statement not covered" >          &lt;/el-option&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;/el-select&gt;</span>
 <span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
@@ -1240,7 +1246,7 @@
 <span class="cstat-no" title="statement not covered" >          &lt;template #default="{ row }"&gt;</span>
 <span class="cstat-no" title="statement not covered" >            &lt;div class="course-info"&gt;</span>
 <span class="cstat-no" title="statement not covered" >              &lt;Icon icon="mdi:book" class="course-icon" /&gt;</span>
-<span class="cstat-no" title="statement not covered" >              {{ row.course.name }}</span>
+<span class="cstat-no" title="statement not covered" >              {{ row.course.name }} ({{ (row.course as any).type ? String((row.course as any).type).charAt(0).toUpperCase() + String((row.course as any).type).slice(1).toLowerCase() : 'Matière' }}{{ (row.course as any).coefficient ? ', ' + (row.course as any).coefficient : '' }})</span>
 <span class="cstat-no" title="statement not covered" >            &lt;/div&gt;</span>
 <span class="cstat-no" title="statement not covered" >          &lt;/template&gt;</span>
 <span class="cstat-no" title="statement not covered" >        &lt;/el-table-column&gt;</span>
@@ -1606,9 +1612,12 @@
 <span class="cstat-no" title="statement not covered" >const defaultMessage = computed(() =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  if (!selectedHomework.value) return '';</span>
 <span class="cstat-no" title="statement not covered" >  </span>
+<span class="cstat-no" title="statement not covered" >  const hwCourse = selectedHomework.value.course as any;</span>
+<span class="cstat-no" title="statement not covered" >  const hwType = hwCourse?.type ? String(hwCourse.type).charAt(0).toUpperCase() + String(hwCourse.type).slice(1).toLowerCase() : 'Matière';</span>
+<span class="cstat-no" title="statement not covered" >  const hwCoeff = hwCourse?.coefficient ? `, ${hwCourse.coefficient}` : '';</span>
 <span class="cstat-no" title="statement not covered" >  return `${schoolInfo.value?.name || 'École'}\n\n` +</span>
 <span class="cstat-no" title="statement not covered" >    `Cher parent,\n\n` +</span>
-<span class="cstat-no" title="statement not covered" >    `Un devoir a été assigné en ${selectedHomework.value.course.name} ` +</span>
+<span class="cstat-no" title="statement not covered" >    `Un devoir a été assigné en ${selectedHomework.value.course.name} (${hwType}${hwCoeff}) ` +</span>
 <span class="cstat-no" title="statement not covered" >    `pour la classe de ${selectedHomework.value.grade.name}.\n\n` +</span>
 <span class="cstat-no" title="statement not covered" >    `Description: ${selectedHomework.value.description}\n` +</span>
 <span class="cstat-no" title="statement not covered" >    `Date limite: ${formatDate(selectedHomework.value.dueDate)}\n\n` +</span>
@@ -1741,7 +1750,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:10.196Z
+                at 2026-09-13T14:37:13.771Z
             </div>
         <script src="../../../../prettify.js"></script>
         <script>

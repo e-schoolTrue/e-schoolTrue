@@ -172,16 +172,21 @@ export interface ITeachingAssignment {
 
 /**
  * Type pour les codes pays
- * Liste des codes pays selon la norme ISO 3166-1 alpha-2
+ * Canonique comptabilité : MAR/SEN/CAF/GIN (ISO 3166-1 alpha-3).
+ * Codes historiques alpha-2 conservés pour compatibilité.
  */
-export type CountryCode = 
+export type CountryCode =
+    | 'MAR' // Maroc
+    | 'SEN' // Sénégal
+    | 'CAF' // Centrafrique
+    | 'GIN' // Guinée
     | 'CM' // Cameroun
     | 'FR' // France
     | 'BE' // Belgique
     | 'CH' // Suisse
     | 'CA' // Canada
     | 'CI' // Côte d'Ivoire
-    | 'SN' // Sénégal
+    | 'SN' // Sénégal (historique, utiliser SEN)
     | 'BF' // Burkina Faso
     | 'ML' // Mali
     | 'NE' // Niger
@@ -202,12 +207,14 @@ export type CountryCode =
 
 /**
  * Type pour les codes de devise
- * Liste des codes de devise selon la norme ISO 4217
+ * Canonique : MAD (MAR), XOF (SEN), XAF (CAF), GNF (GIN) — ISO 4217.
  */
 export type CurrencyCode = 
-    | 'XAF' // Franc CFA BEAC
-    | 'EUR' // Euro
+    | 'MAD' // Dirham marocain
     | 'XOF' // Franc CFA BCEAO
+    | 'XAF' // Franc CFA BEAC
+    | 'GNF' // Franc guinéen
+    | 'EUR' // Euro
     | 'USD' // Dollar américain
     | 'CAD' // Dollar canadien
     | 'CHF' // Franc suisse

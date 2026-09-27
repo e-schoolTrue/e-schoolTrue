@@ -1,0 +1,102 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e5]:
+        - menubar [ref=e6]:
+          - menuitem "Dashboard" [ref=e7] [cursor=pointer]
+          - menuitem "Gestion des Elèves" [ref=e8]
+          - menuitem "Gestion des Professeurs" [ref=e19]
+          - menuitem "Comptabilité" [ref=e30]
+          - menuitem "Gestion des Plannings" [ref=e41]
+          - menuitem "Outils" [ref=e80]
+          - menuitem "Administration" [ref=e125]
+          - menuitem [ref=e136]:
+            - generic [ref=e137] [cursor=pointer]
+        - button "Menu utilisateur" [ref=e143] [cursor=pointer]:
+          - generic [ref=e144]: O
+          - generic [ref=e145]: oumar
+      - generic [ref=e153]:
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - heading "EMMAUS" [level=1] [ref=e156]
+            - paragraph [ref=e157]: dimanche 20 septembre 2026
+          - img "Logo école" [ref=e161]
+        - generic [ref=e162]:
+          - generic [ref=e163]:
+            - generic [ref=e167]:
+              - generic [ref=e168]: Élèves Inscrits
+              - generic [ref=e169]: "1"
+            - generic [ref=e170]: Actifs
+          - generic [ref=e173]:
+            - generic [ref=e177]:
+              - generic [ref=e178]: Professeurs
+              - generic [ref=e179]: "2"
+            - generic [ref=e180]: Présents
+          - generic [ref=e183]:
+            - generic [ref=e187]:
+              - generic [ref=e188]: Classes Ouvertes
+              - generic [ref=e189]: "4"
+            - generic [ref=e190]: Total
+        - generic [ref=e193]:
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - generic [ref=e197]:
+                - heading "Derniers paiements élèves" [level=3] [ref=e198]
+                - button "Voir tout" [ref=e201] [cursor=pointer]
+              - generic [ref=e204]:
+                - generic [ref=e208]:
+                  - generic [ref=e209]: Oumar Diane
+                  - generic [ref=e210]: 8/21/2026
+                - generic [ref=e211]: +100 000 GNF
+            - generic [ref=e212]:
+              - generic [ref=e213]:
+                - heading "Derniers paiements profs" [level=3] [ref=e214]
+                - button "Voir tout" [ref=e217] [cursor=pointer]
+              - generic [ref=e219]: Aucun paiement prof récent
+          - generic [ref=e223]:
+            - heading "Évolution financière" [level=3] [ref=e224]
+            - generic [ref=e227]: Cette année
+        - generic [ref=e231]:
+          - generic [ref=e233]:
+            - generic [ref=e234]:
+              - generic [ref=e235]:
+                - heading "Absences récentes (élèves)" [level=3] [ref=e236]
+                - button "Voir tout" [ref=e239] [cursor=pointer]
+              - generic [ref=e241]: Aucune absence élève récente
+            - generic [ref=e243]:
+              - generic [ref=e244]:
+                - heading "Absences récentes (profs)" [level=3] [ref=e245]
+                - button "Voir tout" [ref=e248] [cursor=pointer]
+              - generic [ref=e251]:
+                - generic [ref=e255]:
+                  - generic [ref=e256]: Mamadi DIANE
+                  - generic [ref=e257]: Professeur
+                - generic [ref=e258]: 9/13/2026
+          - generic [ref=e260]:
+            - heading "Répartition Absences" [level=3] [ref=e262]
+            - generic [ref=e265]:
+              - generic [ref=e266]: Élèves (par niveau)
+              - generic [ref=e270]: Profs (par professeur)
+    - generic [ref=e275]:
+      - generic [ref=e276]:
+        - generic [ref=e282]:
+          - heading "Mise à jour prête à être installée" [level=4] [ref=e283]
+          - paragraph [ref=e284]: v1.0.1
+        - button "×" [ref=e285] [cursor=pointer]
+      - generic [ref=e286]:
+        - paragraph [ref=e287]: La version 1.0.1 est prête à être installée.
+        - generic [ref=e288]:
+          - button "Redémarrer maintenant" [ref=e289] [cursor=pointer]
+          - button "Plus tard" [ref=e291] [cursor=pointer]
+  - generic [ref=e295]:
+    - generic [ref=e296]: "[plugin:vite:vue] The service is no longer running"
+    - generic [ref=e297]: /home/oumar/projects/e-schoolTrue/src/views/accounting/StudentPaymentView.vue
+    - generic [ref=e299]: at /home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:737:38 at sendRequest (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:618:36) at start (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:736:9) at Object.transform2 [as transform] (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:797:5) at /home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:2040:77 at new Promise (<anonymous>) at Object.transform (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:2040:36) at transform (/home/oumar/projects/e-schoolTrue/node_modules/esbuild/lib/main.js:1875:62) at Module.transformWithEsbuild (file:///home/oumar/projects/e-schoolTrue/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:19232:26) at async transformMain (/home/oumar/projects/e-schoolTrue/node_modules/@vitejs/plugin-vue/dist/index.cjs:2619:36
+    - generic [ref=e300]:
+      - text: Click outside, press Esc key, or fix the code to dismiss.You can also disable this overlay by setting
+      - code [ref=e301]: server.hmr.overlay
+      - text: to
+      - code [ref=e302]: "false"
+      - text: in
+      - code [ref=e303]: vite.config.ts
+      - text: .

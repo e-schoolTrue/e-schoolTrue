@@ -54,11 +54,6 @@
         <span class="info-label">Appréciation:</span>
         <span class="info-value">{{ generalAppreciation }}</span>
       </div>
-      <div class="info-item">
-        <el-icon><Calendar /></el-icon>
-        <span class="info-label">Année Scolaire:</span>
-        <span class="info-value">{{ schoolYear }}</span>
-      </div>
     </div>
 
     <!-- Filters -->
@@ -190,8 +185,9 @@
 // @ts-nocheck
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Document, Loading, Warning, School, Calendar, TrendCharts, Star, User } from '@element-plus/icons-vue';
+import { Document, Loading, Warning, School, TrendCharts, Star, User } from '@element-plus/icons-vue';
 import { getAppreciation } from '@/utils/grade';
+import { useYearStore } from '@/stores/yearStore';
 
 interface AnnualDistinctions {
   tableauHonneur: boolean;
@@ -247,10 +243,9 @@ const currentClass = ref<Grade | null>(null);
 const schoolInfo = ref<any>(null);
 const mainTeacherName = ref<string>('');
 
-const schoolYear = computed(() => {
-  const currentYear = new Date().getFullYear();
-  return `${currentYear}-${currentYear + 1}`;
-});
+// Verrou année scolaire : consommation silencieuse de l'année du menu
+// (`YearSwitcher`) — AUCUNE UI année à l'écran, en-tête PDF conservé.
+const schoolYear = computed(() => useYearStore().currentSchoolYear || '');
 
 const paginatedRankings = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;

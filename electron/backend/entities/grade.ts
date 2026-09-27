@@ -42,6 +42,14 @@ export class GradeEntity {
     })
     type!: GradeType;
 
+    /** Ordre de progression (1 = premier niveau). Utilisé pour la réinscription auto. */
+    @Column({ type: 'integer', nullable: true })
+    order?: number | null;
+
+    /** Niveau suivant explicite (prioritaire sur order+1). */
+    @Column({ type: 'integer', nullable: true })
+    nextGradeId?: number | null;
+
     @OneToMany(() => StudentEntity, (student) => student.grade)
     students?: StudentEntity[];
 

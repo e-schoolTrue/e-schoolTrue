@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/1032</span>
+                <span class='fraction'>0/1044</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/1032</span>
+                <span class='fraction'>0/1044</span>
             </div>
         
             
@@ -1094,7 +1094,19 @@
 <a name='L1029'></a><a href='#L1029'>1029</a>
 <a name='L1030'></a><a href='#L1030'>1030</a>
 <a name='L1031'></a><a href='#L1031'>1031</a>
-<a name='L1032'></a><a href='#L1032'>1032</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L1032'></a><a href='#L1032'>1032</a>
+<a name='L1033'></a><a href='#L1033'>1033</a>
+<a name='L1034'></a><a href='#L1034'>1034</a>
+<a name='L1035'></a><a href='#L1035'>1035</a>
+<a name='L1036'></a><a href='#L1036'>1036</a>
+<a name='L1037'></a><a href='#L1037'>1037</a>
+<a name='L1038'></a><a href='#L1038'>1038</a>
+<a name='L1039'></a><a href='#L1039'>1039</a>
+<a name='L1040'></a><a href='#L1040'>1040</a>
+<a name='L1041'></a><a href='#L1041'>1041</a>
+<a name='L1042'></a><a href='#L1042'>1042</a>
+<a name='L1043'></a><a href='#L1043'>1043</a>
+<a name='L1044'></a><a href='#L1044'>1044</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2125,7 +2137,19 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >&lt;template&gt;</span></span></span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >&lt;template&gt;<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
 <span class="cstat-no" title="statement not covered" >  &lt;div class="bulletin-template-two" :style="containerStyle"&gt;</span>
 <span class="cstat-no" title="statement not covered" >    &lt;!-- En-tête : Deux blocs gauche/droite --&gt;</span>
 <span class="cstat-no" title="statement not covered" >    &lt;header class="header"&gt;</span>
@@ -2600,11 +2624,16 @@
 <span class="cstat-no" title="statement not covered" >&lt;style scoped&gt;</span>
 <span class="cstat-no" title="statement not covered" >.bulletin-template-two {</span>
 <span class="cstat-no" title="statement not covered" >  width: 210mm;</span>
-<span class="cstat-no" title="statement not covered" >  min-height: 297mm;</span>
-<span class="cstat-no" title="statement not covered" >  padding: 10mm;</span>
+<span class="cstat-no" title="statement not covered" >  max-width: 100%;</span>
+<span class="cstat-no" title="statement not covered" >  min-height: 277mm;</span>
+<span class="cstat-no" title="statement not covered" >  height: auto;</span>
+<span class="cstat-no" title="statement not covered" >  padding: 8mm 10mm;</span>
 <span class="cstat-no" title="statement not covered" >  background-color: white;</span>
 <span class="cstat-no" title="statement not covered" >  color: #000;</span>
 <span class="cstat-no" title="statement not covered" >  box-sizing: border-box;</span>
+<span class="cstat-no" title="statement not covered" >  overflow: visible;</span>
+<span class="cstat-no" title="statement not covered" >  display: flex;</span>
+<span class="cstat-no" title="statement not covered" >  flex-direction: column;</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >/* Header */</span>
@@ -2756,22 +2785,29 @@
 <span class="cstat-no" title="statement not covered" >/* Tableau */</span>
 <span class="cstat-no" title="statement not covered" >.notes-table {</span>
 <span class="cstat-no" title="statement not covered" >  width: 100%;</span>
+<span class="cstat-no" title="statement not covered" >  max-width: 190mm;</span>
 <span class="cstat-no" title="statement not covered" >  border-collapse: collapse;</span>
 <span class="cstat-no" title="statement not covered" >  font-size: 11px;</span>
 <span class="cstat-no" title="statement not covered" >  border: 2px solid #000;</span>
 <span class="cstat-no" title="statement not covered" >  margin-bottom: 10px;</span>
+<span class="cstat-no" title="statement not covered" >  table-layout: fixed;</span>
+<span class="cstat-no" title="statement not covered" >  word-wrap: break-word;</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >.notes-table th, .notes-table td {</span>
 <span class="cstat-no" title="statement not covered" >  border: 1px solid #000;</span>
-<span class="cstat-no" title="statement not covered" >  padding: 5px 4px;</span>
+<span class="cstat-no" title="statement not covered" >  padding: 4px 6px;</span>
 <span class="cstat-no" title="statement not covered" >  text-align: center;</span>
+<span class="cstat-no" title="statement not covered" >  font-size: 9px;</span>
+<span class="cstat-no" title="statement not covered" >  line-height: 1.2;</span>
+<span class="cstat-no" title="statement not covered" >  word-break: break-word;</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >.notes-table thead th {</span>
-<span class="cstat-no" title="statement not covered" >  font-size: 10px;</span>
+<span class="cstat-no" title="statement not covered" >  font-size: 8px;</span>
 <span class="cstat-no" title="statement not covered" >  text-transform: uppercase;</span>
 <span class="cstat-no" title="statement not covered" >  letter-spacing: 0.3px;</span>
+<span class="cstat-no" title="statement not covered" >  line-height: 1.2;</span>
 <span class="cstat-no" title="statement not covered" >}</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" > .col-matiere { width: 22%; text-align: left; padding-left: 8px !important; }</span>
@@ -3163,7 +3199,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-08-21T10:56:10.196Z
+                at 2026-09-13T14:37:13.771Z
             </div>
         <script src="../../../../prettify.js"></script>
         <script>

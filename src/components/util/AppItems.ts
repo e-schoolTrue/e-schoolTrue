@@ -31,6 +31,13 @@ export const AppItems: MenuItem[] = [
                 route: "/student",
                 subItems: []
             },
+            {
+                id: "submenu-1-3",
+                title: "Réinscriptions",
+                icon: "mdi:account-convert",
+                route: "/student/re-enrollment",
+                subItems: []
+            },
         ]
     },
     {
@@ -69,14 +76,16 @@ export const AppItems: MenuItem[] = [
                 title: "Paiements Élèves",
                 icon: "mdi:cash",
                 route: "/payment/students",
-                description: "Gérer les frais de scolarité et autres paiements"
+                description: "Gérer les frais de scolarité et autres paiements",
+                roles: ['admin', 'comptable']
             },
             {
                 id: "submenu-3-3",
-                title: "Paiements Professeurs",
+                title: "Bulletins Paie",
                 icon: "mdi:cash-multiple",
-                route: "/payment/professors",
-                description: "Gérer les salaires et primes des enseignants"
+                route: "/payment/professors?tab=bulletins",
+                description: "Bulletins enseignants (PAY-ENS)",
+                roles: ['admin', 'comptable']
             },
             {
                 id: "submenu-3-4",
@@ -101,9 +110,10 @@ export const AppItems: MenuItem[] = [
             },
             {
                 id: "submenu-3-7",
-                title: "Paie enseignants",
-                icon: "mdi:teach",
-                route: "/enseignants",
+                title: "Paie Profs",
+                icon: "mdi:cash-multiple",
+                route: "/payment/professors?tab=heures",
+                description: "Heures mensuelles enseignants",
                 roles: ['admin', 'comptable']
             },
             {
@@ -176,7 +186,9 @@ export const AppItems: MenuItem[] = [
                         route: "/planning/professors/vacation",
                     },
                     {
-                        id: "submenu-4-2-2",
+                        // NOTE(review SEV4) : id historiquement dupliqué `submenu-4-2-2`
+                        // corrigé en `submenu-4-2-3` (clés `:key` uniques pour el-menu).
+                        id: "submenu-4-2-3",
                         title: "Emploi du temps",
                         icon: "fluent-emoji:calendar",
                         route: "/planning/professors/planning",

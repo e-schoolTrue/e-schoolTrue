@@ -7,6 +7,7 @@ import {
     ISchoolServiceResponse,
     ISchoolData
 } from "../types/school";
+import { currencyForCountry, isCountryCode } from "../utils/countryCurrency";
 
 interface ISchoolSettingsData {
     id?: number;
@@ -30,6 +31,7 @@ export class SchoolService {
     private mapToISchoolData(school: SchoolEntity): ISchoolData {
         return {
             ...school,
+            currency: currencyForCountry((school as any).country, 'GNF') as any,
             logo: school.logo ? {
                 id: school.logo.id,
                 name: school.logo.name,
@@ -56,6 +58,9 @@ export class SchoolService {
 
     async saveOrUpdateSchool(schoolData: ISchoolServiceParams['saveOrUpdateSchool']): Promise<ISchoolServiceResponse> {
         try {
+            if ((schoolData as any).country && !isCountryCode((schoolData as any).country)) {
+                return { success: false, data: null, error: 'COUNTRY_INVALIDE', message: "Pays invalide : attendu MAR, SEN, CAF ou GIN" };
+            }
             // Gestion du logo si un nouveau logo est fourni
             const { logo, ...schoolDataWithoutLogo } = schoolData;
             const schoolDataToSave: Partial<SchoolEntity> = {

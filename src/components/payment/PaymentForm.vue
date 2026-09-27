@@ -44,6 +44,29 @@
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
+import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError } from '@/composables/useAccountingGuard';
+import { strictInvoke } from '@/utils/ipc';
+import { useRouter } from 'vue-router';
+import { useYearStore } from '@/stores/yearStore';
+
+const router = useRouter();
+
+function uuidv4(): string {
+  const c = window.crypto as unknown as { randomUUID?: () => string };
+  if (c?.randomUUID) return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/** Normalise le mode de saisie (cash/cheque/transfer) vers le référentiel backend (cash/check/transfer). */
+function normalizePaymentMethod(raw: string): string {
+  const v = (raw || '').toLowerCase();
+  if (v === 'cheque' || v === 'check') return 'check';
+  if (v === 'transfer') return 'transfer';
+  return 'cash';
+}
 
 // Interface et propriétés
 interface Props {
@@ -105,23 +128,55 @@ const submitForm = async () => {
 
   isSubmitting.value = true;
   try {
+    const now = new Date();
+    // Verrou année scolaire : le paiement est rattaché à l'année du login (readonly).
+    const loginSchoolYear = useYearStore().currentSchoolYear;
+    // Rétro-compat : reference/paymentDate n'ont pas de colonne payments dédiée.
+    // On les reporte dans `comment` (persisté) tout en les envoyant séparément
+    // pour cash_movements.reference/movementDate côté backend. Jamais de perte silencieuse.
+    const refTag = form.value.reference?.trim() ? `[Réf: ${form.value.reference.trim()}]` : '';
+    const enrichedNotes = [form.value.notes?.trim(), refTag].filter(Boolean).join(' | ') || undefined;
     const paymentData = {
-      ...form.value,
       studentId: props.studentData.id,
-      paymentDate: new Date().toISOString(),
-      schoolYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
       amount: Number(form.value.amount),
+      // Type métier par défaut (le formulaire ne saisit que le mode).
+      paymentType: 'tuition',
+      paymentMethod: normalizePaymentMethod(form.value.paymentType),
+      reference: form.value.reference || undefined,
+      comment: enrichedNotes,
       installmentNumber: Number(form.value.installmentNumber),
-      paymentType: form.value.paymentType.toUpperCase(),
-      reference: form.value.reference || null,
-      notes: form.value.notes || null
+      paymentDate: now.toISOString(),
+      schoolYear: loginSchoolYear || undefined,
     };
 
-    const result = await window.ipcRenderer.invoke('payment:add', paymentData);
-    console.log(result);
+    // Garde mot de passe comptable avant CHAQUE saisie (STRICT : force + frais, modale systématique).
+    // Messages distincts conservés (NO_SECRET / LOCK / FRESH) — jamais de toast générique.
+    try {
+      await ensureUnlock({ force: true, fresh: true });
+    } catch (guardErr) {
+      if (isNoSecretError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+        void router.push('/comptabilite/setup');
+      } else if (isAccountingLockError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+      }
+      throw guardErr;
+    }
 
-    if (result.success) {
-      emit('payment-added', result.data);
+    // Clé générée UNE fois : le rejeu sur verrouillage réutilise le même objet.
+    // receiptNumber optionnel : omis ici, le backend génère R-YYYY-NNNN (compteur atomique).
+    const payloadWithKey = { ...paymentData, idempotencyKey: uuidv4() };
+    let data: unknown;
+    try {
+      data = await strictInvoke('payment:create', payloadWithKey);
+    } catch (ipcErr) {
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      data = await strictInvoke('payment:create', payloadWithKey);
+    }
+
+    if (data !== undefined && data !== null) {
+      emit('payment-added', data);
       ElMessage({
         message: 'Paiement enregistré avec succès',
         type: 'success',
@@ -136,12 +191,27 @@ const submitForm = async () => {
         notes: ''
       };
     } else {
-      throw new Error(result.message || "Erreur lors de l'enregistrement du paiement");
+      throw new Error("Erreur lors de l'enregistrement du paiement");
     }
   } catch (error) {
-    console.error("Erreur lors de l'enregistrement du paiement:", error);
+    // Erreur détaillée (RBAC/security + verrou comptable) : ne pas masquer sous un toast générique.
+    // NO_SECRET déjà notifié + redirection : pas de 2e toast générique.
+    if (isNoSecretError(error)) {
+      console.warn("[payment-form] abandon (NO_SECRET_SET déjà notifié).");
+      return;
+    }
+    const raw = error instanceof Error ? error.message : String(error ?? '');
+    const detail = isAccountingLockError(error) ? mapAccountingError(error) : raw;
+    console.error("[payment-form] Échec enregistrement:", {
+      studentId: props.studentData.id,
+      amount: form.value.amount,
+      reference: form.value.reference,
+      notes: form.value.notes,
+      detail: raw,
+      error,
+    });
     ElMessage({
-      message: "Une erreur s'est produite lors de l'enregistrement",
+      message: detail || "Une erreur s'est produite lors de l'enregistrement",
       type: 'error',
       duration: 5000,
       showClose: true

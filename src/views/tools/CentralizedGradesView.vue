@@ -207,6 +207,7 @@ import * as XLSX from 'xlsx';
 import { ElMessage } from 'element-plus';
 import { Document, Download, Loading, Warning, School, Calendar, TrendCharts, EditPen } from '@element-plus/icons-vue';
 import { getAppreciation } from '@/utils/grade';
+import { useYearStore } from '@/stores/yearStore';
 
  interface CentralizedRanking {
    studentId: number;
@@ -318,7 +319,9 @@ const loadData = async () => {
       gradeId: filters.value.gradeId,
       period: filters.value.period,
       minScore: undefined,
-      maxScore: undefined
+      maxScore: undefined,
+      // Verrou : requête scopée sur l'année du login (readonly).
+      schoolYear: useYearStore().currentSchoolYear || undefined,
     };
 
     const result = await window.ipcRenderer.invoke('gradeEntry:getCentralizedRankings', requestData);
@@ -624,7 +627,8 @@ const serializeForIPC = () => {
     const period = filters?.period || 'Trimestre 1';
     const className = classInfo?.name || 'Classe';
     const base = classInfo?.base || 20;
-    const schoolYear = new Date().getFullYear() + '-' + (new Date().getFullYear() + 1);
+    // Verrou année scolaire : en-tête PDF = année du menu (`YearSwitcher`), jamais l'année civile.
+    const schoolYear = useYearStore().currentSchoolYear || data?.schoolYear || filters?.schoolYear || '';
 
     return `<!DOCTYPE html>
 <html lang="fr">

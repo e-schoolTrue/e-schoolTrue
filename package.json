@@ -1,7 +1,7 @@
 {
   "name": "e-school",
   "private": true,
-  "version": "1.1.25",
+  "version": "1.1.32",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder --win --linux --publish always",
@@ -11,7 +11,19 @@
     "test:unit": "vitest --environment jsdom",
     "test:coverage": "vitest run --coverage --environment jsdom",
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3",
-    "license:cli": "tsx electron/tools/license-cli.ts"
+    "postinstall": "electron-builder install-app-deps",
+    "prebuild": "npm run rebuild:db-driver",
+    "license:cli": "tsx electron/tools/license-cli.ts",
+    "db:backup": "tsx --tsconfig tsconfig.node.json electron/tools/db-backup.ts",
+    "repair:db": "tsx --tsconfig tsconfig.node.json electron/tools/repair-temporary-tables.ts",
+    "migration:create": "typeorm migration:create electron/migrations/",
+    "migration:generate": "tsx --tsconfig tsconfig.node.json ./node_modules/typeorm/cli.js migration:generate -d electron/tools/typeorm-datasource.ts electron/migrations/",
+    "migration:run": "tsx --tsconfig tsconfig.node.json ./node_modules/typeorm/cli.js migration:run -d electron/tools/typeorm-datasource.ts",
+    "migration:show": "tsx --tsconfig tsconfig.node.json ./node_modules/typeorm/cli.js migration:show -d electron/tools/typeorm-datasource.ts",
+    "migration:revert": "tsx --tsconfig tsconfig.node.json ./node_modules/typeorm/cli.js migration:revert -d electron/tools/typeorm-datasource.ts",
+    "migration:dryrun": "tsx --tsconfig tsconfig.node.json electron/tools/migration-dryrun.ts",
+    "db:schema:log": "tsx --tsconfig tsconfig.node.json electron/tools/schema-dump.ts",
+    "test:migration:upgrade": "vitest run electron/backend/__tests__/migration-upgrade.spec.ts"
   },
   "dependencies": {
     "@noble/ed25519": "^2.2.0",

@@ -10,7 +10,8 @@ import { InscriptionFeeEntity } from './backend/entities/paymentConfig';
 import { documentContentService } from './backend/services/document-content-service';
 import { ICreateConfigParams } from './backend/types/note';
 import { CentralizedPdfService } from './backend/services/centralizedPdfService';
-import { protectedHandle, ADMIN_ONLY, PROFESSOR_WRITE, type Role } from './backend/security';
+import { protectedHandle, rolesForChannel } from './backend/security';
+export { PROFESSOR_WRITE_EXACT, COMPTABLE_ALLOW, COMPTABLE_AUTH_ALLOW, rolesForChannel } from './backend/security';
 import type { AuditAction } from './backend/entities/audit-log';
 
 
@@ -38,32 +39,9 @@ const handleError = (error: any, message: string): ResultType => {
 // AUDIT & RBAC (multi-utilisateur)
 // =================================================================
 
-const PROFESSOR_WRITE_EXACT = [
-  "save-student",
-  "update-student",
-  "delete-student",
-  "professor:create",
-  "professor:update",
-  "professor:delete",
-  "professor:payment:create",
-  "professor:payment:update"
-];
-
-// B1: canaux accessibles au rôle comptable (admin inclus).
-const COMPTABLE_ALLOW: string[] = ["payment:", "expense:", "cash:", "comptabilite:", "bank:", "teacher:", "receipt:"];
-
-const rolesForChannel = (channel: string): Role[] => {
-  if (PROFESSOR_WRITE.some(prefix => channel.startsWith(prefix)) || PROFESSOR_WRITE_EXACT.includes(channel)) {
-    return ["admin", "professor"];
-  }
-  if (COMPTABLE_ALLOW.some(prefix => channel.startsWith(prefix))) {
-    return ["admin", "comptable"];
-  }
-  if (ADMIN_ONLY.some(prefix => channel.startsWith(prefix))) {
-    return ["admin"];
-  }
-  return ["admin"];
-};
+// RBAC canonique centralisé dans electron/backend/security.ts
+// (PROFESSOR_WRITE_EXACT / COMPTABLE_ALLOW / rolesForChannel importés + ré-exportés
+// ci-dessus pour tests directs sans inspection string fragile). Ne pas redéfinir ici.
 
 const AUDIT_CHANNEL_ACTION: Record<string, AuditAction> = {
   "save-student": "create",
@@ -106,6 +84,12 @@ const AUDIT_CHANNEL_ACTION: Record<string, AuditAction> = {
   "yearRepartition:update": "update",
   "yearRepartition:delete": "delete",
   "yearRepartition:setCurrent": "update",
+  "yearRepartition:close": "status_change",
+  "yearRepartition:reopen": "status_change",
+  "yearRepartition:clone": "create",
+  "yearRepartition:ensure": "system",
+  "student:reEnroll": "update",
+  "student:reEnrollBatch": "update",
   "schedule:create": "create",
   "schedule:delete": "delete",
   "schedule-config:save": "create",
@@ -115,14 +99,34 @@ const AUDIT_CHANNEL_ACTION: Record<string, AuditAction> = {
   "expense:create": "create",
   "expense:update": "update",
   "expense:delete": "delete",
+  "expense:list": "system",
+  "expense:approve": "update",
+  "expense:reject": "update",
   "cash:append": "create",
   "cash:closure:create": "create",
   "cash:register:create": "create",
+  "cash:day": "system",
+  "cash:movements": "system",
+  "cash:open": "create",
+  "cash:close": "update",
+  "cash:addMovement": "create",
   "bank:create": "create",
   "bank:update": "update",
+  "bank:list": "system",
+  "bank:transactions": "system",
   "bank:transaction:create": "create",
+  "comptabilite:dashboard": "system",
+  "comptabilite:repartition": "system",
+  "comptabilite:impayes": "system",
+  "comptabilite:receipt:get": "system",
+  "comptabilite:receipt:send": "create",
   "comptabilite:validate": "update",
   "receipt:generate": "create",
+  "receipt:get": "system",
+  "receipt:send": "create",
+  "teacher:hours": "system",
+  "teacher:pay": "create",
+  "teacher:validate": "update",
   "teacher:hourlog:create": "create",
   "teacher:hourlog:update": "update",
   "teacher:salaryslip:create": "create",
@@ -251,7 +255,7 @@ export function registerIpcHandlers() {
   ipcMain.handle("auth:getSecurityQuestion", async (_, { username }) => global.authService.getSecurityQuestion(username));
   ipcMain.handle("auth:resetPassword", async (_, { username, newPassword }) => global.authService.resetPassword(username, newPassword));
   protectedHandle("auth:validateSecurityAnswer", {
-    roles: ['admin', 'professor', 'student'],
+    roles: ['admin', 'professor', 'student', 'comptable'],
     auth: 'optional',
     audit: {
       action: 'system',
@@ -262,18 +266,43 @@ export function registerIpcHandlers() {
       })
     }
   }, async (_, { username, answer }) => global.authService.validateSecurityAnswer(username, answer));
+  // B5: auth:login accepte { username, password, yearId? }.
+  // - yearId = année demandée au login (LoginView → yearStore.init).
+  // - Si fournie et autorisée, le backend initialise l'année demandée via
+  //   setCurrentYearRepartition (admin uniquement, année active exigée).
+  // - Canal canonique de bascule SANS relogin : `year:switch` (alias
+  //   `yearRepartition:setCurrent`). `yearRepartition:ensure` est admin-only.
   ipcMain.handle("auth:login", async (_, credentials) => {
     const result = await global.authService.validateSupervisor(credentials.username, credentials.password);
     try {
       if (result?.success) {
+        // V3 rattrapage : auto-création année N+1 si seuil 9 mois atteint (best-effort, ne bloque pas le login).
+        // NOTE: ensureSchoolYear est désormais admin-only côté IPC ; l'appel
+        // direct au SERVICE ici reste autorisé (pas de contournement RBAC :
+        // c'est le main process lui-même, pas un renderer non privilégié).
+        try { await global.yearRepartitionService?.ensureSchoolYear?.(new Date()).catch(() => null); } catch { /* best-effort */ }
         const user = result.data;
+        // B5: init année demandée si autorisée (admin + année active).
+        let switchedYear: any = null;
+        const requestedYearId = Number((credentials as any)?.yearId ?? (credentials as any)?.year_id ?? NaN);
+        if (Number.isFinite(requestedYearId) && user?.role === "admin") {
+          try {
+            const sw = await global.yearRepartitionService?.setCurrentYearRepartition?.(requestedYearId);
+            if (sw?.success) switchedYear = sw.data ?? null;
+            else console.warn(`[auth:login] bascule année #${requestedYearId} refusée:`, sw?.error ?? sw?.message);
+          } catch (e) { console.warn("[auth:login] bascule année demandée ignorée:", e); }
+        } else if (Number.isFinite(requestedYearId) && user?.role !== "admin") {
+          console.warn(`[auth:login] yearId #${requestedYearId} ignoré pour rôle ${user?.role} (admin requis)`);
+        }
         await global.auditLogService?.record({
           action: 'login',
           targetEntity: 'User',
           targetId: user?.id ?? null,
-          summary: `Connexion de ${user?.username ?? credentials.username}`,
+          summary: `Connexion de ${user?.username ?? credentials.username}${switchedYear ? ` (année ${switchedYear?.schoolYear ?? requestedYearId})` : ""}`,
+          metadata: requestedYearId ? { requestedYearId, switched: !!switchedYear } : undefined,
           actor: user ? { id: user.id, username: user.username, role: user.role, displayName: user.displayName ?? null } : null
         });
+        if (switchedYear) (result as any).activeYear = switchedYear;
       } else {
         await global.auditLogService?.record({
           action: 'login',
@@ -311,6 +340,8 @@ export function registerIpcHandlers() {
       // signOutFromSupabase() est déjà best-effort (offline => purge locale quand même).
       await global.authService.signOutFromSupabase();
       await global.authService.logout();
+      // B2: purger l'unlock du coffre comptable (mémoire volatile, par session).
+      try { (global as any).accountingAuthService?.clearUnlock(); } catch { /* best-effort */ }
       return {
         success: true,
         message: "Déconnexion réussie",
@@ -321,6 +352,7 @@ export function registerIpcHandlers() {
       // Idempotence : même en cas d'erreur inattendue, purger le local et retourner success
       // afin de ne jamais bloquer le frontend sur une session fantôme.
       try { await global.authService.logout(); } catch { /* best-effort */ }
+      try { (global as any).accountingAuthService?.clearUnlock(); } catch { /* best-effort */ }
       return {
         success: true,
         message: "Déconnexion locale effectuée",
@@ -630,6 +662,7 @@ export function registerIpcHandlers() {
     filters?: {
       studentFullName?: string;
       grade?: string;
+      schoolYear?: string;
     };
   }) => {
     try {
@@ -651,6 +684,8 @@ export function registerIpcHandlers() {
   ipcMain.handle("student:getDetails", async (_, studentId: number) => global.studentService.getStudentDetails(studentId));
   protectedHandle("save-student", {
     roles: rolesForChannel("save-student"),
+    // B1: garde année — création et update via save-student (payload direct).
+    requireYearWrite: (args) => (args[0] as any)?.schoolYear ?? (args[0] as any)?.school_year,
     audit: auditFor("save-student", "Student", {
       summarize: (args, result) => {
         const payload = args[0] ?? {};
@@ -665,6 +700,8 @@ export function registerIpcHandlers() {
   }, async (_, studentData) => studentData.id ? global.studentService.updateStudent(studentData.id, studentData) : global.studentService.createStudent(studentData));
   protectedHandle("update-student", {
     roles: rolesForChannel("update-student"),
+    // B1: garde année — args[0] = { studentId, studentData } ; l'année vit dans studentData.
+    requireYearWrite: (args) => (args[0] as any)?.studentData?.schoolYear ?? (args[0] as any)?.studentData?.school_year ?? (args[0] as any)?.schoolYear,
     audit: auditFor("update-student", "Student")
   }, async (_, { studentId, studentData }) => global.studentService.updateStudent(studentId, studentData));
   protectedHandle("delete-student", {
@@ -903,6 +940,7 @@ export function registerIpcHandlers() {
   ipcMain.handle("payment:getConfigs", async () => global.paymentService.getConfigs());
   protectedHandle("payment:saveConfig", {
     roles: rolesForChannel("payment:saveConfig"),
+    requireAccountingUnlock: { fresh: true },
     audit: auditFor("payment:saveConfig", "Payment", {
       summarize: (args, result) => ({
         targetId: result?.data?.id ?? null,
@@ -915,6 +953,7 @@ export function registerIpcHandlers() {
   ipcMain.handle("payment:getCustomConfigs", async () => global.paymentService.getCustomConfigs());
   protectedHandle("payment:saveCustomConfig", {
     roles: rolesForChannel("payment:saveCustomConfig"),
+    requireAccountingUnlock: { fresh: true },
     audit: auditFor("payment:saveCustomConfig", "Payment", {
       summarize: (args, result) => ({
         targetId: result?.data?.id ?? args[0]?.id ?? null,
@@ -924,6 +963,7 @@ export function registerIpcHandlers() {
   }, async (_, configData) => global.paymentService.saveCustomConfig(configData));
   protectedHandle("payment:deleteCustomConfig", {
     roles: rolesForChannel("payment:deleteCustomConfig"),
+    requireAccountingUnlock: { fresh: true },
     audit: auditFor("payment:deleteCustomConfig", "Payment", {
       summarize: (args, result) => ({
         targetId: typeof args[0] === "number" ? args[0] : null,
@@ -932,10 +972,48 @@ export function registerIpcHandlers() {
     })
   }, async (_, configId) => global.paymentService.deleteCustomConfig(configId));
 
-  ipcMain.handle("payment:getByStudent", async (_, studentId) => global.paymentService.getPaymentsByStudent(studentId));
-  ipcMain.handle("payment:getByDate", async (_, date) => global.paymentService.getPaymentsByDate(date));
+  protectedHandle("payment:getByStudent", {
+    roles: rolesForChannel("payment:getByStudent"),
+    audit: auditFor("payment:getByStudent", "Payment", {
+      summarize: (args) => ({
+        targetId: typeof args[0] === "number" ? args[0] : Number((args[0] as any)?.studentId ?? null),
+        summary: "Consultation des paiements par élève"
+      })
+    })
+    // B3: payload { studentId, schoolYear? } ou studentId nu (année courante par défaut).
+  }, async (_, payload) => {
+    const studentId = typeof payload === "number" ? payload : Number((payload as any)?.studentId ?? payload);
+    const schoolYear = typeof payload === "object" ? (payload as any)?.schoolYear : undefined;
+    return global.paymentService.getPaymentsByStudent(studentId, schoolYear);
+  });
+  protectedHandle("payment:getByDate", {
+    roles: rolesForChannel("payment:getByDate"),
+    audit: auditFor("payment:getByDate", "Payment", {
+      summarize: (args) => ({
+        targetId: null,
+        summary: "Consultation des paiements par date"
+      })
+    })
+  }, async (_, date) => global.paymentService.getPaymentsByDate(date));
+  // Mensualités — mêmes rôles que les autres lectures paiement (payment:getByStudent,
+  // payment:getByDate : ["admin","comptable"] via préfixe "payment:" de COMPTABLE_ALLOW).
+  // Lecture seule : pas de requireYearWrite ni requireAccountingUnlock.
+  // B3: payload { schoolYear? } | schoolYear brute | undefined (année courante par défaut).
+  protectedHandle("payment:mensualites", {
+    roles: rolesForChannel("payment:mensualites"),
+    audit: auditFor("payment:mensualites", "Payment", {
+      summarize: () => ({
+        targetId: null,
+        summary: "Consultation des mensualités"
+      })
+    })
+  }, async (_, params) => global.paymentService.getMensualites(
+    typeof params === "object" ? (params as any)?.schoolYear : params ?? undefined
+  ));
   protectedHandle("payment:create", {
     roles: rolesForChannel("payment:create"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
     audit: auditFor("payment:create", "Payment", {
       summarize: (args, result) => ({
         targetId: result?.data?.id ?? null,
@@ -943,10 +1021,23 @@ export function registerIpcHandlers() {
       })
     })
   }, async (_, paymentData) => global.paymentService.addPayment(paymentData));
-  ipcMain.handle("professor:payments:list", async (_, filters) => global.paymentService.getProfessorPayments(filters));
-  ipcMain.handle("professor:payments:stats", async () => global.paymentService.getProfessorPaymentStats());
+  // --- Façades fusion paie (deprecated: canaux historiques conservés sans casser l'existant) ---
+  // professor:payment:* et professor:payments:* délèguent désormais à accountingService
+  // (source unique : teacherPay / professorPaymentsList / Stats / Update).
+  // paymentService reste une façade identique pour le code qui l'appelle encore.
+  // protectedHandle admin/comptable (+professor via rolesForChannel) conservé.
+  protectedHandle("professor:payments:list", {
+    roles: rolesForChannel("professor:payments:list")
+  }, async (_, filters) => acct().professorPaymentsList(filters ?? {}));
+  protectedHandle("professor:payments:stats", {
+    roles: rolesForChannel("professor:payments:stats")
+    // B3: filtres { schoolYear? } transmis (défaut année courante côté service).
+  }, async (_, filters) => acct().professorPaymentsStats((filters as any) ?? {}));
+  // deprecated: préférer teacher:pay (paie validée heures → bulletin → Cash OUT).
   protectedHandle("professor:payment:create", {
     roles: rolesForChannel("professor:payment:create"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
     audit: auditFor("professor:payment:create", "ProfessorPayment", {
       summarize: (args, result) => {
         const amount = args[0]?.amount ?? result?.data?.amount;
@@ -956,16 +1047,289 @@ export function registerIpcHandlers() {
         };
       }
     })
-  }, async (_, paymentData) => global.paymentService.addProfessorPayment(paymentData));
+  }, async (_, paymentData) => acct().teacherPay(Number((paymentData as any)?.professorId), (paymentData as any)?.month, (paymentData as any) ?? {}));
+  // deprecated: préférer teacher:pay / comptabilite (update whitelisté, caisse intouchable).
   protectedHandle("professor:payment:update", {
     roles: rolesForChannel("professor:payment:update"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
     audit: auditFor("professor:payment:update", "ProfessorPayment", {
       summarize: (args, result) => ({
         targetId: result?.data?.id ?? args[0]?.id ?? null,
         summary: "Paiement professeur mis à jour"
       })
     })
-  }, async (_, paymentData) => global.paymentService.updateProfessorPayment(paymentData));
+  }, async (_, paymentData) => acct().professorPaymentUpdate(Number((paymentData as any)?.id), (paymentData as any) ?? {}));
+  // Backfill admin : normalise les anciennes références non PAY-ENS-YYYY-XXXX.
+  protectedHandle("professor:payments:backfill", {
+    roles: ['admin']
+  }, async () => acct().backfillProfessorReferences());
+
+  // --- Comptabilité réelle (zéro-mock, append-only, transaction standard single-writer better-sqlite3) ---
+  // Tous les canaux ci-dessous sont admin/comptable via COMPTABLE_ALLOW.
+  // Aucun DELETE comptable : annulation = statut cancelled + contre-écriture.
+  const acct = () => (global as any).accountingService;
+  const acctAuth = () => (global as any).accountingAuthService;
+
+  // --- Vérification comptable : MOT DE PASSE DE CONNEXION de l'utilisateur courant ---
+  // Plus de mot de passe comptable séparé, plus de vault : verify compare via
+  // bcrypt au hash du compte (UserEntity). lock/status : admin+comptable.
+  // set/change/reset : devenus inutiles (NON_REQUIS — la rotation se fait via
+  // le compte utilisateur). Aucun secret/hash exposé.
+  protectedHandle("comptabilite:verifyPassword", {
+    roles: rolesForChannel("comptabilite:verifyPassword")
+  }, async (_, payload) => {
+    const secret = typeof payload === "string" ? payload : (payload as any)?.password ?? (payload as any)?.secret;
+    return acctAuth().verify(secret);
+  });
+
+  protectedHandle("comptabilite:lock", {
+    roles: rolesForChannel("comptabilite:lock")
+  }, async () => acctAuth().lock());
+
+  protectedHandle("comptabilite:status", {
+    roles: rolesForChannel("comptabilite:status")
+  }, async () => ({ success: true, data: await acctAuth().getStatus(), message: "Statut de la vérification comptable", error: null }));
+
+  // Canaux historiques du secret séparé : conservés pour compatibilité mais
+  // devenus sans objet — ils échouent avec NON_REQUIS.
+  const accountingNotRequired = () => ({
+    success: false as const,
+    data: null,
+    message: "Non requis : la comptabilité utilise le mot de passe de connexion de l'utilisateur courant.",
+    error: "NON_REQUIS" as const,
+  });
+
+  protectedHandle("comptabilite:setSecret", {
+    roles: ['admin']
+  }, async () => accountingNotRequired());
+
+  protectedHandle("comptabilite:resetSecret", {
+    roles: ['admin']
+  }, async () => accountingNotRequired());
+
+  protectedHandle("comptabilite:changeSecret", {
+    roles: ['admin', 'comptable']
+  }, async () => accountingNotRequired());
+
+  protectedHandle("comptabilite:dashboard", {
+    roles: rolesForChannel("comptabilite:dashboard"),
+    audit: auditFor("comptabilite:dashboard", "Payment", {
+      summarize: () => ({ targetId: null, summary: "Consultation du tableau de bord comptable" })
+    })
+    // B3: payload { schoolYear? } — défaut année courante (anti fuite inter-années).
+  }, async (_, params) => acct().dashboard((params as any)?.schoolYear ?? params ?? undefined));
+
+  protectedHandle("comptabilite:repartition", {
+    roles: rolesForChannel("comptabilite:repartition"),
+    audit: auditFor("comptabilite:repartition", "Payment", {
+      summarize: () => ({ targetId: null, summary: "Consultation de la répartition comptable" })
+    })
+    // B3: payload { schoolYear? } — défaut année courante.
+  }, async (_, params) => acct().repartition((params as any)?.schoolYear ?? params ?? undefined));
+
+  protectedHandle("comptabilite:impayes", {
+    roles: rolesForChannel("comptabilite:impayes"),
+    audit: auditFor("comptabilite:impayes", "Payment", {
+      summarize: (args) => ({ targetId: null, summary: "Consultation des impayés" })
+    })
+  }, async (_, params) => acct().impayes(params ?? {}));
+
+  protectedHandle("comptabilite:receipt:get", {
+    roles: rolesForChannel("comptabilite:receipt:get"),
+    audit: auditFor("comptabilite:receipt:get", "Payment", {
+      summarize: (args) => ({ targetId: typeof args[0] === "number" ? args[0] : null, summary: `Consultation du reçu ${String(args[0] ?? "")}`.trim() })
+    })
+  }, async (_, idOrNumber) => acct().receiptGet(idOrNumber));
+
+  protectedHandle("comptabilite:receipt:send", {
+    roles: rolesForChannel("comptabilite:receipt:send"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("comptabilite:receipt:send", "Payment", {
+      summarize: (args) => ({ targetId: typeof args[0] === "number" ? args[0] : null, summary: `Envoi du reçu ${String(args[0] ?? "")}`.trim() })
+    })
+  }, async (_, id) => acct().receiptSend(id));
+
+  protectedHandle("expense:list", {
+    roles: rolesForChannel("expense:list"),
+    audit: auditFor("expense:list", "Expense", {
+      summarize: () => ({ targetId: null, summary: "Consultation des dépenses" })
+    })
+  }, async (_, params) => acct().expenseList(params ?? {}));
+
+  protectedHandle("expense:create", {
+    roles: rolesForChannel("expense:create"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("expense:create", "Expense")
+  }, async (_, payload) => acct().expenseCreate(payload));
+
+  protectedHandle("expense:approve", {
+    roles: rolesForChannel("expense:approve"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("expense:approve", "Expense")
+  }, async (_, id) => acct().expenseApprove(Number((id as any)?.id ?? id)));
+
+  protectedHandle("expense:reject", {
+    roles: rolesForChannel("expense:reject"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("expense:reject", "Expense")
+  }, async (_, id) => acct().expenseReject(Number((id as any)?.id ?? id)));
+
+  protectedHandle("cash:day", {
+    roles: rolesForChannel("cash:day"),
+    audit: auditFor("cash:day", "CashRegister", {
+      summarize: (args) => ({ targetId: null, summary: `Consultation de la journée de caisse ${String(args[0] ?? "")}`.trim() })
+    })
+  }, async (_, dateISO) => acct().cashDay(typeof dateISO === "string" ? dateISO : (dateISO as any)?.date ?? undefined));
+
+  protectedHandle("cash:movements", {
+    roles: rolesForChannel("cash:movements"),
+    audit: auditFor("cash:movements", "CashMovement", {
+      summarize: () => ({ targetId: null, summary: "Consultation des mouvements de caisse" })
+    })
+  }, async (_, dateISO) => acct().cashMovements(typeof dateISO === "string" ? dateISO : (dateISO as any)?.date ?? undefined));
+
+  protectedHandle("cash:open", {
+    roles: rolesForChannel("cash:open"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("cash:open", "CashRegister")
+  }, async (_, payload) => acct().cashOpen(payload ?? {}));
+
+  protectedHandle("cash:close", {
+    roles: rolesForChannel("cash:close"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("cash:close", "CashClosure")
+  }, async (_, payload) => acct().cashClose(payload ?? {}));
+
+  protectedHandle("cash:append", {
+    roles: rolesForChannel("cash:append"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("cash:append", "CashMovement")
+  }, async (_, payload) => acct().cashAppend(payload ?? {}));
+
+  protectedHandle("cash:addMovement", {
+    roles: rolesForChannel("cash:addMovement"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("cash:addMovement", "CashMovement")
+  }, async (_, payload) => acct().cashAppend(payload ?? {}));
+
+  const toMonthKey = (p: any): string | undefined => {
+    if (!p || typeof p !== "object") return undefined;
+    if (typeof p.month === "string" && /^\d{4}-\d{2}$/.test(p.month)) return p.month;
+    if (typeof p.mois === "string" && /^\d{4}-\d{2}$/.test(p.mois)) return p.mois;
+    const annee = p.annee ?? p.year;
+    const mois = p.mois ?? p.month;
+    if (annee != null && mois != null) {
+      const m = String(mois).padStart(2, "0");
+      if (/^\d{4}$/.test(String(annee)) && /^\d{2}$/.test(m)) return `${annee}-${m}`;
+    }
+    return undefined;
+  };
+
+  protectedHandle("teacher:hours", {
+    roles: rolesForChannel("teacher:hours"),
+    audit: auditFor("teacher:hours", "TeacherHourLog", {
+      summarize: () => ({ targetId: null, summary: "Consultation des heures enseignants" })
+    })
+  }, async (_, params) => {
+    const month = toMonthKey(params) ?? (typeof params === "string" ? params : undefined);
+    return acct().teacherHours(month ? { month } : (params ?? {}));
+  });
+
+  protectedHandle("teacher:validate", {
+    roles: rolesForChannel("teacher:validate"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("teacher:validate", "SalarySlip")
+  }, async (_, payload) => {
+    const id = Number((payload as any)?.id ?? payload);
+    const month = toMonthKey(payload as any);
+    return acct().teacherValidate(id, month);
+  });
+
+  protectedHandle("teacher:pay", {
+    roles: rolesForChannel("teacher:pay"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("teacher:pay", "SalarySlip", {
+      summarize: (args) => {
+        const p: any = args[0];
+        const id = typeof p === "number" ? p : Number(p?.id ?? null);
+        return { targetId: Number.isFinite(id) ? id : null, summary: `Paie enseignant ${Number.isFinite(id) ? `#${id}` : ""}`.trim() };
+      }
+    })
+  }, async (_, payload) => {
+    if (typeof payload === "number") return acct().teacherPay(payload, undefined, {});
+    const id = Number((payload as any)?.id ?? (payload as any)?.professorId);
+    const month = toMonthKey(payload as any);
+    const extra = (payload as any) ?? {};
+    return acct().teacherPay(id, month, extra);
+  });
+
+  protectedHandle("teacher:payBatch", {
+    roles: rolesForChannel("teacher:payBatch"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("teacher:pay", "SalarySlip", {
+      summarize: (args) => ({ targetId: null, summary: `Paie lot de ${(args[0] as any)?.ids?.length ?? 0} enseignant(s)` })
+    })
+  }, async (_, payload) => {
+    const ids: number[] = Array.isArray((payload as any)?.ids) ? (payload as any).ids.map(Number) : [];
+    const month = toMonthKey(payload as any);
+    const extra = (payload as any) ?? {};
+    // P1 fix : dérive une clé PAR enseignant ${batchKey}-${professorId}-${month}.
+    // Le frontend envoie { batchKey, idempotencyKeys } ; fallback legacy : si un seul
+    // idempotencyKey partagé est reçu, on le scope par enseignant pour ne jamais
+    // réutiliser la même clé globalement (fail-closed, sans casser l'unitaire).
+    const batchKey: string | undefined = typeof extra?.batchKey === "string" ? extra.batchKey : typeof extra?.idempotencyKey === "string" ? extra.idempotencyKey : undefined;
+    const keysMap: Record<string, string> | undefined = extra?.idempotencyKeys && typeof extra.idempotencyKeys === "object" ? extra.idempotencyKeys : undefined;
+    const results: any[] = [];
+    for (const id of ids) {
+      const perKey: string | undefined = keysMap?.[String(id)] ?? keysMap?.[id as unknown as string] ?? (batchKey && month ? `${batchKey}-${id}-${month}` : extra?.idempotencyKey);
+      const { ids: _omitIds, idempotencyKeys: _omitKeys, batchKey: _omitBatch, ...rest } = extra;
+      const scopedExtra = perKey ? { ...rest, idempotencyKey: perKey } : { ...rest };
+      const r = await acct().teacherPay(id, month, scopedExtra);
+      results.push(r);
+      if (!r?.success) return { success: false, data: results, message: `Échec paie enseignant #${id} : ${r?.message ?? r?.error}`, error: r?.error ?? "BATCH_STOP" };
+    }
+    return { success: true, data: results, message: `${results.length} paie(s) enregistrée(s)`, error: null };
+  });
+
+  protectedHandle("bank:list", {
+    roles: rolesForChannel("bank:list"),
+    audit: auditFor("bank:list", "BankAccount", {
+      summarize: () => ({ targetId: null, summary: "Consultation des comptes bancaires" })
+    })
+  }, async () => acct().bankList());
+
+  protectedHandle("bank:create", {
+    roles: rolesForChannel("bank:create"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("bank:create", "BankAccount")
+  }, async (_, payload) => acct().bankCreate(payload ?? {}));
+
+  protectedHandle("bank:transactions", {
+    roles: rolesForChannel("bank:transactions"),
+    audit: auditFor("bank:transactions", "BankTransaction", {
+      summarize: () => ({ targetId: null, summary: "Consultation des transactions bancaires" })
+    })
+  }, async (_, accountId) => acct().bankTransactions(typeof accountId === "number" ? accountId : Number((accountId as any)?.accountId ?? (accountId as any)?.id ?? NaN) || undefined));
+
+  protectedHandle("bank:transaction:create", {
+    roles: rolesForChannel("bank:transaction:create"),
+    requireYearWrite: true,
+    requireAccountingUnlock: { fresh: true },
+    audit: auditFor("bank:transaction:create", "BankTransaction")
+  }, async (_, payload) => acct().bankTransactionCreate(payload ?? {}));
 
   // --- Tranch Configurations ---
   ipcMain.handle("tranche-config:all", async () => {
@@ -1112,14 +1476,41 @@ export function registerIpcHandlers() {
   }, async (_, settings) => global.schoolService.saveOrUpdateSettings(settings));
 
   // --- Dashboard ---
-  ipcMain.handle("dashboard:stats", async () => global.dashboardService.getStats());
-  ipcMain.handle("dashboard:paymentStats", async () => global.dashboardService.getPaymentStats());
+  // Verrou année scolaire : `schoolYear` explicite = année du login (défaut année courante serveur).
+  ipcMain.handle("dashboard:stats", async (_e, params: string | { schoolYear?: string } | undefined) => global.dashboardService.getStats(typeof params === 'string' ? params : params?.schoolYear));
+  ipcMain.handle("dashboard:paymentStats", async (_e, params: string | { schoolYear?: string } | undefined) => global.dashboardService.getPaymentStats(typeof params === 'string' ? params : params?.schoolYear));
   ipcMain.handle("dashboard:professorPaymentStats", async () => global.dashboardService.getProfessorPaymentStats());
   ipcMain.handle("dashboard:absenceStats", async () => global.dashboardService.getAbsenceStats());
 
-  // --- Année Scolaire ---
-  ipcMain.handle("yearRepartition:getAll", async () => global.yearRepartitionService.getAllYearRepartitions());
-  ipcMain.handle("yearRepartition:getCurrent", async () => global.yearRepartitionService.getCurrentYearRepartition());
+  // --- Année Scolaire (lectures authentifiées — SEV3 : plus de ipcMain.handle ouvert) ---
+  protectedHandle("yearRepartition:getAll", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: {
+      action: "system",
+      entity: "YearRepartition",
+      summarize: () => ({ targetId: null, summary: "Consultation des années scolaires" })
+    }
+  }, async () => {
+    try {
+      return await global.yearRepartitionService.getAllYearRepartitions();
+    } catch (error) {
+      return handleError(error, "yearRepartition:getAll");
+    }
+  });
+  protectedHandle("yearRepartition:getCurrent", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: {
+      action: "system",
+      entity: "YearRepartition",
+      summarize: () => ({ targetId: null, summary: "Consultation de l'année scolaire courante" })
+    }
+  }, async () => {
+    try {
+      return await global.yearRepartitionService.getCurrentYearRepartition();
+    } catch (error) {
+      return handleError(error, "yearRepartition:getCurrent");
+    }
+  });
   protectedHandle("yearRepartition:create", {
     roles: rolesForChannel("yearRepartition:create"),
     audit: auditFor("yearRepartition:create", "YearRepartition")
@@ -1141,6 +1532,178 @@ export function registerIpcHandlers() {
       })
     })
   }, async (_, id) => global.yearRepartitionService.setCurrentYearRepartition(id));
+  protectedHandle("yearRepartition:close", {
+    roles: rolesForChannel("yearRepartition:close"),
+    audit: {
+      action: "status_change",
+      entity: "YearRepartition",
+      summarize: (args, result) => ({
+        targetId: typeof args[0] === "number" ? args[0] : result?.data?.id ?? null,
+        summary: `Clôture de l'année scolaire ${result?.data?.schoolYear ?? ""}`.trim()
+      })
+    }
+  }, async (_, id) => global.yearRepartitionService.closeYear(Number((id as any)?.id ?? id)));
+  protectedHandle("yearRepartition:reopen", {
+    roles: rolesForChannel("yearRepartition:reopen"),
+    audit: {
+      action: "status_change",
+      entity: "YearRepartition",
+      summarize: (args, result) => ({
+        targetId: typeof args[0] === "number" ? args[0] : result?.data?.id ?? null,
+        summary: `Réouverture de l'année scolaire ${result?.data?.schoolYear ?? ""}`.trim()
+      })
+    }
+  }, async (_, id) => global.yearRepartitionService.reopenYear(Number((id as any)?.id ?? id)));
+  protectedHandle("yearRepartition:clone", {
+    roles: rolesForChannel("yearRepartition:clone"),
+    audit: auditFor("yearRepartition:clone", "YearRepartition", {
+      summarize: (args, result) => ({
+        targetId: null,
+        summary: `Clone configs-only vers ${(args[0] as any)?.newSchoolYear ?? result?.data?.schoolYear ?? ""}`.trim()
+      })
+    })
+  }, async (_, payload) => global.yearRepartitionService.cloneYearConfigs(payload ?? {}));
+  // B5: ensure passé en protectedHandle admin-only + audit create.
+  // Le renderer ne l'appelle plus directement ; le login l'invoque côté
+  // SERVICE (main process). Tout appel renderer non-admin => FORBIDDEN.
+  protectedHandle("yearRepartition:ensure", {
+    roles: ["admin"],
+    audit: {
+      action: "create",
+      entity: "YearRepartition",
+      summarize: (args, result) => ({
+        targetId: (result?.data as any)?.id ?? null,
+        summary: (result?.data as any)?.schoolYear ? `Vérification/création année ${(result.data as any).schoolYear}` : "Vérification année scolaire"
+      })
+    }
+  }, async () => {
+    try {
+      return await global.yearRepartitionService.ensureSchoolYear(new Date());
+    } catch (error) {
+      return handleError(error, "yearRepartition:ensure");
+    }
+  });
+  // B2: alias year:* → yearRepartition:* (canaux canoniques documentés).
+  // Canoniques : yearRepartition:getAll/getCurrent/setCurrent/close/reopen/clone.
+  // Alias V3 (frontend yearStore) : year:list, year:getAll, year:getCurrent,
+  // year:switch, year:clone, year:close, year:reopen, year:clone-preview.
+  // SEV3: lectures year:* authentifiées (tous rôles authentifiés) + audit lecture.
+  // Compat fallback conservée : le frontend (yearStore.fetchList/fetchCurrent,
+  // YearSwitcher, ReEnrollmentView) appelle en authentifié et chaîne les alias ;
+  // chaque alias retourne la même enveloppe ou un handleError (success:false),
+  // jamais de throw hors RBAC — le fallback inter-canaux reste fonctionnel.
+  protectedHandle("year:list", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: {
+      action: "system",
+      entity: "YearRepartition",
+      summarize: () => ({ targetId: null, summary: "Consultation des années scolaires (alias year:list)" })
+    }
+  }, async () => {
+    try {
+      return await global.yearRepartitionService.getAllYearRepartitions();
+    } catch (error) {
+      return handleError(error, "year:list");
+    }
+  });
+  protectedHandle("year:getAll", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: {
+      action: "system",
+      entity: "YearRepartition",
+      summarize: () => ({ targetId: null, summary: "Consultation des années scolaires (alias year:getAll)" })
+    }
+  }, async () => {
+    try {
+      return await global.yearRepartitionService.getAllYearRepartitions();
+    } catch (error) {
+      return handleError(error, "year:getAll");
+    }
+  });
+  protectedHandle("year:getCurrent", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: {
+      action: "system",
+      entity: "YearRepartition",
+      summarize: () => ({ targetId: null, summary: "Consultation de l'année scolaire courante (alias year:getCurrent)" })
+    }
+  }, async () => {
+    try {
+      return await global.yearRepartitionService.getCurrentYearRepartition();
+    } catch (error) {
+      return handleError(error, "year:getCurrent");
+    }
+  });
+  protectedHandle("year:switch", {
+    roles: ["admin"],
+    audit: {
+      action: "status_change",
+      entity: "YearRepartition",
+      summarize: (args, result) => ({
+        targetId: (Number((args[0] as any)?.yearId ?? args[0]) || (result?.data as any)?.id) ?? null,
+        summary: `Bascule année vers ${(result?.data as any)?.schoolYear ?? (args[0] as any)?.yearId ?? args[0]} (alias year:switch)`
+      })
+    }
+  }, async (_, payload) => global.yearRepartitionService.setCurrentYearRepartition(Number((payload as any)?.yearId ?? payload)));
+  protectedHandle("year:close", {
+    roles: ["admin"],
+    audit: { action: "status_change", entity: "YearRepartition", summarize: (args) => ({ targetId: Number((args[0] as any)?.id ?? args[0]) || null, summary: "Clôture année (alias year:close)" }) }
+  }, async (_, payload) => global.yearRepartitionService.closeYear(Number((payload as any)?.id ?? payload)));
+  protectedHandle("year:reopen", {
+    roles: ["admin"],
+    audit: { action: "status_change", entity: "YearRepartition", summarize: (args) => ({ targetId: Number((args[0] as any)?.id ?? args[0]) || null, summary: "Réouverture année (alias year:reopen)" }) }
+  }, async (_, payload) => global.yearRepartitionService.reopenYear(Number((payload as any)?.id ?? payload)));
+  protectedHandle("year:clone", {
+    roles: ["admin"],
+    audit: { action: "create", entity: "YearRepartition", summarize: (args) => ({ targetId: null, summary: `Clone année vers ${(args[0] as any)?.newSchoolYear ?? ""} (alias year:clone)`.trim() }) }
+  }, async (_, payload) => global.yearRepartitionService.cloneYearConfigs(payload ?? {}));
+  // B2: year:clone-preview (dry-run, aucune écriture) — lecture authentifiée + audit.
+  // Alias canonique yearRepartition:clone-preview ajouté (YearRepartitionView
+  // l'essaie en premier) ; compat year:clone-preview / year:clonePreview conservée.
+  const yearClonePreviewAudit = (channel: string) => ({
+    action: "system" as AuditAction,
+    entity: "YearRepartition",
+    summarize: () => ({ targetId: null, summary: `Aperçu du clonage d'année (${channel})` })
+  });
+  const yearClonePreviewHandler = (channel: string) => async (_: unknown, payload: unknown) => {
+    try {
+      return await global.yearRepartitionService.clonePreview((payload as object) ?? {});
+    } catch (error) {
+      return handleError(error, channel);
+    }
+  };
+  protectedHandle("yearRepartition:clone-preview", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: yearClonePreviewAudit("yearRepartition:clone-preview")
+  }, yearClonePreviewHandler("yearRepartition:clone-preview"));
+  protectedHandle("year:clone-preview", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: yearClonePreviewAudit("year:clone-preview")
+  }, yearClonePreviewHandler("year:clone-preview"));
+  protectedHandle("year:clonePreview", {
+    roles: ['admin', 'professor', 'student', 'comptable'],
+    audit: yearClonePreviewAudit("year:clonePreview")
+  }, yearClonePreviewHandler("year:clonePreview"));
+  protectedHandle("student:reEnroll", {
+    roles: rolesForChannel("student:reEnroll"),
+    requireYearWrite: (args) => (args[0] as any)?.schoolYear,
+    audit: auditFor("update-student", "Student", {
+      summarize: (args, result) => ({
+        targetId: (args[0] as any)?.studentId ?? null,
+        summary: `Réinscription de l'élève en ${(args[0] as any)?.schoolYear ?? ""}`.trim()
+      })
+    })
+  }, async (_, payload) => global.studentService.reEnrollStudent(Number((payload as any)?.studentId ?? payload), { schoolYear: String((payload as any)?.schoolYear ?? ""), gradeId: (payload as any)?.gradeId }));
+  protectedHandle("student:reEnrollBatch", {
+    roles: rolesForChannel("student:reEnrollBatch"),
+    requireYearWrite: (args) => (args[0] as any)?.schoolYear,
+    audit: auditFor("update-student", "Student", {
+      summarize: (args) => ({
+        targetId: null,
+        summary: `Réinscriptions en lot (${Array.isArray((args[0] as any)?.studentIds) ? (args[0] as any).studentIds.length : 0}) en ${(args[0] as any)?.schoolYear ?? ""}`.trim()
+      })
+    })
+  }, async (_, payload) => global.studentService.batchReEnroll(((payload as any)?.studentIds ?? []) as number[], { schoolYear: String((payload as any)?.schoolYear ?? ""), gradeId: (payload as any)?.gradeId }));
 
   // --- Licence ---
   ipcMain.handle("license:getMachineId", async () => ({ success: true, data: { machineId: global.licenseService.getMachineId() } }));

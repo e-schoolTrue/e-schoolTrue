@@ -34,11 +34,33 @@ import { DocumentContentEntity } from "./backend/entities/documentContent";
 import { GradingConfigEntity, EvaluationCategoryEntity } from "./backend/entities/configNote";
 import { GradeEntryEntity, CalculatedGradeEntity } from "./backend/entities/gradeEntry";
 import { AuditLogEntity } from "./backend/entities/audit-log";
+import { AccountingVaultEntity } from "./backend/entities/accounting-vault";
 import {
     ExpenseEntity, CashRegisterEntity, CashMovementEntity, CashClosureEntity,
     BankAccountEntity, BankTransactionEntity, TeacherHourLogEntity, SalarySlipEntity,
-    ReceiptCounterEntity, FeeItemEntity
+    ReceiptCounterEntity, ProfessorPaymentCounterEntity, FeeItemEntity
 } from "./backend/entities/accounting";
+
+// --- MIGRATIONS (imports explicites, PAS de glob) ---
+// Le main tourne depuis dist-electron/ (buildé) en dev comme en prod :
+// un glob vers 'migrations/*.{ts,js}' ne résout rien là-bas, donc les
+// migrations ne s'exécutaient jamais (silencieux). En les important ici,
+// vite les bundle dans le main et TypeORM les joue au boot via
+// migration-runner.ts. RÈGLE : toute nouvelle migration DOIT être ajoutée
+// à ce tableau (vérifié par __tests__/migration-registration.spec.ts).
+import { Baseline1700000000000 } from "./migrations/1700000000000-Baseline";
+import { DriftCatchup1710000000000 } from "./migrations/1710000000000-DriftCatchup";
+import { BackfillCounters1720000000000 } from "./migrations/1720000000000-BackfillCounters";
+import { YearStatusSchoolYear1730000000000 } from "./migrations/1730000000000-YearStatusSchoolYear";
+import { TranchConfigPrecision1740000000000 } from "./migrations/1740000000000-TranchConfigPrecision";
+
+const migrations = [
+    Baseline1700000000000,
+    DriftCatchup1710000000000,
+    BackfillCounters1720000000000,
+    YearStatusSchoolYear1730000000000,
+    TranchConfigPrecision1740000000000,
+];
 
 // --- ENSEMBLE DES ENTITÉS ---
 const entities = [
@@ -80,6 +102,7 @@ const entities = [
     GradeEntryEntity,
     CalculatedGradeEntity,
     AuditLogEntity,
+    AccountingVaultEntity,
     ExpenseEntity,
     CashRegisterEntity,
     CashMovementEntity,
@@ -89,6 +112,7 @@ const entities = [
     TeacherHourLogEntity,
     SalarySlipEntity,
     ReceiptCounterEntity,
+    ProfessorPaymentCounterEntity,
     FeeItemEntity
 ];
 
@@ -106,18 +130,25 @@ export class AppDataSource {
         console.log(`[DataSource] Initialisation avec isFirstLaunch = ${isFirstLaunch}`);
         console.log(`[DataSource] Chemin de la base de données : ${dbPath}`);
 
-        // P0 FIX: synchronize must stay true in all envs to auto-create new columns
-        // (e.g. professor.color, scheduleConfig.*) until proper migrations exist.
+        // Fix 1.1.31 : synchronize OFF par défaut (migrations seules).
+        // synchronize:true AVANT runMigrations déclenchait le copy-swap
+        // TypeORM (CREATE TABLE temporary_* SANS IF NOT EXISTS) → fantôme
+        // après interruption → "already exists" en boucle avant backup.
+        // Opt-in explicite : E_SCHOOL_SYNC="1" uniquement pour debug ciblé.
         // dropSchema must never be true to avoid wiping user data on onboarding replay.
-        // migrationsRun kept false because no migration files exist yet; synchronize handles schema.
+        // migrationsRun reste false : c'est migration-runner.ts qui orchestre
+        // (backup VACUUM INTO + ensureBaseline + runMigrations each + vérifs).
+        const syncEnv = process.env.E_SCHOOL_SYNC;
+        const synchronize = syncEnv === "1";
+        console.log(`[DataSource] synchronize=${synchronize} (E_SCHOOL_SYNC=${syncEnv ?? "<unset→0>"})`);
         this.instance = new DataSource({
             type: "better-sqlite3",
-            synchronize: true,
+            synchronize,
             dropSchema: false,
             database: dbPath,
             logging: false,
             entities: entities,
-            migrations: [path.join(__dirname, 'migrations', '*.{ts,js}')],
+            migrations,
             migrationsRun: false,
             subscribers: [],
             cache: false

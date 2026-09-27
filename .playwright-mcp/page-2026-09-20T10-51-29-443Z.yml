@@ -1,0 +1,72 @@
+- generic [ref=f5e2]:
+  - generic [ref=f5e3]:
+    - generic [ref=f5e5]:
+      - menubar [ref=f5e6]:
+        - menuitem "Dashboard" [ref=f5e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f5e8]
+        - menuitem "Gestion des Professeurs" [ref=f5e19]
+        - menuitem "Comptabilité" [ref=f5e30]
+        - menuitem "Gestion des Plannings" [ref=f5e41]
+        - menuitem "Outils" [ref=f5e80]
+        - menuitem "Administration" [ref=f5e125]
+        - menuitem "Paramètres" [ref=f5e136]
+      - button "Menu utilisateur" [ref=f5e149] [cursor=pointer]:
+        - generic [ref=f5e150]: O
+        - generic [ref=f5e151]: oumar
+    - generic [ref=f5e521]:
+      - generic [ref=f5e522]:
+        - button "Retour" [ref=f5e523] [cursor=pointer]
+        - generic [ref=f5e525]:
+          - button "Imprimer" [ref=f5e526] [cursor=pointer]
+          - button "Exporter PDF" [ref=f5e528] [cursor=pointer]
+          - button "Envoyer" [ref=f5e530] [cursor=pointer]
+      - generic [ref=f5e532]:
+        - generic [ref=f5e533]:
+          - generic [ref=f5e534]:
+            - img "Logo école" [ref=f5e535]
+            - generic [ref=f5e536]:
+              - heading "EMMAUS" [level=2] [ref=f5e537]
+              - paragraph [ref=f5e538]: "gfgfg — Tél : gfgfgfgf"
+              - paragraph [ref=f5e539]: admin@emaus.com
+          - generic [ref=f5e540]:
+            - heading "Reçu de paiement" [level=3] [ref=f5e541]
+            - paragraph [ref=f5e542]:
+              - strong [ref=f5e543]: "N° :"
+              - text: R-1
+            - paragraph [ref=f5e544]:
+              - strong [ref=f5e545]: "Date :"
+              - text: 21/08/2026
+        - generic [ref=f5e546]:
+          - paragraph [ref=f5e547]:
+            - strong [ref=f5e548]: "Élève :"
+            - text: Oumar Diane (E-S264234)
+          - paragraph [ref=f5e549]:
+            - strong [ref=f5e550]: "Classe :"
+            - text: SixiemeA
+          - paragraph [ref=f5e551]:
+            - strong [ref=f5e552]: "Motif :"
+            - text: inscription
+        - generic [ref=f5e553]:
+          - paragraph [ref=f5e554]:
+            - text: "Montant :"
+            - strong [ref=f5e555]: 100 000 GNF
+          - paragraph [ref=f5e556]:
+            - text: "En lettres :"
+            - emphasis [ref=f5e557]: cent mille francs guinéens
+          - paragraph [ref=f5e558]:
+            - strong [ref=f5e559]: "Mode :"
+            - text: cash
+        - generic [ref=f5e560]:
+          - paragraph [ref=f5e562]: Signature caissier
+          - paragraph [ref=f5e565]: Signature payeur
+  - generic [ref=f5e250]:
+    - generic [ref=f5e251]:
+      - generic [ref=f5e257]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f5e269]
+        - paragraph [ref=f5e259]: v1.0.1
+      - button "×" [ref=f5e260] [cursor=pointer]
+    - generic [ref=f5e261]:
+      - paragraph [ref=f5e262]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f5e268]:
+        - button "Redémarrer maintenant" [ref=f5e270] [cursor=pointer]
+        - button "Plus tard" [ref=f5e272] [cursor=pointer]

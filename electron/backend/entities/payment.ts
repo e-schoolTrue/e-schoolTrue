@@ -13,8 +13,14 @@ export class PaymentEntity {
     remote_id?: string;
     @Column({ type: "varchar", length: 36, nullable: true })
     user_id?: string;
-    @Column("decimal", { precision: 10, scale: 2 })
+    @Column("decimal", { precision: 14, scale: 2 })
     amount!: number;
+
+    @Column({ type: "varchar", length: 10, nullable: true })
+    currency?: string;
+
+    @Column({ type: "varchar", length: 64, nullable: true, unique: true })
+    idempotencyKey?: string;
 
     @Column({ type: "varchar", nullable: false })
     paymentType!: string;
@@ -64,15 +70,15 @@ export class PaymentEntity {
     @Column({ type: "integer", nullable: true })
     scholarshipId?: number;
 
-    @Column({ type: 'float', nullable: true })
+    @Column("decimal", { precision: 14, scale: 2, nullable: true })
     baseAmount!: number;
 
-    @Column({ type: 'float', nullable: true })
+    @Column("decimal", { precision: 14, scale: 2, nullable: true })
     scholarshipAmount!: number;
 
-    @Column({ type: 'float', nullable: true })
+    @Column("decimal", { precision: 14, scale: 2, nullable: true })
     adjustedAmount!: number;
 
-    @Column({ type: 'float', nullable: true })
+    @Column("decimal", { precision: 14, scale: 2, nullable: true })
     scholarshipPercentage!: number;
 }

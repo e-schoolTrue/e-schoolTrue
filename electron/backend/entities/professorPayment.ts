@@ -6,13 +6,18 @@ export class ProfessorPaymentEntity {
     @PrimaryGeneratedColumn()
     id!: number;
 
-     // ✅ UUID de Supabase (ajouté pour synchronisation distante)
      @Column({ type: "varchar", length: 36, nullable: true, unique: true })
      remote_id?: string;
      @Column({ type: "varchar", length: 36, nullable: true })
      user_id?: string;
-    @Column("decimal", { precision: 10, scale: 2 })
+    @Column("decimal", { precision: 14, scale: 2 })
     amount!: number;
+
+    @Column({ type: "varchar", length: 10, nullable: true })
+    currency?: string;
+
+    @Column({ type: "varchar", length: 64, nullable: true, unique: true })
+    idempotencyKey?: string;
 
     @Column({ type: "varchar", nullable: false })
     type!: string;
@@ -32,7 +37,7 @@ export class ProfessorPaymentEntity {
     @Column({ type: "varchar" })
     month!: string;
 
-    @Column({ type: "varchar", nullable: true })
+    @Column({ type: "varchar", length: 32, nullable: true, unique: true })
     reference?: string;
 
     @Column({ type: "varchar", nullable: true })
@@ -41,7 +46,7 @@ export class ProfessorPaymentEntity {
     @Column("decimal", { precision: 7, scale: 2, default: 0 })
     hoursTotal!: number;
 
-    @Column("decimal", { precision: 12, scale: 0, default: 0 })
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     hourlyRate!: number;
 
     @Column({ type: "integer", nullable: true })
@@ -50,10 +55,10 @@ export class ProfessorPaymentEntity {
     @Column({ type: "boolean", default: false })
     isPaid!: boolean;
 
-    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     grossAmount!: number;
 
-    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    @Column("decimal", { precision: 14, scale: 2, default: 0 })
     netAmount!: number;
 
     @Column("simple-json", { nullable: true })

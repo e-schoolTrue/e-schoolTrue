@@ -82,7 +82,7 @@
           </div>
           <div class="info-row">
             <span class="label">Contact:</span>
-            <span class="value">{{ student?.famillyPhone }}</span>
+            <span class="value">{{ contactPhone }}</span>
           </div>
         </div>
 
@@ -126,6 +126,11 @@ const cardStyle = computed(() => ({
 const currentYear = computed(() => {
   const now = new Date();
   return `${now.getFullYear()}-${now.getFullYear() + 1}`;
+});
+
+const contactPhone = computed(() => {
+  const v = String(props.student?.famillyPhone ?? '').trim() || String(props.student?.personalPhone ?? '').trim();
+  return v || '—';
 });
 
 const validUntil = computed(() => {

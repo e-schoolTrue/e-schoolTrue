@@ -75,8 +75,25 @@
           <el-form-item label="Référence" prop="reference">
             <el-input
               v-model="form.reference"
-              placeholder="Numéro de chèque, référence de virement..."
+              placeholder="PAY-ENS-AAAA-NNNN (générée backend)"
+              readonly
+              disabled
             />
+          </el-form-item>
+          <el-form-item label="Heures" prop="heures">
+            <el-input-number v-model="form.heures" :min="0" class="w-full" @change="syncFromHours" />
+          </el-form-item>
+          <el-form-item label="Tarif horaire" prop="tarif">
+            <el-input-number v-model="form.tarif" :min="0" class="w-full" @change="syncFromHours" />
+          </el-form-item>
+          <el-form-item label="Prime" prop="prime">
+            <el-input-number v-model="form.prime" :min="0" class="w-full" @change="syncFromHours" />
+          </el-form-item>
+          <el-form-item label="Transport" prop="transport">
+            <el-input-number v-model="form.transport" :min="0" class="w-full" @change="syncFromHours" />
+          </el-form-item>
+          <el-form-item label="Avance" prop="avance">
+            <el-input-number v-model="form.avance" :min="0" class="w-full" @change="syncFromHours" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -136,8 +153,22 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError } from '@/composables/useAccountingGuard';
+import { strictInvoke } from '@/utils/ipc';
+
+const router = useRouter();
+
+function uuidv4(): string {
+  const c = window.crypto as unknown as { randomUUID?: () => string };
+  if (c?.randomUUID) return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 interface Professor {
   id: number;
@@ -179,6 +210,11 @@ interface PaymentFormData {
   comment: string;
   grossAmount: number;
   netAmount: number;
+  heures: number;
+  tarif: number;
+  prime: number;
+  transport: number;
+  avance: number;
   deductions: Array<{ name: string; amount: number }>;
 }
 
@@ -186,12 +222,23 @@ interface Props {
   visible: boolean;
   professor: Professor | undefined;
   payment: Payment | undefined;
+  hourPrefill?: {
+    heures: number;
+    tarif: number;
+    prime: number;
+    transport: number;
+    avance: number;
+    professorId: number;
+    firstname: string;
+    lastname: string;
+  } | undefined;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   professor: undefined,
-  payment: undefined
+  payment: undefined,
+  hourPrefill: undefined,
 });
 
 const emit = defineEmits<{
@@ -209,7 +256,7 @@ const professors = ref<Professor[]>([]);
 const formRef = ref<FormInstance>();
 
 const form = ref<PaymentFormData>({
-  professorId: props.professor?.id,
+  professorId: props.professor?.id ?? props.hourPrefill?.professorId,
   amount: 0,
   type: 'salary',
   paymentMethod: 'cash',
@@ -218,6 +265,11 @@ const form = ref<PaymentFormData>({
   comment: '',
   grossAmount: 0,
   netAmount: 0,
+  heures: props.hourPrefill?.heures ?? 0,
+  tarif: props.hourPrefill?.tarif ?? 0,
+  prime: props.hourPrefill?.prime ?? 0,
+  transport: props.hourPrefill?.transport ?? 0,
+  avance: props.hourPrefill?.avance ?? 0,
   deductions: [] as Array<{ name: string; amount: number }>,
 });
 
@@ -245,14 +297,8 @@ const searchProfessors = async (query: string) => {
   
   loading.value = true;
   try {
-    const result = await window.ipcRenderer.invoke('professor:search', query);
-    if (result?.success) {
-      professors.value = result.data;
-      console.log('Professeurs trouvés:', professors.value);
-    } else {
-      console.error('Erreur lors de la recherche:', result?.error);
-      professors.value = [];
-    }
+    const data = await strictInvoke<Professor[]>('professor:search', query);
+    professors.value = Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Erreur lors de la recherche:', error);
     professors.value = [];
@@ -285,18 +331,31 @@ const handleSubmit = async () => {
       isPaid: false
     };
 
-    const result = await window.ipcRenderer.invoke(
-      props.payment ? 'professor:payment:update' : 'professor:payment:create',
-      paymentData
-    );
-
-    if (result?.success) {
-      ElMessage.success(props.payment ? 'Paiement modifié' : 'Paiement ajouté');
-      emit('payment-added');
-      handleClose();
-    } else {
-      throw new Error(result?.message || 'Erreur lors de l\'enregistrement');
+    // Garde mot de passe comptable avant CHAQUE saisie (STRICT : force + frais, modale systématique).
+    try {
+      await ensureUnlock({ force: true, fresh: true });
+    } catch (guardErr) {
+      if (isNoSecretError(guardErr)) {
+        ElMessage.warning(mapAccountingError(guardErr));
+        void router.push('/comptabilite/setup');
+      }
+      throw guardErr;
     }
+
+    const channel = props.payment ? 'professor:payment:update' : 'professor:payment:create';
+    // Clé générée UNE fois : le rejeu sur verrouillage réutilise le même objet.
+    const payloadWithKey = { ...paymentData, idempotencyKey: uuidv4() };
+    try {
+      await strictInvoke(channel, payloadWithKey);
+    } catch (ipcErr) {
+      if (!isAccountingLockError(ipcErr)) throw ipcErr;
+      await ensureUnlock({ force: true, fresh: true });
+      await strictInvoke(channel, payloadWithKey);
+    }
+
+    ElMessage.success(props.payment ? 'Paiement modifié' : 'Paiement ajouté');
+    emit('payment-added');
+    handleClose();
   } catch (error) {
     console.error('Erreur:', error);
     ElMessage.error(error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement');
@@ -310,6 +369,19 @@ const handleClose = () => {
   dialogVisible.value = false;
 };
 
+function calculateNetAmount(): void {
+  const totalDeductions = form.value.deductions.reduce((sum, d) => sum + d.amount, 0);
+  form.value.netAmount = Math.max(0, form.value.grossAmount - totalDeductions - Number(form.value.avance ?? 0));
+}
+
+function syncFromHours(): void {
+  const base = Number(form.value.heures ?? 0) * Number(form.value.tarif ?? 0)
+    + Number(form.value.prime ?? 0) + Number(form.value.transport ?? 0);
+  form.value.grossAmount = base;
+  form.value.amount = base;
+  calculateNetAmount();
+}
+
 watch(() => props.payment, (newPayment) => {
   if (newPayment) {
     form.value = {
@@ -322,29 +394,48 @@ watch(() => props.payment, (newPayment) => {
       comment: newPayment.comment || '',
       grossAmount: 0,
       netAmount: 0,
+      heures: (newPayment as unknown as { hoursTotal?: number }).hoursTotal ?? 0,
+      tarif: (newPayment as unknown as { hourlyRate?: number }).hourlyRate ?? 0,
+      prime: 0,
+      transport: 0,
+      avance: 0,
       deductions: [] as Array<{ name: string; amount: number }>,
     };
   } else {
     // Réinitialiser le formulaire si aucun paiement n'est sélectionné
+    // Pré-remplissage heures/tarif/prime/transport/avance depuis l'onglet Heures.
     form.value = {
-      professorId: props.professor?.id,
+      professorId: props.professor?.id ?? props.hourPrefill?.professorId,
       amount: 0,
       type: 'salary',
       paymentMethod: 'cash',
       month: new Date().toISOString().slice(0, 7),
       reference: '',
       comment: '',
-      grossAmount: 0,
+      grossAmount: (props.hourPrefill?.heures ?? 0) * (props.hourPrefill?.tarif ?? 0) + (props.hourPrefill?.prime ?? 0) + (props.hourPrefill?.transport ?? 0),
       netAmount: 0,
+      heures: props.hourPrefill?.heures ?? 0,
+      tarif: props.hourPrefill?.tarif ?? 0,
+      prime: props.hourPrefill?.prime ?? 0,
+      transport: props.hourPrefill?.transport ?? 0,
+      avance: props.hourPrefill?.avance ?? 0,
       deductions: [] as Array<{ name: string; amount: number }>,
     };
+    syncFromHours();
   }
 }, { immediate: true });
 
-const calculateNetAmount = () => {
-  const totalDeductions = form.value.deductions.reduce((sum, d) => sum + d.amount, 0);
-  form.value.netAmount = form.value.grossAmount - totalDeductions;
-};
+watch(() => props.hourPrefill, (h) => {
+  if (!props.payment && h) {
+    form.value.professorId = h.professorId;
+    form.value.heures = h.heures;
+    form.value.tarif = h.tarif;
+    form.value.prime = h.prime;
+    form.value.transport = h.transport;
+    form.value.avance = h.avance;
+    syncFromHours();
+  }
+}, { deep: true });
 
 const addDeduction = () => {
   form.value.deductions.push({ name: '', amount: 0 });

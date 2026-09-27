@@ -1,0 +1,85 @@
+- generic [ref=f2e2]:
+  - generic [ref=f2e3]:
+    - generic [ref=f2e5]:
+      - menubar [ref=f2e6]:
+        - menuitem "Dashboard" [ref=f2e7] [cursor=pointer]
+        - menuitem "Gestion des Elèves" [ref=f2e8]
+        - menuitem "Gestion des Professeurs" [ref=f2e19]
+        - menuitem "Comptabilité" [ref=f2e30]
+        - menuitem "Gestion des Plannings" [ref=f2e41]
+        - menuitem "Outils" [ref=f2e80]
+        - menuitem "Administration" [ref=f2e125]
+        - menuitem [ref=f2e136]:
+          - generic [ref=f2e137] [cursor=pointer]
+      - button "Menu utilisateur" [ref=f2e143] [cursor=pointer]:
+        - generic [ref=f2e144]: O
+        - generic [ref=f2e145]: oumar
+    - generic [ref=f2e150]:
+      - generic [ref=f2e151]:
+        - generic [ref=f2e152]:
+          - heading "Dépenses" [level=1] [ref=f2e153]
+          - paragraph [ref=f2e154]: Saisie, justificatifs et historique des sorties.
+        - generic [ref=f2e155]: 0 GNF
+      - generic [ref=f2e156]:
+        - generic [ref=f2e158]:
+          - strong [ref=f2e160]: Nouvelle dépense
+          - generic [ref=f2e162]:
+            - generic [ref=f2e163]:
+              - generic [ref=f2e164]: "* Date"
+              - combobox "* Date" [ref=f2e172]: 20/09/2026
+            - generic [ref=f2e173]:
+              - generic [ref=f2e174]: "* Catégorie"
+              - generic [ref=f2e177] [cursor=pointer]:
+                - generic:
+                  - combobox "* Catégorie" [ref=f2e179]
+                  - generic [ref=f2e180]: Choisir
+            - generic [ref=f2e185]:
+              - generic [ref=f2e186]: "* Libellé"
+              - textbox "* Libellé" [ref=f2e190]:
+                - /placeholder: "Ex : Achat de craies"
+            - generic [ref=f2e191]:
+              - generic [ref=f2e192]: "* Montant"
+              - generic [ref=f2e194]:
+                - button "Décrémenter" [ref=f2e195]
+                - button "Incrémenter" [ref=f2e199] [cursor=pointer]
+                - spinbutton "* Montant" [ref=f2e205]: "1"
+            - generic [ref=f2e206]:
+              - generic [ref=f2e207]: "* Mode"
+              - generic [ref=f2e210] [cursor=pointer]:
+                - generic:
+                  - combobox "* Mode" [ref=f2e212]
+                  - generic [ref=f2e213]: Espèces
+            - group "Justificatif" [ref=f2e218]:
+              - generic [ref=f2e221]:
+                - button [ref=f2e222] [cursor=pointer]:
+                  - button "Choisir un fichier" [ref=f2e223]
+                - list
+            - button "Enregistrer la dépense" [ref=f2e227] [cursor=pointer]
+        - generic [ref=f2e230]:
+          - strong [ref=f2e232]: Historique
+          - generic [ref=f2e235]:
+            - table [ref=f2e237]:
+              - rowgroup [ref=f2e246]:
+                - row [ref=f2e247]:
+                  - columnheader "Date" [ref=f2e248]
+                  - columnheader "Catégorie" [ref=f2e250]
+                  - columnheader "Libellé" [ref=f2e252]
+                  - columnheader "Montant" [ref=f2e254]
+                  - columnheader "Mode" [ref=f2e256]
+                  - columnheader "Justificatif" [ref=f2e258]
+                  - columnheader "Actions" [ref=f2e260]
+            - generic [ref=f2e265]:
+              - table:
+                - rowgroup
+              - generic [ref=f2e266]: Aucune dépense
+  - generic [ref=f2e270]:
+    - generic [ref=f2e271]:
+      - generic [ref=f2e277]:
+        - heading "Mise à jour prête à être installée" [level=4] [ref=f2e278]
+        - paragraph [ref=f2e279]: v1.0.1
+      - button "×" [ref=f2e280] [cursor=pointer]
+    - generic [ref=f2e281]:
+      - paragraph [ref=f2e282]: La version 1.0.1 est prête à être installée.
+      - generic [ref=f2e283]:
+        - button "Redémarrer maintenant" [ref=f2e284] [cursor=pointer]
+        - button "Plus tard" [ref=f2e286] [cursor=pointer]

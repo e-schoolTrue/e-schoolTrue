@@ -1,5 +1,5 @@
 <template>
-  <span>{{ formattedAmount }} {{ currency }}</span>
+  <span>{{ formatted }}</span>
 </template>
 
 <script setup lang="ts">
@@ -10,9 +10,13 @@ const props = defineProps<{
   amount: number;
 }>();
 
-const { currency } = useCurrency();
+const { currencyCode } = useCurrency();
 
-const formattedAmount = computed(() => {
-  return new Intl.NumberFormat('fr-FR').format(props.amount);
+/** Affichage devise via formatCurrency seul (code ISO réactif XOF/XAF/GNF/MAD). */
+const formatted = computed(() => {
+  const { formatCurrency } = useCurrency();
+  return formatCurrency(Number(props.amount ?? 0));
 });
-</script> 
+
+void currencyCode;
+</script>

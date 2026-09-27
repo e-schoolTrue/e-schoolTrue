@@ -1,65 +1,67 @@
 /**
- * Utilitaire pour formater les montants en devise
- * Gère les cas spéciaux comme le FCFA qui n'est pas un code ISO standard
+ * Formattage monétaire multi-devises (codes ISO uniquement).
+ * XOF (BCEAO) et XAF (BEAC) sont distincts — jamais de "FCFA" générique.
  */
 
-export function formatCurrency(value: number, currency: string = 'FCFA'): string {
-  // Gérer les valeurs nulles ou undefined
-  if (value == null || isNaN(value)) {
-    return '0 ' + currency;
-  }
+/** Codes ISO supportés par l'école. */
+export type CurrencyCode = 'XOF' | 'XAF' | 'GNF' | 'MAD' | 'EUR' | 'USD';
 
-  // Gérer le cas du FCFA qui n'est pas un code ISO standard
-  if (currency === 'FCFA') {
-    const formatted = new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-    return `${formatted} FCFA`;
-  }
-  
-  // Mapping des devises personnalisées vers les codes ISO
-  const currencyMap: { [key: string]: string } = {
-    'MAD': 'MAD',  // Dirham marocain
-    'GNF': 'GNF',  // Franc guinéen
-    'XOF': 'XOF',  // Franc CFA BCEAO
-    'XAF': 'XAF'   // Franc CFA BEAC
-  };
-  
-  const isoCode = currencyMap[currency] || 'XOF';
-  
-  try {
-    return new Intl.NumberFormat('fr-FR', { 
-      style: 'currency', 
-      currency: isoCode,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  } catch (error) {
-    // Fallback si le code de devise n'est pas reconnu
-    console.warn(`Devise non reconnue: ${currency}, utilisation du format par défaut`);
-    const formatted = new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-    return `${formatted} ${currency}`;
-  }
+const ISO_SET: ReadonlySet<string> = new Set(['XOF', 'XAF', 'GNF', 'MAD', 'EUR', 'USD']);
+
+/** Normalise un libellé legacy ("FCFA", "francs", ...) vers un ISO. */
+export function normalizeCurrencyCode(input: string | undefined | null): CurrencyCode {
+  const v = String(input ?? 'XOF').trim().toUpperCase();
+  if (v === 'FCFA' || v === 'F CFA' || v === 'FRANC CFA' || v === 'CFA') return 'XOF';
+  if (ISO_SET.has(v)) return v as CurrencyCode;
+  return 'XOF';
 }
 
 /**
- * Formatte un montant avec le symbole FCFA
+ * Formatte un montant avec Intl.NumberFormat + code ISO.
+ *
+ * @param value - Montant numérique.
+ * @param currency - Code ISO (XOF, XAF, GNF, MAD...). "FCFA" legacy => XOF.
+ * @returns Montant formaté fr-FR, ex. "250 000 F CFA".
+ */
+export function formatCurrency(value: number, currency: string = 'XOF'): string {
+  const code = normalizeCurrencyCode(currency);
+  if (value == null || Number.isNaN(Number(value))) {
+    return `0 ${code}`;
+  }
+  try {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+  } catch {
+    const fallback = new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+    return `${fallback} ${code}`;
+  }
+}
+
+/** Alias sémantique exigé par les vues (snapshot devise au moment de l'export). */
+export function formatMoney(value: number, currency: string = 'XOF'): string {
+  return formatCurrency(value, currency);
+}
+
+/**
+ * Formatte un montant avec le symbole FCFA legacy (conservé pour compatibilité).
+ * @deprecated Utiliser formatCurrency(value, 'XOF' | 'XAF').
  */
 export function formatFCFA(value: number): string {
-  return formatCurrency(value, 'FCFA');
+  return formatCurrency(value, 'XOF');
 }
 
 /**
- * Parse un montant formaté pour récupérer la valeur numérique
+ * Parse un montant formaté pour récupérer la valeur numérique.
  */
 export function parseCurrency(formattedValue: string): number {
-  // Enlever tous les caractères non numériques sauf le point et la virgule
-  const cleaned = formattedValue.replace(/[^\d,.-]/g, '');
-  // Remplacer la virgule par un point pour la conversion
+  const cleaned = String(formattedValue ?? '').replace(/[^\d,.-]/g, '');
   const normalized = cleaned.replace(',', '.');
   return parseFloat(normalized) || 0;
 }

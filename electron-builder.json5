@@ -5,6 +5,11 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "eschool",
   "asar": true,
+  // Les .node DOIVENT rester hors de l'asar (dlopen impossible depuis l'archive).
+  // Le garde de démarrage (main.ts) contrôle la copie app.asar.unpacked.
+  "asarUnpack": [
+    "**/*.node"
+  ],
   "productName": "Eschool",
 
   "directories": {
@@ -19,6 +24,8 @@
       "from": ".env",
       "to": ".env"
     }
+    // NOTE : pas de copie dist-electron/migrations — les migrations sont
+    // importées explicitement dans data-source.ts et bundlées dans le main.
   ],
   "mac": {
     "target": [

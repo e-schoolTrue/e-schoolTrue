@@ -20,4 +20,11 @@ export const studentRoutes = [
     name: "AddStudent",
     component: () => import("@/views/student/NewStudentView.vue"),
   },
+
+  {
+    path: "/student/re-enrollment",
+    name: "ReEnrollment",
+    component: () => import("@/views/student/ReEnrollmentView.vue"),
+    meta: { requiresAuth: true },
+  },
 ];

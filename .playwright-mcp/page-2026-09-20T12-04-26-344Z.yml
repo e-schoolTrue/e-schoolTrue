@@ -1,0 +1,61 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - generic [ref=f3e5]:
+        - menubar [ref=f3e6]:
+          - menuitem "Dashboard" [ref=f3e7] [cursor=pointer]
+          - menuitem "Gestion des Elèves" [ref=f3e8]
+          - menuitem "Gestion des Professeurs" [ref=f3e19]
+          - menuitem "Comptabilité" [ref=f3e30]
+          - menuitem "Gestion des Plannings" [ref=f3e41]
+          - menuitem "Outils" [ref=f3e80]
+          - menuitem "Administration" [ref=f3e125]
+          - menuitem [ref=f3e136]:
+            - generic [ref=f3e137] [cursor=pointer]
+        - button "Menu utilisateur" [ref=f3e143] [cursor=pointer]:
+          - generic [ref=f3e144]: O
+          - generic [ref=f3e145]: oumar
+      - generic [ref=f3e928]:
+        - generic [ref=f3e930]:
+          - generic [ref=f3e934]:
+            - generic [ref=f3e935]: Total Professeurs
+            - generic [ref=f3e940]: "2"
+          - generic [ref=f3e944]:
+            - generic [ref=f3e945]: Total Payé
+            - generic [ref=f3e952]: 0 GNF
+        - main [ref=f3e953]:
+          - generic [ref=f3e954]:
+            - tablist [ref=f3e958]:
+              - tab "Heures mensuelles" [ref=f3e960]
+              - tab "Paiements" [ref=f3e961]
+              - tab "Bulletins" [selected] [ref=f3e962]
+            - tabpanel "Bulletins" [ref=f3e1036]:
+              - generic [ref=f3e1037]:
+                - generic [ref=f3e1038]:
+                  - strong [ref=f3e1040]: Bulletins (0) — N° PAY-ENS backend
+                  - generic [ref=f3e1043]:
+                    - table [ref=f3e1045]:
+                      - rowgroup [ref=f3e1052]:
+                        - row [ref=f3e1053]:
+                          - columnheader "N° Bulletin" [ref=f3e1054]
+                          - columnheader "Enseignant" [ref=f3e1056]
+                          - columnheader "Période" [ref=f3e1058]
+                          - columnheader "Net" [ref=f3e1060]
+                          - columnheader "Voir" [ref=f3e1062]
+                    - generic [ref=f3e1067]:
+                      - table:
+                        - rowgroup
+                      - generic [ref=f3e1068]: Aucun paiement — aucun bulletin (zéro mock)
+                - paragraph [ref=f3e1092]: Sélectionnez un bulletin (N° PAY-ENS backend)
+    - generic [ref=f3e284]:
+      - generic [ref=f3e285]:
+        - generic [ref=f3e291]:
+          - heading "Mise à jour prête à être installée" [level=4] [ref=f3e292]
+          - paragraph [ref=f3e293]: v1.0.1
+        - button "×" [ref=f3e294] [cursor=pointer]
+      - generic [ref=f3e295]:
+        - paragraph [ref=f3e296]: La version 1.0.1 est prête à être installée.
+        - generic [ref=f3e297]:
+          - button "Redémarrer maintenant" [ref=f3e298] [cursor=pointer]
+          - button "Plus tard" [ref=f3e300] [cursor=pointer]
+  - tooltip "Nouveau paiement" [ref=f3e1093]

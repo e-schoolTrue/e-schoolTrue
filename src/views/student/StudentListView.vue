@@ -57,9 +57,23 @@ onMounted(async () => {
   await loadStudents();
 });
 
-const loadStudents = async () => {
+const loadStudents = async (serverFilters?: {
+  studentFullName?: string;
+  grade?: string | number;
+  schoolYear?: string;
+}) => {
   try {
-    const result = await window.ipcRenderer.invoke('student:all');
+    // Vrai filtre serveur (plan V3) — le backend ignore les clés inconnues
+    // (`schoolYear`), le repli client ci-dessous prend alors le relais.
+    const result = await window.ipcRenderer.invoke('student:all', {
+      page: 1,
+      pageSize: 5000,
+      filters: {
+        studentFullName: serverFilters?.studentFullName || undefined,
+        grade: serverFilters?.grade || undefined,
+        schoolYear: serverFilters?.schoolYear || undefined,
+      },
+    });
     console.log('Raw student data:', result.data);
 
     // P0 FIX: tolerant to both envelope shapes - {success:true, data: students[]} (legacy)
@@ -240,12 +254,24 @@ const handleDeleteStudent = async (studentId: number) => {
   }
 };
 
-const handleFilter = (filterCriteria: {
+const handleFilter = async (filterCriteria: {
   schoolYear?: string;
   classId?: string | number;
   studentFullName?: string;
 }) => {
   console.log('Critères de filtrage reçus:', filterCriteria);
+
+  // Filtre serveur d'abord (grade + nom + année), repli client ensuite
+  // car le backend peut ignorer `schoolYear`.
+  try {
+    await loadStudents({
+      studentFullName: filterCriteria.studentFullName,
+      grade: filterCriteria.classId,
+      schoolYear: filterCriteria.schoolYear,
+    });
+  } catch {
+    /* repli client seul */
+  }
   
   // Si le filtre est basé sur l'ID de la classe, utiliser directement ce filtre
   if (filterCriteria.classId) {

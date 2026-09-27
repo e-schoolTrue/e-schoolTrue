@@ -15,7 +15,7 @@
     </el-row>
     <el-row :gutter="20">
       <el-col :span="8">
-        <el-form-item label="Date de naissance">
+        <el-form-item label="Date de naissance" required>
           <el-date-picker v-model="formData.birthDay" type="date" placeholder="Sélectionnez une date" />
         </el-form-item>
       </el-col>
