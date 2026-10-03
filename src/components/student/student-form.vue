@@ -6,9 +6,8 @@ import type { IStudentData } from '@/types/student';
 
 export interface StudentFormInstance {
   resetForm: () => void;
-}
-export interface StudentFormInstance {
-  resetForm: () => void;
+  /** Fratrie : vide l'identité élève, conserve le foyer (6 champs) + classe + année. */
+  resetForSibling: () => void;
 }
 interface ClassItem {
   id: number;
@@ -217,16 +216,35 @@ const resetForm = () => {
     documents: [],
     sex: 'male',
     schoolYear: formData.schoolYear, // Garder l'année scolaire actuelle
-    isNew: true
-  });
+    isNew: true,
+    parentId: null,
+  } as Record<string, unknown>);
   
   // Réinitialiser l'étape courante
   currentStep.value = 0;
 };
 
+// Fratrie (Option B T_parent) : conserve le foyer pour enchaîner la saisie
+// d'un frère/sœur sans re-taper les 6 champs parent. parentId est vidé
+// (résolution via findOrCreate : P1/P2 dédupliquent, P3 no-key recrée 1/élève).
+const resetForSibling = () => {
+  const keepParent = {
+    fatherFirstname: formData.fatherFirstname,
+    fatherLastname: formData.fatherLastname,
+    motherFirstname: formData.motherFirstname,
+    motherLastname: formData.motherLastname,
+    famillyPhone: formData.famillyPhone,
+    address: formData.address,
+  };
+  const keepSchool = { gradeId: formData.gradeId, schoolYear: formData.schoolYear };
+  resetForm();
+  Object.assign(formData, keepParent, keepSchool, { parentId: null } as Record<string, unknown>);
+};
+
 // Exposer la méthode pour le composant parent
 defineExpose<StudentFormInstance>({
-  resetForm
+  resetForm,
+  resetForSibling,
 });
 </script>
 

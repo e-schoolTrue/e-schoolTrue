@@ -53,6 +53,9 @@
               :value="period"
             />
           </el-select>
+          <el-tag v-if="classLevel" type="info" effect="plain" size="small">
+            {{ classLevel }} · {{ periods.length === 2 ? 'Semestres' : 'Trimestres' }}
+          </el-tag>
 
           <el-tag v-if="existingConfig" type="success" effect="light">
             <el-icon><SuccessFilled /></el-icon>
@@ -263,11 +266,13 @@ const context = reactive({
   subjectId: null as number | null
 });
 
-const classesList = ref<{ id: number; name: string; code: string }[]>([]);
+const classesList = ref<{ id: number; name: string; code: string; level?: unknown; type?: unknown }[]>([]);
 const subjectsList = ref<{ id: number; name: string; coefficient: number }[]>([]);
 const existingConfig = ref<ExistingConfig | null>(null);
 const periods = ref<string[]>([]);
 const selectedPeriod = ref<string | null>(null);
+/** Niveau 3-voies de la classe (périodes filtrées par niveau). */
+const classLevel = ref<string | null>(null);
 
 const presetColors = [
   '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
@@ -291,7 +296,12 @@ onMounted(async () => {
 
 const loadPeriods = async () => {
   try {
-    const yearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+    // Périodes filtrées par niveau de la classe (3 niveaux), repli global.
+    const { normalizeLevel } = await import('@/types/schoolLevel');
+    const levelArg = normalizeLevel(classLevel.value);
+    const yearRes = levelArg
+      ? await window.ipcRenderer.invoke('yearRepartition:getCurrent', levelArg)
+      : await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (yearRes.success && yearRes.data) {
       periods.value = yearRes.data.periodConfigurations?.map((p: any) => p.name) || [];
     }
@@ -325,7 +335,16 @@ const loadReferenceData = async () => {
 const onClassChange = async () => {
   context.subjectId = null;
   selectedPeriod.value = null;
-  
+
+  // Résout le niveau de la classe puis recharge les périodes du niveau.
+  try {
+    const { levelForGradeType } = await import('@/types/schoolLevel');
+    const cls = classesList.value.find((c: any) => c.id === context.classId) as any;
+    classLevel.value = levelForGradeType(cls?.level ?? cls?.type);
+    await loadPeriods();
+  } catch {
+    /* périodes existantes conservées */
+  }
   // Charger les matières de la classe
   if (context.classId) {
     try {

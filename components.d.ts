@@ -37,7 +37,9 @@ declare module 'vue' {
     DonutChart: typeof import('./src/components/accounting/DonutChart.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAside: typeof import('element-plus/es')['ElAside']
+    ElAutocomplete: typeof import('element-plus/es')['ElAutocomplete']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
+    ElBadge: typeof import('element-plus/es')['ElBadge']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
     ElCard: typeof import('element-plus/es')['ElCard']
@@ -141,7 +143,7 @@ declare module 'vue' {
     TeachingAssignment: typeof import('./src/components/professor/sections/TeachingAssignment.vue')['default']
     UpdateNotifier: typeof import('./src/components/common/UpdateNotifier.vue')['default']
     UserMenu: typeof import('./src/components/layout/UserMenu.vue')['default']
-    YearClosedBanner: typeof import('./src/components/year/YearClosedBanner.vue')['default']
+    YearLevelMigrationDialog: typeof import('./src/components/schoolYear/YearLevelMigrationDialog.vue')['default']
     YearRepartionForm: typeof import('./src/components/schoolYear/YearRepartionForm.vue')['default']
   }
   export interface ComponentCustomProperties {

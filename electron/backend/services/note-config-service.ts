@@ -1,6 +1,7 @@
 import { Repository, IsNull } from "typeorm";
 import { AppDataSource } from "../../data-source";
 import { GradingConfigEntity, EvaluationCategoryEntity, CalculationStrategy } from "../entities/configNote";
+import { normalizePeriodName, normalizeSchoolLevel } from "../lib/schoolLevel";
 import { 
     ICreateConfigParams, 
     IConfigServiceResponse,
@@ -103,14 +104,18 @@ export class ConfigNoteService {
 
             const dataSource = AppDataSource.getInstance();
 
+            // Scope niveau + période normalisés (étanche par niveau).
+            const normLevel = normalizeSchoolLevel((params as any).level);
+            const normPeriod = normalizePeriodName((params as any).period) || null;
             const result = await dataSource.transaction(async (manager) => {
-                // Chercher config existante pour ce contexte précis (incluant la période)
+                // Chercher config existante pour ce contexte précis (niveau + période inclus)
                 let existingConfig = await manager.findOne(GradingConfigEntity, {
                     where: {
                         schoolId: params.schoolId,
                         classId: params.classId ?? IsNull(),
                         subjectId: params.subjectId ?? IsNull(),
-                        period: params.period ?? IsNull()
+                        level: normLevel ?? IsNull(),
+                        period: normPeriod ?? IsNull()
                     },
                     relations: ["categories"]
                 });
@@ -121,7 +126,8 @@ export class ConfigNoteService {
                     existingConfig.schoolId = params.schoolId;
                     existingConfig.classId = params.classId ?? null;
                     existingConfig.subjectId = params.subjectId ?? null;
-                    existingConfig.period = params.period ?? null;
+                    existingConfig.level = normLevel;
+                    existingConfig.period = normPeriod;
                 }
 
                 // Mise à jour des champs
@@ -176,33 +182,60 @@ export class ConfigNoteService {
     }
 
     /**
-     * Récupère la configuration applicable selon la hiérarchie (Cascade)
-     * Priorité: Matière+Classe > Classe > École
-     * Pour chaque niveau: d'abord avec période spécifique, puis sans période
+     * Récupère la configuration applicable selon la hiérarchie (Cascade),
+     * ÉTANCHE PAR NIVEAU (migration 178) : la résolution est
+     * matière + classe + niveau + période, puis fallback SANS JAMAIS fuir
+     * vers un autre niveau.
+     * Ordre : subject+class+level+period → subject+class+level →
+     * class+level+period → class+level → school+level+period → school+level →
+     * mêmes paliers globaux (level NULL, compat legacy).
+     * `period` est normalisé (trim/casse) avant comparaison.
      */
     async getApplicableConfig(params: IGetConfigParams): Promise<IConfigServiceResponse<IFormattedConfig>> {
         try {
             let config: GradingConfigEntity | null = null;
             let contextLevel: 'school' | 'class' | 'subject' = 'school';
+            const reqLevel = normalizeSchoolLevel((params as any).level);
+            const reqPeriod = normalizePeriodName((params as any).period) || null;
 
-            // Helper: cherche config avec period en priorité, fallback sans period
+            // Helper: cherche config avec period en priorité, fallback sans period.
+            // `levelScope` : niveau demandé puis NULL global (jamais un autre niveau).
             const findConfig = async (where: any): Promise<GradingConfigEntity | null> => {
-                // Essayer avec la période spécifique d'abord
-                if (params.period) {
-                    const withPeriod = await this.configRepository.findOne({
-                        where: { ...where, period: params.period },
+                // Sans niveau demandé : comportement historique (toutes lignes,
+                // période d'abord). Avec niveau : chaque palier teste niveau
+                // exact puis global, période spécifique puis sans période.
+                if (!reqLevel) {
+                    if (reqPeriod) {
+                        const withPeriod = await this.configRepository.findOne({
+                            where: { ...where, period: reqPeriod },
+                            relations: ["categories"]
+                        });
+                        if (withPeriod) return withPeriod;
+                    }
+                    return await this.configRepository.findOne({
+                        where: { ...where, period: IsNull() },
                         relations: ["categories"]
                     });
-                    if (withPeriod) return withPeriod;
                 }
-                // Fallback: config sans période (compatible avec anciennes configs)
-                return await this.configRepository.findOne({
-                    where: { ...where, period: IsNull() },
-                    relations: ["categories"]
-                });
+                for (const lv of [reqLevel, null]) {
+                    const scoped = { ...where, level: lv ?? IsNull() };
+                    if (reqPeriod) {
+                        const withPeriod = await this.configRepository.findOne({
+                            where: { ...scoped, period: reqPeriod },
+                            relations: ["categories"]
+                        });
+                        if (withPeriod) return withPeriod;
+                    }
+                    const noPeriod = await this.configRepository.findOne({
+                        where: { ...scoped, period: IsNull() },
+                        relations: ["categories"]
+                    });
+                    if (noPeriod) return noPeriod;
+                }
+                return null;
             };
 
-            // A. Priorité 1: Config spécifique Matière + Classe
+            // A. Priorité 1: Config spécifique Matière + Classe (+ Niveau)
             if (params.subjectId && params.classId) {
                 config = await findConfig({
                     schoolId: params.schoolId,
@@ -214,7 +247,7 @@ export class ConfigNoteService {
                 }
             }
 
-            // B. Priorité 2: Config de la Classe (toutes matières)
+            // B. Priorité 2: Config de la Classe (+ Niveau, toutes matières)
             if (!config && params.classId) {
                 config = await findConfig({
                     schoolId: params.schoolId,
@@ -226,7 +259,7 @@ export class ConfigNoteService {
                 }
             }
 
-            // C. Priorité 3: Config de l'École par défaut
+            // C. Priorité 3: Config de l'École (+ Niveau) par défaut
             if (!config) {
                 config = await findConfig({
                     schoolId: params.schoolId,
@@ -274,12 +307,15 @@ export class ConfigNoteService {
      */
     async getExactConfig(params: IGetConfigParams): Promise<IConfigServiceResponse<IFormattedConfig>> {
         try {
+            const normLevel = normalizeSchoolLevel((params as any).level);
+            const normPeriod = normalizePeriodName((params as any).period) || null;
             const config = await this.configRepository.findOne({
                 where: {
                     schoolId: params.schoolId,
                     classId: params.classId ?? IsNull(),
                     subjectId: params.subjectId ?? IsNull(),
-                    period: params.period ?? IsNull()
+                    level: normLevel ?? IsNull(),
+                    period: normPeriod ?? IsNull()
                 },
                 relations: ["categories"]
             });
@@ -416,8 +452,8 @@ export class ConfigNoteService {
         options: ICalculationOptions = {}
     ): Promise<IConfigServiceResponse<ISubjectAverageResult>> {
         try {
-            // Récupérer la configuration applicable
-            const configResult = await this.getApplicableConfig({ schoolId, classId, subjectId });
+            // Récupérer la configuration applicable (période + niveau, étanche).
+            const configResult = await this.getApplicableConfig({ schoolId, classId, subjectId, level: normalizeSchoolLevel((options as any).level), period });
             
             if (!configResult.success || !configResult.data) {
                 return {
@@ -540,13 +576,14 @@ export class ConfigNoteService {
      * Formate une configuration pour le frontend
      */
     private formatConfig(config: GradingConfigEntity, contextLevel: 'school' | 'class' | 'subject'): IFormattedConfig {
-        const sortedCategories = [...config.categories].sort((a, b) => a.displayOrder - b.displayOrder);
-        
+        const sortedCategories = [...(config.categories ?? [])].sort((a, b) => a.displayOrder - b.displayOrder);
+
         return {
             id: config.id,
             schoolId: config.schoolId,
             classId: config.classId,
             subjectId: config.subjectId,
+            level: normalizeSchoolLevel((config as any).level),
             period: config.period,
             finalGradeBase: config.finalGradeBase,
             calculationStrategy: config.calculationStrategy,

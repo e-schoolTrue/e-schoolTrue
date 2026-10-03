@@ -20,6 +20,7 @@ import { app, BrowserWindow } from "electron";
 import { SchoolService } from "./schoolService";
 import { YearRepartitionService } from "./yearService";
 import { FileService } from "./fileService";
+import { levelHeading, levelOfGrade, normalizePeriodName, normalizeSchoolLevel, periodsForLevel } from "../lib/schoolLevel";
 
 export class ReportCardService {
     private reportRepository: Repository<ReportCardEntity>;
@@ -92,21 +93,27 @@ export class ReportCardService {
             const currentYear = await this.yearService.getCurrentYearRepartition();
             const schoolLogo = await this.getSchoolLogo();
 
+            const normPeriod = normalizePeriodName(data.period) || data.period;
             for (const studentId of data.studentIds) {
                 const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade', 'photo'] });
                 if (!student) continue;
 
-                const gradesResult = await this.getStudentGrades(studentId, data.period);
+                const gradesResult = await this.getStudentGrades(studentId, normPeriod);
                 if (!gradesResult.success || !gradesResult.data) continue;
 
                 const studentPhoto = await this.getStudentPhoto(studentId);
+                // Heading du niveau de l'élève (grade.level).
+                const studentLevel = normalizeSchoolLevel(levelOfGrade((student as any)?.grade));
 
                 const reportData = {
                     schoolName: schoolInfo.data?.name || 'Mon École',
                     schoolAddress: schoolInfo.data?.address || '',
                     schoolPhone: schoolInfo.data?.phone || '',
                     schoolYear: currentYear.data?.schoolYear || '2024-2025',
-                    period: data.period,
+                    level: studentLevel,
+                    niveau: levelHeading(studentLevel),
+                    niveauHeading: levelHeading(studentLevel),
+                    period: normPeriod,
                     studentName: `${student.firstname} ${student.lastname}`,
                     studentMatricule: student.matricule || '',
                     gradeName: student.grade.name,
@@ -120,7 +127,7 @@ export class ReportCardService {
                 const pdfBuffer = await global.pdfService.generatePdf(htmlContent);
 
                 const tempDir = app.getPath('temp');
-                const pdfPath = path.join(tempDir, `bulletin-${student.firstname}-${data.period}.pdf`);
+                const pdfPath = path.join(tempDir, `bulletin-${student.firstname}-${normPeriod}.pdf`);
                 await fs.writeFile(pdfPath, pdfBuffer);
 
                 const win = new BrowserWindow({ show: false });
@@ -148,8 +155,28 @@ export class ReportCardService {
         }
     }
 
+    /**
+     * Périodes du niveau de l'élève (grade.level) : 2 en secondaire,
+     * 3 en primaire/préscolaire. Préfère l'année courante DU NIVEAU.
+     */
+    async getPeriodsForStudent(studentId: number): Promise<string[]> {
+        try {
+            const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
+            const level = levelOfGrade((student as any)?.grade);
+            try {
+                const cur = await this.yearService.getCurrentYearRepartition(undefined, level ?? undefined);
+                const names = (cur.data?.periodConfigurations ?? []).map((p: any) => normalizePeriodName(p.name)).filter(Boolean);
+                if (names.length) return names;
+            } catch { /* repli canon */ }
+            return periodsForLevel(level);
+        } catch {
+            return periodsForLevel(null);
+        }
+    }
+
     async getStudentGrades(studentId: number, period: string): Promise<ResultType<ReportCardData>> {
         try {
+            period = normalizePeriodName(period) || period;
             const student = await this.studentRepository.findOne({ where: { id: studentId }, relations: ['grade'] });
             if (!student) {
                 throw new Error('Student not found');
@@ -256,10 +283,11 @@ export class ReportCardService {
 
     async saveStudentGrades(data: SaveStudentGradesInput): Promise<ResultType<ReportCardData>> {
         const queryRunner = AppDataSource.getInstance().createQueryRunner();
-        
+
         try {
             await queryRunner.connect();
             await queryRunner.startTransaction();
+            data.period = normalizePeriodName(data.period) || data.period;
 
             for (const gradeData of data.grades) {
                 let report = await queryRunner.manager.findOne(ReportCardEntity, {

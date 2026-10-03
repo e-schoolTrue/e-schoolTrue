@@ -96,6 +96,7 @@
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
+import { useYearStore, PENDING_DB_REFRESH_KEY } from '@/stores/yearStore';
 import type {
   BackupEnvelope,
   BackupPreview,
@@ -325,6 +326,7 @@ const confirmImport = async (): Promise<void> => {
     })) as BackupEnvelope<{
       relaunching: boolean;
       safetyBackup: string;
+      devReload?: boolean;
     }>;
     if (res?.success) {
       // Succès : le bypass était actif pendant le confirm ; on casse maintenant
@@ -343,6 +345,33 @@ const confirmImport = async (): Promise<void> => {
       }
       ElMessage.success('Import lancé, redémarrage de l’application…');
       showImportDialog.value = false;
+      // Fix refresh post-import dev : le backend NE reload plus (retourne
+      // seulement { devReload: true }). On pose le flag AVANT clear pour
+      // qu'il survive au reload, on purge le stale puis on refetch la liste,
+      // et si devReload on reload DIRECT (pas de setTimeout 600, pas de
+      // fetchCurrent orphelin — il ne persiste jamais activeYear, seul
+      // init() le fait après reload via App.vue / LoginView).
+      try {
+        try {
+          localStorage.setItem(PENDING_DB_REFRESH_KEY, String(Date.now()));
+        } catch {
+          /* stockage indisponible : reload quand même */
+        }
+        const yearStore = useYearStore();
+        yearStore.clear();
+        await yearStore.fetchList().catch(() => undefined);
+      } catch {
+        /* best-effort : le broadcast backup:db-replaced + flag restent le filet */
+      }
+      // Dev : le renderer décide du reload (backend ne touche plus la fenêtre).
+      try {
+        const data = res.data as { devReload?: boolean; relaunching?: boolean } | null;
+        if (data?.devReload && typeof window !== 'undefined' && window.location) {
+          window.location.reload();
+        }
+      } catch {
+        /* best-effort */
+      }
       emit('imported', {
         relaunching: true,
         safetyBackup: (res.data as { safetyBackup?: string } | null)?.safetyBackup ?? '',

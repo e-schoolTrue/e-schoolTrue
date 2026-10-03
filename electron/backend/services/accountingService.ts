@@ -295,10 +295,19 @@ export class AccountingService {
       // Ordre figé au paiement : tag [Imputation:ORDER] dans comment (sans migration).
       const frozenMatch = /\[Imputation:(FIRST_FIRST|LAST_FIRST|LAST2_THEN_FIRST|LAST3_THEN_FIRST)\]/.exec(String(p.comment ?? ""));
       const imputationOrder = frozenMatch ? frozenMatch[1] : undefined;
+      // Heading du niveau de l'élève (grade.level, repli grade.type legacy).
+      let niveau: string | null = null;
+      let level: string | null = null;
+      try {
+        const { levelOfGrade, levelHeading, normalizeSchoolLevel } = await import("../lib/schoolLevel");
+        level = normalizeSchoolLevel(levelOfGrade((p as any)?.student?.grade));
+        niveau = levelHeading(level) || null;
+      } catch { /* repli : sans niveau */ }
       return ok({
         id: String(p.id), numero: p.receiptNumber ?? `R-${p.id}`, date: new Date(p.created_at).toLocaleDateString("fr-FR"),
         eleve: `${p?.student?.firstname ?? ""} ${p?.student?.lastname ?? ""}`.trim(),
         matricule: p?.student?.matricule ?? "", classe: p?.student?.grade?.name ?? "",
+        ...(level ? { level, niveau, niveauHeading: niveau } : {}),
         montant, mode: p.paymentMethod ?? "cash", motif: p.paymentType ?? "scolarité",
         currency: p.currency ?? currency, montantLettres: amountInWords(montant, (p.currency ?? currency) as any),
         ...(imputationOrder ? { imputationOrder, paymentImputationOrder: imputationOrder } : {}),

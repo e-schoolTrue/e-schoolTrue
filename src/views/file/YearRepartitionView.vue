@@ -1,20 +1,71 @@
 <template>
   <div class="year-repartition-container">
     <div class="container-content">
+      <el-alert
+        v-if="hasLegacy"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="legacy-banner"
+      >
+        <template #title>Base legacy : année unique sans niveau</template>
+        <template #default>
+          <span>{{ legacyLabel }} — ventilez-la vers les 3 niveaux pour activer les régimes indépendants (trimestres / semestres).</span>
+          <el-button type="warning" plain size="small" class="migrate-btn" @click="showMigration = true">
+            Ventiler l'année unique vers 3 niveaux
+          </el-button>
+        </template>
+      </el-alert>
+
+      <el-tabs v-model="activeTab" class="level-tabs">
+        <el-tab-pane label="Tous" name="ALL" />
+        <el-tab-pane name="PRESCOLAIRE">
+          <template #label>
+            Préscolaire
+            <el-tag size="small" type="success" effect="plain" class="tab-badge">Trimestres</el-tag>
+            <el-badge :value="counts.PRESCOLAIRE" :hidden="counts.PRESCOLAIRE === 0" class="tab-count" />
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="PRIMAIRE">
+          <template #label>
+            Primaire
+            <el-tag size="small" type="success" effect="plain" class="tab-badge">Trimestres</el-tag>
+            <el-badge :value="counts.PRIMAIRE" :hidden="counts.PRIMAIRE === 0" class="tab-count" />
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="SECONDAIRE">
+          <template #label>
+            Secondaire
+            <el-tag size="small" type="warning" effect="plain" class="tab-badge">Semestres</el-tag>
+            <el-badge :value="counts.SECONDAIRE" :hidden="counts.SECONDAIRE === 0" class="tab-count" />
+          </template>
+        </el-tab-pane>
+      </el-tabs>
+
       <div class="actions-row">
-        <el-button type="primary" @click="openCreateModal" class="create-btn" :disabled="writeLocked">
-          Créer une Répartition Annuelle
+        <el-button type="primary" @click="openCreateModal(createLevel)" class="create-btn" :disabled="writeLocked">
+          {{ createLabel }}
         </el-button>
         <el-button type="success" @click="openCloneDialog" :disabled="writeLocked || !previousYear">
           Créer {{ nextYearLabel ?? 'N' }} à partir de {{ previousYear?.schoolYear ?? 'N-1' }}
         </el-button>
       </div>
 
-      <el-table :data="yearRepartitions" class="repartition-table" row-key="id">
+      <el-table :data="filteredYears" class="repartition-table" row-key="id">
         <el-table-column prop="schoolYear" label="Année Scolaire" />
+        <el-table-column label="Niveau" width="150">
+          <template #default="scope">
+            <el-tag v-if="rowLevel(scope.row)" :type="rowLevel(scope.row) === 'SECONDAIRE' ? 'warning' : 'success'" effect="plain">
+              {{ rowLevel(scope.row) }}
+            </el-tag>
+            <el-tag v-else type="info" effect="plain">Legacy</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="Type">
           <template #default="scope">
-            {{ getPeriodType(scope.row.periodConfigurations) }}
+            <el-tag :type="scope.row.periodConfigurations.length === 2 ? 'warning' : 'success'" effect="plain" size="small">
+              {{ getPeriodType(scope.row.periodConfigurations) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="Périodes">
@@ -77,20 +128,29 @@
         </el-table-column>
       </el-table>
 
-      <el-dialog 
-        v-model="showModal" 
-        :title="modalTitle" 
+      <el-dialog
+        v-model="showModal"
+        :title="modalTitle"
         class="modal-dialog"
         :destroy-on-close="true"
         :close-on-click-modal="false"
       >
         <YearRepartitionForm
           v-if="showModal"
+          :key="`${createLevel ?? 'ALL'}-${currentRepartition?.id ?? 'new'}`"
           :initial-data="currentRepartition"
+          :level="createLevel"
           @submit="handleSubmit"
           @cancel="showModal = false"
         />
       </el-dialog>
+
+      <YearLevelMigrationDialog
+        v-model="showMigration"
+        :legacy-years="legacyYears"
+        :existing="yearRepartitions"
+        @done="fetchYearRepartitions"
+      />
 
       <el-dialog
         v-model="showCloneDialog"
@@ -137,6 +197,7 @@
 import { ref, computed } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import YearRepartitionForm from "@/components/schoolYear/YearRepartionForm.vue";
+import YearLevelMigrationDialog from "@/components/schoolYear/YearLevelMigrationDialog.vue";
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -148,7 +209,9 @@ import {
     YearCloneOptions,
     YearClonePreview,
     YEAR_CLOSED_CODE,
+    type SchoolLevel,
 } from '@/types/year';
+import { normalizeLevel } from '@/types/schoolLevel';
 import { useUserStore } from '@/stores/userStore';
 import { useYearStore } from '@/stores/yearStore';
 import { handleYearClosedError, isYearClosedError } from '@/composables/useYearGuard';
@@ -159,9 +222,44 @@ const isAdmin = computed(() => userStore.hasRole('admin'));
 /** Écran d'écriture : verrouillé si l'année active est clôturée. */
 const writeLocked = computed(() => yearStore.isClosed);
 
+type LevelTab = 'ALL' | SchoolLevel;
+const activeTab = ref<LevelTab>('ALL');
+const showMigration = ref(false);
+
 const yearRepartitions = ref<YearRepartitionResponse[]>([]);
 const showModal = ref(false);
 const currentRepartition = ref<YearRepartition | null>(null);
+/** Niveau de création = onglet courant (ALL → PRIMAIRE par défaut). */
+const createLevel = computed<SchoolLevel>(() => (activeTab.value === 'ALL' ? 'PRIMAIRE' : activeTab.value));
+const createLabel = computed(() =>
+  activeTab.value === 'ALL'
+    ? 'Créer une Répartition Annuelle'
+    : `Créer la répartition ${activeTab.value} (${activeTab.value === 'SECONDAIRE' ? '2 semestres' : '3 trimestres'})`,
+);
+
+const rowLevel = (row: YearRepartitionResponse): SchoolLevel | null =>
+  normalizeLevel((row as { level?: unknown }).level);
+
+/** Compteurs par onglet (legacy exclu des 3 niveaux). */
+const counts = computed<Record<SchoolLevel, number>>(() => ({
+  PRESCOLAIRE: yearRepartitions.value.filter((y) => rowLevel(y) === 'PRESCOLAIRE').length,
+  PRIMAIRE: yearRepartitions.value.filter((y) => rowLevel(y) === 'PRIMAIRE').length,
+  SECONDAIRE: yearRepartitions.value.filter((y) => rowLevel(y) === 'SECONDAIRE').length,
+}));
+
+const legacyYears = computed(() => yearRepartitions.value.filter((y) => rowLevel(y) == null));
+const hasLegacy = computed(() => legacyYears.value.length > 0);
+const legacyLabel = computed(() =>
+  legacyYears.value.map((y) => y.schoolYear).join(', '),
+);
+
+const filteredYears = computed(() =>
+  activeTab.value === 'ALL'
+    ? [...yearRepartitions.value].sort((a, b) => a.schoolYear.localeCompare(b.schoolYear))
+    : yearRepartitions.value
+        .filter((y) => rowLevel(y) === activeTab.value)
+        .sort((a, b) => a.schoolYear.localeCompare(b.schoolYear)),
+);
 
 /** Clone N à partir de N-1 (plan V3). */
 const showCloneDialog = ref(false);
@@ -192,7 +290,7 @@ const isRowClosed = (row: YearRepartitionResponse) => row.status === 'closed';
 const modalTitle = computed(() =>
   currentRepartition.value
     ? "Modifier la Répartition Annuelle"
-    : "Créer une Répartition Annuelle"
+    : `Créer une Répartition Annuelle — ${createLevel.value}`
 );
 
 const formatDate = (date: string | Date | null) => {
@@ -209,7 +307,8 @@ const closeModal = () => {
   currentRepartition.value = null;
 };
 
-const openCreateModal = () => {
+const openCreateModal = (level?: SchoolLevel) => {
+  if (level) activeTab.value = level;
   currentRepartition.value = null;
   showModal.value = true;
 };
@@ -219,6 +318,7 @@ const editRepartition = (repartition: YearRepartitionResponse) => {
   const convertedRepartition: YearRepartition = {
     id: repartition.id,
     schoolYear: repartition.schoolYear,
+    level: rowLevel(repartition),
     periodConfigurations: repartition.periodConfigurations.map(period => ({
       name: period.name,
       start: period.start,
@@ -226,7 +326,7 @@ const editRepartition = (repartition: YearRepartitionResponse) => {
     })),
     isCurrent: repartition.isCurrent
   };
-  
+
   currentRepartition.value = convertedRepartition;
   showModal.value = true;
 };
@@ -263,19 +363,21 @@ const handleSubmit = async (data: YearRepartitionCreateInput | YearRepartitionUp
   try {
     // Vérifier si c'est une mise à jour (l'ID est présent dans les données)
     const isUpdate = 'id' in data && data.id !== undefined;
-    
-    // Préparer les données en formatant correctement les dates
+
+    // Préparer les données en formatant correctement les dates (+ niveau 3-voies)
+    const level = (data as { level?: SchoolLevel | null }).level ?? createLevel.value;
     const formattedData = {
       ...data,
+      level,
       periodConfigurations: data.periodConfigurations?.map(period => ({
         name: period.name,
         start: period.start ? new Date(period.start).toISOString() : null,
         end: period.end ? new Date(period.end).toISOString() : null
       })) || []
     };
-    
+
     let result;
-    
+
     if (isUpdate) {
       // S'assurer que l'ID est correctement extrait avant de l'envoyer
       const id = (data as any).id;
@@ -575,13 +677,13 @@ const setCurrentYear = async (repartition: YearRepartitionResponse) => {
       }
     );
 
-    
+
     try {
       const result = await window.ipcRenderer.invoke(
-        "yearRepartition:setCurrent", 
+        "yearRepartition:setCurrent",
         repartition.id
       );
-      
+
 
       if (result.success) {
         ElMessage.success("Année scolaire en cours mise à jour avec succès");
@@ -595,10 +697,10 @@ const setCurrentYear = async (repartition: YearRepartitionResponse) => {
         console.error("Erreur de définition de l'année courante:", result.error || result.message);
         ElMessage.error(`Erreur: ${result.error || result.message}`);
       }
-      
+
       // Rafraîchir la liste dans tous les cas pour refléter l'état actuel
       await fetchYearRepartitions();
-      
+
     } catch (apiError) {
       console.error("Exception lors de l'appel à yearRepartition:setCurrent:", apiError);
       ElMessage.error("Une erreur technique est survenue lors de la définition de l'année scolaire en cours");
@@ -630,6 +732,26 @@ fetchYearRepartitions();
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+}
+
+.legacy-banner {
+  width: 100%;
+}
+
+.migrate-btn {
+  margin-left: 12px;
+}
+
+.level-tabs {
+  width: 100%;
+}
+
+.tab-badge {
+  margin-left: 6px;
+}
+
+.tab-count {
+  margin-left: 4px;
 }
 
 .create-btn {

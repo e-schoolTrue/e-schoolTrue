@@ -60,6 +60,8 @@ describe("migration-registration : toutes les migrations sont branchées", () =>
       "DriftCatchup2175000000000",
       "RoleLegacyFix1760000000000",
       "DriftCatchup3177000000000",
+      "ThreeLevels1780000000000",
+      "ParentTable1790000000000",
     ]) {
       expect(arr, `const migrations doit contenir ${cls}`).toContain(cls);
     }
@@ -205,9 +207,60 @@ describe("migration-registration : toutes les migrations sont branchées", () =>
       path.join(__dirname, "..", "..", "migration-runner.ts"),
       "utf8"
     );
-    for (const ts of [1700000000000, 1710000000000, 1720000000000, 1730000000000, 1740000000000, 1750000000000, 1760000000000, 1770000000000]) {
+    for (const ts of [1700000000000, 1710000000000, 1720000000000, 1730000000000, 1740000000000, 1750000000000, 1760000000000, 1770000000000, 1780000000000, 1790000000000]) {
       expect(runnerSrc, `KNOWN_MIGRATIONS doit contenir ${ts}`).toContain(String(ts));
     }
     expect(runnerSrc).toContain("DriftCatchup3177000000000");
+    expect(runnerSrc).toContain("ThreeLevels1780000000000");
+  });
+
+  it("migration 179 déclare timestamp=1790000000000 (Option B T_parent, idempotente)", () => {
+    const src = fs.readFileSync(
+      path.join(migrationsDir, "1790000000000-ParentTable.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/timestamp\s*=\s*1790000000000/);
+    expect(src).toMatch(/export\s+class\s+ParentTable1790000000000/);
+    expect(dataSourceSrc).toContain("./migrations/1790000000000-ParentTable");
+    expect(dataSourceSrc).toContain("ParentTable1790000000000");
+    expect(src).toMatch(/CREATE TABLE IF NOT EXISTS "T_parent"/);
+    expect(src).toMatch(/INSERT OR IGNORE/);
+    expect(src).toMatch(/parentId.*IS NULL/);
+    expect(src).toMatch(/suspect.*no-key/);
+    expect(src).toMatch(/public async down/);
+    const codeOnly179 = src
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//"))
+      .join("\n");
+    expect(codeOnly179).not.toMatch(/\.query\(.*DROP COLUMN/i);
+    // normalizedPhone jamais '' : fail-fast présent.
+    expect(src).toMatch(/normalizedPhone.*''/);
+  });
+
+  it("migration 178 déclare timestamp=1780000000000 (3 niveaux, idempotente)", () => {
+    const src = fs.readFileSync(
+      path.join(migrationsDir, "1780000000000-ThreeLevels.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/timestamp\s*=\s*1780000000000/);
+    expect(src).toMatch(/export\s+class\s+ThreeLevels1780000000000/);
+    expect(dataSourceSrc).toContain("./migrations/1780000000000-ThreeLevels");
+    expect(dataSourceSrc).toContain("ThreeLevels1780000000000");
+    expect(src).toMatch(/hasTable/);
+    expect(src).toMatch(/hasColumn/);
+    expect(src).toMatch(/CREATE TABLE IF NOT EXISTS/);
+    expect(src).toMatch(/payment_configs_orphans/);
+    expect(src).toMatch(/PRESCOLAIRE/);
+    expect(src).toMatch(/public async down/);
+    const codeOnly = src
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//"))
+      .join("\n");
+    expect(codeOnly).not.toMatch(/\.query\(.*DROP COLUMN/i);
+    for (const line of codeOnly.split("\n")) {
+      if (/ADD COLUMN/i.test(line) && /NOT NULL/i.test(line) && !/DEFAULT/i.test(line)) {
+        throw new Error(`migration 178 : ADD COLUMN NOT NULL sans DEFAULT → ${line.trim()}`);
+      }
+    }
   });
 });

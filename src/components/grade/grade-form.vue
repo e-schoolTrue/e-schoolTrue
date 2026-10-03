@@ -89,6 +89,7 @@ defineExpose({
       <!-- ⚡ Ajout du champ Type -->
       <el-form-item label="Type" prop="type">
         <el-select v-model="form.type" placeholder="Choisissez le type">
+          <el-option :value="GradeType.PRESCOLAIRE" label="Préscolaire" />
           <el-option :value="GradeType.PRIMARY" label="Primaire" />
           <el-option :value="GradeType.SECONDARY" label="Secondaire" />
         </el-select>

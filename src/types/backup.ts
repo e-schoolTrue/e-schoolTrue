@@ -4,9 +4,9 @@
  * - backup:list -> Envelope<{ backups: BackupItem[]; totalSizeBytes: number; count: number }>
  * - backup:create -> Envelope<BackupItem>
  * - backup:info <basename> -> Envelope<BackupItem>
- * - backup:restore <basename, confirmed> -> Envelope<{ relaunching: boolean; safetyBackup: string }>
+ * - backup:restore <basename, confirmed> -> Envelope<RelaunchResult>
  * - backup:import / backup:previewImport -> Envelope<ImportPreviewResult>
- * - backup:confirmImport <stagingPath, confirmed> -> Envelope<{ relaunching: boolean; safetyBackup: string }>
+ * - backup:confirmImport <stagingPath, confirmed> -> Envelope<RelaunchResult>
  * - backup:delete <basename> -> Envelope<{ deleted: string }>
  * - backup:reveal <basename> -> Envelope<{ revealed: boolean }>
  * - backup:exportTo <basename> -> Envelope<{ canceled: boolean; exportedTo?: string }>
@@ -83,6 +83,17 @@ export interface ImportPreviewResult {
   sourcePath?: string;
   preview?: BackupPreview;
   warnings?: string[];
+}
+
+/**
+ * Résultat restore/import : `devReload` vrai quand le backend retourne sans
+ * auto-reload et laisse le renderer faire `window.location.reload()` direct
+ * après flag + fetchList (jamais de setTimeout, jamais de fetchCurrent orphelin).
+ */
+export interface RelaunchResult {
+  relaunching: boolean;
+  safetyBackup: string;
+  devReload?: boolean;
 }
 
 /** Enveloppe standard retournée par les handlers IPC backup:*. */

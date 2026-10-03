@@ -6,9 +6,14 @@ export interface PeriodConfiguration {
 
 export type YearStatus = "active" | "closed";
 
+/** Niveau scolaire 3-voies (`null` = année unique legacy, sans ventilation). */
+export type SchoolLevel = 'PRESCOLAIRE' | 'PRIMAIRE' | 'SECONDAIRE';
+
 export interface YearRepartition {
     id?: number;
     schoolYear: string;
+    /** Niveau 3-voies. Absent/`null` = année unique legacy (non ventilée). */
+    level?: SchoolLevel | null;
     periodConfigurations: PeriodConfiguration[];
     created_at?: Date;
     updated_at?: Date;
@@ -20,17 +25,23 @@ export interface YearRepartition {
 
 export interface YearRepartitionCreateInput {
     schoolYear: string;
+    /** Niveau 3-voies (forward-compatible : ignoré par les backends legacy). */
+    level?: SchoolLevel | null;
     periodConfigurations: PeriodConfiguration[];
 }
 
 export interface YearRepartitionUpdateInput {
     schoolYear?: string;
+    /** Niveau 3-voies (forward-compatible : ignoré par les backends legacy). */
+    level?: SchoolLevel | null;
     periodConfigurations?: PeriodConfiguration[];
 }
 
 export interface YearRepartitionResponse {
     id: number;
     schoolYear: string;
+    /** Niveau 3-voies. Absent/`null` = année unique legacy (non ventilée). */
+    level?: SchoolLevel | null;
     periodConfigurations: PeriodConfiguration[];
     isCurrent: boolean;
     status?: YearStatus;

@@ -54,6 +54,15 @@ export class GradingConfigEntity {
     @Column({ type: 'varchar', nullable: true })
     schoolYear: string | null; // Année scolaire canonique YYYY-YYYY ; null = fallback lecture (toutes années)
 
+    /**
+     * Scope niveau (migration 178) : 'PRESCOLAIRE' | 'PRIMAIRE' | 'SECONDAIRE'.
+     * NULL = global/legacy (fallback ultime). Résolution étanche : jamais de
+     * config d'un autre niveau (matière+classe+niveau+période puis fallback).
+     */
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    level: string | null;
+
+
     // Cascade pour sauvegarder les catégories en même temps
     @OneToMany(() => EvaluationCategoryEntity, (category) => category.config, {
         cascade: true,

@@ -44,7 +44,7 @@ interface GetGradesInput {
         }>;
     }
 
-const DEFAULT_PERIODS = ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'] as const;
+import { levelOfGrade, normalizePeriodName, normalizeSchoolLevel, periodsForLevel } from "../lib/schoolLevel";
 
 export class GradeEntryService {
     private gradeEntryRepository: Repository<GradeEntryEntity>;
@@ -59,6 +59,36 @@ export class GradeEntryService {
     }
 
     /**
+     * Niveau de l'élève (grade.level, repli grade.type legacy).
+     * Retourne null si élève/classe introuvable (appelants : fallback global).
+     */
+    private async resolveStudentLevel(studentId: number): Promise<string | null> {
+        try {
+            const ds = AppDataSource.getInstance();
+            const student: any = await ds.getRepository(StudentEntity).findOne({
+                where: { id: studentId },
+                relations: ["grade"],
+            });
+            return levelOfGrade(student?.grade);
+        } catch {
+            return null;
+        }
+    }
+
+    /** Niveau d'une classe + ses périodes canoniques (2 en secondaire, 3 sinon). */
+    private async resolveGradePeriods(gradeId: number): Promise<{ level: string | null; periods: string[] }> {
+        try {
+            const ds = AppDataSource.getInstance();
+            const { GradeEntity } = await import("../entities/grade");
+            const grade: any = await ds.getRepository(GradeEntity).findOne({ where: { id: gradeId } });
+            const level = levelOfGrade(grade);
+            return { level, periods: periodsForLevel(level) };
+        } catch {
+            return { level: null, periods: periodsForLevel(null) };
+        }
+    }
+
+    /**
      * Sauvegarde une note individuelle
      */
     async saveGradeEntry(input: SaveGradeEntryInput): Promise<ResultType<GradeEntryEntity>> {
@@ -67,7 +97,7 @@ export class GradeEntryService {
             entry.studentId = input.studentId;
             entry.courseId = input.courseId;
             entry.categoryId = input.categoryId;
-            entry.period = input.period;
+            entry.period = normalizePeriodName(input.period) || input.period;
             entry.score = input.score;
             entry.maxScore = input.maxScore;
             entry.label = input.label || null;
@@ -77,7 +107,7 @@ export class GradeEntryService {
             const saved = await this.gradeEntryRepository.save(entry);
 
             // Invalider le cache
-            await this.invalidateCalculatedGrade(input.studentId, input.courseId, input.period);
+            await this.invalidateCalculatedGrade(input.studentId, input.courseId, normalizePeriodName(input.period) || input.period);
 
             return {
                 success: true,
@@ -105,7 +135,8 @@ export class GradeEntryService {
         await queryRunner.startTransaction();
 
         try {
-            const { studentId, courseId, period, grades } = input;
+            const { studentId, courseId, period: rawPeriod, grades } = input;
+            const period = normalizePeriodName(rawPeriod) || rawPeriod;
 
             // Supprimer uniquement les catégories concernées par la sauvegarde
             // Les catégories non incluses conservent leurs anciennes valeurs
@@ -191,11 +222,12 @@ export class GradeEntryService {
      */
     async getGradeEntries(input: GetGradesInput): Promise<ResultType<GradeEntryEntity[]>> {
         try {
+            const period = normalizePeriodName(input.period) || input.period;
             const entries = await this.gradeEntryRepository.find({
                 where: {
                     studentId: input.studentId,
                     courseId: input.courseId,
-                    period: input.period
+                    period
                 },
                 order: {
                     categoryId: "ASC",
@@ -231,11 +263,12 @@ export class GradeEntryService {
         period: string
     ): Promise<ResultType<CalculatedGradeEntity>> {
         try {
+            period = normalizePeriodName(period) || period;
             // Récupérer toutes les notes
             const entriesResult = await this.getGradeEntries({ studentId, courseId, period });
             console.log(`Nombre de notes récupérées: ${entriesResult.data?.length || 0}`);
             console.log(`Notes:`, entriesResult.data);
-            
+
             if (!entriesResult.success || !entriesResult.data) {
                 throw new Error("Impossible de récupérer les notes");
             }
@@ -252,12 +285,15 @@ export class GradeEntryService {
                 };
             }
 
-            // Récupérer la configuration applicable (avec période pour configs par trimestre)
+            // Résolution matière+classe+niveau+période (étanche par niveau) :
+            // le niveau de l'élève (grade.level) fait foi pour la config.
             // NOTE: subjectId: null → utilise la config de niveau classe, comme le fait le frontend
+            const studentLevel = await this.resolveStudentLevel(studentId);
             const configResult = await this.configNoteService.getApplicableConfig({
                 schoolId,
                 classId,
                 subjectId: null,
+                level: studentLevel,
                 period
             });
 
@@ -956,9 +992,12 @@ export class GradeEntryService {
                     
                     const courseIds = Array.from(courseMap.keys());
 
-                    // Déterminer la période à utiliser (évite le triple-comptage quand filters.period est omis)
-                    let effectivePeriod = filters?.period;
+                    // Déterminer la période à utiliser (évite le triple-comptage quand filters.period est omis).
+                    // Scope par niveau : périodes du niveau de l'élève (2 en secondaire, 3 sinon).
+                    let effectivePeriod = normalizePeriodName(filters?.period) || undefined;
                     if (!effectivePeriod) {
+                        const { periods: levelPeriods } = await this.resolveGradePeriods(filters.gradeId);
+                        const fallbackPeriod = levelPeriods[0];
                         try {
                             const distinctPeriods = await this.gradeEntryRepository
                                 .createQueryBuilder('ge')
@@ -968,11 +1007,12 @@ export class GradeEntryService {
                                     courseIds: courseIds
                                 })
                                 .getRawMany();
-                            const periods = distinctPeriods.map((r: any) => r.period).filter(Boolean);
-                            effectivePeriod = periods.length > 0 ? periods[0] : DEFAULT_PERIODS[0];
+                            const existing = distinctPeriods.map((r: any) => normalizePeriodName(r.period)).filter(Boolean);
+                            // Préfère une période existante APPARTENANT au niveau, sinon 1re du niveau.
+                            effectivePeriod = existing.find((p) => levelPeriods.includes(p)) ?? fallbackPeriod;
                         } catch (e) {
                             console.warn('Impossible de récupérer les périodes distinctes', e);
-                            effectivePeriod = DEFAULT_PERIODS[0];
+                            effectivePeriod = fallbackPeriod;
                         }
                     }
 
@@ -1204,22 +1244,30 @@ export class GradeEntryService {
                 }
             });
 
-            // Use periods from filters, or try to load from year configuration, or fallback to defaults
-            let periods = filters?.periods;
-            if (!periods || periods.length === 0) {
+            // Périodes = celles DU NIVEAU de la classe (grade.level) :
+            // 2 en secondaire (Semestre 1-2), 3 en primaire/préscolaire.
+            // Ordre : filtres explicites (normalisés) > année courante DU NIVEAU
+            // > canon du niveau. Jamais de DEFAULT_PERIODS global ni d'index dur.
+            const { level: gradeLevel, periods: levelPeriods } = await this.resolveGradePeriods(filters.gradeId);
+            let periods = (filters?.periods ?? []).map((p) => normalizePeriodName(p)).filter(Boolean);
+            if (periods.length === 0) {
                 try {
                     const { YearRepartitionEntity } = await import('../entities/yearRepartition');
                     const yearRepo = dataSource.getRepository(YearRepartitionEntity);
-                    const currentYear = await yearRepo.findOne({ where: { isCurrent: true } });
+                    const scoped: any[] = await yearRepo.find({ where: { isCurrent: true } as any }).catch(() => []);
+                    // Courante du niveau exact d'abord, repli globale (level NULL).
+                    const currentYear = scoped.find((y) => (y.status ?? "active") !== "closed" && levelOfGrade({ level: (y as any).level }) === gradeLevel && (y.periodConfigurations?.length))
+                        ?? scoped.find((y) => (y.status ?? "active") !== "closed" && levelOfGrade({ level: (y as any).level }) == null && (y.periodConfigurations?.length));
                     if (currentYear?.periodConfigurations?.length) {
-                        periods = currentYear.periodConfigurations.map((p: any) => p.name);
+                        const names = currentYear.periodConfigurations.map((p: any) => normalizePeriodName(p.name)).filter(Boolean);
+                        if (names.length) periods = names;
                     }
                 } catch (e) {
-                    console.warn('Could not load year periods, using defaults', e);
+                    console.warn('Could not load year periods, using level canon', e);
                 }
             }
-            if (!periods || periods.length === 0) {
-                periods = [...DEFAULT_PERIODS];
+            if (periods.length === 0) {
+                periods = [...levelPeriods];
             }
 
             const courseIds = Array.from(courseMap.keys());
@@ -1238,6 +1286,7 @@ export class GradeEntryService {
                 totalScores: number;
                 averageScores: number;
                 periodAverages: number[];
+                periods: string[];
                 distinctions: {
                     tableauHonneur: boolean;
                     encouragements: boolean;
@@ -1340,15 +1389,19 @@ export class GradeEntryService {
 
                     const finalDecision = annualAverage >= 10 ? 'Admis' : 'Redouble';
 
+                    // Moyennes par période SANS index en dur : mapping dynamique
+                    // (2 périodes en secondaire, 3 sinon). Champs trim* gardés
+                    // pour compat frontend (trim3 = 0 quand 2 périodes).
+                    const atIdx = (i: number) => (periodAverages[i] !== undefined && periodAverages[i] !== -1 ? periodAverages[i] : 0);
                     studentResults.push({
                         studentId: student.id,
                         matricule: student.matricule || '',
                         firstname: student.firstname || '',
                         lastname: student.lastname || '',
                         sex: sex as 'male' | 'female',
-                        trim1Average: periodAverages[0] !== undefined && periodAverages[0] !== -1 ? periodAverages[0] : 0,
-                        trim2Average: periodAverages[1] !== undefined && periodAverages[1] !== -1 ? periodAverages[1] : 0,
-                        trim3Average: periodAverages[2] !== undefined && periodAverages[2] !== -1 ? periodAverages[2] : 0,
+                        trim1Average: atIdx(0),
+                        trim2Average: atIdx(1),
+                        trim3Average: atIdx(2),
                         annualAverage,
                         rank: 0,
                         totalScores: 0,

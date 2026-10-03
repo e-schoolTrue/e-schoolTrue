@@ -37,6 +37,7 @@ import { getMetadataArgsStorage } from 'typeorm';
 
 import { UserEntity } from '../entities/user';
 import { StudentEntity } from '../entities/students';
+import { ParentEntity } from '../entities/parents';
 import { FileEntity } from '../entities/file';
 import { ProfessorEntity, QualificationEntity, DiplomaEntity } from '../entities/professor';
 import { AbsenceEntity } from '../entities/absence';
@@ -89,11 +90,13 @@ import { TranchConfigPrecision1740000000000 } from '../../migrations/17400000000
 import { DriftCatchup2175000000000 } from '../../migrations/1750000000000-DriftCatchup2';
 import { RoleLegacyFix1760000000000 } from '../../migrations/1760000000000-RoleLegacyFix';
 import { DriftCatchup3177000000000 } from '../../migrations/1770000000000-DriftCatchup3';
+import { ThreeLevels1780000000000 } from '../../migrations/1780000000000-ThreeLevels';
+import { ParentTable1790000000000 } from '../../migrations/1790000000000-ParentTable';
 
 const requireNode = createRequire(import.meta.url);
 
 const ALL_ENTITIES = [
-  UserEntity, FileEntity, StudentEntity, GradeEntity, ClassRoomEntity, BranchEntity,
+  UserEntity, FileEntity, StudentEntity, ParentEntity, GradeEntity, ClassRoomEntity, BranchEntity,
   CourseEntity, ObservationEntity, AbsenceEntity, PaymentEntity, PaymentConfigEntity,
   SchoolEntity, YearRepartitionEntity, ProfessorEntity, QualificationEntity, DiplomaEntity,
   TeachingAssignmentEntity, ProfessorPaymentEntity, HomeworkEntity, VacationEntity,
@@ -115,6 +118,8 @@ const MIGRATIONS_IN_ORDER = [
   new DriftCatchup2175000000000(),
   new RoleLegacyFix1760000000000(),
   new DriftCatchup3177000000000(),
+  new ThreeLevels1780000000000(),
+  new ParentTable1790000000000(),
 ];
 
 // ---------------------------------------------------------------------------
@@ -152,11 +157,20 @@ function openDb(dbPath: string): Db {
 }
 
 function makeRunner(db: Db): {
+  isTransactionActive: boolean;
+  startTransaction: () => Promise<void>;
+  commitTransaction: () => Promise<void>;
+  rollbackTransaction: () => Promise<void>;
   hasTable: (t: string) => Promise<boolean>;
   hasColumn: (t: string, c: string) => Promise<boolean>;
   query: (sql: string, params?: unknown[]) => Promise<unknown>;
 } {
   return {
+    // Migration 179 gère sa transaction (up → upInner) ; no-op sous node:sqlite.
+    isTransactionActive: false,
+    startTransaction: async () => {},
+    commitTransaction: async () => {},
+    rollbackTransaction: async () => {},
     hasTable: async (t: string) =>
       db.get(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [t]) != null,
     hasColumn: async (t: string, c: string) => {
@@ -313,12 +327,15 @@ function createLegacyDb(dbPath: string): { payments: number; total: number } {
   }
 }
 
-/** Stubs quasi-vides : une PK par table (prouve la convergence 171→177 seule). */
+/** Stubs quasi-vides : une PK par table (prouve la convergence 171→179 seule). */
 function createStubDb(dbPath: string): void {
   const db = openDb(dbPath);
   try {
     const wanted = expectedSchema();
     for (const table of wanted.keys()) {
+      // Legacy réel : pas de T_parent avant la 179 — laisser la migration la créer
+      // (un stub avec seul `id` ferait échouer l'index UNIQUE normalizedPhone).
+      if (table === 'T_parent') continue;
       if (table === 'course_grades') {
         db.exec(`CREATE TABLE "course_grades" ("courseId" INTEGER NOT NULL, "gradeId" INTEGER NOT NULL, PRIMARY KEY ("courseId","gradeId"))`);
       } else if (table === 'teaching_grades') {
@@ -408,7 +425,7 @@ describe('schema-parity : legacy → parité totale, zéro colonne manquante', (
 });
 
 describe('schema-parity : stubs (quasi-DB-vide) → parité totale + idempotence', () => {
-  it('171→177 convergent seules, 2e run no-op', async () => {
+  it('171→179 convergent seules, 2e run no-op', async () => {
     const dbPath = path.join(tmpDir, 'stubs.db');
     createStubDb(dbPath);
 

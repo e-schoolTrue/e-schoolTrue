@@ -300,4 +300,77 @@ describe('YearService — clone guards (configs-only)', () => {
     expect((second.data.skipped?.grading_config ?? 0)).toBe(28);
     expect(store.GradingConfigEntity.filter((g) => g.schoolYear === '2026-2027')).toHaveLength(28);
   });
+
+  /**
+   * SEV2 PAR NIVEAU : clone + preview filtrent (année + niveau).
+   * Cible mono-niveau PRIMAIRE : PRIMAIRE + legacy (null) copiés,
+   * SECONDAIRE jamais copié. EMPTY_SOURCE si rien du niveau.
+   */
+  it('clone PAR NIVEAU : seul le niveau cible + legacy est copié (payment/grading/fee)', async () => {
+    store.PaymentConfigEntity = [
+      { id: 1, schoolYear: '2025-2026', level: 'PRIMAIRE', classId: '1', annualAmount: 100, inscriptionFee: 10 },
+      { id: 2, schoolYear: '2025-2026', level: 'SECONDAIRE', classId: '2', annualAmount: 200, inscriptionFee: 20 },
+      { id: 3, schoolYear: '2025-2026', level: null, classId: '3', annualAmount: 300, inscriptionFee: 30 },
+    ];
+    store.GradingConfigEntity = [
+      { id: 11, schoolYear: '2025-2026', level: 'PRIMAIRE', schoolId: 1, classId: 1, subjectId: 1, period: 'P1', categories: [] },
+      { id: 12, schoolYear: '2025-2026', level: 'SECONDAIRE', schoolId: 1, classId: 2, subjectId: 2, period: 'P2', categories: [] },
+      { id: 13, schoolYear: '2025-2026', level: null, schoolId: 1, classId: 3, subjectId: 3, period: 'P3', categories: [] },
+    ];
+    store.FeeItemEntity = [
+      { id: 21, schoolYear: '2025-2026', level: 'PRIMAIRE', name: 'Frais P', gradeId: 1 },
+      { id: 22, schoolYear: '2025-2026', level: 'SECONDAIRE', name: 'Frais S', gradeId: 2 },
+      { id: 23, schoolYear: '2025-2026', name: 'Frais legacy', gradeId: 3 },
+    ];
+    const r = await service.cloneYearConfigs({ fromId: 1, newSchoolYear: '2026-2027', level: 'PRIMAIRE' } as any);
+    expect(r.success).toBe(true);
+    expect(r.data.paymentConfigs).toBe(2);
+    expect(r.data.gradingConfigs).toBe(2);
+    expect(r.data.feeItems).toBe(2);
+    const payTargets = store.PaymentConfigEntity.filter((x) => x.schoolYear === '2026-2027');
+    expect(payTargets).toHaveLength(2);
+    expect(payTargets.map((x) => x.classId).sort()).toEqual(['1', '3']);
+    const gradTargets = store.GradingConfigEntity.filter((x) => x.schoolYear === '2026-2027');
+    expect(gradTargets.map((x) => x.period).sort()).toEqual(['P1', 'P3']);
+    const feeTargets = store.FeeItemEntity.filter((x) => x.schoolYear === '2026-2027');
+    expect(feeTargets.map((x) => x.name).sort()).toEqual(['Frais P', 'Frais legacy']);
+  });
+
+  it('clone PAR NIVEAU : annuals filtrés via grade.level, autres niveaux exclus', async () => {
+    store.PaymentAnnualConfigEntity = [
+      { id: 31, schoolYear: '2025-2026', grade: { id: 7, level: 'PRIMAIRE' }, tranches: [] },
+      { id: 32, schoolYear: '2025-2026', grade: { id: 8, level: 'SECONDAIRE' }, tranches: [] },
+      { id: 33, schoolYear: '2025-2026', grade: null, tranches: [] },
+    ];
+    const r = await service.cloneYearConfigs({ fromId: 1, newSchoolYear: '2026-2027', level: 'PRIMAIRE', copyPayment: false, copyGrading: false, copyFeeItems: false } as any);
+    expect(r.success).toBe(true);
+    expect(r.data.counts.payment_annual_config).toBe(2);
+    const targets = store.PaymentAnnualConfigEntity.filter((x) => x.schoolYear === '2026-2027');
+    expect(targets).toHaveLength(2);
+  });
+
+  it('clone PAR NIVEAU : rien du niveau → EMPTY_SOURCE explicite', async () => {
+    store.PaymentConfigEntity = [{ id: 1, schoolYear: '2025-2026', level: 'SECONDAIRE', classId: '9', annualAmount: 1 }];
+    store.GradingConfigEntity = [{ id: 2, schoolYear: '2025-2026', level: 'SECONDAIRE', schoolId: 1, categories: [] }];
+    const r = await service.cloneYearConfigs({ fromId: 1, newSchoolYear: '2026-2027', level: 'PRIMAIRE' } as any);
+    expect(r.success).toBe(true);
+    expect(r.error).toBe('EMPTY_SOURCE');
+    expect(r.data.paymentConfigs).toBe(0);
+    expect(r.data.gradingConfigs).toBe(0);
+  });
+
+  it('preview PAR NIVEAU : compte le niveau cible + legacy uniquement', async () => {
+    store.PaymentConfigEntity = [
+      { id: 1, schoolYear: '2025-2026', level: 'PRIMAIRE', classId: '1' },
+      { id: 2, schoolYear: '2025-2026', level: 'SECONDAIRE', classId: '2' },
+      { id: 3, schoolYear: null, level: null, classId: '3' },
+    ];
+    store.GradingConfigEntity = [{ id: 4, schoolYear: '2025-2026', level: 'SECONDAIRE' }];
+    const r = await service.clonePreview({ fromId: 1, newSchoolYear: '2026-2027', level: 'PRIMAIRE' } as any);
+    expect(r.success).toBe(true);
+    // payment: PRIMAIRE + legacy(null schoolYear) = 2 ; grading SECONDAIRE exclu = 0
+    expect(r.data.paymentConfigs).toBe(2);
+    expect(r.data.gradingConfigs).toBe(0);
+    expect(r.data.emptySource).toBe(false);
+  });
 });

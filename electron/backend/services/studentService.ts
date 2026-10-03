@@ -1,7 +1,69 @@
 import { Repository } from "typeorm";
 import { StudentEntity } from "../entities/students";
+import { ParentEntity } from "../entities/parents";
 import { GradeEntity } from "../entities/grade";
 import { AppDataSource } from "../../data-source";
+import { normalizeName, normalizePhone, parentNameKey } from "../utils/normalize";
+import { PreferenceEntity } from "../entities/preference";
+
+/** Option B Table Parent — mode de double-écriture (réglage `USE_PARENT_TABLE`). */
+export type ParentTableMode = "off" | "shadow" | "on";
+
+export interface ParentDto {
+    fatherFirstname?: string | null;
+    fatherLastname?: string | null;
+    motherFirstname?: string | null;
+    motherLastname?: string | null;
+    /** Typo historique `famillyPhone` (2L) conservée. */
+    famillyPhone?: string | null;
+    address?: string | null;
+}
+
+/**
+ * Suggestion foyer (contrat IPC `parent:search` / `student:parents:search`,
+ * consommé par `src/types/student.ts` → `IParentSuggestion`).
+ */
+export interface IParentSuggestion {
+    id: number;
+    label: string;
+    noms?: string;
+    fatherFirstname?: string;
+    fatherLastname?: string;
+    motherFirstname?: string;
+    motherLastname?: string;
+    famillyPhone?: string;
+    address?: string;
+    usageCount?: number;
+}
+
+const PARENT_FIELDS = [
+    "fatherFirstname",
+    "fatherLastname",
+    "motherFirstname",
+    "motherLastname",
+    "famillyPhone",
+    "address",
+] as const;
+
+/** Libellé lisible d'un foyer : `"Père Prénom Nom & Mère Prénom Nom (tél)"`. */
+export function buildParentLabel(p: {
+    id?: number;
+    fatherFirstname?: string | null;
+    fatherLastname?: string | null;
+    motherFirstname?: string | null;
+    motherLastname?: string | null;
+    famillyPhone?: string | null;
+}): string {
+    const father = `${String(p.fatherFirstname ?? "").trim()} ${String(p.fatherLastname ?? "").trim()}`.trim();
+    const mother = `${String(p.motherFirstname ?? "").trim()} ${String(p.motherLastname ?? "").trim()}`.trim();
+    const parts = [father, mother].filter((v) => v !== "");
+    const base = parts.length > 0 ? parts.join(" & ") : `Foyer #${p.id ?? "?"}`;
+    const phone = String(p.famillyPhone ?? "").trim();
+    return phone !== "" ? `${base} (${phone})` : base;
+}
+
+const isUniqueViolation = (e: unknown): boolean =>
+    /SQLITE_CONSTRAINT|UNIQUE|unique/i.test(String((e as Error)?.message ?? e ?? ""));
 import { ResultType } from "#electron/command";
 import { FileService } from "./fileService";
 import { DashboardService } from "./dashboardService";
@@ -52,6 +114,384 @@ export class StudentService {
         this.dashboardService = new DashboardService();
         this.schoolService = new SchoolService();
         this.paymentService = new PaymentService();
+    }
+
+    // ============================================================
+    // Option B Table Parent — foyer (T_parent), phase Expand.
+    // - Double-écriture : `T_student` à-plat conservé, `parent` lié en plus.
+    // - `USE_PARENT_TABLE` : `off` (100% à-plat) | `shadow` (défaut :
+    //   écrit les deux, lit l'à-plat) | `on` (écrit les deux, lectures
+    //   préférant le foyer quand lié). Stocké en `T_preference`.
+    // - Sur-création > sur-fusion : P3 (`no-key`) jamais réutilisé,
+    //   conflit tél à l'update = erreur (réassigner, jamais merger).
+    // ============================================================
+    private get parentRepo(): Repository<ParentEntity> {
+        return AppDataSource.getInstance().getRepository(ParentEntity);
+    }
+
+    async getParentTableMode(): Promise<ParentTableMode> {
+        try {
+            const repo = AppDataSource.getInstance().getRepository(PreferenceEntity);
+            const row = await repo.findOne({ where: { key: "USE_PARENT_TABLE" } });
+            const v = String((row as PreferenceEntity | null)?.value ?? "shadow").trim().toLowerCase();
+            if (v === "off" || v === "shadow" || v === "on") return v;
+            return "shadow";
+        } catch {
+            return "shadow";
+        }
+    }
+
+    async setParentTableMode(mode: ParentTableMode): Promise<ParentTableMode> {
+        const v = mode === "off" || mode === "on" ? mode : "shadow";
+        const repo = AppDataSource.getInstance().getRepository(PreferenceEntity);
+        const existing = await repo.findOne({ where: { key: "USE_PARENT_TABLE" } }).catch(() => null);
+        if (existing) {
+            (existing as PreferenceEntity).value = v;
+            await repo.save(existing as PreferenceEntity);
+        } else {
+            await repo.save(repo.create({ key: "USE_PARENT_TABLE", value: v } as PreferenceEntity));
+        }
+        return v;
+    }
+
+    private async hasParentTable(): Promise<boolean> {
+        try {
+            const ds = AppDataSource.getInstance();
+            const qr = ds.createQueryRunner();
+            try {
+                return await qr.hasTable("T_parent");
+            } finally {
+                await qr.release();
+            }
+        } catch {
+            return false;
+        }
+    }
+
+    private hasParentPayload(dto: Record<string, unknown>): boolean {
+        return PARENT_FIELDS.some((f) => {
+            const v = dto[f];
+            return v != null && String(v).trim() !== "";
+        });
+    }
+
+    /**
+     * Trouve ou crée le foyer correspondant au payload (UNIQUE `normalizedPhone`
+     * + retry `SQLITE_CONSTRAINT` contre les races ; P2 par quadruplet exact ;
+     * P3 `no-key` = 1 foyer par appel, jamais réutilisé).
+     * Retourne `null` si le payload ne porte aucune info parent.
+     */
+    async findOrCreateParent(dto: ParentDto): Promise<ParentEntity | null> {
+        const ff = String(dto.fatherFirstname ?? "").trim();
+        const fl = String(dto.fatherLastname ?? "").trim();
+        const mf = String(dto.motherFirstname ?? "").trim();
+        const ml = String(dto.motherLastname ?? "").trim();
+        const rawPhone = String(dto.famillyPhone ?? "").trim();
+        const address = dto.address != null && String(dto.address).trim() !== ""
+            ? String(dto.address).trim()
+            : null;
+        const hasName = [ff, fl, mf, ml].some((v) => v !== "");
+        if (!hasName && rawPhone === "" && address == null) return null;
+        if (!(await this.hasParentTable())) return null;
+
+        const repo = this.parentRepo;
+        const np = normalizePhone(rawPhone === "" ? null : rawPhone);
+        void normalizeName;
+
+        // P1 : clé téléphone.
+        if (np != null) {
+            const existing = await repo.findOne({ where: { normalizedPhone: np } }).catch(() => null);
+            if (existing) return existing;
+            try {
+                return await repo.save(repo.create({
+                    fatherFirstname: ff,
+                    fatherLastname: fl,
+                    motherFirstname: mf,
+                    motherLastname: ml,
+                    famillyPhone: rawPhone === "" ? null : rawPhone,
+                    normalizedPhone: np,
+                    address,
+                    suspect: null,
+                    remote_id: null,
+                } as ParentEntity));
+            } catch (e) {
+                // Race : un autre thread a inséré le même tél → réutiliser.
+                if (isUniqueViolation(e)) {
+                    const retry = await repo.findOne({ where: { normalizedPhone: np } }).catch(() => null);
+                    if (retry) return retry;
+                }
+                throw e;
+            }
+        }
+
+        // P3 : aucune clé → orphelin, JAMAIS fusionné (1 foyer par élève).
+        const key = parentNameKey(ff, fl, mf, ml);
+        if (key === "|||") {
+            return await repo.save(repo.create({
+                fatherFirstname: ff,
+                fatherLastname: fl,
+                motherFirstname: mf,
+                motherLastname: ml,
+                famillyPhone: rawPhone === "" ? null : rawPhone,
+                normalizedPhone: null,
+                address,
+                suspect: "no-key",
+                remote_id: null,
+            } as ParentEntity));
+        }
+
+        // P2 : quadruplet exact (comparaison normalisée en JS : la casse et
+        // les accents ne doivent pas créer de doublons).
+        const candidates = await repo
+            .createQueryBuilder("p")
+            .where("p.normalizedPhone IS NULL")
+            .andWhere("(p.suspect IS NULL OR p.suspect != 'no-key')")
+            .getMany()
+            .catch(() => [] as ParentEntity[]);
+        const hit = (candidates ?? []).find(
+            (c) => parentNameKey(c.fatherFirstname, c.fatherLastname, c.motherFirstname, c.motherLastname) === key,
+        );
+        if (hit) return hit;
+        return await repo.save(repo.create({
+            fatherFirstname: ff,
+            fatherLastname: fl,
+            motherFirstname: mf,
+            motherLastname: ml,
+            famillyPhone: rawPhone === "" ? null : rawPhone,
+            normalizedPhone: null,
+            address,
+            suspect: null,
+            remote_id: null,
+        } as ParentEntity));
+    }
+
+    /**
+     * Résout la référence foyer pour un payload élève : `parentId` explicite
+     * prioritaire, sinon `findOrCreateParent` si le payload porte des champs
+     * parent et que le mode n'est pas `off`. Retourne `undefined` = ne rien
+     * toucher (à-plat seul).
+     */
+    private async resolveParentForStudentPayload(
+        dto: Record<string, unknown>,
+    ): Promise<ParentEntity | null | undefined> {
+        const mode = await this.getParentTableMode();
+        if (mode === "off") return undefined;
+        if (!(await this.hasParentTable())) return undefined;
+        if (dto.parentId !== undefined) {
+            if (dto.parentId == null) return null;
+            const id = Number(dto.parentId);
+            if (!Number.isFinite(id)) return undefined;
+            const parent = await this.parentRepo.findOne({ where: { id } }).catch(() => null);
+            return parent ?? undefined;
+        }
+        if (!this.hasParentPayload(dto)) return undefined;
+        try {
+            return await this.findOrCreateParent({
+                fatherFirstname: dto.fatherFirstname as string | null,
+                fatherLastname: dto.fatherLastname as string | null,
+                motherFirstname: dto.motherFirstname as string | null,
+                motherLastname: dto.motherLastname as string | null,
+                famillyPhone: dto.famillyPhone as string | null,
+                address: dto.address as string | null,
+            });
+        } catch (e) {
+            // Fail-soft : un foyer ne doit jamais bloquer la création d'un élève
+            // en phase Expand (l'à-plat reste la source de vérité).
+            console.warn("[studentService] findOrCreateParent ignoré:", e);
+            return undefined;
+        }
+    }
+
+    /**
+     * Recherche de foyers : LIKE insensible sur les 4 noms + `famillyPhone`,
+     * exact sur `normalizedPhone` (la requête `q` est normalisée avant
+     * comparaison). `q` >= 2 caractères, `limit` clampé 1..20.
+     * Lève `QUERY_TOO_SHORT` si `q` est trop court.
+     */
+    async searchParents(q: string, limit = 10): Promise<IParentSuggestion[]> {
+        const query = String(q ?? "").trim();
+        if (query.length < 2) throw new Error("QUERY_TOO_SHORT: q >= 2 caractères requis");
+        const take = Math.min(20, Math.max(1, Math.floor(Number(limit) || 10)));
+        if (!(await this.hasParentTable())) return [];
+        const esc = (s: string): string => s.replace(/[\\%_]/g, (m) => `\\${m}`);
+        const like = `%${esc(query.toLowerCase())}%`;
+        const phoneLike = `%${esc(query)}%`;
+        const exactPhone = normalizePhone(query);
+        const qb = this.parentRepo
+            .createQueryBuilder("p")
+            .leftJoin("p.students", "s")
+            .addSelect("COUNT(s.id)", "usageCount")
+            .where("LOWER(p.fatherFirstname) LIKE :like ESCAPE '\\'", { like })
+            .orWhere("LOWER(p.fatherLastname) LIKE :like ESCAPE '\\'", { like })
+            .orWhere("LOWER(p.motherFirstname) LIKE :like ESCAPE '\\'", { like })
+            .orWhere("LOWER(p.motherLastname) LIKE :like ESCAPE '\\'", { like })
+            .orWhere("p.famillyPhone LIKE :phoneLike ESCAPE '\\'", { phoneLike });
+        if (exactPhone) qb.orWhere("p.normalizedPhone = :exactPhone", { exactPhone });
+        const { entities, raw } = await qb
+            .groupBy("p.id")
+            .orderBy("usageCount", "DESC")
+            .addOrderBy("p.updatedAt", "DESC")
+            .take(take)
+            .getRawAndEntities();
+        return entities.map((p, i) => {
+            const usageCount = Number((raw?.[i] as Record<string, unknown> | undefined)?.usageCount ?? 0);
+            const father = `${String(p.fatherFirstname ?? "").trim()} ${String(p.fatherLastname ?? "").trim()}`.trim();
+            const mother = `${String(p.motherFirstname ?? "").trim()} ${String(p.motherLastname ?? "").trim()}`.trim();
+            const noms = [father, mother].filter((v) => v !== "").join(" & ");
+            return {
+                id: p.id,
+                label: buildParentLabel(p),
+                noms: noms === "" ? undefined : noms,
+                fatherFirstname: p.fatherFirstname ?? undefined,
+                fatherLastname: p.fatherLastname ?? undefined,
+                motherFirstname: p.motherFirstname ?? undefined,
+                motherLastname: p.motherLastname ?? undefined,
+                famillyPhone: p.famillyPhone ?? undefined,
+                address: p.address ?? undefined,
+                usageCount,
+            };
+        });
+    }
+
+    async getParentById(id: number): Promise<(ParentEntity & { usageCount: number }) | null> {
+        const parent = await this.parentRepo.findOne({ where: { id } }).catch(() => null);
+        if (!parent) return null;
+        let usageCount = 0;
+        try {
+            usageCount = await this.studentRepository.count({ where: { parent: { id } } as never });
+        } catch {
+            try {
+                const rows = await AppDataSource.getInstance().query(
+                    `SELECT COUNT(*) AS "n" FROM "T_student" WHERE "parentId" = ?`,
+                    [id],
+                );
+                usageCount = Number(rows?.[0]?.n ?? 0);
+            } catch {
+                usageCount = 0;
+            }
+        }
+        return { ...(parent as ParentEntity), usageCount };
+    }
+
+    /**
+     * Met à jour un foyer (champs à-plat + adresse + tél). Le téléphone est
+     * re-normalisé ; conflit avec un AUTRE foyer → `PARENT_PHONE_CONFLICT`
+     * (sur-création : réassigner les élèves, jamais merger implicitement).
+     */
+    async updateParent(
+        id: number,
+        patch: Partial<ParentDto>,
+    ): Promise<{ success: boolean; data: ParentEntity | null; error: string | null; message: string }> {
+        try {
+            const parent = await this.parentRepo.findOne({ where: { id } });
+            if (!parent) {
+                return { success: false, data: null, error: "NOT_FOUND", message: "Foyer introuvable" };
+            }
+            const next = { ...parent };
+            for (const f of ["fatherFirstname", "fatherLastname", "motherFirstname", "motherLastname"] as const) {
+                if (patch[f] !== undefined) next[f] = String(patch[f] ?? "").trim();
+            }
+            if (patch.famillyPhone !== undefined) {
+                const rawPhone = String(patch.famillyPhone ?? "").trim();
+                const np = normalizePhone(rawPhone === "" ? null : rawPhone);
+                if (np != null) {
+                    const clash = await this.parentRepo.findOne({ where: { normalizedPhone: np } }).catch(() => null);
+                    if (clash && Number(clash.id) !== Number(id)) {
+                        return {
+                            success: false,
+                            data: null,
+                            error: "PARENT_PHONE_CONFLICT",
+                            message: `Téléphone déjà rattaché au foyer #${clash.id} : réassignez les élèves au lieu de fusionner`,
+                        };
+                    }
+                    next.famillyPhone = rawPhone === "" ? null : rawPhone;
+                    next.normalizedPhone = np;
+                } else {
+                    next.famillyPhone = rawPhone === "" ? null : rawPhone;
+                    // `NULL` jamais `''`.
+                    next.normalizedPhone = null;
+                }
+            }
+            if (patch.address !== undefined) {
+                next.address = patch.address != null && String(patch.address).trim() !== ""
+                    ? String(patch.address).trim()
+                    : null;
+            }
+            // Recalcule `suspect` : P3 ssi tél NULL + quadruplet vide.
+            const key = parentNameKey(next.fatherFirstname, next.fatherLastname, next.motherFirstname, next.motherLastname);
+            next.suspect = next.normalizedPhone == null && key === "|||" ? "no-key" : null;
+            const saved = await this.parentRepo.save(next);
+            return { success: true, data: saved, error: null, message: "Foyer mis à jour" };
+        } catch (e) {
+            if (isUniqueViolation(e)) {
+                return {
+                    success: false,
+                    data: null,
+                    error: "PARENT_PHONE_CONFLICT",
+                    message: "Téléphone déjà rattaché à un autre foyer : réassignez les élèves au lieu de fusionner",
+                };
+            }
+            return {
+                success: false,
+                data: null,
+                error: e instanceof Error ? e.message : "Erreur inconnue",
+                message: "Erreur lors de la mise à jour du foyer",
+            };
+        }
+    }
+
+    /**
+     * Réassigne un élève à un foyer (`null` = détacher). Double-écriture :
+     * les colonnes à-plat de l'élève sont recopiées depuis le foyer (Expand —
+     * l'à-plat reste lisible sans jointure). Ne touche jamais aux autres élèves.
+     */
+    async reassignStudentParent(
+        studentId: number,
+        parentId: number | null,
+    ): Promise<IStudentServiceResponse> {
+        try {
+            const student = await this.studentRepository.findOne({
+                where: { id: studentId },
+                relations: ["photo", "documents", "grade"],
+            });
+            if (!student) {
+                return { success: false, data: null, error: "Étudiant non trouvé", message: "Étudiant introuvable" };
+            }
+            if (parentId != null) {
+                const parent = await this.parentRepo.findOne({ where: { id: parentId } }).catch(() => null);
+                if (!parent) {
+                    return { success: false, data: null, error: "NOT_FOUND", message: "Foyer introuvable" };
+                }
+                (student as StudentEntity).parent = parent as ParentEntity;
+                // Double-écriture à-plat (Expand).
+                student.fatherFirstname = parent.fatherFirstname ?? "";
+                student.fatherLastname = parent.fatherLastname ?? "";
+                student.motherFirstname = parent.motherFirstname ?? "";
+                student.motherLastname = parent.motherLastname ?? "";
+                (student as Record<string, unknown>).famillyPhone = parent.famillyPhone ?? null;
+                if (parent.address != null) student.address = parent.address;
+            } else {
+                (student as StudentEntity).parent = null;
+            }
+            const saved = await this.studentRepository.save(student);
+            const full = await this.studentRepository.findOne({
+                where: { id: saved.id },
+                relations: ["photo", "documents", "grade"],
+            });
+            return {
+                success: true,
+                data: full ? this.mapToIStudentDetails(full) : null,
+                message: parentId != null ? `Élève rattaché au foyer #${parentId}` : "Élève détaché de son foyer",
+                error: null,
+            };
+        } catch (e) {
+            return {
+                success: false,
+                data: null,
+                message: "Erreur lors de la réassignation du foyer",
+                error: e instanceof Error ? e.message : "Erreur inconnue",
+            };
+        }
     }
 
     // Créer un étudiant
@@ -105,15 +545,26 @@ export class StudentService {
             const schoolInfo = await this.schoolService.getSchool();
             const schoolName = schoolInfo.data?.name || undefined;
 
+            // Option B Table Parent : résolution foyer AVANT la transaction
+            // (écriture foyer séparée ; fail-soft → `undefined` = à-plat seul).
+            // Double-écriture : les champs à-plat de `studentData` sont conservés
+            // tels quels, `parent` lie le foyer en plus (mode `off` = ignoré).
+            const { parentId: _explicitParentId, ...studentFlat } = studentData as Record<string, unknown>;
+            void _explicitParentId;
+            const parentRef = await this.resolveParentForStudentPayload(studentData as Record<string, unknown>);
+
             // Utilisation de la transaction pour garantir l'intégrité des données
             const dataSource = AppDataSource.getInstance();
             const result = await dataSource.manager.transaction(async transactionalEntityManager => {
                 // Créer l'étudiant
                 const student = this.studentRepository.create({
-                    ...studentData,
+                    ...studentFlat,
                     isNew: studentData.isNew !== false,
                     grade: grade || undefined,
                 });
+                if (parentRef !== undefined) {
+                    (student as StudentEntity).parent = parentRef;
+                }
 
                 // Générer le matricule personnalisé
                 student.matricule = StudentEntity.generateMatricule(schoolName);
@@ -323,7 +774,24 @@ export class StudentService {
             const isReEnrollment = gradeId && existingStudent.grade?.id !== gradeId;
 
             // Mettre à jour les données de l'étudiant
-            Object.assign(existingStudent, otherData);
+            // Option B : `parentId` explicite retiré de l'assignation générique
+            // (`@RelationId` non persisté — on passe par la relation `parent`).
+            const { parentId: _nextParentId, ...flatUpdate } = otherData as Record<string, unknown>;
+            void _nextParentId;
+            Object.assign(existingStudent, flatUpdate);
+
+            // Option B Table Parent (double-écriture, à-plat conservé) :
+            // - `parentId` explicite (number|null) prioritaire ;
+            // - sinon findOrCreate si des champs parent sont fournis (mode != off).
+            try {
+                const payload = { ...(flatUpdate as Record<string, unknown>), parentId: (otherData as Record<string, unknown>).parentId };
+                const parentRef = await this.resolveParentForStudentPayload(payload);
+                if (parentRef !== undefined) {
+                    (existingStudent as StudentEntity).parent = parentRef;
+                }
+            } catch (e) {
+                console.warn("[updateStudent] parent ignoré:", e);
+            }
 
             // Handle grade change and re-enrollment
             if (isReEnrollment) {

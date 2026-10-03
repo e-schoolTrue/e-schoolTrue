@@ -3,12 +3,13 @@
 import GradeTable from "@/components/grade/grade-table.vue";
 import {Icon} from "@iconify/vue";
 import GradeForm from "@/components/grade/grade-form.vue";
-import {onMounted, ref, nextTick} from "vue";
+import {onMounted, ref, nextTick, computed} from "vue";
 import {ElMessage, ElMessageBox, FormInstance} from "element-plus";
 import {GradeCommand, Grade, Branch, BranchCommand} from "@/types/grade";
 import {cloneDeep} from "lodash"
 import {Loader} from "@/components/util/AppLoader.ts";
 import BranchForm from "@/components/grade/branch-form.vue";
+import { levelForGradeType, type SchoolLevel } from "@/types/schoolLevel";
 
 const newGradeFormRef = ref()
 const updateGradeFormRef = ref()
@@ -16,6 +17,19 @@ const newBranchFormRef = ref()
 const updateBranchFormRef = ref()
 const grades = ref<Grade[]>([])
 const isLoading = ref(false)
+
+/** Filtre 3 niveaux : PRESCOLAIRE / PRIMAIRE / SECONDAIRE (+ Tous). */
+const activeLevel = ref<'ALL' | SchoolLevel>('ALL')
+const gradeLevel = (g: Grade): SchoolLevel =>
+  levelForGradeType((g as { level?: unknown }).level ?? (g as { type?: unknown }).type)
+const filteredGrades = computed(() =>
+  activeLevel.value === 'ALL' ? grades.value : grades.value.filter((g) => gradeLevel(g) === activeLevel.value),
+)
+const levelCounts = computed<Record<SchoolLevel, number>>(() => ({
+  PRESCOLAIRE: grades.value.filter((g) => gradeLevel(g) === 'PRESCOLAIRE').length,
+  PRIMAIRE: grades.value.filter((g) => gradeLevel(g) === 'PRIMAIRE').length,
+  SECONDAIRE: grades.value.filter((g) => gradeLevel(g) === 'SECONDAIRE').length,
+}))
 
 function openUpdateGradeForm(grade: Grade){
   updateGradeFormRef.value.open(grade)
@@ -289,8 +303,16 @@ onMounted(async()=>{
     <el-row justify="center">
       <el-button type="primary" @click="newGradeFormRef.open()" style="width: 200px; --el-button-text-color:var(--button-text-color); --el-button-hover-text-color: var(--button-hover-text-color); --el-button-hover-bg-color: var(--button-hover-bg-color)" :loading="isLoading">Ajouter</el-button>
     </el-row>
+    <el-row justify="center">
+      <el-radio-group v-model="activeLevel">
+        <el-radio-button label="ALL">Tous ({{ grades.length }})</el-radio-button>
+        <el-radio-button label="PRESCOLAIRE">Préscolaire ({{ levelCounts.PRESCOLAIRE }})</el-radio-button>
+        <el-radio-button label="PRIMAIRE">Primaire ({{ levelCounts.PRIMAIRE }})</el-radio-button>
+        <el-radio-button label="SECONDAIRE">Secondaire ({{ levelCounts.SECONDAIRE }})</el-radio-button>
+      </el-radio-group>
+    </el-row>
     <grade-table
-        :grades="grades || []"
+        :grades="filteredGrades || []"
         @open-update-form="openUpdateGradeForm"
         @delete-action="deleteGrade"
         @open-nested-new-form="openNewBranchForm"

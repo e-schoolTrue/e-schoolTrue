@@ -38,6 +38,10 @@ export class PaymentConfigEntity {
     @Column({ type: "varchar", nullable: true })
     schoolYear?: string;
 
+    /** Niveau 3-niveaux (migration 178) via classId → grade.level. */
+    @Column({ type: "text", nullable: true })
+    level?: string | null;
+
     @OneToMany(() => ScholarshipEntity, scholarship => scholarship.config)
     scholarships!: ScholarshipEntity[];
 } 

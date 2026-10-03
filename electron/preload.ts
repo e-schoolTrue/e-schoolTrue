@@ -3,14 +3,52 @@ import { ipcRenderer, contextBridge } from 'electron'
 
 
 // --------- Expose some API to the Renderer process ---------
+/**
+ * `ipcRenderer.on(channel, wrapper)` avec wrapper anonyme casse
+ * `removeListener(channel, original)` (leak : le wrapper ne matche jamais).
+ * On mémorise original → wrapper par channel pour que removeListener/off
+ * retrouve le bon wrapper. Documenté ici car le listener App.vue /
+ * LoginView `backup:db-replaced` s'abonne/désabonne à chaque mount.
+ */
+const wrappedListeners = new Map<string, Map<Function, Function>>();
+
+function rememberWrapper(channel: string, original: Function, wrapper: Function): void {
+  let byChannel = wrappedListeners.get(channel);
+  if (!byChannel) {
+    byChannel = new Map();
+    wrappedListeners.set(channel, byChannel);
+  }
+  byChannel.set(original, wrapper);
+}
+
+function resolveWrapper(channel: string, original: Function): Function | undefined {
+  return wrappedListeners.get(channel)?.get(original);
+}
+
+function forgetWrapper(channel: string, original: Function): void {
+  const byChannel = wrappedListeners.get(channel);
+  if (!byChannel) return;
+  byChannel.delete(original);
+  if (byChannel.size === 0) wrappedListeners.delete(channel);
+}
+
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+    const wrapper = (event: unknown, ...a: unknown[]) => (listener as (...a: unknown[]) => void)(event, ...a);
+    rememberWrapper(channel as string, listener as unknown as Function, wrapper as unknown as Function);
+    return ipcRenderer.on(channel, wrapper as never)
   },
   off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
+    const [channel, listener] = args as unknown as [string, Function | undefined];
+    if (typeof listener === 'function') {
+      const wrapped = resolveWrapper(channel, listener);
+      if (wrapped) {
+        forgetWrapper(channel, listener);
+        return ipcRenderer.off(channel, wrapped as never);
+      }
+    }
+    return ipcRenderer.off(channel, ...([listener].filter(Boolean) as never[]))
   },
   async send(...args: Parameters<typeof ipcRenderer.send>) {
     const [channel, ...omit] = args
@@ -21,7 +59,13 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return await ipcRenderer.invoke(channel, ...omit)
   },
   removeListener(channel: string, listener: (...args: any[]) => void): void {
-    ipcRenderer.removeListener(channel, listener)
+    const wrapped = resolveWrapper(channel, listener as unknown as Function);
+    if (wrapped) {
+      forgetWrapper(channel, listener as unknown as Function);
+      ipcRenderer.removeListener(channel, wrapped as never);
+      return;
+    }
+    ipcRenderer.removeListener(channel, listener as never)
   },
   
   // You can expose other APTs you need here.

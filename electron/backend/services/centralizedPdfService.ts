@@ -7,6 +7,7 @@ import { ConfigNoteService } from "./note-config-service";
 import { CourseService } from "./courseService";
 import { SchoolService } from "./schoolService";
 import { YearRepartitionService } from "./yearService";
+import { levelHeading, normalizePeriodName, normalizeSchoolLevel } from "../lib/schoolLevel";
 import { app, BrowserWindow } from 'electron';
 
 interface CentralizedRankingData {
@@ -55,9 +56,13 @@ export class CentralizedPdfService {
       const schoolAddress = data.schoolInfo?.address || '';
       const schoolPhone = data.schoolInfo?.phone || '';
       const schoolEmail = data.schoolInfo?.email || '';
-      const schoolYear = data.schoolYear || await this.yearService.getCurrentYearRepartition().then(r => r?.data?.schoolYear).catch(() => '2024-2025');
-      const period = data.filters?.period || 'Toutes';
+      // Scope par niveau : périodes = celles du niveau de la classe/élèves
+      // (2 en secondaire, 3 sinon) ; période normalisée ; heading du niveau.
+      const level = normalizeSchoolLevel(data.level ?? data.niveau ?? data.classInfo?.level);
+      const schoolYear = data.schoolYear || await this.yearService.getCurrentYearRepartition(undefined, level ?? undefined).then(r => r?.data?.schoolYear).catch(() => '2024-2025');
+      const period = normalizePeriodName(data.filters?.period) || data.filters?.period || 'Toutes';
       const className = data.classInfo?.name || 'Non spécifiée';
+      const niveau = levelHeading(level) || data.classInfo?.niveau || null;
       const base = data.classInfo?.base || 20;
       const classAverage = data.classAverage || 0;
       const totalStudents = data.totalStudents || 0;
@@ -86,6 +91,9 @@ export class CentralizedPdfService {
         schoolPhone,
         schoolEmail,
         schoolYear,
+        level,
+        niveau,
+        niveauHeading: niveau,
         period,
         className,
         base,
@@ -466,6 +474,7 @@ export class CentralizedPdfService {
     <!-- Section 3: Infos complémentaires -->
     <div class="info-row">
       <span>Classe : ${data.className}</span>
+      ${data.niveau ? `<span>Niveau : ${data.niveau}</span>` : ''}
       <span>Année Scolaire : ${data.schoolYear}</span>
     </div>
     ` : `

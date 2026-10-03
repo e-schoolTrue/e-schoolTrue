@@ -31,6 +31,8 @@ export interface IStudentData {
         code: string;
     };
     isNew: boolean;
+    /** Option B Table Parent : FK foyer (Expand — à-plat conservé). */
+    parentId?: number | null;
 }
 
 // Types pour les fichiers de l'étudiant
@@ -137,6 +139,35 @@ export interface IStudentRelations {
     absences?: IAbsence[];
     payments?: IPayment[];
     scholarship?: IScholarship[];
+}
+
+/**
+ * Suggestion foyer — contrat IPC `parent:search` / `student:parents:search`
+ * (backend `StudentService.searchParents`, enveloppe `{ success, data }`).
+ * Le frontend tolère aussi le tableau brut (voir `unwrapParentSuggestions`).
+ */
+export interface IParentSuggestion {
+    id: number;
+    label: string;
+    noms?: string;
+    fatherFirstname?: string;
+    fatherLastname?: string;
+    motherFirstname?: string;
+    motherLastname?: string;
+    famillyPhone?: string;
+    address?: string;
+    usageCount?: number;
+}
+
+/**
+ * Normalise une réponse IPC parent:search vers `IParentSuggestion[]`.
+ * Tolère l'enveloppe `{ success, data }` ET le tableau brut (repli).
+ */
+export function unwrapParentSuggestions(res: unknown): IParentSuggestion[] {
+    if (Array.isArray(res)) return res as IParentSuggestion[];
+    const data = (res as { data?: unknown } | null)?.data;
+    if (Array.isArray(data)) return data as IParentSuggestion[];
+    return [];
 }
 
 export interface Student {

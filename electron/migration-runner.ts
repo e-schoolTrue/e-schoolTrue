@@ -51,20 +51,23 @@ export const KNOWN_MIGRATIONS: ReadonlyArray<{ timestamp: number; name: string }
   { timestamp: 1750000000000, name: "DriftCatchup2175000000000" },
   { timestamp: 1760000000000, name: "RoleLegacyFix1760000000000" },
   { timestamp: 1770000000000, name: "DriftCatchup3177000000000" },
+  { timestamp: 1780000000000, name: "ThreeLevels1780000000000" },
+  { timestamp: 1790000000000, name: "ParentTable1790000000000" },
 ];
 const MIGRATION_TIMEOUT_MS = 60_000;
 const VACUUM_MAX_ATTEMPTS = 3;
 /**
  * Allowlist des tables cœur vérifiées en postVerify (vérif seule, jamais de
- * CREATE/ALTER ici — identifiants sûrs, pas d'input user). 13 tables :
+ * CREATE/ALTER ici — identifiants sûrs, pas d'input user). 14 tables :
  * socle (user, T_student, payments, year_repartition, tranch_config) +
  * drift-175 (payment_annual_config, grading_config, grade_entry,
  * calculated_grade, audit_log, document_content, schedules) +
- * filet-177 (accounting_vault).
+ * filet-177 (accounting_vault) + parent-179 (T_parent).
  */
 const CORE_TABLES = [
   "user",
   "T_student",
+  "T_parent",
   "payments",
   "year_repartition",
   "tranch_config",
@@ -220,6 +223,12 @@ async function postVerify(ds: DataSource): Promise<void> {
   const userNames = new Set((userCols ?? []).map((c) => String(c?.name ?? "")));
   if (!userNames.has("role")) {
     throw new Error(`POST_VERIFY_FAILED: user.role manquante (migrations 176/177 non jouées ?)`);
+  }
+  // Option B Table Parent (migration 179) : foyer + FK élève.
+  const studentCols = (await ds.query(`PRAGMA table_info("T_student")`)) as Array<{ name?: string }>;
+  const studentNames = new Set((studentCols ?? []).map((c) => String(c?.name ?? "")));
+  if (!studentNames.has("parentId")) {
+    throw new Error(`POST_VERIFY_FAILED: T_student.parentId manquante (migration 179 non jouée ?)`);
   }
 }
 

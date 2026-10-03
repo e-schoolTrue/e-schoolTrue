@@ -1,6 +1,8 @@
 export enum GradeType {
   PRIMARY = "PRIMARY",
-  SECONDARY = "SECONDARY"
+  SECONDARY = "SECONDARY",
+  /** Préscolaire (maternelle) — 3e niveau (colonne `grade.type` varchar, sans CHECK). */
+  PRESCOLAIRE = "PRESCOLAIRE"
 }
 
 

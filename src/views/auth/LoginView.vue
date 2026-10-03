@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // @ts-nocheck
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Right, Calendar } from '@element-plus/icons-vue' // J'ai ajouté l'icône Right
 import { useRouter } from 'vue-router'
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
-import { useYearStore } from '@/stores/yearStore'
+import { useYearStore, PENDING_DB_REFRESH_KEY } from '@/stores/yearStore'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -30,7 +30,30 @@ const yearOptions = computed(() => [...yearStore.list].sort((a, b) => a.schoolYe
 const loadYears = async () => {
   yearsLoading.value = true
   try {
-    const years = await yearStore.fetchList()
+    // Post-import/restore dev : flag posé AVANT reload → refetch APRÈS reload
+    // avec activeYear repersisté via init(null) (fetchCurrent seul ne persiste
+    // jamais — seul init() repersiste, voir yearStore).
+    let pendingRefresh = false
+    try {
+      pendingRefresh = localStorage.getItem(PENDING_DB_REFRESH_KEY) != null
+    } catch {
+      pendingRefresh = false
+    }
+    if (pendingRefresh) {
+      try {
+        await yearStore.fetchList()
+        await yearStore.init(null)
+      } catch {
+        /* best-effort : liste partielle quand même affichée */
+      } finally {
+        try {
+          localStorage.removeItem(PENDING_DB_REFRESH_KEY)
+        } catch {
+          /* best-effort */
+        }
+      }
+    }
+    const years = pendingRefresh ? [...yearStore.list] : await yearStore.fetchList()
     // Défaut : année `isCurrent`, sinon dernière.
     const current = years.find((y) => y.isCurrent) ?? years[years.length - 1]
     formData.yearId = current?.id ?? null
@@ -43,7 +66,27 @@ const loadYears = async () => {
 
 onMounted(() => {
   void loadYears()
+  // Fix import/restore sans restart : le backend broadcast `backup:db-replaced`
+  // après le swap à froid. On recharge la liste pour que le select d'années
+  // se remplisse sans redémarrage manuel.
+  try {
+    window.ipcRenderer?.on?.('backup:db-replaced', handleDbReplaced)
+  } catch {
+    /* best-effort */
+  }
 })
+
+onUnmounted(() => {
+  try {
+    window.ipcRenderer?.removeListener?.('backup:db-replaced', handleDbReplaced)
+  } catch {
+    /* best-effort */
+  }
+})
+
+function handleDbReplaced(): void {
+  void loadYears()
+}
 
 const rules = {
   username: [

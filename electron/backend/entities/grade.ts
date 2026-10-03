@@ -19,6 +19,13 @@ export enum GradeType {
     SECONDARY = "SECONDARY"
 }
 
+/** Niveau 3-niveaux (migration 178). PRIMARY→PRIMAIRE, SECONDARY→SECONDAIRE. */
+export enum GradeLevel {
+    PRESCOLAIRE = "PRESCOLAIRE",
+    PRIMAIRE = "PRIMAIRE",
+    SECONDAIRE = "SECONDAIRE",
+}
+
 @Entity('grade')
 export class GradeEntity {
     @PrimaryGeneratedColumn()
@@ -41,6 +48,15 @@ export class GradeEntity {
         default: GradeType.PRIMARY
     })
     type!: GradeType;
+
+
+    /**
+     * Niveau scolaire (migration 178) : 'PRESCOLAIRE' | 'PRIMAIRE' | 'SECONDAIRE'.
+     * Fait foi pour périodes/moyennes/configs ; `type` (PRIMARY/SECONDARY)
+     * conservé en repli legacy.
+     */
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    level?: string | null;
 
     /** Ordre de progression (1 = premier niveau). Utilisé pour la réinscription auto. */
     @Column({ type: 'integer', nullable: true })

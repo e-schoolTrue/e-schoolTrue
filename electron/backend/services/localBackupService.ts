@@ -24,6 +24,7 @@ import * as crypto from 'crypto';
 import { ZipArchive } from 'archiver';
 import extract from 'extract-zip';
 import { AppDataSource } from '../../data-source';
+import { cleanupWalSidecars } from '../../preboot';
 
 // ---------------------------------------------------------------------------
 // Types publics
@@ -592,6 +593,16 @@ export class LocalBackupService {
       throw e;
     }
 
+    // WAL sidecars orphelins (SEV-2.3) : le rename ci-dessus remplace database.db
+    // mais laisse database.db-wal/-shm/-journal de l'ANCIENNE base (pré-restore).
+    // Sans purge, la réouverture voit un WAL stale → pages fantômes / liste vide.
+    // Réutilise preboot.cleanupWalSidecars (même liste de suffixes que preBootRepair).
+    try {
+      await cleanupWalSidecars(this.dbPath);
+    } catch {
+      /* best-effort : la réouverture reste possible même avec sidecars */
+    }
+
     if (stagingUploads) {
       // Uploads : déjà atomique via rename() (uploads -> .bak, staging -> uploads),
       // avec rollback sur échec. Pas de copie en place.
@@ -738,6 +749,43 @@ export class LocalBackupService {
     }
   }
 
+  /**
+   * Broadcast `backup:db-replaced` vers tous les renderers après un swap réussi.
+   * Le frontend (LoginView / App.vue) refetch `yearStore.fetchList()` à la réception,
+   * donc la liste des années se remplit SANS restart manuel. Best-effort : ne bloque
+   * jamais le success ni le relaunch prod existant.
+   */
+  private async broadcastDbReplaced(reason: 'import' | 'restore'): Promise<void> {
+    try {
+      const ds = AppDataSource.getInstance();
+      let years: Array<{ schoolYear?: unknown; isCurrent?: unknown; status?: unknown }> = [];
+      let students: number | null = null;
+      try {
+        const rows = (await ds.query(
+          'SELECT schoolYear, isCurrent, status FROM year_repartition ORDER BY schoolYear DESC',
+        )) as typeof years;
+        if (Array.isArray(rows)) years = rows;
+      } catch { /* best-effort */ }
+      try {
+        const rows = (await ds.query('SELECT COUNT(*) AS n FROM "T_student"')) as Array<{ n?: unknown }>;
+        const n = Number(rows?.[0]?.n);
+        students = Number.isFinite(n) ? n : null;
+      } catch { /* best-effort */ }
+      const wins = BrowserWindow.getAllWindows?.() ?? [];
+      for (const w of wins) {
+        try {
+          if (w.isDestroyed()) continue;
+          (w.webContents as unknown as { send?: (ch: string, payload: unknown) => void })?.send?.(
+            'backup:db-replaced',
+            { reason, years, students },
+          );
+        } catch { /* best-effort par fenêtre */ }
+      }
+    } catch {
+      /* best-effort global */
+    }
+  }
+
   private isDevReloadPath(): boolean {
     // Dev (Vite :5173) : `app.relaunch()` relance l'exe SANS le serveur Vite →
     // `ERR_CONNECTION_REFUSED` sur http://localhost:5173/ (Process exit 0).
@@ -757,28 +805,12 @@ export class LocalBackupService {
 
   private relaunch(message: string): { devReload: boolean } {
     if (this.isDevReloadPath()) {
-      console.log(`[LocalBackup] ${message} — dev : reload fenêtre (pas de relaunch, Vite 5173 vivant). Redémarrez manuellement si besoin.`);
-      // setImmediate : laisse la réponse IPC être flushée vers le renderer avant le reload.
-      setImmediate(() => {
-        try {
-          const wins = BrowserWindow.getAllWindows?.() ?? [];
-          const devUrl = process.env.VITE_DEV_SERVER_URL;
-          let reloaded = false;
-          for (const w of wins) {
-            try {
-              if (w.isDestroyed()) continue;
-              if (devUrl) void w.loadURL(devUrl);
-              else w.reload();
-              reloaded = true;
-            } catch { /* best-effort par fenêtre */ }
-          }
-          if (!reloaded) {
-            console.log('[LocalBackup] Dev : aucune fenêtre à recharger — redémarrage manuel requis (relancez la commande dev).');
-          }
-        } catch (e) {
-          console.error('[LocalBackup] reload dev impossible (redémarrez manuellement):', e);
-        }
-      });
+      // Dev (Vite :5173) : PAS d'auto-reload backend. Le setImmediate loadURL/reload
+      // jetait le renderer avant que le frontend ait fini clear+fetchList (UI stale).
+      // On retourne seulement { devReload: true } et le renderer décide :
+      // flag pending-db-refresh + fetchList puis window.location.reload() direct.
+      // BroadcastDbReplaced + cleanup WAL déjà faits par l'appelant — inchangés.
+      console.log(`[LocalBackup] ${message} — dev : pas de reload backend, le renderer recharge (Vite 5173 vivant).`);
       return { devReload: true };
     }
     console.log(`[LocalBackup] ${message} — relaunch.`);
@@ -858,6 +890,7 @@ export class LocalBackupService {
       // (reload fenêtre) comme en prod (relaunch différé via setImmediate) — les
       // appels suivants (school:get, audits) doivent retrouver une DB ouverte.
       this.isRestoring = false;
+      await this.broadcastDbReplaced('restore');
       const { devReload } = this.relaunch(`restore ${basename}`);
       return ok({ relaunching: true, safetyBackup: safety.data.id, ...(devReload ? { devReload: true as const } : {}) });
     } catch (e) {
@@ -963,6 +996,7 @@ export class LocalBackupService {
       // pas survivre au success sinon le main (toujours vivant en devReload) reste
       // bloqué en RESTORE_IN_PROGRESS et les audits restent en fail-soft.
       this.isRestoring = false;
+      await this.broadcastDbReplaced('import');
       const { devReload } = this.relaunch('import externe');
       return ok({ relaunching: true, safetyBackup: safety.data.id, ...(devReload ? { devReload: true as const } : {}) });
     } catch (e) {

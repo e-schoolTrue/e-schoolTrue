@@ -7,6 +7,7 @@ import {
     YearRepartitionCreateInput, 
     YearRepartitionUpdateInput} from "../types/year";
 import { normalizeSchoolYear } from "../lib/schoolYear";
+import { normalizeSchoolLevel, sameLevel, levelOfGrade, type SchoolLevel } from "../lib/schoolLevel";
 
 export class YearRepartitionService {
     /**
@@ -23,7 +24,7 @@ export class YearRepartitionService {
     constructor() {}
 
     private convertToEntity(data: YearRepartitionCreateInput | YearRepartitionUpdateInput): Partial<YearRepartitionEntity> {
-        return {
+        const out: Partial<YearRepartitionEntity> = {
             schoolYear: data.schoolYear,
             periodConfigurations: data.periodConfigurations?.map(period => ({
                 name: period.name,
@@ -31,12 +32,17 @@ export class YearRepartitionService {
                 end: period.end instanceof Date ? period.end : new Date(period.end)
             })) || []
         };
+        if ((data as any).level !== undefined) {
+            (out as any).level = normalizeSchoolLevel((data as any).level);
+        }
+        return out;
     }
 
     private convertToResponse(entity: YearRepartitionEntity): YearRepartition {
         return {
             id: entity.id!,
             schoolYear: entity.schoolYear,
+            level: normalizeSchoolLevel((entity as any).level),
             periodConfigurations: (entity.periodConfigurations || []).map(period => ({
                 name: period.name,
                 start: period.start,
@@ -56,12 +62,26 @@ export class YearRepartitionService {
             if (!canon) {
                 return { success: false, data: null, error: "INVALID_SCHOOL_YEAR", message: "Année scolaire invalide (attendu YYYY-YYYY)" };
             }
-            const existing = await this.yearRepartitionRepository.findOne({ where: { schoolYear: canon } });
+            const level = normalizeSchoolLevel((data as any).level);
+            // Doublon scopé (schoolYear + niveau) : même année sur deux niveaux coexiste.
+            // findOne d'abord (compat drivers/mocks partiels), balayage scopé ensuite.
+            let existing: any = null;
+            try {
+                const one = await this.yearRepartitionRepository.findOne({ where: { schoolYear: canon } as any });
+                if (one && sameLevel((one as any).level, level)) existing = one;
+            } catch { existing = null; }
+            if (!existing) {
+                try {
+                    const candidates = await this.yearRepartitionRepository.find({ where: { schoolYear: canon } as any });
+                    if (Array.isArray(candidates)) existing = candidates.find((r) => sameLevel((r as any).level, level)) ?? null;
+                } catch { /* repo sans find() → on garde le résultat findOne */ }
+            }
             if (existing) {
-                return { success: false, data: null, error: "DUPLICATE_SCHOOL_YEAR", message: `L'année ${canon} existe déjà` };
+                return { success: false, data: null, error: "DUPLICATE_SCHOOL_YEAR", message: level ? `L'année ${canon} (${level}) existe déjà` : `L'année ${canon} existe déjà` };
             }
             const newYearRepartition = new YearRepartitionEntity();
-            Object.assign(newYearRepartition, this.convertToEntity({ ...data, schoolYear: canon }));
+            Object.assign(newYearRepartition, this.convertToEntity({ ...data, schoolYear: canon, level } as any));
+            (newYearRepartition as any).level = level;
             newYearRepartition.status = "active";
             newYearRepartition.closedAt = null;
 
@@ -118,6 +138,9 @@ export class YearRepartitionService {
                 }
                 yearRepartition.schoolYear = canon;
             }
+            if ((data as any).level !== undefined) {
+                (yearRepartition as any).level = normalizeSchoolLevel((data as any).level);
+            }
             
             // Gérer les périodes séparément pour éviter la création de doublons
             if (data.periodConfigurations && data.periodConfigurations.length > 0) {
@@ -156,12 +179,14 @@ export class YearRepartitionService {
         }
     }
 
-    async getAllYearRepartitions(): Promise<ResultType<YearRepartition[]>> {
+    async getAllYearRepartitions(level?: unknown): Promise<ResultType<YearRepartition[]>> {
         try {
+            const lv = normalizeSchoolLevel(level);
             const yearRepartitions = await this.yearRepartitionRepository.find();
-            
+            const filtered = lv ? yearRepartitions.filter((r) => sameLevel((r as any).level, lv)) : yearRepartitions;
+
             // Convertir chaque entité en utilisant la méthode convertToResponse
-            const convertedRepartitions = yearRepartitions.map(entity => 
+            const convertedRepartitions = filtered.map(entity =>
                 this.convertToResponse(entity)
             );
             
@@ -230,17 +255,44 @@ export class YearRepartitionService {
 
     /**
      * Année courante — contrat `year:getCurrent` (yearStore.ts:174-180).
+     * Scope par niveau (migration 178) : `getCurrentYearRepartition(level?)`
+     * retourne la courante DU NIVEAU (repli global level NULL), `setCurrent`
+     * ne touche que le même scope. Sans niveau : comportement historique.
      * - >1 `isCurrent` (base importée/merge) : auto-résolution → la plus récente
-     *   OUVERTE devient l'unique courante (autres remises à false, persisté).
-     *   Toutes clôturées → `data: null` (lecture seule, correct).
+     *   OUVERTE DU SCOPE devient l'unique courante (autres du scope remises
+     *   à false, persisté). Toutes clôturées → `data: null` (lecture seule).
      * - 0 `isCurrent` (import sans courante, ex. backup) : auto-backfill (année
      *   couvrant today sinon plus récente OUVERTE), persisté + loggé.
      *   C'est une ACTIVATION d'années existantes, jamais une création
      *   (MANUAL_ONLY préservé : aucune année créée ici). Jamais de toast UI.
      */
-    async getCurrentYearRepartition(now: Date = new Date()): Promise<ResultType<YearRepartition | null>> {
+    async getCurrentYearRepartition(now?: Date | string | unknown, level?: unknown): Promise<ResultType<YearRepartition | null>> {
         try {
-            const allRepartitions = await this.yearRepartitionRepository.find();
+            // Surcharge : getCurrentYearRepartition("SECONDAIRE") => niveau en 1er arg.
+            let at: Date = new Date();
+            let lv: SchoolLevel | null = null;
+            if (typeof now === "string" && level === undefined) {
+                const asDate = new Date(now);
+                if (normalizeSchoolLevel(now)) { lv = normalizeSchoolLevel(now); }
+                else if (!Number.isNaN(asDate.getTime())) { at = asDate; }
+            } else {
+                if (now instanceof Date) at = now;
+                else if (now != null && typeof now === "object" && !Array.isArray(now)) {
+                    const o = now as any;
+                    lv = normalizeSchoolLevel(o.level ?? o.niveau ?? o.schoolLevel);
+                    if (o.now instanceof Date) at = o.now;
+                    else if (o.date) { const d = new Date(o.date); if (!Number.isNaN(d.getTime())) at = d; }
+                }
+                lv = normalizeSchoolLevel(level) ?? lv;
+            }
+            const all = await this.yearRepartitionRepository.find();
+            // Scope : niveau demandé => lignes du niveau + globales (fallback) ;
+            // sans niveau => toutes (compat historique).
+            const inScope = (r: any) => !lv || sameLevel(r.level, lv) || normalizeSchoolLevel(r.level) == null;
+            const scopeRows = all.filter(inScope);
+            // Préférence : ligne du niveau exact avant globale.
+            const rank = (r: any) => (lv && sameLevel(r.level, lv) ? 0 : 1);
+            const allRepartitions = [...scopeRows].sort((a, b) => rank(a) - rank(b));
 
             const flagged = allRepartitions.filter(repartition => repartition.isCurrent === true);
             if (flagged.length > 1) {
@@ -249,7 +301,7 @@ export class YearRepartitionService {
                 // on résout vers la plus récente OUVERTE et on répare les flags.
                 const openFlagged = flagged
                     .filter(r => (r.status ?? "active") !== "closed")
-                    .sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)));
+                    .sort((a, b) => (rank(a) - rank(b)) || String(b.schoolYear).localeCompare(String(a.schoolYear)));
                 const winner = openFlagged[0] ?? null;
                 if (!winner) {
                     console.warn(`[yearService] ${flagged.length} années isCurrent mais toutes clôturées — lecture seule (data:null).`);
@@ -326,11 +378,11 @@ export class YearRepartitionService {
                 const endDate = new Date(last.end as string | Date);
                 if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return false;
 
-                return now >= startDate && now <= endDate;
+                return at >= startDate && at <= endDate;
             });
             const target = covering
-                ?? [...allRepartitions].sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)))[0];
-            const active = target ? [...allRepartitions].filter(r => (r.status ?? "active") === "active" && r.schoolYear === target.schoolYear)[0] ?? target : null;
+                ?? [...allRepartitions].sort((a, b) => (rank(a) - rank(b)) || String(b.schoolYear).localeCompare(String(a.schoolYear)))[0];
+            const active = target ? [...allRepartitions].filter(r => (r.status ?? "active") === "active" && r.schoolYear === target.schoolYear && sameLevel((r as any).level, (target as any).level))[0] ?? target : null;
             if (active && (active.status ?? "active") !== "closed") {
                 try {
                     active.isCurrent = true;
@@ -377,10 +429,16 @@ export class YearRepartitionService {
         return this.getCurrentYearRepartition(now);
     }
 
+    /**
+     * Bascule PAR NIVEAU (migration 178) : `setCurrentYearRepartition(id)`
+     * ne désactive que les courantes DU MÊME SCOPE (même niveau normalisé).
+     * Les autres niveaux gardent leur courante — 3 niveaux indépendants.
+     * Legacy (`level` NULL) : comportement historique inchangé.
+     */
     async setCurrentYearRepartition(id: number): Promise<ResultType<YearRepartition>> {
         try {
             console.log(`=== setCurrentYearRepartition - Début - ID: ${id} ===`);
-            
+
             // Vérifier si la répartition existe
             const yearRepartition = await this.yearRepartitionRepository.findOne({
                 where: { id }
@@ -404,19 +462,22 @@ export class YearRepartitionService {
                     message: `L'année ${yearRepartition.schoolYear} est clôturée : activation refusée`
                 };
             }
-            
+
             console.log(`=== setCurrentYearRepartition - Répartition trouvée: ${yearRepartition.schoolYear} ===`);
 
-            // Mettre à jour toutes les répartitions pour désactiver l'année courante
-            console.log(`=== setCurrentYearRepartition - Désactivation de toutes les répartitions ===`);
+            // Scope niveau : on ne désactive que les lignes du même niveau.
+            const targetLevel = normalizeSchoolLevel((yearRepartition as any).level);
+            console.log(`=== setCurrentYearRepartition - Désactivation du scope niveau: ${targetLevel ?? 'global'} ===`);
             try {
-                await this.yearRepartitionRepository
-                    .createQueryBuilder()
-                    .update()
-                    .set({ isCurrent: false })
-                    .execute();
-                    
-                console.log(`=== setCurrentYearRepartition - Toutes les répartitions désactivées ===`);
+                const all = await this.yearRepartitionRepository.find();
+                for (const rep of all) {
+                    if (rep.isCurrent && sameLevel((rep as any).level, targetLevel) && rep.id !== yearRepartition.id) {
+                        rep.isCurrent = false;
+                        await this.yearRepartitionRepository.save(rep);
+                    }
+                }
+
+                console.log(`=== setCurrentYearRepartition - Scope ${targetLevel ?? 'global'} désactivé ===`);
             } catch (updateError) {
                 console.error('Erreur lors de la désactivation des répartitions:', updateError);
                 throw updateError;
@@ -429,19 +490,19 @@ export class YearRepartitionService {
             try {
                 const saved = await this.yearRepartitionRepository.save(yearRepartition);
                 console.log(`=== setCurrentYearRepartition - Répartition sauvegardée: ${saved.id} ===`);
-                
-                // Rafraîchir la liste des répartitions pour s'assurer qu'une seule est marquée comme courante
+
+                // Garde-fou : une seule courante PAR SCOPE NIVEAU.
                 const allRepartitions = await this.yearRepartitionRepository.find();
                 console.log(`=== setCurrentYearRepartition - Nombre total de répartitions: ${allRepartitions.length} ===`);
-                
-                const currentCount = allRepartitions.filter(rep => rep.isCurrent).length;
-                console.log(`=== setCurrentYearRepartition - Nombre de répartitions courantes: ${currentCount} ===`);
-                
+
+                const currentCount = allRepartitions.filter(rep => rep.isCurrent && sameLevel((rep as any).level, targetLevel)).length;
+                console.log(`=== setCurrentYearRepartition - Nombre de répartitions courantes (scope ${targetLevel ?? 'global'}): ${currentCount} ===`);
+
                 if (currentCount > 1) {
                     console.warn(`Multiple current year repartitions found (${currentCount}). Fixing...`);
                     // S'il y a plus d'une répartition marquée comme courante, garder uniquement la dernière
                     for (const rep of allRepartitions) {
-                        if (rep.isCurrent && rep.id !== yearRepartition.id) {
+                        if (rep.isCurrent && rep.id !== yearRepartition.id && sameLevel((rep as any).level, targetLevel)) {
                             console.log(`=== setCurrentYearRepartition - Désactivation de la répartition ${rep.id} ===`);
                             rep.isCurrent = false;
                             await this.yearRepartitionRepository.save(rep);
@@ -471,48 +532,61 @@ export class YearRepartitionService {
         }
     }
 
+    /**
+     * Clôture PAR NIVEAU (migration 178) : seule la ligne (année + niveau)
+     * passe en lecture seule (`status=closed`, `isCurrent=false`).
+     * Les autres niveaux gardent leur courante (lecture seule par niveau via
+     * `yearGuard.requireYearWritable({ level })`, plus le verrou global quand
+     * plus AUCUNE année n'est ouverte).
+     */
     async closeYear(id: number): Promise<ResultType<YearRepartition>> {
         try {
             const year = await this.yearRepartitionRepository.findOne({ where: { id } });
             if (!year) return { success: false, data: null, error: "NOT_FOUND", message: "Année scolaire non trouvée" };
+            const lv = normalizeSchoolLevel((year as any).level);
+            const tag = lv ? `${year.schoolYear} (${lv})` : year.schoolYear;
             if ((year.status ?? "active") === "closed") {
-                return { success: false, data: null, error: "ALREADY_CLOSED", message: `L'année ${year.schoolYear} est déjà clôturée` };
+                return { success: false, data: null, error: "ALREADY_CLOSED", message: `L'année ${tag} est déjà clôturée` };
             }
             // Nouveau comportement : clôture autorisée même sur l'année courante
             // (plus de garde CLOSE_CURRENT_FORBIDDEN). La clôture fait sortir
             // l'année du circuit courant → isCurrent=false, status=closed,
-            // closedAt=now. L'app bascule alors en lecture seule globale
-            // (yearGuard.hasOpenYear()=false → toute écriture refuse YEAR_CLOSED,
-            // yearStore.isReadOnly=true → banner + boutons désactivés).
+            // closedAt=now. Le scope (niveau) bascule alors en lecture seule
+            // (yearGuard.hasOpenYear(level)=false → toute écriture du niveau
+            // refuse YEAR_CLOSED ; sans aucune année ouverte nulle part, le
+            // verrou devient global). Les autres niveaux restent inscriptibles.
             // La levée du verrou est automatique à la création + setCurrent
-            // d'une nouvelle année. Confirm UI côté YearRepartitionView (warning
-            // "sans nouvelle année → lecture seule").
+            // d'une nouvelle année du même niveau. Confirm UI côté
+            // YearRepartitionView (warning "sans nouvelle année → lecture seule").
             const wasCurrent = year.isCurrent === true;
             year.status = "closed";
             year.closedAt = new Date();
             year.isCurrent = false;
             const saved = await this.yearRepartitionRepository.save(year);
             if (wasCurrent) {
-                console.log(`[yearService] clôture année courante ${year.schoolYear} → sortie du courant, mode lecture seule.`);
+                console.log(`[yearService] clôture année courante ${tag} → sortie du courant, lecture seule (scope ${lv ?? "global"}).`);
             }
-            return { success: true, data: this.convertToResponse(saved), error: null, message: "Année clôturée, mode lecture seule" };
+            return { success: true, data: this.convertToResponse(saved), error: null, message: `Année ${tag} clôturée, mode lecture seule` };
         } catch (error) {
             const detail = error instanceof Error ? error.message : "Erreur inconnue";
             return { success: false, data: null, error: detail, message: `Échec de la clôture : ${detail}` };
         }
     }
 
+    /** Réouverture PAR NIVEAU : réactive la seule ligne (année + niveau). */
     async reopenYear(id: number): Promise<ResultType<YearRepartition>> {
         try {
             const year = await this.yearRepartitionRepository.findOne({ where: { id } });
             if (!year) return { success: false, data: null, error: "NOT_FOUND", message: "Année scolaire non trouvée" };
+            const lv = normalizeSchoolLevel((year as any).level);
+            const tag = lv ? `${year.schoolYear} (${lv})` : year.schoolYear;
             if ((year.status ?? "active") === "active") {
-                return { success: false, data: null, error: "ALREADY_ACTIVE", message: `L'année ${year.schoolYear} est déjà active` };
+                return { success: false, data: null, error: "ALREADY_ACTIVE", message: `L'année ${tag} est déjà active` };
             }
             year.status = "active";
             year.closedAt = null;
             const saved = await this.yearRepartitionRepository.save(year);
-            return { success: true, data: this.convertToResponse(saved), error: null, message: `Année ${year.schoolYear} rouverte` };
+            return { success: true, data: this.convertToResponse(saved), error: null, message: `Année ${tag} rouverte` };
         } catch (error) {
             return { success: false, data: null, error: error instanceof Error ? error.message : "Erreur inconnue", message: "Échec de la réouverture" };
         }
@@ -546,7 +620,12 @@ export class YearRepartitionService {
      *   échec générique ;
      * - erreurs explicites `Échec du clone A → B : <détail>` (UNIQUE/colonne/table).
      */
-    async cloneYearConfigs(opts: { fromId?: number; sourceId?: number; newSchoolYear: string; copyPayment?: boolean; copyTranches?: boolean; copyGrading?: boolean; copyFeeItems?: boolean }): Promise<ResultType<any>> {
+    /**
+     * Clone configs-only PAR NIVEAU : la cible hérite du niveau source
+     * (`opts.level` permet de forcer un autre niveau) et ses périodes sont
+     * décalées de +1 an. Doublon scopé (année + niveau).
+     */
+    async cloneYearConfigs(opts: { fromId?: number; sourceId?: number; newSchoolYear: string; level?: string | null; copyPayment?: boolean; copyTranches?: boolean; copyGrading?: boolean; copyFeeItems?: boolean }): Promise<ResultType<any>> {
         const ds = AppDataSource.getInstance();
         try {
             const canon = normalizeSchoolYear(opts.newSchoolYear);
@@ -556,8 +635,19 @@ export class YearRepartitionService {
             const from = await this.yearRepartitionRepository.findOne({ where: { id: fromId } });
             if (!from) return { success: false, data: null, error: "NOT_FOUND", message: "Année source non trouvée" };
             const fromYear = normalizeSchoolYear(from.schoolYear) ?? from.schoolYear;
-            const exists = await this.yearRepartitionRepository.findOne({ where: { schoolYear: canon } });
-            if (exists) return { success: false, data: null, error: "DUPLICATE_SCHOOL_YEAR", message: `L'année ${canon} existe déjà` };
+            const targetLevel = normalizeSchoolLevel((opts as any).level) ?? normalizeSchoolLevel((from as any).level);
+            let exists: any = null;
+            try {
+                const one = await this.yearRepartitionRepository.findOne({ where: { schoolYear: canon } as any });
+                if (one && sameLevel((one as any).level, targetLevel)) exists = one;
+            } catch { exists = null; }
+            if (!exists) {
+                try {
+                    const sameScope = await this.yearRepartitionRepository.find({ where: { schoolYear: canon } as any });
+                    if (Array.isArray(sameScope)) exists = sameScope.find((r) => sameLevel((r as any).level, targetLevel)) ?? null;
+                } catch { /* repo sans find() → on garde le résultat findOne */ }
+            }
+            if (exists) return { success: false, data: null, error: "DUPLICATE_SCHOOL_YEAR", message: targetLevel ? `L'année ${canon} (${targetLevel}) existe déjà` : `L'année ${canon} existe déjà` };
             const copyPayment = opts.copyPayment !== false;
             const copyTranches = opts.copyTranches !== false;
             const copyGrading = opts.copyGrading !== false;
@@ -582,6 +672,45 @@ export class YearRepartitionService {
                 const { PaymentConfigEntity, PaymentAnnualConfigEntity, TranchConfigEntity, TrancheEntryEntity } = await import("../entities/paymentConfig");
                 const { GradingConfigEntity, EvaluationCategoryEntity } = await import("../entities/configNote");
                 const { FeeItemEntity } = await import("../entities/accounting");
+                // SEV2 PAR NIVEAU : la cible est mono-niveau. La source est filtrée
+                // par (année + niveau) : niveau normalisé == targetLevel OU niveau
+                // null/undefined (legacy, fallback inclus). Si la cible est legacy
+                // (targetLevel null), pas de filtre niveau (compat historique).
+                const matchesTargetLevel = (rawLevel: unknown): boolean => {
+                    if (!targetLevel) return true;
+                    if (rawLevel == null) return true;
+                    return normalizeSchoolLevel(rawLevel) === targetLevel;
+                };
+                // Résolution niveau via grade (annuals via relation grade, fee_items
+                // via gradeId → grade.level). Table grade absente sur schéma
+                // partiel → map vide (tout est legacy → inclus).
+                let gradeLevelById = new Map<number, SchoolLevel | null>();
+                try {
+                    const { GradeEntity } = await import("../entities/grade");
+                    const grades: any[] = await m.getRepository(GradeEntity as any).find().catch(() => []);
+                    for (const g of grades ?? []) {
+                        if (g?.id != null) gradeLevelById.set(Number(g.id), levelOfGrade(g));
+                    }
+                } catch { gradeLevelById = new Map(); }
+                const annualLevelOf = (a: any): unknown => {
+                    const direct = (a as any)?.level;
+                    if (direct != null) return direct;
+                    const g = (a as any)?.grade;
+                    if (g && typeof g === "object") {
+                        const lv = levelOfGrade(g);
+                        return lv ?? null;
+                    }
+                    const gid = (a as any)?.gradeId;
+                    if (gid != null && gradeLevelById.has(Number(gid))) return gradeLevelById.get(Number(gid));
+                    return null;
+                };
+                const feeLevelOf = (it: any): unknown => {
+                    const direct = (it as any)?.level;
+                    if (direct != null) return direct;
+                    const gid = (it as any)?.gradeId;
+                    if (gid != null && gradeLevelById.has(Number(gid))) return gradeLevelById.get(Number(gid));
+                    return null;
+                };
                 // Année cible — périodes N-1 décalées d'un an ; lignes invalides écartées
                 // explicitement (jamais de `new Date(invalide)` persisté).
                 const yearRepo = m.getRepository(YearRepartitionEntity);
@@ -592,6 +721,7 @@ export class YearRepartitionService {
                 }).filter((p: any) => p.name && !Number.isNaN(p.start.getTime()) && !Number.isNaN(p.end.getTime()));
                 const target = new YearRepartitionEntity();
                 target.schoolYear = canon;
+                (target as any).level = targetLevel;
                 target.periodConfigurations = shifted as any;
                 target.isCurrent = false;
                 target.status = "active";
@@ -602,24 +732,26 @@ export class YearRepartitionService {
 
                 if (copyPayment) {
                     // B6: requête canonique stricte ; fallback legacy EXPLICITE.
+                    // SEV2 PAR NIVEAU : filtre (année + niveau), legacy sans niveau inclus.
                     const rows: any[] = await m.getRepository(PaymentConfigEntity as any).find({ where: { schoolYear: fromYear } as any });
-                    let effective = rows.filter((r) => !r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear);
+                    let effective = rows.filter((r) => (!r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear) && matchesTargetLevel((r as any).level));
                     if (!effective.length) {
                         const legacy: any[] = await m.getRepository(PaymentConfigEntity as any).find();
-                        const legacyOnly = legacy.filter((r) => !r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear);
+                        const legacyOnly = legacy.filter((r) => (!r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear) && matchesTargetLevel((r as any).level));
                         noteFallback("payment_configs", legacyOnly.filter((r) => !r.schoolYear).length);
                         effective = legacyOnly;
                     }
                     counts.payment_configs = effective.length;
                     const existing: any[] = await m.getRepository(PaymentConfigEntity as any).find({ where: { schoolYear: canon } as any }).catch(() => []);
-                    const existingKeys = new Set(existing.filter((r) => normalizeSchoolYear(r.schoolYear) === canon).map((r) => `${r.classId ?? ""}|${r.annualAmount ?? ""}|${r.inscriptionFee ?? ""}`));
+                    const existingKeys = new Set(existing.filter((r) => normalizeSchoolYear(r.schoolYear) === canon).map((r) => `${r.classId ?? ""}|${r.annualAmount ?? ""}|${r.inscriptionFee ?? ""}|${normalizeSchoolLevel((r as any).level) ?? targetLevel ?? ""}`));
                     for (const r of effective) {
                         if (r.schoolYear && normalizeSchoolYear(r.schoolYear) !== fromYear) continue;
-                        const key = `${r.classId ?? ""}|${r.annualAmount ?? ""}|${r.inscriptionFee ?? ""}`;
+                        if (!matchesTargetLevel((r as any).level)) continue;
+                        const key = `${r.classId ?? ""}|${r.annualAmount ?? ""}|${r.inscriptionFee ?? ""}|${normalizeSchoolLevel((r as any).level) ?? targetLevel ?? ""}`;
                         if (existingKeys.has(key)) { noteSkipped("payment_configs"); continue; }
                         const { id, remote_id, ...rest } = r;
                         try {
-                            await m.getRepository(PaymentConfigEntity as any).save({ ...rest, schoolYear: canon, remote_id: null } as any);
+                            await m.getRepository(PaymentConfigEntity as any).save({ ...rest, schoolYear: canon, ...(targetLevel ? { level: targetLevel } : {}), remote_id: null } as any);
                             existingKeys.add(key);
                         } catch (e) {
                             if (isUniqueViolation(e)) { noteSkipped("payment_configs"); continue; }
@@ -628,11 +760,11 @@ export class YearRepartitionService {
                     }
                 }
                 if (copyTranches) {
-                    const annuals: any[] = await m.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: { entries: true } }, where: { schoolYear: fromYear } as any });
-                    let effective = annuals.filter((a) => !a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear);
+                    const annuals: any[] = await m.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: { entries: true }, grade: true }, where: { schoolYear: fromYear } as any });
+                    let effective = annuals.filter((a) => (!a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear) && matchesTargetLevel(annualLevelOf(a)));
                     if (!effective.length) {
-                        const all: any[] = await m.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: { entries: true } } });
-                        effective = all.filter((a) => !a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear);
+                        const all: any[] = await m.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: { entries: true }, grade: true } });
+                        effective = all.filter((a) => (!a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear) && matchesTargetLevel(annualLevelOf(a)));
                         noteFallback("payment_annual_config", effective.filter((a) => !a.schoolYear).length);
                     }
                     counts.payment_annual_config = effective.length;
@@ -642,6 +774,7 @@ export class YearRepartitionService {
                     let tranchCount = 0;
                     for (const a of effective) {
                         if (a.schoolYear && normalizeSchoolYear(a.schoolYear) !== fromYear) continue;
+                        if (!matchesTargetLevel(annualLevelOf(a))) continue;
                         const gradeId = (a as any).grade?.id ?? (a as any).gradeId ?? null;
                         if (gradeId != null && usedGradeIds.has(gradeId)) { noteSkipped("payment_annual_config"); continue; }
                         const { id, remote_id, tranches, grade, ...rest } = a;
@@ -666,10 +799,10 @@ export class YearRepartitionService {
                 }
                 if (copyGrading) {
                     const configs: any[] = await m.getRepository(GradingConfigEntity as any).find({ relations: { categories: true }, where: { schoolYear: fromYear } as any });
-                    let effective = configs.filter((c) => !c.schoolYear || normalizeSchoolYear(c.schoolYear) === fromYear);
+                    let effective = configs.filter((c) => (!c.schoolYear || normalizeSchoolYear(c.schoolYear) === fromYear) && matchesTargetLevel((c as any).level));
                     if (!effective.length) {
                         const all: any[] = await m.getRepository(GradingConfigEntity as any).find({ relations: { categories: true } });
-                        effective = all.filter((c) => !c.schoolYear || normalizeSchoolYear(c.schoolYear) === fromYear);
+                        effective = all.filter((c) => (!c.schoolYear || normalizeSchoolYear(c.schoolYear) === fromYear) && matchesTargetLevel((c as any).level));
                         noteFallback("grading_config", effective.filter((c) => !c.schoolYear).length);
                     }
                     counts.grading_config = effective.length;
@@ -686,7 +819,7 @@ export class YearRepartitionService {
                     // textuelle `:param` du driver better-sqlite3 est fragile. Seules les
                     // colonnes connues sont liées (binding positionnel `?` côté driver :
                     // ":" reste une donnée liée, jamais un fragment SQL).
-                    const GRADING_COPY_COLS = ["schoolId", "classId", "subjectId", "period", "finalGradeBase", "calculationStrategy", "normalizeScores", "description"] as const;
+                    const GRADING_COPY_COLS = ["schoolId", "classId", "subjectId", "level", "period", "finalGradeBase", "calculationStrategy", "normalizeScores", "description"] as const;
                     const CATEGORY_COPY_COLS = ["name", "code", "weight", "defaultMaxScore", "minEntries", "maxEntries", "color", "displayOrder", "isExam"] as const;
                     const pickCopyCols = (src: any, cols: readonly string[]) => {
                         const o: Record<string, unknown> = {};
@@ -697,13 +830,14 @@ export class YearRepartitionService {
                         return o;
                     };
                     const existingConfigs: any[] = await m.getRepository(GradingConfigEntity as any).find().catch(() => []);
-                    const existingKeys = new Set(existingConfigs.filter((c) => normalizeSchoolYear(c.schoolYear) === canon).map((c) => `${c.schoolId ?? ""}|${c.classId ?? ""}|${c.subjectId ?? ""}|${c.period ?? ""}`));
+                    const existingKeys = new Set(existingConfigs.filter((c) => normalizeSchoolYear(c.schoolYear) === canon).map((c) => `${c.schoolId ?? ""}|${c.classId ?? ""}|${c.subjectId ?? ""}|${normalizeSchoolLevel(c.level) ?? targetLevel ?? ""}|${c.period ?? ""}`));
                     for (const c of effective) {
                         if (c.schoolYear && normalizeSchoolYear(c.schoolYear) !== fromYear) continue;
-                        const key = `${c.schoolId ?? ""}|${c.classId ?? ""}|${c.subjectId ?? ""}|${c.period ?? ""}`;
+                        if (!matchesTargetLevel((c as any).level)) continue;
+                        const key = `${c.schoolId ?? ""}|${c.classId ?? ""}|${c.subjectId ?? ""}|${normalizeSchoolLevel((c as any).level) ?? targetLevel ?? ""}|${c.period ?? ""}`;
                         if (existingKeys.has(key)) { noteSkipped("grading_config"); continue; }
                         try {
-                            const saved: any = await m.getRepository(GradingConfigEntity as any).save({ ...pickCopyCols(c, GRADING_COPY_COLS), schoolYear: canon, remote_id: null } as any);
+                            const saved: any = await m.getRepository(GradingConfigEntity as any).save({ ...pickCopyCols(c, GRADING_COPY_COLS), schoolYear: canon, ...(targetLevel ? { level: targetLevel } : {}), remote_id: null } as any);
                             existingKeys.add(key);
                             for (const cat of c.categories ?? []) {
                                 if (!cat) continue;
@@ -717,10 +851,10 @@ export class YearRepartitionService {
                 }
                 if (copyFeeItems) {
                     const items: any[] = await m.getRepository(FeeItemEntity as any).find({ where: { schoolYear: fromYear } as any });
-                    let effective = items.filter((it) => !it.schoolYear || normalizeSchoolYear(it.schoolYear) === fromYear);
+                    let effective = items.filter((it) => (!it.schoolYear || normalizeSchoolYear(it.schoolYear) === fromYear) && matchesTargetLevel(feeLevelOf(it)));
                     if (!effective.length) {
                         const all: any[] = await m.getRepository(FeeItemEntity as any).find();
-                        effective = all.filter((it) => !it.schoolYear || normalizeSchoolYear(it.schoolYear) === fromYear);
+                        effective = all.filter((it) => (!it.schoolYear || normalizeSchoolYear(it.schoolYear) === fromYear) && matchesTargetLevel(feeLevelOf(it)));
                         noteFallback("fee_items", effective.filter((it) => !it.schoolYear).length);
                     }
                     counts.fee_items = effective.length;
@@ -728,6 +862,7 @@ export class YearRepartitionService {
                     const existingKeys = new Set(existingItems.filter((it) => normalizeSchoolYear(it.schoolYear) === canon).map((it) => `${it.name ?? ""}|${it.gradeId ?? ""}`));
                     for (const it of effective) {
                         if (it.schoolYear && normalizeSchoolYear(it.schoolYear) !== fromYear) continue;
+                        if (!matchesTargetLevel(feeLevelOf(it))) continue;
                         const key = `${it.name ?? ""}|${it.gradeId ?? ""}`;
                         if (existingKeys.has(key)) { noteSkipped("fee_items"); continue; }
                         const { id, remote_id, ...rest } = it;
@@ -754,8 +889,8 @@ export class YearRepartitionService {
                     action: "create",
                     targetEntity: "YearRepartition",
                     targetId: targetId,
-                    summary: `Clone configs-only ${fromYear} → ${canon}${emptySource ? " (source vide)" : ""}${hasFallback ? " (fallback legacy)" : ""}`,
-                    metadata: { fromYear, schoolYear: canon, counts, skipped, fallbackUsage, emptySource },
+                    summary: `Clone configs-only ${fromYear}${normalizeSchoolLevel((from as any).level) ? ` (${normalizeSchoolLevel((from as any).level)})` : ""} → ${canon}${targetLevel ? ` (${targetLevel})` : ""}${emptySource ? " (source vide)" : ""}${hasFallback ? " (fallback legacy)" : ""}`,
+                    metadata: { fromYear, schoolYear: canon, level: targetLevel, counts, skipped, fallbackUsage, emptySource },
                     actor: await (global as any).authService?.getCurrentUser?.().then((u: any) => u ? { id: u.id, username: u.username, role: u.role, displayName: u.displayName ?? null } : null).catch(() => null),
                 });
             } catch { /* audit best-effort */ }
@@ -767,10 +902,10 @@ export class YearRepartitionService {
                 feeItems: counts.fee_items ?? 0,
             };
             if (emptySource) {
-                return { success: true, data: { id: targetId, schoolYear: canon, periodConfigurations: targetPeriods, counts, skipped, fallbackUsage, emptySource: true, ...flat } as any, error: "EMPTY_SOURCE", message: `Source ${fromYear} vide : année ${canon} créée sans configurations (paiements 0, tranches 0, notation 0, frais 0)` };
+                return { success: true, data: { id: targetId, schoolYear: canon, level: targetLevel, periodConfigurations: targetPeriods, counts, skipped, fallbackUsage, emptySource: true, ...flat } as any, error: "EMPTY_SOURCE", message: `Source ${fromYear} vide : année ${canon}${targetLevel ? ` (${targetLevel})` : ""} créée sans configurations (paiements 0, tranches 0, notation 0, frais 0)` };
             }
             const skippedTotal = Object.values(skipped).reduce((a, b) => a + (b as number), 0);
-            return { success: true, data: { id: targetId, schoolYear: canon, periodConfigurations: targetPeriods, counts, skipped, fallbackUsage, emptySource: false, ...flat } as any, error: null, message: `Configurations clonées vers ${canon} (paiements ${flat.paymentConfigs}, tranches ${flat.tranches}, notation ${flat.gradingConfigs}, frais ${flat.feeItems}${skippedTotal ? `, ${skippedTotal} ignorée(s) déjà présente(s)` : ""})` };
+            return { success: true, data: { id: targetId, schoolYear: canon, level: targetLevel, periodConfigurations: targetPeriods, counts, skipped, fallbackUsage, emptySource: false, ...flat } as any, error: null, message: `Configurations clonées vers ${canon}${targetLevel ? ` (${targetLevel})` : ""} (paiements ${flat.paymentConfigs}, tranches ${flat.tranches}, notation ${flat.gradingConfigs}, frais ${flat.feeItems}${skippedTotal ? `, ${skippedTotal} ignorée(s) déjà présente(s)` : ""})` };
         } catch (error) {
             const detail = error instanceof Error ? error.message : String(error ?? "Erreur inconnue");
             let hint = "";
@@ -790,7 +925,7 @@ export class YearRepartitionService {
      * snake_case détaillé et `emptySource`. Tolérant legacy (lignes sans
      * schoolYear) et schéma partiel (colonne manquante → 0, jamais de throw).
      */
-    async clonePreview(opts: { fromId?: number; sourceId?: number; newSchoolYear: string }): Promise<ResultType<any>> {
+    async clonePreview(opts: { fromId?: number; sourceId?: number; newSchoolYear: string; level?: string | null }): Promise<ResultType<any>> {
         try {
             const canon = normalizeSchoolYear(opts.newSchoolYear);
             if (!canon) return { success: false, data: null, error: "INVALID_SCHOOL_YEAR", message: "newSchoolYear invalide (attendu YYYY-YYYY)" } as any;
@@ -799,38 +934,82 @@ export class YearRepartitionService {
             const from = await this.yearRepartitionRepository.findOne({ where: { id: fromId } });
             if (!from) return { success: false, data: null, error: "NOT_FOUND", message: "Année source non trouvée" } as any;
             const fromYear = normalizeSchoolYear(from.schoolYear) ?? from.schoolYear;
+            const previewLevel = normalizeSchoolLevel((opts as any).level) ?? normalizeSchoolLevel((from as any).level);
             const ds = AppDataSource.getInstance();
             const { PaymentConfigEntity, PaymentAnnualConfigEntity, TranchConfigEntity } = await import("../entities/paymentConfig");
             const { GradingConfigEntity } = await import("../entities/configNote");
             const { FeeItemEntity } = await import("../entities/accounting");
-            const tolerantCount = async (entity: any): Promise<number> => {
-                try {
-                    const n = await ds.getRepository(entity as any).count({ where: { schoolYear: fromYear } as any });
-                    if (n > 0) return n;
-                } catch { /* colonne absente sur schéma partiel → fallback */ }
+            // SEV2 PAR NIVEAU : aperçu filtré (année + niveau) comme le clone.
+            // Legacy sans niveau inclus ; cible legacy (null) → pas de filtre.
+            const matchesPreviewLevel = (rawLevel: unknown): boolean => {
+                if (!previewLevel) return true;
+                if (rawLevel == null) return true;
+                return normalizeSchoolLevel(rawLevel) === previewLevel;
+            };
+            let previewGradeMap = new Map<number, SchoolLevel | null>();
+            try {
+                const { GradeEntity } = await import("../entities/grade");
+                const grades: any[] = await ds.getRepository(GradeEntity as any).find().catch(() => []);
+                const { levelOfGrade: lvOf } = await import("../lib/schoolLevel");
+                for (const g of grades ?? []) {
+                    if (g?.id != null) previewGradeMap.set(Number(g.id), lvOf(g));
+                }
+            } catch { previewGradeMap = new Map(); }
+            const previewAnnualLevel = (a: any): unknown => {
+                const direct = (a as any)?.level;
+                if (direct != null) return direct;
+                const g = (a as any)?.grade;
+                if (g && typeof g === "object") {
+                    const lv = levelOfGrade(g);
+                    return lv ?? null;
+                }
+                const gid = (a as any)?.gradeId;
+                if (gid != null && previewGradeMap.has(Number(gid))) return previewGradeMap.get(Number(gid));
+                return null;
+            };
+            const previewFeeLevel = (it: any): unknown => {
+                const direct = (it as any)?.level;
+                if (direct != null) return direct;
+                const gid = (it as any)?.gradeId;
+                if (gid != null && previewGradeMap.has(Number(gid))) return previewGradeMap.get(Number(gid));
+                return null;
+            };
+            const tolerantCount = async (entity: any, getLevel: (r: any) => unknown = (r) => (r as any)?.level): Promise<number> => {
                 try {
                     const rows: any[] = await ds.getRepository(entity as any).find();
-                    return rows.filter((r) => !r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear).length;
+                    return rows.filter((r) => (!r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear) && matchesPreviewLevel(getLevel(r))).length;
                 } catch { return 0; }
             };
+            const tolerantCountAnnuals = async (): Promise<{ annuals: number; rows: any[] }> => {
+                try {
+                    const rows: any[] = await ds.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: true, grade: true } }).catch(async () => await ds.getRepository(PaymentAnnualConfigEntity as any).find());
+                    const src = (rows ?? []).filter((a) => (!a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear) && matchesPreviewLevel(previewAnnualLevel(a)));
+                    return { annuals: src.length, rows: src };
+                } catch { return { annuals: 0, rows: [] }; }
+            };
             const paymentConfigs = await tolerantCount(PaymentConfigEntity);
-            const annuals = await tolerantCount(PaymentAnnualConfigEntity);
+            const { annuals, rows: annualRows } = await tolerantCountAnnuals();
             const gradingConfigs = await tolerantCount(GradingConfigEntity);
-            const feeItems = await tolerantCount(FeeItemEntity);
-            // Tranches : lignes tranch_config rattachées aux annuals source (direct schoolYear
-            // quand présent, sinon somme des relations) — même définition que le clone.
+            const feeItems = await tolerantCount(FeeItemEntity, previewFeeLevel);
+            // Tranches : somme des relations des annuals source filtrés par niveau
+            // (même définition que le clone : tranches copiées = tranches des
+            // annuals du niveau). Fallback annuals quand aucun détail.
             let tranches = 0;
             try {
-                const direct: any[] = await ds.getRepository(TranchConfigEntity as any).find();
-                const withYear = direct.filter((t) => t.schoolYear && normalizeSchoolYear(t.schoolYear) === fromYear);
-                if (withYear.length) tranches = withYear.length;
-                else {
-                    const allAnnuals: any[] = await ds.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: true } }).catch(() => []);
-                    const src = allAnnuals.filter((a) => !a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear);
-                    tranches = src.reduce((acc, a) => acc + ((a.tranches ?? []).length || 0), 0);
-                    if (!tranches) tranches = annuals;
+                tranches = annualRows.reduce((acc, a) => acc + ((a.tranches ?? []).length || 0), 0);
+                if (!tranches) {
+                    const direct: any[] = await ds.getRepository(TranchConfigEntity as any).find().catch(() => []);
+                    // Direct sans parent : pas de niveau → on ne les compte que si la
+                    // cible est legacy ou si aucun annuals (schéma partiel). Sinon les
+                    // annuals filtrés font foi (évite de compter d'autres niveaux).
+                    if (!annualRows.length) {
+                        const withYear = (direct ?? []).filter((t) => t.schoolYear && normalizeSchoolYear(t.schoolYear) === fromYear);
+                        if (withYear.length) tranches = withYear.length;
+                        else tranches = annuals;
+                    } else tranches = 0;
+                    if (!tranches) tranches = 0;
                 }
-            } catch { tranches = annuals; }
+            } catch { tranches = 0; }
             const counts = {
                 payment_configs: paymentConfigs,
                 payment_annual_config: annuals,
@@ -839,7 +1018,8 @@ export class YearRepartitionService {
                 fee_items: feeItems,
             };
             const emptySource = paymentConfigs === 0 && annuals === 0 && gradingConfigs === 0 && feeItems === 0;
-            return { success: true, data: { fromYear, newSchoolYear: canon, paymentConfigs, tranches, gradingConfigs, feeItems, counts, emptySource }, error: null, message: emptySource ? `Aperçu clone ${fromYear} → ${canon} : source vide (rien à copier)` : `Aperçu clone ${fromYear} → ${canon}` } as any;
+            const lvTag = previewLevel ? ` (${previewLevel})` : "";
+            return { success: true, data: { fromYear, fromLevel: previewLevel, level: previewLevel, newSchoolYear: canon, paymentConfigs, tranches, gradingConfigs, feeItems, counts, emptySource }, error: null, message: emptySource ? `Aperçu clone ${fromYear}${lvTag} → ${canon}${lvTag} : source vide (rien à copier)` : `Aperçu clone ${fromYear}${lvTag} → ${canon}${lvTag}` } as any;
         } catch (error) {
             const detail = error instanceof Error ? error.message : String(error ?? "Erreur inconnue");
             return { success: false, data: null, error: detail, message: `Échec aperçu clone : ${detail}` } as any;

@@ -147,6 +147,13 @@ describe('yearGuard — YEAR_CLOSED', () => {
     expect(handler).toHaveBeenCalledTimes(1)
   })
 
+  it('11b. niveau demandé → retour inclut level (sinon clé absente, compat)', async () => {
+    mockYearRepo.findOne.mockResolvedValue({ id: 1, schoolYear: '2024-2025', status: 'active', level: 'PRIMAIRE' })
+    mockYearRepo.find = vi.fn().mockResolvedValue([{ id: 1, schoolYear: '2024-2025', status: 'active', level: 'PRIMAIRE', isCurrent: true }])
+    const r = await requireYearWritable({ schoolYear: '2024-2025', level: 'PRIMAIRE' })
+    expect(r).toEqual({ schoolYear: '2024-2025', forced: false, level: 'PRIMAIRE' })
+  })
+
   it('11. close/reopen sont audités status_change (events.ts)', () => {
     const src = readFileSync(join(__dirname, '..', '..', 'events.ts'), 'utf8')
     const closeIdx = src.indexOf('"yearRepartition:close"')

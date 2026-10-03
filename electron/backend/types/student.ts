@@ -79,6 +79,8 @@ export interface IStudentData {
     gradeId?: number;
     photoId?: number;
     documentId?: number;
+    /** Option B Table Parent : FK foyer (Expand — à-plat conservé en double-écriture). */
+    parentId?: number | null;
 }
 
 // Types pour les fichiers de l'étudiant
@@ -122,6 +124,8 @@ export interface IStudentServiceParams {
         photo?: IStudentFile;
         documents?: IStudentFile[];
         isNew?: boolean;
+        /** Option B : foyer explicite (prioritaire sur findOrCreate si fourni). */
+        parentId?: number | null;
     };
     updateStudent: {
         id: number;

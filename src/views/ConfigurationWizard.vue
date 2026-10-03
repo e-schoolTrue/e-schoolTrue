@@ -6,10 +6,19 @@
       </template>
 
       <div class="wizard-content">
+        <el-alert
+          v-if="currentViewKey === 'YearRepartition'"
+          type="info"
+          :closable="false"
+          show-icon
+          title="Presets par niveau : Préscolaire / Primaire → 3 trimestres, Secondaire → 2 semestres"
+          description="Choisissez le niveau dans l'étape : le régime et les dates types sont pré-remplis (ajustables)."
+          class="wizard-level-hint"
+        />
         <component
           :is="currentViewComponent"
           @configuration-saved="handleConfigurationSaved"
-          @go-back="handleGoBack" 
+          @go-back="handleGoBack"
         />
       </div>
     </el-card>
@@ -70,9 +79,10 @@ const viewComponents = {
 };
 
 // --- Computed Properties ---
+const currentViewKey = computed(() => configViewsKeys.value[currentStep.value]);
 const currentViewComponent = computed(() => {
-  const currentViewKey = configViewsKeys.value[currentStep.value];
-  return viewComponents[currentViewKey as keyof typeof viewComponents];
+  const key = configViewsKeys.value[currentStep.value];
+  return viewComponents[key as keyof typeof viewComponents];
 });
 
 

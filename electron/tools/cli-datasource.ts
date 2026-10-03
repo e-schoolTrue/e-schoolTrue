@@ -20,6 +20,7 @@ import path from "node:path";
 
 import { UserEntity } from "../backend/entities/user";
 import { StudentEntity } from "../backend/entities/students";
+import { ParentEntity } from "../backend/entities/parents";
 import { FileEntity } from "../backend/entities/file";
 import { ProfessorEntity, QualificationEntity, DiplomaEntity } from "../backend/entities/professor";
 import { AbsenceEntity } from "../backend/entities/absence";
@@ -67,6 +68,7 @@ export const cliEntities = [
   UserEntity,
   FileEntity,
   StudentEntity,
+  ParentEntity,
   GradeEntity,
   ClassRoomEntity,
   BranchEntity,

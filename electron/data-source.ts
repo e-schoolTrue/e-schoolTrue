@@ -5,6 +5,7 @@ import { app } from 'electron';
 
 import { UserEntity } from "./backend/entities/user";
 import { StudentEntity } from "./backend/entities/students";
+import { ParentEntity } from "./backend/entities/parents";
 import { FileEntity } from "./backend/entities/file";
 import { ProfessorEntity, QualificationEntity, DiplomaEntity } from "./backend/entities/professor";
 import { AbsenceEntity } from "./backend/entities/absence";
@@ -49,6 +50,8 @@ import { TranchConfigPrecision1740000000000 } from "./migrations/1740000000000-T
 import { DriftCatchup2175000000000 } from "./migrations/1750000000000-DriftCatchup2";
 import { RoleLegacyFix1760000000000 } from "./migrations/1760000000000-RoleLegacyFix";
 import { DriftCatchup3177000000000 } from "./migrations/1770000000000-DriftCatchup3";
+import { ThreeLevels1780000000000 } from "./migrations/1780000000000-ThreeLevels";
+import { ParentTable1790000000000 } from "./migrations/1790000000000-ParentTable";
 
 const migrations = [
     Baseline1700000000000,
@@ -59,12 +62,15 @@ const migrations = [
     DriftCatchup2175000000000,
     RoleLegacyFix1760000000000,
     DriftCatchup3177000000000,
+    ThreeLevels1780000000000,
+    ParentTable1790000000000,
 ];
 
 const entities = [
     UserEntity,
     FileEntity,
     StudentEntity,
+    ParentEntity,
     GradeEntity,
     ClassRoomEntity,
     BranchEntity,

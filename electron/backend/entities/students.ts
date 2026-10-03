@@ -10,6 +10,7 @@ import {
   ManyToOne,
   Index,
   DeleteDateColumn,
+  RelationId,
 } from "typeorm";
 
 import { FileEntity } from "./file";
@@ -17,6 +18,7 @@ import { GradeEntity } from "./grade";
 import { AbsenceEntity } from "./absence";
 import { PaymentEntity } from "./payment";
 import { ScholarshipEntity } from "./scholarship";
+import { ParentEntity } from "./parents";
 
 @Entity("T_student")
 @Index(["firstname", "lastname", "birthDay"], { unique: true })
@@ -87,6 +89,23 @@ export class StudentEntity {
 
   @Column({ type: "text" })
   personalPhone?: string;
+
+  /**
+   * Option B Table Parent (Expand seulement) :
+   * - FK nullable vers `T_parent.id` (`SET NULL` on delete), portée par la
+   *   relation `parent` (`@JoinColumn parentId`). `parentId` est exposé en
+   *   lecture via `@RelationId` (pas de `@Column` dédié : un `@Column` +
+   *   `@JoinColumn` sur le même nom dupliquerait le mapping TypeORM).
+   * - Écriture : assigner `student.parent = ({ id } as any)` (ou `null`).
+   * - Les colonnes à-plat (fatherFirstname/..., `famillyPhone`) sont
+   *   CONSERVÉES (double-écriture) — jamais supprimées dans cette phase.
+   */
+  @ManyToOne(() => ParentEntity, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "parentId" })
+  parent?: ParentEntity | null;
+
+  @RelationId((s: StudentEntity) => s.parent)
+  parentId?: number | null;
  
   /**
    * Méthode statique pour générer un matricule

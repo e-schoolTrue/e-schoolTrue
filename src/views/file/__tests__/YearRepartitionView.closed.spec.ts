@@ -58,9 +58,11 @@ describe('YearRepartitionView — early-return closed (update/delete)', () => {
     await wrapper.vm.$nextTick();
     const rows = wrapper.findAll('tbody tr');
     expect(rows.length).toBeGreaterThanOrEqual(2);
-    // La ligne closed (2e) doit avoir ses boutons désactivés.
-    const closedRow = rows[1];
-    const buttons = closedRow.findAll('button');
+    // La ligne closed (triée par année, ordre non garanti) : on la repère
+    // via son tag « Clôturée ». Ses boutons doivent être désactivés.
+    const closedRow = rows.find((r) => r.text().includes('Clôturée'));
+    expect(closedRow, 'ligne clôturée présente').toBeDefined();
+    const buttons = closedRow!.findAll('button');
     const modifier = buttons.find((b) => b.text().includes('Modifier'));
     const supprimer = buttons.find((b) => b.text().includes('Supprimer'));
     expect(modifier?.attributes('disabled')).toBeDefined();
@@ -101,8 +103,9 @@ describe('YearRepartitionView — early-return closed (update/delete)', () => {
     expect(confirmSpy).not.toHaveBeenCalled();
     // Le bouton Supprimer de la ligne closed est désactivé → aucun IPC delete possible au clic.
     const rows = wrapper.findAll('tbody tr');
-    const closedRow = rows[1];
-    const delBtn = closedRow.findAll('button').find((b) => b.text().includes('Supprimer'));
+    const closedRow = rows.find((r) => r.text().includes('Clôturée'));
+    expect(closedRow, 'ligne clôturée présente').toBeDefined();
+    const delBtn = closedRow!.findAll('button').find((b) => b.text().includes('Supprimer'));
     expect((delBtn?.element as HTMLButtonElement).disabled).toBe(true);
     wrapper.unmount();
   });

@@ -52,6 +52,8 @@
               :value="period"
             />
           </el-select>
+          <el-tag v-if="periods.length === 2" type="warning" effect="plain">Semestres (Secondaire)</el-tag>
+          <el-tag v-else-if="periods.length === 3" type="success" effect="plain">Trimestres (Préscolaire/Primaire)</el-tag>
         </div>
       </div>
       
@@ -519,7 +521,8 @@ const loadInitialData = async () => {
     const classesRes = await window.ipcRenderer.invoke('grade:all');
     if (classesRes.success) classes.value = classesRes.data || [];
 
-    // Année scolaire et périodes — verrou : année du menu (`YearSwitcher`).
+    // Année scolaire et périodes — filtrées par niveau de la classe (3 niveaux).
+    // Sans classe : année globale (comportement historique).
     const yearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (yearRes.success && yearRes.data) {
       try {
@@ -549,6 +552,23 @@ const onClassChange = async () => {
   Object.keys(studentGradesStatus).forEach(k => delete studentGradesStatus[Number(k)]);
 
   if (!selectedClassId.value) return;
+
+  // Niveau 3-voies de la classe → périodes de l'année du niveau.
+  try {
+    const { levelForGradeType } = await import('@/types/schoolLevel');
+    const cls = (classes.value as any[]).find((c: any) => c.id === selectedClassId.value) as any;
+    const lv = levelForGradeType(cls?.level ?? cls?.type);
+    const yearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent', lv);
+    if (yearRes?.success && yearRes.data?.periodConfigurations) {
+      const names = yearRes.data.periodConfigurations.map((p: any) => p.name);
+      if (names.length > 0) {
+        periods.value = names;
+        if (selectedPeriod.value && !names.includes(selectedPeriod.value)) selectedPeriod.value = null;
+      }
+    }
+  } catch {
+    /* périodes globales conservées */
+  }
 
   loading.value = true;
   try {

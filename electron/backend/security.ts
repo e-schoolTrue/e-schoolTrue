@@ -72,6 +72,18 @@ export const rolesForChannel = (channel: string): Role[] => {
     if (PROFESSOR_WRITE.some(prefix => channel.startsWith(prefix)) || PROFESSOR_WRITE_EXACT.includes(channel)) {
         return ["admin", "professor"];
     }
+    // Option B Table Parent (Expand) : aligné sur les droits élève
+    // (save-student = admin+professor). Lecture + écriture foyer accessibles
+    // aux deux rôles ; le frontend ne propose la fusion qu'en admin.
+    if (
+        channel === "parent:search" ||
+        channel === "parent:get" ||
+        channel === "student:parents:search" ||
+        channel === "parent:update" ||
+        channel === "student:reassign-parent"
+    ) {
+        return ["admin", "professor"];
+    }
     // COMPTABLE_ALLOW AVANT ADMIN_ONLY : "payment:" est dans les deux listes,
     // cet ordre garantit ["admin","comptable"] pour les canaux compta. Ne pas inverser.
     if (COMPTABLE_ALLOW.some(prefix => channel.startsWith(prefix))) {
@@ -259,22 +271,25 @@ export function protectedHandle(
                 const appArgs: any[] = args.slice(1);
                 let explicit: unknown;
                 let force: unknown;
+                let explicitLevel: unknown;
                 if (typeof opts.requireYearWrite === "function") {
                     explicit = (opts.requireYearWrite as (a: any[]) => unknown)(appArgs);
                     const p = appArgs.find((a) => a && typeof a === "object");
                     force = (p as any)?._forceYearWrite;
+                    explicitLevel = (p as any)?.level ?? (p as any)?.niveau ?? (p as any)?.schoolLevel;
                 } else {
                     // Extraction générique : 1er objet avec schoolYear/school_year,
                     // sinon payload.id (approve/reject -> lookup service), sinon année courante.
                     const obj = appArgs.find((a) => a && typeof a === "object");
                     const ex = extractYearFromPayload(obj);
                     explicit = ex.schoolYear;
+                    explicitLevel = (ex as any).level;
                     force = ex.force;
                     if (explicit == null && obj != null) {
                         explicit = await resolveYearFromRef(channel, obj).catch(() => undefined);
                     }
                 }
-                await requireYearWritable({ schoolYear: explicit, force, actorRole: actorSnapshot?.role });
+                await requireYearWritable({ schoolYear: explicit, level: explicitLevel, force, actorRole: actorSnapshot?.role });
             } catch (e: any) {
                 const raw = String(e?.message ?? "");
                 if (/YEAR_CLOSED/.test(raw)) throw e;

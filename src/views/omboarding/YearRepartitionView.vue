@@ -6,6 +6,11 @@ import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Delete, Calendar } from '@element-plus/icons-vue';
 import WizardViewBase from './WizardViewBase.vue';
 import { Loader } from "@/components/util/AppLoader.ts";
+import {
+  buildPresetPeriods,
+  periodCountForLevel,
+  type SchoolLevel,
+} from '@/types/schoolLevel';
 
 // --- Interface pour une période ---
 interface PeriodConfig {
@@ -32,6 +37,8 @@ const academicYearStart = ref<string | null>(null); // Sera une string YYYY-MM-D
 const academicYearEnd = ref<string | null>(null);   // Sera une string YYYY-MM-DD ou null
 const periodConfigurations = ref<PeriodConfig[]>([]);
 const periodType = ref<'trimestre' | 'semestre'>('trimestre');
+/** Niveau 3-voies : PRESCOLAIRE/PRIMAIRE → 3 trimestres, SECONDAIRE → 2 semestres. */
+const level = ref<SchoolLevel>('PRIMAIRE');
 let nextPeriodId = ref(1);
 const isSaving = ref(false);
 
@@ -147,7 +154,39 @@ const rules = computed<FormRules>(() => {
 const handlePeriodTypeChange = () => {
   periodConfigurations.value = [];
   nextTick(() => {
-    formRef.value?.clearValidate(); 
+    formRef.value?.clearValidate();
+  });
+};
+
+/** Changement de niveau : aligne le régime + propose le preset du niveau. */
+const handleLevelChange = () => {
+  periodType.value = level.value === 'SECONDAIRE' ? 'semestre' : 'trimestre';
+  periodConfigurations.value = [];
+  nextTick(() => {
+    formRef.value?.clearValidate();
+  });
+  applyLevelPreset();
+};
+
+/**
+ * Preset par niveau (septembre → juin) calé sur l'année saisie.
+ * Sans année valide : pré-remplit les noms (dates à saisir).
+ */
+const applyLevelPreset = () => {
+  const maxPeriods = periodCountForLevel(level.value);
+  const label = generatedSchoolYear.value;
+  const presets = /^\d{4}-\d{4}$/.test(label)
+    ? buildPresetPeriods(level.value, label)
+    : buildPresetPeriods(level.value, '----');
+  periodConfigurations.value = presets.slice(0, maxPeriods).map((p) => ({
+    id: nextPeriodId.value++,
+    name: p.name,
+    start: p.start || null,
+    end: p.end || null,
+    type: periodType.value,
+  }));
+  nextTick(() => {
+    formRef.value?.clearValidate();
   });
 };
 
@@ -305,6 +344,7 @@ const saveYearRepartition = async () => {
 
     const payload = {
       schoolYear: generatedSchoolYear.value,
+      level: level.value,
       periodConfigurations: finalPeriods,
       isCurrent: true,
       periodType: periodType.value
@@ -369,6 +409,7 @@ const goNext = async () => {
       if (saved) {
         const finalData = {
           schoolYear: generatedSchoolYear.value,
+          level: level.value,
           periodConfigurations: periodConfigurations.value.map(p => ({
             name: p.name,
             start: p.start ? new Date(p.start).toISOString() : null,
@@ -422,11 +463,22 @@ const revalidatePeriodFields = () => {
 
     <el-form
       ref="formRef"
-      :model="{ academicYearStart, academicYearEnd, periodConfigurations, periodType }"
+      :model="{ academicYearStart, academicYearEnd, periodConfigurations, periodType, level }"
       :rules="rules"
       label-position="top"
       class="year-repartition-form"
     >
+      <el-form-item label="Niveau scolaire" prop="level" required>
+        <el-radio-group v-model="level" @change="handleLevelChange">
+          <el-radio label="PRESCOLAIRE">Préscolaire (3 trimestres)</el-radio>
+          <el-radio label="PRIMAIRE">Primaire (3 trimestres)</el-radio>
+          <el-radio label="SECONDAIRE">Secondaire (2 semestres)</el-radio>
+        </el-radio-group>
+        <el-button link type="primary" @click="applyLevelPreset">
+          Appliquer le preset {{ level === 'SECONDAIRE' ? '2 semestres' : '3 trimestres' }}
+        </el-button>
+      </el-form-item>
+
       <el-form-item label="Type de période" prop="periodType" required>
         <el-radio-group v-model="periodType" @change="handlePeriodTypeChange">
           <el-radio label="trimestre">Trimestre</el-radio>

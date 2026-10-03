@@ -296,17 +296,29 @@ onMounted(async () => {
             />
           </el-form-item>
 
-          <el-form-item 
+          <el-form-item
             :prop="`grades.${index}.order`"
             label="Ordre"
             required
           >
-            <el-input-number 
-              v-model="grade.order" 
-              :min="1" 
-              :max="20" 
+            <el-input-number
+              v-model="grade.order"
+              :min="1"
+              :max="20"
               class="grade-order"
             />
+          </el-form-item>
+
+          <el-form-item
+            :prop="`grades.${index}.type`"
+            label="Niveau"
+            required
+          >
+            <el-select v-model="grade.type" placeholder="Niveau" class="grade-order">
+              <el-option label="Préscolaire" :value="GradeType.PRESCOLAIRE" />
+              <el-option label="Primaire" :value="GradeType.PRIMARY" />
+              <el-option label="Secondaire" :value="GradeType.SECONDARY" />
+            </el-select>
           </el-form-item>
 
           <el-button

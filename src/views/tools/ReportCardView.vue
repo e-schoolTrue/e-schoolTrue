@@ -35,6 +35,9 @@
               :value="period"
             />
           </el-select>
+          <el-tag v-if="classLevel" type="info" effect="plain" size="small">
+            {{ classLevel }} · {{ periods.length === 2 ? 'Semestres' : 'Trimestres' }}
+          </el-tag>
         </div>
       </div>
       <el-button 
@@ -276,6 +279,9 @@ const sortingOption = ref<'default' | 'lastname-asc' | 'lastname-desc' | 'firstn
 const periods = ref<string[]>([]);
 const schoolId = ref(1);
 
+/** Niveau 3-voies de la classe sélectionnée (périodes filtrées par niveau). */
+const classLevel = ref<string | null>(null);
+
 const configInfo = ref<any>(null);
 const gradesData = reactive<GradesDataStructure>({});
 const calculationDetailRef = ref<InstanceType<typeof GradeCalculationDetail> | null>(null);
@@ -385,8 +391,12 @@ const loadClasses = async () => {
 
 const loadPeriods = async () => {
   try {
-    // Récupérer l'année scolaire en cours
-    const currentYearRes = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
+    // Périodes filtrées par niveau de la classe (3 niveaux) :
+    // année courante du niveau, repli année globale legacy.
+    const levelOf = (await import('@/types/schoolLevel')).normalizeLevel(classLevel.value);
+    const currentYearRes = levelOf
+      ? await window.ipcRenderer.invoke('yearRepartition:getCurrent', levelOf)
+      : await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (currentYearRes.success && currentYearRes.data) {
       const yearConfig = currentYearRes.data;
       // Extraire les noms des périodes
@@ -410,6 +420,17 @@ const onClassChange = async () => {
   categories.value = [];
 
   if (!selectedClassId.value) return;
+
+  // Résout le niveau de la classe puis recharge les périodes du niveau.
+  try {
+    const { levelForGradeType } = await import('@/types/schoolLevel');
+    const cls = classes.value.find((c: any) => c.id === selectedClassId.value) as any;
+    classLevel.value = levelForGradeType(cls?.level ?? cls?.type);
+    selectedPeriod.value = null;
+    await loadPeriods();
+  } catch {
+    /* périodes déjà chargées : on continue */
+  }
 
   loading.value = true;
   try {

@@ -190,10 +190,11 @@ describe('2. relaunch dev ne quitte jamais', () => {
     });
   }
 
-  it('dev (VITE_DEV_SERVER_URL) → reload fenêtre, ni relaunch ni exit, devReload=true', async () => {
+  it('dev (VITE_DEV_SERVER_URL) → devReload:true, aucun reload backend (renderer fait location.reload)', async () => {
     process.env.VITE_DEV_SERVER_URL = 'http://localhost:5173/';
     const loadURL = vi.fn().mockResolvedValue(undefined);
-    electronState.windows = [{ isDestroyed: () => false, reload: vi.fn(), loadURL }];
+    const reload = vi.fn();
+    electronState.windows = [{ isDestroyed: () => false, reload, loadURL }];
     stubConfirmOk();
     const stagingDb = await seedStaging(true);
     const res = await svc.confirmImport(stagingDb, true, { acknowledgeMissingUploads: true, acknowledgeDowngrade: true });
@@ -202,7 +203,8 @@ describe('2. relaunch dev ne quitte jamais', () => {
     await flushImmediate();
     expect(electronState.relaunch).not.toHaveBeenCalled();
     expect(electronState.exit).not.toHaveBeenCalled();
-    expect(loadURL).toHaveBeenCalledWith('http://localhost:5173/');
+    expect(loadURL).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it('prod (pas de VITE_DEV_SERVER_URL, NODE_ENV=test) → relaunch + exit conservés', async () => {

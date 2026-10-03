@@ -130,6 +130,7 @@ import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 import BackupImportCard from './BackupImportCard.vue';
+import { useYearStore, PENDING_DB_REFRESH_KEY } from '@/stores/yearStore';
 import type {
   BackupEnvelope,
   BackupItem,
@@ -281,10 +282,35 @@ const confirmRestore = async (): Promise<void> => {
     })) as BackupEnvelope<{
       relaunching: boolean;
       safetyBackup: string;
+      devReload?: boolean;
     }>;
     if (res?.success) {
       ElMessage.success('Restauration lancée, redémarrage de l’application…');
       showRestoreDialog.value = false;
+      // Même cycle que l'import : flag AVANT clear (survit au reload),
+      // purge stale + refetch liste, reload renderer direct si devReload.
+      // Pas de fetchCurrent orphelin (ne persiste rien) — init() après
+      // reload repersiste activeYear (App.vue / LoginView consomment le flag).
+      try {
+        try {
+          localStorage.setItem(PENDING_DB_REFRESH_KEY, String(Date.now()));
+        } catch {
+          /* stockage indisponible */
+        }
+        const yearStore = useYearStore();
+        yearStore.clear();
+        await yearStore.fetchList().catch(() => undefined);
+      } catch {
+        /* best-effort : le broadcast backup:db-replaced reste le filet */
+      }
+      try {
+        const data = res.data as { devReload?: boolean } | null;
+        if (data?.devReload && typeof window !== 'undefined' && window.location) {
+          window.location.reload();
+        }
+      } catch {
+        /* best-effort */
+      }
     } else {
       const raw = extractError(res, 'erreur inconnue');
       const distinct = /NEED_CONFIRM_MISSING_UPLOADS/.test(raw)

@@ -27,6 +27,7 @@ export interface ICreateConfigParams {
     schoolId: number;
     classId?: number | null;
     subjectId?: number | null;
+    level?: string | null; // Niveau scope (PRESCOLAIRE/PRIMAIRE/SECONDAIRE) ou null = global
     period?: string | null; // Période spécifique (ex: "Trimestre 1") ou null pour toutes
     finalGradeBase: number;
     calculationStrategy?: CalculationStrategy;
@@ -42,6 +43,7 @@ export interface IGetConfigParams {
     schoolId: number;
     classId?: number | null;
     subjectId?: number | null;
+    level?: string | null; // Niveau scope (étanche : jamais de fallback inter-niveaux)
     period?: string | null; // Période spécifique ou null (toutes périodes)
 }
 
@@ -67,6 +69,7 @@ export interface IFormattedConfig {
     schoolId: number;
     classId: number | null;
     subjectId: number | null;
+    level: string | null; // Niveau scope (null = global)
     period: string | null; // Période spécifique ou null (toutes périodes)
     finalGradeBase: number;
     calculationStrategy: CalculationStrategy;
@@ -194,4 +197,5 @@ export interface ICalculationOptions {
     roundToDecimals?: number; // Nombre de décimales (défaut: 2)
     includeEmptyCategories?: boolean; // Inclure catégories sans notes
     minGradesRequired?: number; // Minimum de notes requises
+    level?: string | null; // Niveau scope (étanche par niveau)
 }

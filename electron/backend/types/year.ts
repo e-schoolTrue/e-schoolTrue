@@ -6,9 +6,12 @@ export interface PeriodConfiguration {
 
 export type YearStatus = "active" | "closed";
 
+export type SchoolLevel = 'PRESCOLAIRE' | 'PRIMAIRE' | 'SECONDAIRE';
+
 export interface YearRepartition {
     id: number;
     schoolYear: string;
+    level?: SchoolLevel | null;
     periodConfigurations: PeriodConfiguration[];
     createdAt: Date;
     updatedAt: Date;
@@ -19,11 +22,13 @@ export interface YearRepartition {
 
 export interface YearRepartitionCreateInput {
     schoolYear: string;
+    level?: string | null;
     periodConfigurations: PeriodConfiguration[];
 }
 
 export interface YearRepartitionUpdateInput {
     schoolYear?: string;
+    level?: string | null;
     periodConfigurations?: PeriodConfiguration[];
 }
 

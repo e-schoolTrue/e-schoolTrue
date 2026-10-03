@@ -1,11 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { YearRepartitionResponse } from '@/types/year'
+import type { YearRepartitionResponse, SchoolLevel } from '@/types/year'
 import { YEAR_CLOSED_CODE } from '@/types/year'
+import { normalizeLevel, SCHOOL_LEVELS } from '@/types/schoolLevel'
 
 /** Clé de persistance de l'année active (localStorage). */
 export const YEAR_STORAGE_KEY = 'activeYear'
+
+/**
+ * Flag posé AVANT clear() lors d'un import/restore : survit au
+ * window.location.reload() dev et force un refetch APRÈS reload avec
+ * activeYear repersisté via init(null). Supprimé après consommation
+ * (App.vue onMounted + LoginView loadYears).
+ */
+export const PENDING_DB_REFRESH_KEY = 'eschool:pending-db-refresh'
 
 type IpcInvoke = (channel: string, ...args: unknown[]) => Promise<unknown>
 type IpcEnvelope<T> = { success?: boolean; data?: T | null; message?: string; error?: string; code?: string }
@@ -102,6 +111,72 @@ export const useYearStore = defineStore('year', () => {
   )
   const writeLocked = computed(() => isReadOnly.value)
 
+  // --- 3 niveaux : sélecteurs par niveau (PRESCOLAIRE / PRIMAIRE / SECONDAIRE) ---
+  /** Niveau normalisé d'une ligne (`null` = année unique legacy). */
+  function levelOf(year: YearRepartitionResponse | null | undefined): SchoolLevel | null {
+    if (!year) return null
+    return normalizeLevel((year as { level?: unknown }).level)
+  }
+
+  /** Lignes d'un niveau (`null` = legacy sans niveau). */
+  function yearsForLevel(level: SchoolLevel | null): YearRepartitionResponse[] {
+    if (level == null) return list.value.filter((y) => levelOf(y) == null)
+    return list.value.filter((y) => levelOf(y) === level)
+  }
+
+  /** Regroupement par niveau + legacy (clé `LEGACY` = sans niveau). */
+  const yearsByLevel = computed<Record<SchoolLevel | 'LEGACY', YearRepartitionResponse[]>>(() => ({
+    PRESCOLAIRE: yearsForLevel('PRESCOLAIRE'),
+    PRIMAIRE: yearsForLevel('PRIMAIRE'),
+    SECONDAIRE: yearsForLevel('SECONDAIRE'),
+    LEGACY: yearsForLevel(null),
+  }))
+
+  /** Vrai si la base contient au moins une année legacy (migration à proposer). */
+  const hasLegacyYears = computed(() => yearsByLevel.value.LEGACY.length > 0)
+
+  /**
+   * Année courante d'un niveau : ligne du niveau `isCurrent` + ouverte en
+   * priorité, repli année globale legacy (compat), sinon `null`.
+   */
+  function getCurrent(level: SchoolLevel): YearRepartitionResponse | null {
+    const scoped = yearsForLevel(level).filter((y) => y.isCurrent && y.status !== 'closed')
+    if (scoped.length > 0) {
+      return (
+        [...scoped].sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)))[0] ?? null
+      )
+    }
+    const flaggedLegacy = yearsByLevel.value.LEGACY.filter((y) => y.isCurrent && y.status !== 'closed')
+    if (flaggedLegacy.length > 0) return flaggedLegacy[0] ?? null
+    if (activeYear.value && (levelOf(activeYear.value) === level || levelOf(activeYear.value) == null)) {
+      return activeYear.value.status === 'closed' ? null : activeYear.value
+    }
+    return null
+  }
+
+  /** Courantes par niveau (repli legacy inclus, voir `getCurrent`). */
+  const currentByLevel = computed<Record<SchoolLevel, YearRepartitionResponse | null>>(() => ({
+    PRESCOLAIRE: getCurrent('PRESCOLAIRE'),
+    PRIMAIRE: getCurrent('PRIMAIRE'),
+    SECONDAIRE: getCurrent('SECONDAIRE'),
+  }))
+
+  /**
+   * Lecture seule PAR NIVEAU : vrai quand aucune courante ouverte pour ce
+   * niveau (ni ligne du niveau, ni repli legacy). Le verrou global
+   * `isReadOnly` reste l'alias historique (tous niveaux confondus).
+   */
+  function isReadOnlyFor(level: SchoolLevel): boolean {
+    return getCurrent(level) == null
+  }
+
+  /** Clôturée par niveau (courante du niveau marquée `closed`, ou verrou). */
+  function isClosedFor(level: SchoolLevel): boolean {
+    const scoped = yearsForLevel(level)
+    if (scoped.some((y) => y.isCurrent && y.status === 'closed')) return true
+    return isReadOnlyFor(level)
+  }
+
   // --- Helpers persistance ---
   function persist(year: YearRepartitionResponse | null) {
     try {
@@ -186,13 +261,36 @@ export const useYearStore = defineStore('year', () => {
     }
   }
 
-  /** Année courante côté serveur (`year:getCurrent` → `yearRepartition:getCurrent`). */
-  async function fetchCurrent(): Promise<YearRepartitionResponse | null> {
+  /**
+   * Année courante côté serveur (`year:getCurrent` → `yearRepartition:getCurrent`).
+   * Avec `level`, le niveau est transmis au backend (scope par niveau,
+   * repli global côté serveur) ; sans niveau : comportement historique.
+   */
+  async function fetchCurrent(level?: SchoolLevel): Promise<YearRepartitionResponse | null> {
+    const invoke = getIpc()
+    if (invoke && level) {
+      for (const channel of ['yearRepartition:getCurrent', 'year:getCurrent']) {
+        try {
+          const res = await invoke(channel, level)
+          const env = res as IpcEnvelope<YearRepartitionResponse>
+          if (env && typeof env === 'object' && 'success' in env) {
+            if (env.success && env.data) return env.data as YearRepartitionResponse
+            continue
+          }
+          if (res) return res as YearRepartitionResponse
+        } catch {
+          continue
+        }
+      }
+    }
     const current = await tryChannels<YearRepartitionResponse>([
       { name: 'year:getCurrent' },
       { name: 'yearRepartition:getCurrent' },
     ])
-    return unwrapOne<YearRepartitionResponse>(current) as YearRepartitionResponse | null
+    const global = unwrapOne<YearRepartitionResponse>(current) as YearRepartitionResponse | null
+    if (!level || !global) return global
+    // Repli mémoire : préfère la courante du niveau déjà listée.
+    return getCurrent(level) ?? global
   }
 
   /**
@@ -353,6 +451,16 @@ export const useYearStore = defineStore('year', () => {
     isCurrent,
     isReadOnly,
     writeLocked,
+    // --- 3 niveaux ---
+    levels: SCHOOL_LEVELS,
+    yearsByLevel,
+    currentByLevel,
+    hasLegacyYears,
+    levelOf,
+    yearsForLevel,
+    getCurrent,
+    isReadOnlyFor,
+    isClosedFor,
     fetchList,
     fetchCurrent,
     init,

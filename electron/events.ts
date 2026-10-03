@@ -47,6 +47,8 @@ const AUDIT_CHANNEL_ACTION: Record<string, AuditAction> = {
   "save-student": "create",
   "update-student": "update",
   "delete-student": "delete",
+  "parent:update": "update",
+  "student:reassign-parent": "update",
   "professor:create": "create",
   "professor:update": "update",
   "professor:delete": "delete",
@@ -150,6 +152,7 @@ interface EntityAuditSpec {
 
 const AUDIT_ENTITY: Record<string, EntityAuditSpec> = {
   Student:          { create: "Création de l'élève",                update: "Mise à jour de l'élève",                delete: "Suppression de l'élève",                keys: ["firstname", "lastname"] },
+  Parent:           { create: "Création du foyer",                   update: "Mise à jour du foyer",                   delete: "Suppression du foyer",                   keys: ["fatherLastname", "motherLastname"] },
   Professor:        { create: "Création du professeur",             update: "Mise à jour du professeur",             delete: "Suppression du professeur",             keys: ["firstname", "lastname"] },
   Grade:            { create: "Création du niveau",                 update: "Mise à jour du niveau",                 delete: "Suppression du niveau",                 keys: ["name"] },
   ClassRoom:        { create: "Création de la classe",              update: "Mise à jour de la classe",              delete: "Suppression de la classe",              keys: ["name"] },
@@ -721,6 +724,54 @@ export function registerIpcHandlers() {
   }, async (_, studentId: number) => global.studentService.deleteStudent(studentId));
   ipcMain.handle("student:getByGrade", async (_, gradeId: number) => global.studentService.getStudentsByGrade(gradeId));
   ipcMain.handle("student:search", async (_, query: string) => global.studentService.searchStudents(query));
+
+  // --- Foyers / Parents (Option B Table Parent, phase Expand) ---
+  // Contrat consommé par le frontend (`src/types/student.ts` → IParentSuggestion) :
+  // `invoke('parent:search', { q, limit })` (canal principal) ou
+  // `invoke('student:parents:search', { q, limit })` (alias de repli)
+  // → enveloppe `{ success, data: IParentSuggestion[], error, message }`
+  // (le frontend tolère aussi le tableau brut).
+  // Validation : `q` >= 2 caractères, `limit` clampé 1..20.
+  const parentSearchHandler = async (_: unknown, payload: { q?: string; limit?: number } | string) => {
+    try {
+      const q = typeof payload === "string" ? payload : String((payload as { q?: string })?.q ?? "");
+      const rawLimit = typeof payload === "string" ? 10 : Number((payload as { limit?: number })?.limit ?? 10);
+      const limit = Math.min(20, Math.max(1, Math.floor(rawLimit) || 10));
+      if (q.trim().length < 2) {
+        return { success: false, data: [], error: "QUERY_TOO_SHORT", message: "Recherche parent : 2 caractères minimum" };
+      }
+      const data = await global.studentService.searchParents(q, limit);
+      return { success: true, data, error: null, message: "Foyers trouvés" };
+    } catch (error) {
+      return handleError(error, "parent:search");
+    }
+  };
+  ipcMain.handle("parent:search", parentSearchHandler);
+  ipcMain.handle("student:parents:search", parentSearchHandler);
+  ipcMain.handle("parent:get", async (_, id: number) => {
+    try {
+      const data = await global.studentService.getParentById(Number(id));
+      if (!data) return { success: false, data: null, error: "NOT_FOUND", message: "Foyer introuvable" };
+      return { success: true, data, error: null, message: "Foyer récupéré" };
+    } catch (error) {
+      return handleError(error, "parent:get");
+    }
+  });
+  protectedHandle("parent:update", {
+    roles: rolesForChannel("parent:update"),
+    audit: auditFor("parent:update", "Parent")
+  }, async (_, payload: { id: number; patch: Record<string, unknown> }) =>
+    global.studentService.updateParent(Number((payload as { id: number })?.id ?? payload), (payload as { patch: Record<string, unknown> })?.patch ?? {}));
+  protectedHandle("student:reassign-parent", {
+    roles: rolesForChannel("student:reassign-parent"),
+    audit: auditFor("student:reassign-parent", "Student")
+  }, async (_, payload: { studentId: number; parentId: number | null }) =>
+    global.studentService.reassignStudentParent(
+      Number((payload as { studentId: number })?.studentId ?? payload),
+      (payload as { parentId: number | null })?.parentId !== undefined
+        ? ((payload as { parentId: number | null }).parentId == null ? null : Number((payload as { parentId: number | null }).parentId))
+        : null
+    ));
 
   // --- Professeurs ---
   ipcMain.handle("professor:all", async () => global.professorService.getAllProfessors());
@@ -1527,9 +1578,9 @@ export function registerIpcHandlers() {
       entity: "YearRepartition",
       summarize: () => ({ targetId: null, summary: "Consultation de l'année scolaire courante" })
     }
-  }, async () => {
+  }, async (_, level?: unknown) => {
     try {
-      return await global.yearRepartitionService.getCurrentYearRepartition();
+      return await global.yearRepartitionService.getCurrentYearRepartition(undefined, level);
     } catch (error) {
       return handleError(error, "yearRepartition:getCurrent");
     }
@@ -1554,7 +1605,7 @@ export function registerIpcHandlers() {
         summary: `Année scolaire ${result?.data?.schoolYear ?? ""} définie comme courante`.trim()
       })
     })
-  }, async (_, id) => global.yearRepartitionService.setCurrentYearRepartition(id));
+  }, async (_, id) => global.yearRepartitionService.setCurrentYearRepartition(Number((id as any)?.id ?? (id as any)?.yearId ?? id)));
   protectedHandle("yearRepartition:close", {
     roles: rolesForChannel("yearRepartition:close"),
     audit: {
@@ -1653,9 +1704,9 @@ export function registerIpcHandlers() {
       entity: "YearRepartition",
       summarize: () => ({ targetId: null, summary: "Consultation de l'année scolaire courante (alias year:getCurrent)" })
     }
-  }, async () => {
+  }, async (_, level?: unknown) => {
     try {
-      return await global.yearRepartitionService.getCurrentYearRepartition();
+      return await global.yearRepartitionService.getCurrentYearRepartition(undefined, level);
     } catch (error) {
       return handleError(error, "year:getCurrent");
     }
@@ -1954,10 +2005,10 @@ export function registerIpcHandlers() {
     }
   });
 
-  // Récupérer la configuration applicable (avec cascade)
-  ipcMain.handle('grade-config:get', async (_event, { schoolId, classId, subjectId, period }) => {
+  // Récupérer la configuration applicable (avec cascade, étanche par niveau)
+  ipcMain.handle('grade-config:get', async (_event, { schoolId, classId, subjectId, level, period }) => {
     try {
-      return await global.configNoteService.getApplicableConfig({ schoolId, classId, subjectId, period });
+      return await global.configNoteService.getApplicableConfig({ schoolId, classId, subjectId, level, period });
     } catch (error) {
       return handleError(error, "grade-config:get");
     }
