@@ -3,10 +3,12 @@ import { useYearStore } from '@/stores/yearStore'
 import { YEAR_CLOSED_CODE } from '@/types/year'
 
 /**
- * Garde année clôturée — plan V3 (lecture seule).
+ * Garde année clôturée — plan V3 (lecture seule, SANS UI).
  *
  * Une année au `status === 'closed'` interdit toute écriture :
- * - à l'entrée d'un écran d'écriture → `warnIfClosed()` (toast warning, on reste en lecture) ;
+ * - à l'entrée d'un écran d'écriture → `warnIfClosed()` (retourne `true`,
+ *   AUCUN toast/bandeau : l'UI reste silencieuse, l'appelant verrouille
+ *   ses actions d'écriture via la valeur de retour) ;
  * - à l'échec IPC portant `YEAR_CLOSED` → `handleYearClosedError()` (toast error).
  */
 
@@ -34,22 +36,24 @@ export function handleYearClosedError(err: unknown): void {
 }
 
 /**
- * Avertit à l'entrée d'un écran d'écriture si l'année active est clôturée.
+ * Indique si l'app est en lecture seule (aucune année courante ouverte :
+ * getCurrent null / activeYear null ou closed). SANS UI : aucun toast ni
+ * bandeau — l'appelant verrouille ses actions via la valeur de retour.
  *
- * @param screen - Nom de l'écran (pour un message explicite).
- * @returns `true` si clôturée (l'appelant désactive alors ses actions d'écriture).
+ * @param _screen - Nom de l'écran (conservé pour compatibilité d'appel, ignoré).
+ * @returns `true` si lecture seule (l'appelant désactive alors ses actions d'écriture).
  */
-export function warnIfClosed(screen = 'cet écran'): boolean {
+export function warnIfClosed(_screen = 'cet écran'): boolean {
   try {
     const yearStore = useYearStore()
-    if (yearStore.isClosed) {
-      ElMessage.warning(
-        `Année ${yearStore.currentSchoolYear || ''} clôturée — ${screen} en lecture seule.`.trim(),
-      )
-      return true
-    }
+    const readOnly = (yearStore as unknown as { isReadOnly?: boolean }).isReadOnly ?? yearStore.isClosed
+    void _screen
+    return !!readOnly
   } catch {
     /* Pinia indisponible (tests) : fail-open */
   }
   return false
 }
+
+/** Alias explicite du nouveau comportement (lecture seule globale). */
+export const warnIfReadOnly = warnIfClosed

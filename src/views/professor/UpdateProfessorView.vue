@@ -84,17 +84,14 @@ const loadProfessor = async () => {
         // Si la photo a un contenu mais pas d'URL, générer l'URL
         if (result.data.photo.content && !result.data.photo.url) {
           result.data.photo.url = `data:${result.data.photo.type || 'image/jpeg'};base64,${result.data.photo.content}`;
-          console.log("URL de photo générée:", result.data.photo.url.substring(0, 50) + "...");
         } 
         // Si la photo a un ID mais pas de contenu ni d'URL, récupérer le contenu
         else if (result.data.photo.id && !result.data.photo.content && !result.data.photo.url) {
           try {
-            console.log("Tentative de récupération du contenu de la photo avec ID:", result.data.photo.id);
             const photoResult = await window.ipcRenderer.invoke('getProfessorPhoto', result.data.photo.id);
             if (photoResult && photoResult.success && photoResult.data && photoResult.data.content) {
               result.data.photo.content = photoResult.data.content;
               result.data.photo.url = `data:${result.data.photo.type || 'image/jpeg'};base64,${photoResult.data.content}`;
-              console.log("Contenu de photo récupéré et URL générée");
             } else {
               console.warn("Impossible de récupérer le contenu de la photo:", photoResult?.message);
             }
@@ -107,16 +104,13 @@ const loadProfessor = async () => {
       // Prétraitement des données d'enseignement avant de les attribuer au professeur
       if (result.data.teaching && result.data.teaching.length > 0) {
         const teachingAssignment = result.data.teaching[0] as TeachingWithLegacy;
-        console.log("Données d'enseignement brutes:", teachingAssignment);
         
         // S'assurer que selectedClasses est bien initialisé pour l'enseignement primaire
         if (teachingAssignment.schoolType === 'PRIMARY' && teachingAssignment.class && teachingAssignment.class.id) {
-          console.log("Prétraitement des données primaire...");
           teachingAssignment.selectedClasses = [teachingAssignment.class.id];
         }
         // Pour le secondaire, s'assurer que selectedCourse et selectedClasses sont initialisés
         else if (teachingAssignment.schoolType === 'SECONDARY') {
-          console.log("Prétraitement des données secondaire...");
           if (teachingAssignment.course && teachingAssignment.course.id) {
             teachingAssignment.selectedCourse = teachingAssignment.course.id;
           }
@@ -135,7 +129,6 @@ const loadProfessor = async () => {
       }
       
       professorData.value = result.data;
-      console.log("Données du professeur prétraitées chargées avec succès:", professorData.value);
     } else {
       throw new Error(result.message || 'Erreur lors du chargement du professeur');
     }
@@ -157,7 +150,6 @@ const handleUpdate = async (formData: ProfessorFormData) => {
             throw new Error("Les données du formulaire sont manquantes ou invalides");
         }
         
-        console.log("Données reçues du formulaire:", JSON.stringify(formData, null, 2));
         
         // Vérifications obligatoires avec des messages d'erreur explicites
         if (!formData.firstname) {
@@ -237,20 +229,11 @@ const handleUpdate = async (formData: ProfessorFormData) => {
         
         // Gestion des données d'enseignement
         if (formData.teaching) {
-            console.log("Données de teaching reçues:", {
-                schoolType: teachingData.schoolType,
-                selectedClasses: teachingData.selectedClasses, 
-                class: teachingData.class,
-                selectedCourse: teachingData.selectedCourse,
-                course: teachingData.course,
-                teaching: teachingData // Log l'objet complet
-            });
             
             // Validation des champs requis selon le type d'école
             if (teachingData.schoolType === 'PRIMARY') {
                 if (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses.length === 0) {
                     if (teachingData.class?.id) {
-                        console.log("class.id existe mais selectedClasses est vide, on utilise class.id");
                         teachingData.selectedClasses = [teachingData.class.id];
                     } else {
                         throw new Error("La classe est requise pour l'enseignement primaire");
@@ -260,7 +243,6 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 // Vérifier si les classes sont sélectionnées
                 if (!Array.isArray(teachingData.selectedClasses) || teachingData.selectedClasses.length === 0) {
                     if (teachingData.class?.id) {
-                        console.log("class.id existe mais selectedClasses est vide, on utilise class.id");
                         teachingData.selectedClasses = [teachingData.class.id];
                     } else {
                         throw new Error("Au moins une classe est requise pour l'enseignement secondaire");
@@ -271,7 +253,6 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 if (!teachingData.selectedCourse) {
                     // Si course existe, utiliser son id
                     if (teachingData.course?.id) {
-                        console.log("course.id existe mais selectedCourse est vide, on utilise course.id");
                         teachingData.selectedCourse = teachingData.course.id;
                     } else {
                         throw new Error("Une matière est requise pour l'enseignement secondaire");
@@ -316,12 +297,6 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 }
                 
                 // Log explicite pour l'enseignement primaire
-                console.log("Données finales pour enseignement primaire:", {
-                    teachingType: (professorData.teaching as any).teachingType,
-                    class: (professorData.teaching as any).class,
-                    classId: (professorData.teaching as any).classId,
-                    gradeIds: (professorData.teaching as any).gradeIds
-                });
             } else if (professorData.teaching && teachingData.schoolType === 'SECONDARY') {
                 // Pour l'enseignement secondaire, définir le teachingType à SUBJECT_TEACHER si une matière est sélectionnée
                 if (teachingData.selectedCourse) {
@@ -338,23 +313,11 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 }
                 
                 // Log explicite pour l'enseignement secondaire
-                console.log("Données finales pour enseignement secondaire:", {
-                    teachingType: (professorData.teaching as any).teachingType,
-                    course: (professorData.teaching as any).course,
-                    courseId: (professorData.teaching as any).courseId,
-                    class: (professorData.teaching as any).class,
-                    classId: (professorData.teaching as any).classId,
-                    gradeIds: (professorData.teaching as any).gradeIds
-                });
             }
             
-            console.log("Données d'enseignement après traitement:", professorData.teaching);
         }
         
         // Affichage des données finales pour debugging
-        console.log("Données à envoyer:", JSON.stringify(professorData, null, 2));
-        console.log("Données reçues du formulaire:", JSON.stringify(formData, null, 2));  
-        console.log("ID du professeur:", professorId);
         
         // Appel API
         try {
@@ -364,7 +327,6 @@ const handleUpdate = async (formData: ProfessorFormData) => {
                 data: professorData
             });
             
-            console.log("Résultat de l'API:", result);
             
             if (result && result.success) {
             ElMessage.success('Professeur mis à jour avec succès');

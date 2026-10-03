@@ -10,13 +10,8 @@ const props = defineProps<{
   amount: number;
 }>();
 
-const { currencyCode } = useCurrency();
+const { formatCurrency } = useCurrency();
 
 /** Affichage devise via formatCurrency seul (code ISO réactif XOF/XAF/GNF/MAD). */
-const formatted = computed(() => {
-  const { formatCurrency } = useCurrency();
-  return formatCurrency(Number(props.amount ?? 0));
-});
-
-void currencyCode;
+const formatted = computed(() => formatCurrency(Number(props.amount ?? 0)));
 </script>

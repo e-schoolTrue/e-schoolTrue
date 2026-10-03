@@ -33,8 +33,8 @@ async function newGrade(formRef:FormInstance|undefined , form:GradeCommand){
   if(!formRef) return
   
   try {
-    await formRef.validate(async(isValid, invalidFields)=>{
-      console.log(invalidFields)
+    await formRef.validate(async (isValid, _invalidFields) => {
+    void _invalidFields;
       if(isValid){
         isLoading.value = true
         Loader.showLoader("Ajout du niveau en cours")
@@ -64,8 +64,8 @@ async function newBranch(formRef:FormInstance|undefined, form:BranchCommand){
   if(!formRef) return
   
   try {
-    await formRef.validate(async(isValid, invalidFields)=>{
-      console.log(invalidFields)
+    await formRef.validate(async (isValid, _invalidFields) => {
+    void _invalidFields;
       if(isValid){
         isLoading.value = true
         Loader.showLoader("Ajout de la branche en cours")
@@ -99,8 +99,8 @@ async function updateGrade(formRef:FormInstance|undefined , form:GradeCommand){
   if(!formRef) return
   
   try {
-    await formRef.validate(async(isValid, invalidFields)=>{
-      console.log(invalidFields)
+    await formRef.validate(async (isValid, _invalidFields) => {
+    void _invalidFields;
       if(isValid){
         isLoading.value = true
         Loader.showLoader("Mise à jour du niveau en cours")
@@ -130,8 +130,8 @@ async function updateBranch(formRef:FormInstance|undefined, form:BranchCommand){
   if(!formRef) return
   
   try {
-    await formRef.validate(async(isValid, invalidFields)=>{
-      console.log(invalidFields)
+    await formRef.validate(async (isValid, _invalidFields) => {
+    void _invalidFields;
       if(isValid){
         isLoading.value = true
         Loader.showLoader("Mise à jour de la branche en cours")
@@ -184,7 +184,6 @@ function deleteGrade(id:number){
         // Attendre que Vue applique les changements
         await nextTick()
         
-        console.log('Grades après suppression:', grades.value)
       }else{
         throw new Error(result.message || "Échec de la suppression du niveau")
       }

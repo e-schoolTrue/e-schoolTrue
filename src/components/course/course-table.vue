@@ -104,7 +104,6 @@ function addNewSubModule(subModuleFormRef: FormInstance | undefined, subModuleFo
         groupementId: currentParentCourseForSubModule.value!.id,
       };
       
-      console.log('Données de sous-matière à ajouter:', newCourseData);
       emit('add-to-group', newCourseData);
       
       newCourseGroupFormRef.value?.close();

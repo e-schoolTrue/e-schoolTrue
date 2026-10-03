@@ -578,14 +578,9 @@ const serializeForIPC = () => {
    exportingPDF.value = true;
    isExportingPDF.value = true;
    try {
-     console.log('=== GÉNÉRATION PDF CENTRALISÉ ===');
 
      const serializableData = serializeForIPC();
 
-     console.log('Informations école:', serializableData.schoolInfo);
-     console.log('Informations classe:', serializableData.classInfo);
-     console.log('Filtres:', serializableData.filters);
-     console.log('Nombre de rankings:', serializableData.rankings.length);
 
      const htmlContent = generateCentralizedPDFHtml(serializableData);
      
@@ -965,9 +960,6 @@ const exportToExcel = async () => {
     const base = classConfig?.finalGradeBase || 20;
     const className = currentClass?.name || (filters.value.gradeId ? grades.value.find(g => g.id === filters.value.gradeId)?.name : 'Toutes');
 
-    console.log('=== EXPORT EXCEL ===');
-    console.log('Courses chargées:', sortedCourses.value);
-    console.log('Courses avec IDs:', sortedCourses.value.map(c => ({ id: c.id, name: c.name, type: typeof c.id })));
 
     // Créer la structure des données pour le tableau centralisé
     // Créer un tableau avec des colonnes avec les coefficients affichés
@@ -1027,9 +1019,7 @@ const exportToExcel = async () => {
       ];
 
       coursesWithCoeff.forEach(c => {
-        console.log(`Étudiant ${index}, matière ${c.name}: courseId=${c.id}, scores.length=${student.scores?.length}`);
         const score = getWeightedScore(student, c.id);
-        console.log(`Score trouvé: ${score}`);
         rowData.push(score || '-');
       });
 

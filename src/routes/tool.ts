@@ -19,6 +19,10 @@ export const toolRoutes = [
       path: "/tools/sync",
       name: "Sync",
       component: () => import("@/views/tools/SyncView.vue"),
+      // Sauvegardes locales réservées administrateur (backup:* RBAC admin).
+      // Le guard (`src/routes/index.ts` + `isAllowedByRoles`) redirige les
+      // non-admin ; SyncView masque en plus l'onglet « Fichier local ».
+      meta: { requiresAuth: true, roles: ['admin'] },
     },
     {
       path: "/tools/documents/scolarity",

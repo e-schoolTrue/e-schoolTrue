@@ -48,16 +48,63 @@ export interface YearWriteCheck {
 }
 
 /**
+ * Vrai s'il existe une année ouverte (isCurrent=true + status active).
+ * Faux → mode lecture seule globale (année clôturée sans successeur,
+ * ou aucune année courante). Fail-open si DB indisponible (boot).
+ */
+export async function hasOpenYear(): Promise<boolean> {
+  try {
+    const ds = AppDataSource.getInstance();
+    if (!ds.isInitialized) return true;
+    const repo = ds.getRepository(YearRepartitionEntity);
+    const cur = await repo.findOne({ where: { isCurrent: true } });
+    if (!cur) return false;
+    return (cur.status ?? "active") !== "closed";
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Garde d'écriture par année scolaire.
  * - Si l'année cible est `closed` => throw YEAR_CLOSED, sauf (admin && force=true).
- * - Année absente ou active => OK.
+ * - Verrou global : si AUCUNE année ouverte (getCurrent null / closed,
+ *   après clôture courante sans N+1) => throw YEAR_CLOSED, même si l'année
+ *   cible est absente/active. Seules les voies de sortie restent ouvertes :
+ *   les canaux `yearRepartition:*` (create/setCurrent/reopen/clone) ne portent
+ *   pas `requireYearWrite` et restent autorisés pour lever le verrou.
+ * - Année absente ou active + année ouverte => OK.
  * `_forceYearWrite` n'est honoré que si admin (sinon ignoré, log warn côté appelant).
  */
 export async function requireYearWritable(check: YearWriteCheck): Promise<{ schoolYear: string; forced: boolean }> {
   const schoolYear = await resolveTargetSchoolYear(check.schoolYear);
   const year = await findYearBySchoolYear(schoolYear);
   const isClosed = (year?.status ?? "active") === "closed";
-  if (!isClosed) return { schoolYear, forced: false };
+  if (!isClosed) {
+    // Verrou global lecture seule : aucune année ouverte → toute écriture
+    // métier refusée (élèves, paiements, comptabilité...). Message préfixé
+    // YEAR_CLOSED pour rester compatible `isYearClosedError` frontend.
+    if (!(await hasOpenYear())) {
+      const isAdmin = check.actorRole === "admin";
+      const forceAsked = check.force === true || check.force === "true" || check.force === 1;
+      if (isAdmin && forceAsked) {
+        try {
+          await (global as any).auditLogService?.record({
+            action: "update",
+            targetEntity: "YearRepartition",
+            targetId: (year as any)?.id != null ? String((year as any).id) : null,
+            summary: `Écriture forcée sans année ouverte (${schoolYear})`,
+            metadata: { forced: true, schoolYear, noOpenYear: true },
+            actor: await (global as any).authService?.getCurrentUser?.().then((u: any) =>
+              u ? { id: u.id, username: u.username, role: u.role, displayName: u.displayName ?? null } : null).catch(() => null),
+          });
+        } catch { /* audit best-effort */ }
+        return { schoolYear, forced: true };
+      }
+      throw new YearClosedError(`${schoolYear} (aucune année ouverte — lecture seule)`);
+    }
+    return { schoolYear, forced: false };
+  }
   const isAdmin = check.actorRole === "admin";
   const forceAsked = check.force === true || check.force === "true" || check.force === 1;
   if (isAdmin && forceAsked) {

@@ -203,6 +203,8 @@ export interface CustomPaymentConfig {
     startMonth: number; // 1-12
     monthlyAmount: number;
     excludedMonths?: number[]; // Mois exclus (vacances, etc.)
+    /** Ordre d'imputation des paiements, reflété sur le reçu. Défaut FIRST_FIRST. */
+    paymentImputationOrder?: 'FIRST_FIRST' | 'LAST_FIRST' | 'LAST2_THEN_FIRST' | 'LAST3_THEN_FIRST';
   };
   
   // Pour les tranches

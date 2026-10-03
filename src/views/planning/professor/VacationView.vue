@@ -240,9 +240,7 @@ const saveVacation = async () => {
       status: 'pending'
     };
 
-    console.log("Données à envoyer:", vacationData); // Debug
     const result = await window.ipcRenderer.invoke('vacation:create', vacationData);
-    console.log("Résultat de la création:", result); // Debug
 
     if (result.success) {
       ElMessage.success('Demande de congé créée avec succès');
@@ -266,11 +264,9 @@ const loadVacations = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('vacation:getByProfessor');
-    console.log("Résultat de getByProfessor:", result); // Debug
 
     if (result.success && Array.isArray(result.data)) {
       vacations.value = result.data.filter((v: { professor: any; }) => v && v.professor);
-      console.log("Vacations filtrées:", vacations.value); // Debug
     } else {
       throw new Error(result.message || 'Données invalides');
     }

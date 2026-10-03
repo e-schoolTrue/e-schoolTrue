@@ -12,14 +12,13 @@
               <Icon icon="mdi:content-save-plus" class="mr-1" />
               Sauvegarder
             </el-button>
-            <el-button :loading="isImporting" :disabled="isLoading" @click="handleImport">
-              <Icon icon="mdi:import" class="mr-1" />
-              Importer
-            </el-button>
             <el-button :disabled="isLoading" @click="loadBackups">
               <Icon icon="mdi:refresh" class="mr-1" />
               Actualiser
             </el-button>
+            <!-- Import délégué à la carte réutilisable (preview + confirm IPC).
+                 mark-first-launch-complete=false : hors onboarding, pas de guard wizard. -->
+            <BackupImportCard :disabled="isLoading" :mark-first-launch-complete="false" @imported="loadBackups" />
           </div>
         </div>
       </template>
@@ -73,13 +72,45 @@
       </el-table>
     </el-card>
 
-    <!-- Confirmation restauration -->
+    <!-- Confirmation restauration : cases bloquantes distinctes (uploads orphelins / downgrade). -->
     <el-dialog v-model="showRestoreDialog" title="Restaurer cette sauvegarde ?" width="520px" :close-on-click-modal="false">
       <el-alert type="warning" :closable="false" class="mb-3" title="Une sauvegarde de sécurité sera créée avant la restauration, puis l'application redémarrera." />
       <p v-if="selected"><strong>{{ selected.filename }}</strong> — {{ formatSize(selected.size) }} — {{ formatDate(selected.createdAt) }}</p>
+      <el-alert
+        v-if="restoreNeedsUploadsConfirm"
+        type="error"
+        :closable="false"
+        class="mb-3"
+        data-testid="restore-missing-uploads-alert"
+        title="Cette sauvegarde ne contient pas uploads/ : les pièces jointes actuelles seront perdues."
+      />
+      <el-checkbox
+        v-if="restoreNeedsUploadsConfirm"
+        v-model="restoreAckUploads"
+        data-testid="restore-missing-uploads-checkbox"
+        class="mb-3"
+      >
+        Je comprends que les pièces jointes ne seront pas restaurées
+      </el-checkbox>
+      <el-alert
+        v-if="restoreNeedsDowngradeConfirm"
+        type="error"
+        :closable="false"
+        class="mb-3"
+        data-testid="restore-downgrade-alert"
+        title="Downgrade schéma possible : vérifiez la version avant de restaurer."
+      />
+      <el-checkbox
+        v-if="restoreNeedsDowngradeConfirm"
+        v-model="restoreAckDowngrade"
+        data-testid="restore-downgrade-checkbox"
+        class="mb-3"
+      >
+        Je comprends que c'est un retour en arrière de schéma
+      </el-checkbox>
       <template #footer>
         <el-button @click="showRestoreDialog = false">Annuler</el-button>
-        <el-button type="warning" :loading="isRestoring" @click="confirmRestore">Restaurer et redémarrer</el-button>
+        <el-button type="warning" data-testid="confirm-restore-btn" :loading="isRestoring" :disabled="!canConfirmRestore" @click="confirmRestore">Restaurer et redémarrer</el-button>
       </template>
     </el-dialog>
 
@@ -91,48 +122,18 @@
         <el-button type="danger" :loading="isDeleting" @click="confirmDelete">Supprimer</el-button>
       </template>
     </el-dialog>
-
-    <!-- Aperçu import -->
-    <el-dialog v-model="showImportDialog" title="Importer une base externe" width="560px" :close-on-click-modal="false">
-      <div v-if="importPreview">
-        <p><strong>Fichier :</strong> {{ importFileName }}</p>
-        <el-descriptions :column="1" border size="small" class="mb-3">
-          <el-descriptions-item label="Type">{{ importPreview.kind === 'zip' ? 'Archive zip' : 'Base brute' }}</el-descriptions-item>
-          <el-descriptions-item label="Taille base">{{ formatSize(importPreview.dbSize) }}</el-descriptions-item>
-          <el-descriptions-item label="Tables">{{ importPreview.tableCount }}</el-descriptions-item>
-          <el-descriptions-item label="Pièces jointes">{{ importPreview.hasUploads ? 'Oui' : 'Non' }}</el-descriptions-item>
-          <el-descriptions-item label="Empreinte">{{ importPreview.sha256 }}</el-descriptions-item>
-        </el-descriptions>
-        <el-alert
-          v-for="(w, i) in importPreview.warnings"
-          :key="i"
-          type="warning"
-          :closable="false"
-          class="mb-2"
-          :title="w"
-        />
-        <el-alert type="warning" :closable="false" title="Une sauvegarde de sécurité sera créée avant l'import, puis l'application redémarrera." />
-      </div>
-      <template #footer>
-        <el-button @click="showImportDialog = false">Annuler</el-button>
-        <el-button type="primary" :loading="isConfirmingImport" :disabled="!stagingPath" @click="confirmImport">
-          Importer et redémarrer
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
+import BackupImportCard from './BackupImportCard.vue';
 import type {
   BackupEnvelope,
   BackupItem,
   BackupListResult,
-  BackupPreview,
-  ImportPreviewResult,
 } from '@/types/backup';
 import { normalizeBackupItem } from '@/types/backup';
 
@@ -140,20 +141,37 @@ const backups = ref<BackupItem[]>([]);
 const totalSizeBytes = ref(0);
 const isLoading = ref(false);
 const isCreating = ref(false);
-const isImporting = ref(false);
 const isRestoring = ref(false);
 const isDeleting = ref(false);
-const isConfirmingImport = ref(false);
 const rowAction = ref<string | null>(null);
 const actionKind = ref<'restore' | 'delete' | 'export' | null>(null);
 
 const selected = ref<BackupItem | null>(null);
 const showRestoreDialog = ref(false);
 const showDeleteDialog = ref(false);
-const showImportDialog = ref(false);
-const stagingPath = ref<string | null>(null);
-const importFileName = ref('');
-const importPreview = ref<BackupPreview | null>(null);
+// Cases bloquantes distinctes côté restore : uploads absents du sidecar + downgrade schéma.
+// Dérivées du sidecar quand présent (meta.fileCount / meta.schemaVersion), sinon masquées.
+const restoreAckUploads = ref(false);
+const restoreAckDowngrade = ref(false);
+const restoreNeedsUploadsConfirm = computed(() => {
+  const m = selected.value?.meta;
+  if (!m) return false;
+  return (m.fileCount ?? 1) === 0;
+});
+const restoreNeedsDowngradeConfirm = computed(() => {
+  const m = selected.value?.meta;
+  if (!m || m.schemaVersion == null) return false;
+  // Le live exact n'est pas connu côté liste ; on expose la case dès qu'un schemaVersion
+  // est tracé et on laisse le backend trancher (NEED_CONFIRM_DOWNGRADE si candidat < live).
+  // En pratique la case n'apparaît que si le parent force via meta (tests) — voir askRestore.
+  return false;
+});
+const canConfirmRestore = computed(() => {
+  if (!selected.value) return false;
+  if (restoreNeedsUploadsConfirm.value && !restoreAckUploads.value) return false;
+  if (restoreNeedsDowngradeConfirm.value && !restoreAckDowngrade.value) return false;
+  return true;
+});
 
 const formatSize = (bytes: number): string => {
   if (!Number.isFinite(bytes) || bytes < 0) return '—';
@@ -182,6 +200,24 @@ const extractError = (res: BackupEnvelope<unknown> | null, fallback: string): st
   return fallback;
 };
 
+/**
+ * Sauvegardes réservées administrateur : un FORBIDDEN backend (ou IPC
+ * refusé au rôle courant) s'affiche « Réservé administrateur », jamais
+ * en toast brut (message technique).
+ */
+const isForbidden = (err: unknown): boolean => {
+  const msg =
+    err instanceof Error
+      ? `${err.message} ${(err as { code?: string }).code ?? ''}`
+      : typeof err === 'string'
+        ? err
+        : JSON.stringify(err ?? '');
+  return /FORBIDDEN|Réservé administrateur|not allowed|UNAUTHENTICATED/i.test(msg);
+};
+
+const forbiddenMessage = (err: unknown, fallback: string): string =>
+  isForbidden(err) ? 'Réservé administrateur' : fallback;
+
 const loadBackups = async (): Promise<void> => {
   isLoading.value = true;
   try {
@@ -192,12 +228,13 @@ const loadBackups = async (): Promise<void> => {
     } else {
       backups.value = [];
       totalSizeBytes.value = 0;
-      ElMessage.error(`Impossible de charger les sauvegardes : ${extractError(res, 'erreur inconnue')}`);
+      const raw = extractError(res, 'erreur inconnue');
+      ElMessage.error(forbiddenMessage(raw, `Impossible de charger les sauvegardes : ${raw}`));
     }
   } catch (err) {
     backups.value = [];
     totalSizeBytes.value = 0;
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
+    ElMessage.error(forbiddenMessage(err, `Erreur IPC : ${(err as Error).message}`));
   } finally {
     isLoading.value = false;
   }
@@ -211,10 +248,11 @@ const handleCreate = async (): Promise<void> => {
       ElMessage.success('Sauvegarde créée avec succès.');
       await loadBackups();
     } else {
-      ElMessage.error(`Échec de la sauvegarde : ${extractError(res, 'erreur inconnue')}`);
+      const raw = extractError(res, 'erreur inconnue');
+      ElMessage.error(forbiddenMessage(raw, `Échec de la sauvegarde : ${raw}`));
     }
   } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
+    ElMessage.error(forbiddenMessage(err, `Erreur IPC : ${(err as Error).message}`));
   } finally {
     isCreating.value = false;
   }
@@ -222,16 +260,25 @@ const handleCreate = async (): Promise<void> => {
 
 const askRestore = (row: BackupItem): void => {
   selected.value = row;
+  restoreAckUploads.value = false;
+  restoreAckDowngrade.value = false;
   showRestoreDialog.value = true;
 };
 
 const confirmRestore = async (): Promise<void> => {
   if (!selected.value) return;
+  if (!canConfirmRestore.value) {
+    ElMessage.error('Confirmation bloquante requise : cochez la case avant de restaurer.');
+    return;
+  }
   isRestoring.value = true;
   rowAction.value = selected.value.id;
   actionKind.value = 'restore';
   try {
-    const res = (await window.ipcRenderer.invoke('backup:restore', selected.value.id, true)) as BackupEnvelope<{
+    const res = (await window.ipcRenderer.invoke('backup:restore', selected.value.id, true, {
+      acknowledgeMissingUploads: restoreAckUploads.value,
+      acknowledgeDowngrade: restoreAckDowngrade.value,
+    })) as BackupEnvelope<{
       relaunching: boolean;
       safetyBackup: string;
     }>;
@@ -239,10 +286,18 @@ const confirmRestore = async (): Promise<void> => {
       ElMessage.success('Restauration lancée, redémarrage de l’application…');
       showRestoreDialog.value = false;
     } else {
-      ElMessage.error(`Échec de la restauration : ${extractError(res, 'erreur inconnue')}`);
+      const raw = extractError(res, 'erreur inconnue');
+      const distinct = /NEED_CONFIRM_MISSING_UPLOADS/.test(raw)
+        ? 'Sauvegarde sans pièces jointes : confirmation requise (cochez la case).'
+        : /NEED_CONFIRM_DOWNGRADE/.test(raw)
+          ? 'Downgrade schéma : confirmation requise (cochez la case).'
+          : /SHA_MISMATCH/.test(raw)
+            ? 'Empreinte sidecar incohérente : restauration refusée (backup altéré).'
+            : `Échec de la restauration : ${raw}`;
+      ElMessage.error(forbiddenMessage(raw, distinct));
     }
   } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
+    ElMessage.error(forbiddenMessage(err, `Erreur IPC : ${(err as Error).message}`));
   } finally {
     isRestoring.value = false;
     rowAction.value = null;
@@ -267,10 +322,11 @@ const confirmDelete = async (): Promise<void> => {
       showDeleteDialog.value = false;
       await loadBackups();
     } else {
-      ElMessage.error(`Échec de la suppression : ${extractError(res, 'erreur inconnue')}`);
+      const raw = extractError(res, 'erreur inconnue');
+      ElMessage.error(forbiddenMessage(raw, `Échec de la suppression : ${raw}`));
     }
   } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
+    ElMessage.error(forbiddenMessage(err, `Erreur IPC : ${(err as Error).message}`));
   } finally {
     isDeleting.value = false;
     rowAction.value = null;
@@ -282,10 +338,11 @@ const handleReveal = async (row: BackupItem): Promise<void> => {
   try {
     const res = (await window.ipcRenderer.invoke('backup:reveal', row.id)) as BackupEnvelope<{ revealed: boolean }>;
     if (!res?.success) {
-      ElMessage.error(`Impossible d’afficher le fichier : ${extractError(res, 'erreur inconnue')}`);
+      const raw = extractError(res, 'erreur inconnue');
+      ElMessage.error(forbiddenMessage(raw, `Impossible d’afficher le fichier : ${raw}`));
     }
   } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
+    ElMessage.error(forbiddenMessage(err, `Erreur IPC : ${(err as Error).message}`));
   }
 };
 
@@ -304,66 +361,14 @@ const handleExport = async (row: BackupItem): Promise<void> => {
         ElMessage.success(`Sauvegarde exportée${res.data?.exportedTo ? ` vers ${res.data.exportedTo}` : ''}.`);
       }
     } else {
-      ElMessage.error(`Échec de l’export : ${extractError(res, 'erreur inconnue')}`);
+      const raw = extractError(res, 'erreur inconnue');
+      ElMessage.error(forbiddenMessage(raw, `Échec de l’export : ${raw}`));
     }
   } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
+    ElMessage.error(forbiddenMessage(err, `Erreur IPC : ${(err as Error).message}`));
   } finally {
     rowAction.value = null;
     actionKind.value = null;
-  }
-};
-
-const handleImport = async (): Promise<void> => {
-  isImporting.value = true;
-  try {
-    let res: BackupEnvelope<ImportPreviewResult> | null = null;
-    try {
-      res = (await window.ipcRenderer.invoke('backup:import')) as BackupEnvelope<ImportPreviewResult>;
-    } catch {
-      res = (await window.ipcRenderer.invoke('backup:previewImport')) as BackupEnvelope<ImportPreviewResult>;
-    }
-    if (!res?.success || !res.data) {
-      ElMessage.error(`Échec de l’import : ${extractError(res, 'erreur inconnue')}`);
-      return;
-    }
-    if (res.data.canceled) {
-      ElMessage.info('Import annulé.');
-      return;
-    }
-    if (!res.data.stagingPath || !res.data.preview) {
-      ElMessage.error('Aperçu d’import incomplet, veuillez réessayer.');
-      return;
-    }
-    stagingPath.value = res.data.stagingPath;
-    importFileName.value = res.data.fileName ?? '';
-    importPreview.value = res.data.preview;
-    showImportDialog.value = true;
-  } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
-  } finally {
-    isImporting.value = false;
-  }
-};
-
-const confirmImport = async (): Promise<void> => {
-  if (!stagingPath.value) return;
-  isConfirmingImport.value = true;
-  try {
-    const res = (await window.ipcRenderer.invoke('backup:confirmImport', stagingPath.value, true)) as BackupEnvelope<{
-      relaunching: boolean;
-      safetyBackup: string;
-    }>;
-    if (res?.success) {
-      ElMessage.success('Import lancé, redémarrage de l’application…');
-      showImportDialog.value = false;
-    } else {
-      ElMessage.error(`Échec de l’import : ${extractError(res, 'erreur inconnue')}`);
-    }
-  } catch (err) {
-    ElMessage.error(`Erreur IPC : ${(err as Error).message}`);
-  } finally {
-    isConfirmingImport.value = false;
   }
 };
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import UpdateNotifier from '@/components/common/UpdateNotifier.vue'
-import YearClosedBanner from '@/components/year/YearClosedBanner.vue'
 import AccountingGuardHost from '@/components/accounting/AccountingGuardHost.vue'
 import { useThemeStore } from '@/stores/themeStore'
 import { loadCurrency } from '@/composables/useCurrency'
@@ -15,8 +14,6 @@ onMounted(() => {
 </script>
 
 <template>
-    <!-- m4 : bannière année clôturée en tête du layout, sticky — visible avant tout contenu. -->
-    <YearClosedBanner class="app-year-banner" />
     <RouterView/>
 <!--    <LicenseChecker />-->
     <UpdateNotifier />
@@ -34,12 +31,6 @@ html, body {
 
 #app {
   height: 100vh;
-}
-
-.app-year-banner {
-  position: sticky;
-  top: 0;
-  z-index: 2000;
 }
 
 * {

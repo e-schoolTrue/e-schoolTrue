@@ -64,18 +64,15 @@ const schoolType = computed({
       class: undefined
     };
     emit('update:modelValue', newValue);
-    console.log("✅ Type d'école sélectionné :", newValue.schoolType);
   }
 });
 
 // Pour Primaire (sélection simple)
 const selectedClass = computed({
   get: () => {
-    console.log("🔍 [GET] selectedClass:", props.modelValue.classId);
     return props.modelValue.classId;
   },
   set: (value) => {
-    console.log("📝 [SET] selectedClass:", value);
     const newValue = {
       ...props.modelValue,
       classId: value,
@@ -85,7 +82,6 @@ const selectedClass = computed({
       teachingType: 'CLASS_TEACHER' // Définir explicitement pour l'enseignement primaire
     };
     emit('update:modelValue', newValue);
-    console.log("✅ Mise à jour après sélection (primaire):", newValue);
   }
 });
 
@@ -107,7 +103,6 @@ const selectedClasses = computed({
       class: classes.length > 0 ? { id: classes[0], name: '' } : undefined
     };
     emit('update:modelValue', newValue);
-    console.log("✅ Mise à jour des classes (secondaire):", newValue);
   }
 });
 
@@ -125,7 +120,6 @@ const selectedCourse = computed({
         : 'CLASS_TEACHER'
     };
     emit('update:modelValue', newValue);
-    console.log("✅ Cours sélectionné :", newValue);
   }
 });
 
@@ -136,7 +130,6 @@ const loadGrades = async () => {
       const raw = result.data;
       const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.rows ?? []);
       grades.value = Array.isArray(arr) ? arr.map((g: any) => ({ ...g, id: Number(g.id) })) : [];
-      console.log("📚 Classes chargées :", grades.value);
     } else {
       console.error("❌ Erreur lors du chargement des classes:", result?.error);
     }
@@ -152,7 +145,6 @@ const loadCourses = async () => {
       const raw = result.data;
       const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.rows ?? []);
       courses.value = Array.isArray(arr) ? arr.map((c: any) => ({ ...c, id: Number(c.id) })) : [];
-      console.log("📘 Cours chargés :", courses.value);
     } else {
       console.error("❌ Erreur lors du chargement des cours:", result?.error);
     }

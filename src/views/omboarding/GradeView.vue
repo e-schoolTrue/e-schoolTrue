@@ -131,7 +131,6 @@ const saveGrades = async () => {
 
     });
 
-    console.log('Données à sauvegarder:', gradesToSave);
 
     // Vérification supplémentaire avant l'envoi
     const invalidGrades = gradesToSave.filter(grade => !grade.name || !grade.code);
@@ -154,16 +153,13 @@ const saveGrades = async () => {
       throw new Error('Structure de données invalide');
     }
 
-    console.log('Envoi des données au service...');
     // Envoyer chaque grade individuellement pour une meilleure gestion des erreurs
     const results = await Promise.all(
       gradesToSave.map(async (grade) => {
-        console.log('Envoi du grade:', grade);
         return await window.ipcRenderer.invoke('grade:new', grade);
       })
     );
 
-    console.log('Réponses du service:', results);
 
     // Vérifier si toutes les opérations ont réussi
     const allSuccessful = results.every(result => result.success);
@@ -192,12 +188,9 @@ const goNext = async () => {
   if (!formRef.value) return;
   
   try {
-    console.log('Début de la validation du formulaire...');
-    console.log('État actuel du formulaire:', formData.value);
 
     // Valider le formulaire
     await formRef.value.validate();
-    console.log('Validation du formulaire réussie');
     
     // Vérifier que tous les niveaux ont un nom et un code
     const invalidGrades = formData.value.grades.filter(
@@ -213,10 +206,8 @@ const goNext = async () => {
       ElMessage.error('Veuillez remplir le nom et le code pour tous les niveaux');
       return;
     }
-    console.log('Tentative de sauvegarde des grades...');
     const saved = await saveGrades();
     if (saved) {
-      console.log('Sauvegarde réussie, émission des données:', formData.value);
       emit('configuration-saved', formData.value);
     }
       
@@ -285,7 +276,6 @@ onMounted(async () => {
               placeholder="Ex: Sixième A, Cinquième B, etc."
               class="grade-name"
               @blur="() => {
-                console.log('Validation du nom:', grade.name);
                 formRef?.validateField(`grades.${index}.name`);
               }"
             />
@@ -301,7 +291,6 @@ onMounted(async () => {
               placeholder="Ex: 6A, 5B, etc."
               class="grade-code"
               @blur="() => {
-                console.log('Validation du code:', grade.code);
                 formRef?.validateField(`grades.${index}.code`);
               }"
             />

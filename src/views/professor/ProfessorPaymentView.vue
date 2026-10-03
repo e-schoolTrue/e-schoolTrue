@@ -397,8 +397,11 @@ async function loadSchool(): Promise<void> {
     schoolAddress.value = String((d.address as string) ?? '');
     schoolPhone.value = String((d.phone as string) ?? '');
     schoolEmail.value = String((d.email as string) ?? '');
-    const yearRep = await strictInvoke<{ schoolYear?: string }>('school:year:current', {}).catch(() => null);
-    schoolYear.value = String((yearRep as { schoolYear?: string } | null)?.schoolYear ?? (d.schoolYear as string) ?? `${now.getFullYear()}-${now.getFullYear() + 1}`);
+    // Contrat yearStore.ts:174-180 : `year:getCurrent` silencieux, data:null
+    // → empty-state « Aucune année en cours », jamais de toast ni d'année mock.
+    const yearRep = await strictInvoke<{ schoolYear?: string }>('year:getCurrent', {}, { silent: true }).catch(() => null);
+    const resolved = String((yearRep as { schoolYear?: string } | null)?.schoolYear ?? (d.schoolYear as string) ?? '').trim();
+    schoolYear.value = resolved !== '' ? resolved : 'Aucune année en cours';
   } catch { /* en-tête bulletin vide = état explicite, zéro mock */ }
 }
 async function loadStats(): Promise<void> {

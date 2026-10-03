@@ -47,12 +47,24 @@ export class FileService {
 
     async saveFile(fileData: IFileServiceParams['saveFile']): Promise<FileEntity> {
         try {
+            // Le mkdir du constructeur est fire-and-forget : on le rejoue ici
+            // (idempotent) pour ne jamais échouer en ENOENT au first-launch.
+            await fs.mkdir(this.uploadDir, { recursive: true });
+            if (typeof fileData.content !== 'string' || !fileData.content.includes(';base64,')) {
+                throw new Error('LOGO_CORROMPU: contenu du logo illisible (base64 attendu)');
+            }
             const base64Data = fileData.content.replace(/^data:.*?;base64,/, '');
+            if (!base64Data) {
+                throw new Error('LOGO_CORROMPU: contenu du logo vide');
+            }
             const buffer = Buffer.from(base64Data, 'base64');
-            
-            const fileName = `${Date.now()}-${fileData.name}`;
+            if (buffer.length === 0) {
+                throw new Error('LOGO_CORROMPU: logo vide après décodage base64');
+            }
+
+            const fileName = `${Date.now()}-${this.sanitizeFileName(fileData.name)}`;
             const filePath = path.join(this.uploadDir, fileName);
-            
+
             await fs.writeFile(filePath, buffer);
             
             const fileEntity = this.fileRepository.create({
@@ -103,6 +115,7 @@ export class FileService {
 
     async saveDocuments(params: IFileServiceParams['saveDocuments']): Promise<FileEntity[]> {
         const savedDocuments: FileEntity[] = [];
+        await fs.mkdir(this.uploadDir, { recursive: true });
         
         for (const doc of params.documents) {
             try {

@@ -310,21 +310,17 @@ const saveYearRepartition = async () => {
       periodType: periodType.value
     };
 
-    console.log("Envoi de la création de répartition avec données:", JSON.stringify(payload, null, 2));
     
     // Sauvegarder la répartition
     const result = await window.ipcRenderer.invoke('yearRepartition:create', payload);
-    console.log("Résultat de la création:", JSON.stringify(result, null, 2));
 
     if (result.success) {
       try {
         // Définir comme année en cours
-        console.log(`Définition de l'année courante avec ID: ${result.data.id}`);
         const setCurrentResult = await window.ipcRenderer.invoke(
           "yearRepartition:setCurrent", 
           result.data.id
         );
-        console.log("Résultat de setCurrent:", JSON.stringify(setCurrentResult, null, 2));
 
         if (setCurrentResult.success) {
           ElMessage.success('Répartition annuelle sauvegardée et définie comme année en cours');

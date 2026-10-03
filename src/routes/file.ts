@@ -17,7 +17,7 @@ export const fileRoutes = [
     {
         path: '/payment-config',
         name: "Configuration des paiements",
-        component: () => import('@/views/file/PayementConfigurationView.vue')
+        redirect: '/comptabilite/config-paiements'
     },
     {
         path: '/info-school',

@@ -87,10 +87,10 @@ const handleDocumentChange: UploadProps['onChange'] = (uploadFile) => {
 
 const beforeAvatarUpload: UploadProps['beforeUpload'] = (rawFile) => {
   if (rawFile.type !== 'image/jpeg' && rawFile.type !== 'image/png') {
-    ElMessage.error('La photo doit être au format JPG ou PNG!')
+    ElMessage.error('La photo doit être au format JPG ou PNG.')
     return false
   } else if (rawFile.size / 1024 / 1024 > 2) {
-    ElMessage.error('La taille de la photo ne doit pas dépasser 2MB!')
+    ElMessage.error('La taille de la photo ne doit pas dépasser 2 Mo.')
     return false
   }
   return true
@@ -99,10 +99,10 @@ const beforeAvatarUpload: UploadProps['beforeUpload'] = (rawFile) => {
 const beforeDocumentUpload: UploadProps['beforeUpload'] = (rawFile) => {
   const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
   if (!allowedTypes.includes(rawFile.type)) {
-    ElMessage.error('Les documents doivent être au format PDF, DOC ou DOCX!')
+    ElMessage.error('Les documents doivent être au format PDF, DOC ou DOCX.')
     return false
   } else if (rawFile.size / 1024 / 1024 > 5) {
-    ElMessage.error('La taille du document ne doit pas dépasser 5MB!')
+    ElMessage.error('La taille du document ne doit pas dépasser 5 Mo.')
     return false
   }
   return true

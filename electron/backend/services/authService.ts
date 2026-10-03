@@ -17,7 +17,10 @@ export function getCurrentSupabaseUserId(): string | null {
 }
 
 export class AuthService {
-    private userRepository = AppDataSource.getInstance().getRepository(UserEntity);
+    /** Repository résolu à chaque accès (jamais capturé : voir yearService — remplacement à froid). */
+    private get userRepository() {
+        return AppDataSource.getInstance().getRepository(UserEntity);
+    }
     private currentUser: { id: number; username: string; displayName?: string | null; role?: ROLE; isActive?: boolean } | null = null;
     private store = new Store();
     private supabase = supabase;
@@ -184,6 +187,27 @@ export class AuthService {
                 restored = true;
                 // Auto-réparation : réécrire la forme normalisée (id number) pour les prochains restarts.
                 try { this.store.set('currentUser', { ...this.currentUser }); } catch { /* best-effort */ }
+            } else if (normalizedId !== null && normalizedUsername.length > 0) {
+                // Legacy : session sans rôle (user.role NULL en base, migration 176).
+                // Premier utilisateur = administrateur forcé (au lieu de purge +
+                // re-login qui lockerait l'admin historique). Sinon purge : la
+                // session est irrécupérable → re-login exigé.
+                const isFirstUser = normalizedId === 1;
+                if (isFirstUser) {
+                    this.currentUser = {
+                        id: normalizedId,
+                        username: normalizedUsername,
+                        displayName: typeof rawDisplayName === 'string' ? rawDisplayName : null,
+                        role: ROLE.admin,
+                        isActive: typeof rawIsActive === 'boolean' ? rawIsActive : true,
+                    };
+                    restored = true;
+                    console.log(`[AuthService:init] session legacy sans rôle → admin forcé (user #${normalizedId}, migration 176).`);
+                    try { this.store.set('currentUser', { ...this.currentUser }); } catch { /* best-effort */ }
+                } else {
+                    this.currentUser = null;
+                    purgeStored();
+                }
             } else {
                 this.currentUser = null;
                 purgeStored();

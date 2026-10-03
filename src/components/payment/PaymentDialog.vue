@@ -476,21 +476,14 @@ const getMaxAmountToPay = computed(() => {
 });
 
 const handleScholarshipSwitchChange = (isActive: boolean) => {
-  console.log('=== BOURSE SWITCH CHANGÉ ===');
-  console.log('isActive:', isActive);
-  console.log('studentScholarshipPercentageFromLoad.value:', studentScholarshipPercentageFromLoad.value);
   
   if (!isActive) {
     form.value.scholarshipPercentage = null;
-    console.log('Bourse désactivée, scholarshipPercentage mis à null');
   }
   else if (studentScholarshipPercentageFromLoad.value) {
      form.value.scholarshipPercentage = studentScholarshipPercentageFromLoad.value;
-     console.log('Bourse activée avec pourcentage existant:', studentScholarshipPercentageFromLoad.value);
   }
   
-  console.log('Nouvel état form.value.hasScholarship:', form.value.hasScholarship);
-  console.log('Nouvel état form.value.scholarshipPercentage:', form.value.scholarshipPercentage);
   
   recalculateMaxAmount();
 };
@@ -502,9 +495,7 @@ const recalculateMaxAmount = () => {
   // Force an update if necessary, but Vue should do it automatically.
 };
 
-watch(() => props.config, (newConfig) => {
-  console.log('Config reçue dans le dialogue:', newConfig);
-}, { immediate: true, deep: true });
+// Config surveillée via les computed (aucun effet de bord requis).
 
 const { currency } = useCurrency();
 

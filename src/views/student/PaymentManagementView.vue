@@ -769,7 +769,7 @@ const refreshData = async () => {
 /**
  * Impression reçu maquette CASY — factorisée (`@/utils/receiptCasy`).
  * Même HTML que `ReceiptTemplate.vue` : 2 colonnes mensuel/tranches côte-à-côte,
- * barcode, totaux, mention EMO. Fallbacks si photo/tél/sexe absents.
+ * barcode, totaux, mention E-School. Fallbacks si photo/tél/sexe absents.
  */
 const printReceiptCasy = async (student: Student) => {
   if (!student) {

@@ -253,7 +253,6 @@ const grades = ref<IGrade[]>([]);
 onMounted(async () => {
   try {
     const result = await window.ipcRenderer.invoke("grade:all");
-    console.log('Grades loaded:', result);
     grades.value = result.data || [];
   } catch (error) {
     console.error("Erreur lors du chargement des grades :", error);

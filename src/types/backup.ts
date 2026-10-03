@@ -64,7 +64,12 @@ export interface BackupPreview {
   dbSize: number;
   tableCount: number;
   userVersion: number | null;
+  liveUserVersion?: number | null;
   hasUploads: boolean;
+  /** true quand zip sans uploads/ → case bloquante « pièces jointes non restaurées ». */
+  missingUploads?: boolean;
+  /** true quand candidat < live → case bloquante « downgrade schéma ». */
+  isDowngrade?: boolean;
   sha256: string;
   warnings: string[];
 }
@@ -74,6 +79,8 @@ export interface ImportPreviewResult {
   canceled: boolean;
   stagingPath?: string;
   fileName?: string;
+  /** Chemin absolu du fichier choisi dans le sélecteur (affiché avant confirm). */
+  sourcePath?: string;
   preview?: BackupPreview;
   warnings?: string[];
 }

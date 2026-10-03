@@ -10,6 +10,8 @@ import {
   formatJJMMAAAA,
   markTranchesPaid,
   maskRef,
+  monthlyHeadingFor,
+  resolveImputationOrder,
   type CasyHtmlInput,
 } from '@/utils/receiptCasy'
 
@@ -131,5 +133,52 @@ describe('reçu CASY — invariants maquette (sans navigateur)', () => {
     expect(formatJJMMAAAA('2026-09-25')).toBe('25/09/2026')
     expect(defaultEcheanceISO(new Date('2026-09-25'))).toBe('2027-06-30')
     expect(defaultEcheanceISO(new Date('2026-01-15'))).toBe('2026-06-30')
+  })
+
+  it('resolveImputationOrder : 4 ordres (pur, sans mutation)', () => {
+    const src = [...CASY_MONTHS]
+    expect(resolveImputationOrder(src, 'FIRST_FIRST')).toEqual([
+      'Octobre', 'Novembre', 'Décembre', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    ])
+    expect(resolveImputationOrder(src, 'LAST_FIRST')).toEqual([
+      'Juin', 'Mai', 'Avril', 'Mars', 'Février', 'Janvier', 'Décembre', 'Novembre', 'Octobre',
+    ])
+    expect(resolveImputationOrder(src, 'LAST2_THEN_FIRST')).toEqual([
+      'Juin', 'Mai', 'Octobre', 'Novembre', 'Décembre', 'Janvier', 'Février', 'Mars', 'Avril',
+    ])
+    expect(resolveImputationOrder(src, 'LAST3_THEN_FIRST')).toEqual([
+      'Juin', 'Mai', 'Avril', 'Octobre', 'Novembre', 'Décembre', 'Janvier', 'Février', 'Mars',
+    ])
+    // Pureté : entrée non mutée + inconnue → défaut.
+    expect(src).toEqual([...CASY_MONTHS])
+    expect(resolveImputationOrder(src, 'UNKNOWN' as never)).toEqual([...CASY_MONTHS])
+  })
+
+  it('buildCasyMonthlyGrid : cochés suivent order (1 mois payé)', () => {
+    const first = buildCasyMonthlyGrid(90_000, 10_000, undefined, 'FIRST_FIRST')
+    expect(first[0]).toMatchObject({ mois: 'Octobre', paye: true })
+    expect(first.filter((r) => r.paye)).toHaveLength(1)
+    const last = buildCasyMonthlyGrid(90_000, 10_000, undefined, 'LAST_FIRST')
+    expect(last[0]).toMatchObject({ mois: 'Juin', paye: true })
+    expect(last.filter((r) => r.paye).map((r) => r.mois)).toEqual(['Juin'])
+    const last2 = buildCasyMonthlyGrid(90_000, 20_000, undefined, 'LAST2_THEN_FIRST')
+    expect(last2.filter((r) => r.paye).map((r) => r.mois)).toEqual(['Juin', 'Mai'])
+    const last3 = buildCasyMonthlyGrid(90_000, 20_000, undefined, 'LAST3_THEN_FIRST')
+    expect(last3.filter((r) => r.paye).map((r) => r.mois)).toEqual(['Juin', 'Mai'])
+    expect(monthlyHeadingFor(first.map((r) => r.mois))).toBe('Paiement mensuel — Octobre à Juin')
+    expect(monthlyHeadingFor(last.map((r) => r.mois))).toContain('Jui')
+  })
+
+  it('snapshot reçu : heading + cases reflètent LAST_FIRST', () => {
+    const monthly = buildCasyMonthlyGrid(90_000, 10_000, undefined, 'LAST_FIRST')
+    const html = buildCasyReceiptHtml(baseInput({ monthly, monthlyCells: monthly.map(() => '10 000 GNF') }))
+    expect(html).toContain('Jui')
+    expect(html).toContain('is-paid')
+    // Le mois c coché est Juin (premier dans l'ordre LAST_FIRST).
+    const juinIdx = html.indexOf('Juin')
+    const paidIdx = html.indexOf('is-paid')
+    expect(juinIdx).toBeGreaterThan(-1)
+    expect(paidIdx).toBeGreaterThan(-1)
+    expect(paidIdx).toBeLessThan(juinIdx + 500)
   })
 })

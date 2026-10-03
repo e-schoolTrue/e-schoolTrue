@@ -59,7 +59,6 @@ watch(
   () => props.initialData,
   (newData) => {
     if (newData) {
-      console.log('Mise à jour du formulaire professeur avec les données:', newData);
       
       // Mettre à jour les champs principaux
       if (newData.firstname) form.firstname = newData.firstname;
@@ -96,7 +95,6 @@ watch(
         }
         
         form.photo = photoWithUrl;
-        console.log("Photo mise à jour:", form.photo);
       }
       
       if (newData.documents && newData.documents.length > 0) {
@@ -138,7 +136,6 @@ watch(
         }
         if (Object.keys(patch).length > 0) {
           form.teaching = { ...form.teaching, ...patch } as typeof form.teaching;
-          console.log('✅ Teaching patch atomique:', patch, '→ form.teaching:', form.teaching);
         }
       }
     }
@@ -209,11 +206,9 @@ const validateCurrentStep = async () => {
 
 // Navigation entre les étapes avec validation
 const nextStep = async () => {
-  console.log("Tentative de passer à l\'étape suivante depuis l\'étape", activeStep.value);
   const isValid = await validateCurrentStep();
   if (isValid && activeStep.value < steps.length - 1) {
     activeStep.value++;
-    console.log('Étape suivante :', activeStep.value);
   } else {
     console.warn('Validation échouée ou dernière étape atteinte.');
   }
@@ -368,7 +363,6 @@ const handleSubmit = async () => {
     if (form.teaching.schoolType === SCHOOL_TYPE.PRIMARY && (!Array.isArray(form.teaching.selectedClasses) || form.teaching.selectedClasses.length === 0)) {
       // Si classId est défini mais selectedClasses est vide, initialiser selectedClasses avec classId
       if (form.teaching.classId) {
-        console.log("classId existe mais selectedClasses est vide, on utilise classId");
         form.teaching.selectedClasses = [form.teaching.classId];
       } else {
         ElMessage.error("Veuillez sélectionner une classe pour l'enseignement primaire");
@@ -381,7 +375,6 @@ const handleSubmit = async () => {
       // Vérifier les classes
       if (!Array.isArray(form.teaching.selectedClasses) || form.teaching.selectedClasses.length === 0) {
         if (form.teaching.classId) {
-          console.log("classId existe mais selectedClasses est vide, on utilise classId");
           form.teaching.selectedClasses = [form.teaching.classId];
         } else {
           ElMessage.error("Veuillez sélectionner au moins une classe pour l'enseignement secondaire");
@@ -392,7 +385,6 @@ const handleSubmit = async () => {
       // Vérifier la matière
       if (!form.teaching.selectedCourse) {
         if (form.teaching.courseId) {
-          console.log("courseId existe mais selectedCourse est vide, on utilise courseId");
           form.teaching.selectedCourse = form.teaching.courseId;
         } else {
           ElMessage.error("Veuillez sélectionner une matière pour l'enseignement secondaire");
@@ -402,13 +394,6 @@ const handleSubmit = async () => {
     }
 
     // Log pour déboguer
-    console.log("Données de teaching avant soumission:", {
-      schoolType: form.teaching.schoolType,
-      selectedClasses: form.teaching.selectedClasses,
-      selectedCourse: form.teaching.selectedCourse,
-      classId: form.teaching.classId,
-      courseId: form.teaching.courseId
-    });
 
     // Préparer une copie propre des données
     const formDataToSubmit = {
@@ -443,7 +428,6 @@ const handleSubmit = async () => {
       }
     };
 
-    console.log("Données à émettre:", formDataToSubmit);
     emit('save', formDataToSubmit);
     
     ElMessage.success('Formulaire enregistré avec succès');

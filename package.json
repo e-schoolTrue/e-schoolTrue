@@ -1,7 +1,7 @@
 {
   "name": "e-school",
   "private": true,
-  "version": "1.1.32",
+  "version": "1.2.37",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder --win --linux --publish always",
@@ -11,7 +11,7 @@
     "test:unit": "vitest --environment jsdom",
     "test:coverage": "vitest run --coverage --environment jsdom",
     "rebuild:db-driver": "electron-rebuild -f -w better-sqlite3",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && node scripts/patch-native-deps.cjs",
     "prebuild": "npm run rebuild:db-driver",
     "license:cli": "tsx electron/tools/license-cli.ts",
     "db:backup": "tsx --tsconfig tsconfig.node.json electron/tools/db-backup.ts",

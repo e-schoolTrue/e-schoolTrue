@@ -129,6 +129,13 @@ export const AppItems: MenuItem[] = [
                 icon: "mdi:file-chart-outline",
                 route: "/rapports",
                 roles: ['admin', 'comptable']
+            },
+            {
+                id: "submenu-3-10",
+                title: "Config. paiements",
+                icon: "mdi:cash-register",
+                route: "/comptabilite/config-paiements",
+                roles: ['admin', 'comptable']
             }
         ]
     },
@@ -342,12 +349,6 @@ export const AppItems: MenuItem[] = [
                         title: "Répartition année scolaire",
                         icon: "fluent-emoji:calendar",
                         route: "/school-repartition",
-                    },
-                    {
-                        id: "submenu-6-2-2",
-                        title: "Configuration des paiements",
-                        icon: "mdi:cash-register",
-                        route: "/payment-config",
                     }
                 ]
             },

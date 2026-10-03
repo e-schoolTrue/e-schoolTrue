@@ -11,6 +11,7 @@ import {
   buildCasyReceiptHtml,
   buildCasyTranchesFallback,
   dateEnLettres,
+  DEFAULT_IMPUTATION_ORDER,
   defaultEcheanceISO,
   formatJJMMAAAA as formatJJMMAAAAUtil,
   markTranchesPaid,
@@ -20,7 +21,9 @@ import {
   type CasyMonthlyRow,
   type CasyTrancheRow,
   type CasyTotaux,
+  type PaymentImputationOrder,
 } from '@/utils/receiptCasy'
+import { normalizeImputationOrder } from '@/composables/useImputationOrder'
 
 export interface ReceiptMonthlyRow extends CasyMonthlyRow {}
 export interface ReceiptTrancheRow extends CasyTrancheRow {}
@@ -63,13 +66,15 @@ export interface ReceiptData {
   ecoleTels?: string
   ecoleEmail?: string
   cachet?: string
+  /** Ordre d'imputation figé au paiement si présent, sinon live (défaut FIRST_FIRST). */
+  imputationOrder?: PaymentImputationOrder
 }
 
 /** Libellés Guinée partagés écran + PDF. */
 export function labelModeGuinee(v: unknown): string {
   const k = String(v ?? '').toLowerCase().trim()
   const map: Record<string, string> = {
-    cash: 'Espèces', especes: 'Espèces',
+    cash: 'Espèces', especes: 'Espèces', espece: 'Espèces',
     orange_money: 'Orange Money', orange: 'Orange Money', 'orange money': 'Orange Money',
     mobile_money: 'Orange Money',
     mtn_money: 'MTN Mobile Money', mtn: 'MTN Mobile Money', 'mtn mobile money': 'MTN Mobile Money',
@@ -120,7 +125,7 @@ function unwrapPhotoPayload(res: unknown): string | undefined {
 export function useReceipt(receiptId: string | number) {
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const { currency, currencyCode } = useCurrency()
+  const { currencyCode } = useCurrency()
   const school = ref<{ name: string; address: string; phone: string; email: string; logo?: string; schoolYear?: string }>({
     name: '',
     address: '',
@@ -140,7 +145,7 @@ export function useReceipt(receiptId: string | number) {
       const s = (schoolData ?? {}) as Record<string, unknown>
       let year = String((s.schoolYear as string) ?? '')
       try {
-        const yr = await strictInvoke<{ schoolYear?: string }>('school:year:current', {}).catch(() => null)
+        const yr = await strictInvoke<{ schoolYear?: string }>('year:getCurrent', {}, { silent: true }).catch(() => null)
         if ((yr as { schoolYear?: string } | null)?.schoolYear) year = String((yr as { schoolYear?: string }).schoolYear)
       } catch { /* année optionnelle */ }
       school.value = {
@@ -162,12 +167,19 @@ export function useReceipt(receiptId: string | number) {
       const r = await strictInvoke<Partial<ReceiptData>>('comptabilite:receipt:get', receiptId)
       if (!r || !Object.keys(r).length) throw new Error(`Reçu ${String(receiptId)} introuvable (réponse vide — aucun mock)`)
       const txn = (r.transactionRef ?? r.reference ?? '') as string
+      const frozen = normalizeImputationOrder(
+        (r as Record<string, unknown>).imputationOrder
+          ?? (r as Record<string, unknown>).paymentImputationOrder,
+      )
+      const hasFrozen = (r as Record<string, unknown>).imputationOrder != null
+        || (r as Record<string, unknown>).paymentImputationOrder != null
       const base: ReceiptData = {
         ...(r as ReceiptData),
         transactionRef: txn || undefined,
         recuDe: (r.recuDe ?? r.payeur ?? r.eleve ?? '') as string,
         pourLeCompteDe: (r.pourLeCompteDe ?? r.eleve ?? '') as string,
         schoolYear: (r.schoolYear ?? year ?? '') as string,
+        imputationOrder: hasFrozen ? frozen : await resolveLiveImputationOrder(),
       }
       base.montantJour = Number(base.montant ?? 0)
       base.barcodeValue = String(base.numero ?? base.id ?? '')
@@ -175,7 +187,7 @@ export function useReceipt(receiptId: string | number) {
       base.ecoleEmail = school.value.email || '—'
       receipt.value = base
       // Enrichissement CASY — best effort, jamais bloquant.
-      await enrichCasy(base, year).catch(() => undefined)
+      await enrichCasy(base).catch(() => undefined)
       receipt.value = { ...base }
       montantLettres.value = amountInWordsFR(receipt.value.montant, currencyCode.value)
     } catch (err) {
@@ -190,10 +202,31 @@ export function useReceipt(receiptId: string | number) {
   }
 
   /**
+   * Ordre live depuis les configs (défaut FIRST_FIRST). Best effort.
+   * Le snapshot figé au paiement reste prioritaire (voir `load`).
+   */
+  async function resolveLiveImputationOrder(gradeId?: unknown): Promise<PaymentImputationOrder> {
+    try {
+      const all = await safeInvoke<Array<{
+        gradeId?: unknown; isDefault?: boolean
+        monthlyConfig?: { paymentImputationOrder?: unknown }
+      }>>('payment:getCustomConfigs', [], {})
+      const list = Array.isArray(all) ? all : []
+      const mine = gradeId != null
+        ? list.find((c) => Number(c?.gradeId) === Number(gradeId))
+        : undefined
+      const picked = mine ?? list.find((c) => c?.isDefault) ?? list[0]
+      return normalizeImputationOrder(picked?.monthlyConfig?.paymentImputationOrder)
+    } catch {
+      return DEFAULT_IMPUTATION_ORDER
+    }
+  }
+
+  /**
    * Enrichit un reçu avec la fiche élève + situation financière.
    * Exporte pour réutilisation (`PaymentManagementView`, `StudentPaymentView`).
    */
-  async function enrichCasy(base: ReceiptData, schoolYear: string): Promise<void> {
+  async function enrichCasy(base: ReceiptData): Promise<void> {
     // 1. Retrouver l'élève (studentId direct, sinon recherche par matricule).
     let studentId: number | null = null
     const rawId = (base as unknown as { studentId?: unknown; student?: { id?: unknown } }).studentId
@@ -264,7 +297,16 @@ export function useReceipt(receiptId: string | number) {
           const paidTuition = Number(data.paidTuition ?? Math.max(0, totalPaye - Number(data.paidInscriptionFee ?? 0)))
           base.annuel = coutAnnuel
           base.totaux = { inscription, coutAnnuel, rabais, net, totalPaye, solde }
-          base.monthlyGrid = buildCasyMonthlyGrid(coutAnnuel, paidTuition)
+          // Ordre live si aucun snapshot figé (grade élève → défaut).
+          if (!base.imputationOrder || base.imputationOrder === DEFAULT_IMPUTATION_ORDER) {
+            const gid = (details?.grade as { id?: number } | undefined)?.id
+              ?? (details as Record<string, unknown> | null)?.gradeId
+            const live = await resolveLiveImputationOrder(gid)
+            if (live !== DEFAULT_IMPUTATION_ORDER || !base.imputationOrder) base.imputationOrder = live
+          }
+          const order = normalizeImputationOrder(base.imputationOrder)
+          base.imputationOrder = order
+          base.monthlyGrid = buildCasyMonthlyGrid(coutAnnuel, paidTuition, undefined, order)
           // Tranches configurées si dispo, sinon 3 parts égales.
           let tranches: ReceiptTrancheRow[] | null = null
           try {
@@ -290,7 +332,9 @@ export function useReceipt(receiptId: string | number) {
       } catch { /* situation optionnelle */ }
     }
     // 4. Replis garantis (jamais de rendu cassé).
-    if (!base.monthlyGrid?.length) base.monthlyGrid = buildCasyMonthlyGrid(Number(base.annuel ?? 0), 0)
+    const fallbackOrder = normalizeImputationOrder(base.imputationOrder)
+    base.imputationOrder = fallbackOrder
+    if (!base.monthlyGrid?.length) base.monthlyGrid = buildCasyMonthlyGrid(Number(base.annuel ?? 0), 0, undefined, fallbackOrder)
     if (!base.tranches?.length) base.tranches = buildCasyTranchesFallback(Number(base.annuel ?? 0), 0)
     if (base.annuel == null) base.annuel = Number(base.totaux?.coutAnnuel ?? 0)
     if (!base.prochainPaiement) base.prochainPaiement = base.totaux && base.totaux.solde > 0 ? formatJJMMAAAAUtil(defaultEcheanceISO()) : 'Soldé'
@@ -299,7 +343,6 @@ export function useReceipt(receiptId: string | number) {
       base.totaux = { inscription: 0, coutAnnuel: 0, rabais: 0, net: m, totalPaye: m, solde: 0 }
       if (!base.annuel) base.annuel = 0
     }
-    void schoolYear
   }
 
   const casyInput = computed<CasyHtmlInput | null>(() => {
@@ -325,7 +368,8 @@ export function useReceipt(receiptId: string | number) {
       }
     }
     const prenomsNom = `${r.prenoms ?? ''} ${r.nom ?? ''}`.trim() || r.pourLeCompteDe || r.eleve || '—'
-    const monthly = r.monthlyGrid?.length ? r.monthlyGrid : buildCasyMonthlyGrid(Number(r.annuel ?? 0), 0)
+    const order = normalizeImputationOrder((r as ReceiptData).imputationOrder)
+    const monthly = r.monthlyGrid?.length ? r.monthlyGrid : buildCasyMonthlyGrid(Number(r.annuel ?? 0), 0, undefined, order)
     const tranches = r.tranches?.length ? r.tranches : buildCasyTranchesFallback(Number(r.annuel ?? 0), 0)
     const totaux = r.totaux ?? { inscription: 0, coutAnnuel: 0, rabais: 0, net: Number(r.montant ?? 0), totalPaye: Number(r.montant ?? 0), solde: 0 }
     return {
@@ -402,7 +446,8 @@ export function useReceipt(receiptId: string | number) {
   /**
    * PDF cohérent avec la maquette CASY : en-tête Guinée, Reçu N° + barcode,
    * élève (matricule, sexe, tél, classe), mensuel + tranches résumés,
-   * annuel + prochain paiement, totaux, signatures + mention EMO.
+   * annuel + prochain paiement, totaux, signatures + mention E-School.
+   * Format condensé demi-page A4 (~135mm de contenu, 1 seule page).
    */
   function exportPdf(): void {
     if (!receipt.value || !casyInput.value) {
@@ -413,38 +458,42 @@ export function useReceipt(receiptId: string | number) {
     const c = casyInput.value
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = doc.internal.pageSize.getWidth()
-    let y = 14
+    let y = 10
     const line = (t: string, opts?: { bold?: boolean; size?: number; center?: boolean; maxWidth?: number }): void => {
       doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal')
-      doc.setFontSize(opts?.size ?? 10)
+      doc.setFontSize(opts?.size ?? 8.5)
       if (opts?.center) doc.text(t, W / 2, y, { align: 'center', maxWidth: opts.maxWidth ?? 180 })
-      else doc.text(t, 14, y, { maxWidth: opts?.maxWidth ?? 182 })
-      y += opts?.size && opts.size >= 13 ? 7 : 5.5
+      else doc.text(t, 12, y, { maxWidth: opts?.maxWidth ?? 186 })
+      y += opts?.size && opts.size >= 11 ? 5 : 4
     }
-    line('RÉPUBLIQUE DE GUINÉE', { bold: true, center: true, size: 11 })
-    line(String(school.value.name || 'COMPLEXE SCOLAIRE'), { bold: true, center: true, size: 13 })
-    line('Travail — Justice — Solidarité', { center: true, size: 9 })
-    line(`Année scolaire : ${c.schoolYear} — Tél : ${c.schoolTels} — Email : ${c.schoolEmail}`, { center: true, size: 9 })
+    line('RÉPUBLIQUE DE GUINÉE', { bold: true, center: true, size: 9 })
+    line(String(school.value.name || 'COMPLEXE SCOLAIRE'), { bold: true, center: true, size: 11 })
+    line('Travail — Justice — Solidarité', { center: true, size: 7.5 })
+    line(`Année scolaire : ${c.schoolYear} — Tél : ${c.schoolTels} — Email : ${c.schoolEmail}`, { center: true, size: 7.5 })
+    line(`Reçu N° ${c.numero} (ORIGINAL) — Réf. ${c.maskedRef} — Date : ${c.dateJJMMAAAA}`, { bold: true, size: 8.5 })
+    line(`Matricule : ${c.matricule} — ${c.prenomsNom} — Sexe : ${c.sexe} — Tél : ${c.telephone} — Classe : ${c.classe}`, { size: 8 })
+    line(`Motif : ${c.motif} — Mode : ${c.mode} — Montant (${currencyCode.value}) : ${c.montantDigits}`, { bold: true, size: 9 })
+    line(`En lettres : ${c.montantLettres}`, { size: 8, maxWidth: 186 })
+    const orderLabel = c.monthly.map((m) => m.mois.slice(0, 3)).join('/')
+    const imputationTag = normalizeImputationOrder(r.imputationOrder) === 'FIRST_FIRST'
+      ? 'Paiement mensuel (Oct→Juin) :'
+      : `Paiement mensuel (${orderLabel}) :`
+    line(imputationTag, { bold: true, size: 8.5 })
+    for (let i = 0; i < c.monthly.length; i += 3) {
+      const chunk = c.monthly.slice(i, i + 3)
+      line(chunk.map((m, k) => `[${m.paye ? 'X' : ' '}] ${m.mois} (${c.monthlyCells[i + k] ?? ''})`).join('   '), { size: 7.5 })
+    }
+    line('Paiement par tranche :', { bold: true, size: 8.5 })
+    for (let i = 0; i < c.tranches.length; i += 2) {
+      const chunk = c.tranches.slice(i, i + 2)
+      line(chunk.map((t, k) => `[${t.paye ? 'X' : ' '}] ${t.nom} (${c.trancheCells[i + k] ?? ''})${t.statut ? ` — ${t.statut}` : ''}`).join('   '), { size: 7.5 })
+    }
+    line(`Annuel : ${c.annuel} — Prochain paiement : ${c.prochainPaiement}`, { bold: true, size: 8.5 })
+    line(`Inscription/Préalable : ${c.totaux.inscription} — Coût annuel : ${c.totaux.coutAnnuel} — Rabais : ${c.totaux.rabais}`, { size: 8 })
+    line(`Net à payer : ${c.totaux.net} — Total payé : ${c.totaux.totalPaye} — Solde : ${c.totaux.solde}`, { bold: true, size: 8.5 })
+    line(`Barcode : ${c.barcodeValue} — Caissier : ${c.caissier} — Signatures : Caissier / Cachet / Payeur`, { size: 8 })
     y += 1
-    line(`Reçu N° ${c.numero} (ORIGINAL) — Réf. ${c.maskedRef} — Date : ${c.dateJJMMAAAA}`, { bold: true })
-    line(`Matricule : ${c.matricule} — ${c.prenomsNom} — Sexe : ${c.sexe} — Tél : ${c.telephone} — Classe : ${c.classe}`)
-    line(`Motif : ${c.motif} — Mode : ${c.mode}`)
-    line(`Montant (${currencyCode.value}) : ${c.montantDigits}`, { bold: true, size: 12 })
-    line(`En lettres : ${c.montantLettres}`, { size: 10, maxWidth: 182 })
-    y += 1
-    line('Paiement mensuel (Oct→Juin) :', { bold: true })
-    for (const m of c.monthly) line(`  [${m.paye ? 'X' : ' '}] ${m.mois}`, { size: 9 })
-    line('Paiement par tranche :', { bold: true })
-    for (const t of c.tranches) line(`  [${t.paye ? 'X' : ' '}] ${t.nom} — ${t.statut ?? ''}`, { size: 9 })
-    line(`Annuel : ${c.annuel} — Prochain paiement : ${c.prochainPaiement}`, { bold: true })
-    line(`Inscription/Préalable : ${c.totaux.inscription} — Coût annuel : ${c.totaux.coutAnnuel} — Rabais : ${c.totaux.rabais}`)
-    line(`Net à payer : ${c.totaux.net} — Total payé : ${c.totaux.totalPaye} — Solde : ${c.totaux.solde}`, { bold: true })
-    line(`Barcode : ${c.barcodeValue} — Caissier : ${c.caissier}`)
-    y += 2
-    line('Le Caissier          Cachet / Tampon          Le Payeur', { size: 10 })
-    y += 14
-    line('Via application EMO [Ecole Moderne] V.20 By TWO-M', { center: true, size: 9 })
-    void currency
+    line(`Via application E-School — Reçu original du ${c.dateJJMMAAAA}.`, { center: true, size: 7.5 })
     const safe = String(r.numero || r.id).replace(/[^A-Za-z0-9-]+/g, '-')
     doc.save(`recu_${safe}.pdf`)
     ElMessage.success('Reçu exporté en PDF')

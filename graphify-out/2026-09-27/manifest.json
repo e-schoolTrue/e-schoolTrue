@@ -25,12 +25,12 @@
     "semantic_hash": ""
   },
   "auto-imports.d.ts": {
-    "mtime": 1790423319.8773742,
+    "mtime": 1790499113.6969862,
     "ast_hash": "1d04403b8b5d3c355dbbe624e03a6a21",
     "semantic_hash": ""
   },
   "components.d.ts": {
-    "mtime": 1790423329.6383846,
+    "mtime": 1790498012.8373687,
     "ast_hash": "6683e52ade0aca99aafa3dd9853032f7",
     "semantic_hash": ""
   },
@@ -45,7 +45,7 @@
     "semantic_hash": ""
   },
   "electron/backend/entities/configNote.ts": {
-    "mtime": 1790375272.1884723,
+    "mtime": 1790498012.9138403,
     "ast_hash": "167813c92dc5d14fb54cf664bda4a928",
     "semantic_hash": ""
   },
@@ -65,7 +65,7 @@
     "semantic_hash": ""
   },
   "electron/backend/entities/grade.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9138403,
     "ast_hash": "b1bea376b01b95594bf46a163b8f3928",
     "semantic_hash": ""
   },
@@ -90,12 +90,12 @@
     "semantic_hash": ""
   },
   "electron/backend/entities/payment.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9138403,
     "ast_hash": "bf69133bda81702c00d72cf21b422383",
     "semantic_hash": ""
   },
   "electron/backend/entities/paymentConfig.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9138403,
     "ast_hash": "a070e2f45f9be1fd6ff23e3445321b22",
     "semantic_hash": ""
   },
@@ -105,12 +105,12 @@
     "semantic_hash": ""
   },
   "electron/backend/entities/professor.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9138403,
     "ast_hash": "f3dc5a7d0784a17969b4360cc5048dd8",
     "semantic_hash": ""
   },
   "electron/backend/entities/professorPayment.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9138403,
     "ast_hash": "2a4662729f5688a559f1aa84b6a8d3e0",
     "semantic_hash": ""
   },
@@ -135,7 +135,7 @@
     "semantic_hash": ""
   },
   "electron/backend/entities/school.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9148402,
     "ast_hash": "ee80a10cb20036b722648765e4667dc8",
     "semantic_hash": ""
   },
@@ -160,7 +160,7 @@
     "semantic_hash": ""
   },
   "electron/backend/entities/yearRepartition.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9148402,
     "ast_hash": "b49791822734e43a3331a74baa762da3",
     "semantic_hash": ""
   },
@@ -200,7 +200,7 @@
     "semantic_hash": ""
   },
   "electron/backend/services/backupService.ts": {
-    "mtime": 1790375272.1904724,
+    "mtime": 1790498012.9158401,
     "ast_hash": "7ced04a725858821021d8dc54c66a264",
     "semantic_hash": ""
   },
@@ -220,7 +220,7 @@
     "semantic_hash": ""
   },
   "electron/backend/services/dashboardService.ts": {
-    "mtime": 1790375272.1904724,
+    "mtime": 1790498012.9158401,
     "ast_hash": "872ec93f9ea4f4caa29ed1b05285a28d",
     "semantic_hash": ""
   },
@@ -280,7 +280,7 @@
     "semantic_hash": ""
   },
   "electron/backend/services/paymentService.ts": {
-    "mtime": 1790375272.1914725,
+    "mtime": 1790498012.9158401,
     "ast_hash": "8eee17571c52395ec350009d76df3a87",
     "semantic_hash": ""
   },
@@ -320,12 +320,12 @@
     "semantic_hash": ""
   },
   "electron/backend/services/schoolService.ts": {
-    "mtime": 1790375272.1914725,
+    "mtime": 1790498012.9158401,
     "ast_hash": "f3fc74e0c44bc798bd1aebf2d7d8c506",
     "semantic_hash": ""
   },
   "electron/backend/services/studentService.ts": {
-    "mtime": 1790375272.1914725,
+    "mtime": 1790498012.9168403,
     "ast_hash": "41c261698c9e8a7eab173f2afd999d52",
     "semantic_hash": ""
   },
@@ -335,7 +335,7 @@
     "semantic_hash": ""
   },
   "electron/backend/services/yearService.ts": {
-    "mtime": 1790375272.1914725,
+    "mtime": 1790498012.9168403,
     "ast_hash": "ce0692a391a09b58f3be4c07414095a0",
     "semantic_hash": ""
   },
@@ -430,7 +430,7 @@
     "semantic_hash": ""
   },
   "electron/backend/types/year.ts": {
-    "mtime": 1790375272.1914725,
+    "mtime": 1790498012.9168403,
     "ast_hash": "d6b1d28a224d3229a6782ff6ada42681",
     "semantic_hash": ""
   },
@@ -490,7 +490,7 @@
     "semantic_hash": ""
   },
   "electron/data-source.ts": {
-    "mtime": 1790497871.883344,
+    "mtime": 1790498012.9168403,
     "ast_hash": "e9d55a83a5f14b80a2df628fabeef806",
     "semantic_hash": ""
   },
@@ -500,7 +500,7 @@
     "semantic_hash": ""
   },
   "electron/events.ts": {
-    "mtime": 1790376777.5558317,
+    "mtime": 1790498012.9168403,
     "ast_hash": "6278ad79be1bee940ac7d120b7c8f464",
     "semantic_hash": ""
   },
@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "electron/main.ts": {
-    "mtime": 1790497918.331839,
-    "ast_hash": "edad15fe9fa0561ff09426d0d9c39d1f",
+    "mtime": 1790499062.7645416,
+    "ast_hash": "19dabc03f522b4182710b18ab80c337b",
     "semantic_hash": ""
   },
   "electron/messages.ts": {
@@ -535,12 +535,12 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1790497939.1740603,
+    "mtime": 1790498012.9361918,
     "ast_hash": "bbcdafdda20c96261765e36b6872202c",
     "semantic_hash": ""
   },
   "src/App.vue": {
-    "mtime": 1790375272.2104735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "c1c2a054200eb11866f12b69a79bc808",
     "semantic_hash": ""
   },
@@ -570,17 +570,17 @@
     "semantic_hash": ""
   },
   "src/components/cardStudent/templates/CardTemplateOne.vue": {
-    "mtime": 1790375272.2104735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "a4c1980051c42f162cdfbb9669aaf8d4",
     "semantic_hash": ""
   },
   "src/components/cardStudent/templates/CardTemplateThree.vue": {
-    "mtime": 1790375272.2104735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "d713bdf1ea37cceabfd4c64bed847492",
     "semantic_hash": ""
   },
   "src/components/cardStudent/templates/CardTemplateTwo.vue": {
-    "mtime": 1790375272.2104735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "91f5e74ebbf37d76e430061bf9233121",
     "semantic_hash": ""
   },
@@ -595,7 +595,7 @@
     "semantic_hash": ""
   },
   "src/components/common/CurrencyDisplay.vue": {
-    "mtime": 1790375272.2104735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "ffab01c3c4e212c581789f1c209e5f6c",
     "semantic_hash": ""
   },
@@ -630,7 +630,7 @@
     "semantic_hash": ""
   },
   "src/components/dashbord-menu.vue": {
-    "mtime": 1790376689.6133845,
+    "mtime": 1790498012.9361918,
     "ast_hash": "1d5ec433ee1fea357cf3b3a21af60a26",
     "semantic_hash": ""
   },
@@ -695,12 +695,12 @@
     "semantic_hash": ""
   },
   "src/components/payment/PaymentDialog.vue": {
-    "mtime": 1790375272.2104735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "987d9b55acef8021652e110f839f9362",
     "semantic_hash": ""
   },
   "src/components/payment/PaymentForm.vue": {
-    "mtime": 1790375272.2114735,
+    "mtime": 1790498012.9361918,
     "ast_hash": "20cd6869338adc67514f9ddc6b9831bc",
     "semantic_hash": ""
   },
@@ -715,7 +715,7 @@
     "semantic_hash": ""
   },
   "src/components/professor/ProfessorPaymentDialog.vue": {
-    "mtime": 1790375272.2134736,
+    "mtime": 1790498012.9368405,
     "ast_hash": "6bea3e53f6f95036cb6d7678f230659a",
     "semantic_hash": ""
   },
@@ -725,7 +725,7 @@
     "semantic_hash": ""
   },
   "src/components/professor/professor-table.vue": {
-    "mtime": 1790375272.2134736,
+    "mtime": 1790498012.9368405,
     "ast_hash": "fcb9438d76eb8fc4c7e021aaea9f5f89",
     "semantic_hash": ""
   },
@@ -760,7 +760,7 @@
     "semantic_hash": ""
   },
   "src/components/student/school-print-template.vue": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9368405,
     "ast_hash": "855286c4eedd9781c172b7d0a5a24b11",
     "semantic_hash": ""
   },
@@ -775,12 +775,12 @@
     "semantic_hash": ""
   },
   "src/components/student/sections/PersonalInfo.vue": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9368405,
     "ast_hash": "3e5c94bd98d9871bf5a341025d6bb358",
     "semantic_hash": ""
   },
   "src/components/student/sections/SchoolInfo.vue": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9368405,
     "ast_hash": "bafc5ee0b9ab34b619584f7ddc36990e",
     "semantic_hash": ""
   },
@@ -790,12 +790,12 @@
     "semantic_hash": ""
   },
   "src/components/student/student-filter.vue": {
-    "mtime": 1790376722.410556,
+    "mtime": 1790498012.9368405,
     "ast_hash": "59936cefba18b75f14e65dc5babfb997",
     "semantic_hash": ""
   },
   "src/components/student/student-form.vue": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9368405,
     "ast_hash": "7310245e368f3ace2365fbd350a3da53",
     "semantic_hash": ""
   },
@@ -820,7 +820,7 @@
     "semantic_hash": ""
   },
   "src/components/util/AppItems.ts": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9368405,
     "ast_hash": "cb6babb8fd7a01ba3c0678ebd73bf846",
     "semantic_hash": ""
   },
@@ -830,7 +830,7 @@
     "semantic_hash": ""
   },
   "src/components/util/currencyFormatter.ts": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9368405,
     "ast_hash": "5c240d1d0f8f890a8084f10af07b47ab",
     "semantic_hash": ""
   },
@@ -840,7 +840,7 @@
     "semantic_hash": ""
   },
   "src/composables/useCurrency.ts": {
-    "mtime": 1790375272.2144737,
+    "mtime": 1790498012.9378405,
     "ast_hash": "805570fdfca2cacc94b62b71b8a3b6b2",
     "semantic_hash": ""
   },
@@ -880,7 +880,7 @@
     "semantic_hash": ""
   },
   "src/routes/index.ts": {
-    "mtime": 1790375272.2154737,
+    "mtime": 1790498012.9378405,
     "ast_hash": "f7d89faa8ed34a00bb552e43d7c02bb4",
     "semantic_hash": ""
   },
@@ -890,7 +890,7 @@
     "semantic_hash": ""
   },
   "src/routes/payment.ts": {
-    "mtime": 1790375272.2154737,
+    "mtime": 1790498012.9378405,
     "ast_hash": "19bdd2c69a1bbe0efec879148a2f9afb",
     "semantic_hash": ""
   },
@@ -905,7 +905,7 @@
     "semantic_hash": ""
   },
   "src/routes/student.ts": {
-    "mtime": 1790375272.2154737,
+    "mtime": 1790498012.9378405,
     "ast_hash": "c259796f1d1672e02a9a9e8bd565592c",
     "semantic_hash": ""
   },
@@ -1020,7 +1020,7 @@
     "semantic_hash": ""
   },
   "src/types/shared.ts": {
-    "mtime": 1790375272.2164738,
+    "mtime": 1790498012.9378405,
     "ast_hash": "0914850a8382e67359edbe7288fe76cc",
     "semantic_hash": ""
   },
@@ -1045,7 +1045,7 @@
     "semantic_hash": ""
   },
   "src/types/year.ts": {
-    "mtime": 1790375272.2164738,
+    "mtime": 1790498012.9378405,
     "ast_hash": "d919d9cb5ea3d229164d2080741eb16a",
     "semantic_hash": ""
   },
@@ -1060,7 +1060,7 @@
     "semantic_hash": ""
   },
   "src/views/DashboardView.vue": {
-    "mtime": 1790375272.2164738,
+    "mtime": 1790498012.9388404,
     "ast_hash": "a9f8674370dfd439307424747c61806c",
     "semantic_hash": ""
   },
@@ -1075,7 +1075,7 @@
     "semantic_hash": ""
   },
   "src/views/auth/LoginView.vue": {
-    "mtime": 1790375272.2164738,
+    "mtime": 1790498012.9388404,
     "ast_hash": "d37c70c7fd31f9a6a02d208d8126a13f",
     "semantic_hash": ""
   },
@@ -1110,17 +1110,17 @@
     "semantic_hash": ""
   },
   "src/views/file/PayementConfigurationView.vue": {
-    "mtime": 1790375272.2164738,
+    "mtime": 1790498012.9388404,
     "ast_hash": "95b91d287e3433ab86e163820af4eb39",
     "semantic_hash": ""
   },
   "src/views/file/SchoolInfoView.vue": {
-    "mtime": 1790375272.2174737,
+    "mtime": 1790498012.9388404,
     "ast_hash": "12504d05d31a6f3c493c3801e18bc6da",
     "semantic_hash": ""
   },
   "src/views/file/YearRepartitionView.vue": {
-    "mtime": 1790375272.2174737,
+    "mtime": 1790498012.9388404,
     "ast_hash": "2bf5dc994bf0f2e5658579f1ca720a4d",
     "semantic_hash": ""
   },
@@ -1155,7 +1155,7 @@
     "semantic_hash": ""
   },
   "src/views/omboarding/PayementConfigurationView.vue": {
-    "mtime": 1790375272.2174737,
+    "mtime": 1790498012.9388404,
     "ast_hash": "bcf75f18cdec728d1421015544f6313c",
     "semantic_hash": ""
   },
@@ -1200,12 +1200,12 @@
     "semantic_hash": ""
   },
   "src/views/planning/student/AbsenceStudentView.vue": {
-    "mtime": 1790375272.2174737,
+    "mtime": 1790498012.9398406,
     "ast_hash": "32b5810c11f54b8182ecb5b0308d0de1",
     "semantic_hash": ""
   },
   "src/views/planning/student/HomeworkView.vue": {
-    "mtime": 1790375272.218474,
+    "mtime": 1790498012.9398406,
     "ast_hash": "d2b2df383b07db17add696049f199c99",
     "semantic_hash": ""
   },
@@ -1235,7 +1235,7 @@
     "semantic_hash": ""
   },
   "src/views/professor/ProfessorPaymentView.vue": {
-    "mtime": 1790375272.218474,
+    "mtime": 1790498012.9398406,
     "ast_hash": "f4e518543d9eafdffbd9729914c756b9",
     "semantic_hash": ""
   },
@@ -1255,17 +1255,17 @@
     "semantic_hash": ""
   },
   "src/views/student/MensualityView.vue": {
-    "mtime": 1790375272.218474,
+    "mtime": 1790498012.9398406,
     "ast_hash": "c0db342c7595a2b1cb2cd426dc7dd866",
     "semantic_hash": ""
   },
   "src/views/student/NewStudentView.vue": {
-    "mtime": 1790375272.218474,
+    "mtime": 1790498012.9398406,
     "ast_hash": "7cc70a1e4a0c7d63e2da30bb5d04c3f9",
     "semantic_hash": ""
   },
   "src/views/student/PaymentManagementView.vue": {
-    "mtime": 1790375272.218474,
+    "mtime": 1790498012.9408405,
     "ast_hash": "067d3ad9d2b9e73baa8a950e1980eea8",
     "semantic_hash": ""
   },
@@ -1275,7 +1275,7 @@
     "semantic_hash": ""
   },
   "src/views/student/StudentListView.vue": {
-    "mtime": 1790375272.2194738,
+    "mtime": 1790498012.9408405,
     "ast_hash": "91f9524846d69d8f1546972451ef221f",
     "semantic_hash": ""
   },
@@ -1285,12 +1285,12 @@
     "semantic_hash": ""
   },
   "src/views/tools/AnnualPVView.vue": {
-    "mtime": 1790375272.2194738,
+    "mtime": 1790498012.9408405,
     "ast_hash": "fbaabb3bf7555d2d9eb477aa3d66de7b",
     "semantic_hash": ""
   },
   "src/views/tools/CentralizedGradesView.vue": {
-    "mtime": 1790375272.2194738,
+    "mtime": 1790498012.9408405,
     "ast_hash": "80fc9a93b2f4a24678d3b86153f549f2",
     "semantic_hash": ""
   },
@@ -1300,7 +1300,7 @@
     "semantic_hash": ""
   },
   "src/views/tools/PrintAndModelView.vue": {
-    "mtime": 1790375272.220474,
+    "mtime": 1790498012.9418406,
     "ast_hash": "2496c1a5343e9cbb0ee9393a60a98060",
     "semantic_hash": ""
   },
@@ -1450,12 +1450,12 @@
     "semantic_hash": ""
   },
   "electron/backend/services/__tests__/dashboardService.spec.ts": {
-    "mtime": 1790375272.1894724,
+    "mtime": 1790498012.9148402,
     "ast_hash": "6d408317aad8016018a02da23f952472",
     "semantic_hash": ""
   },
   "electron/backend/services/__tests__/professorService.spec.ts": {
-    "mtime": 1790375272.1904724,
+    "mtime": 1790498012.9148402,
     "ast_hash": "c4e49ecfa388372e25cdace3b372028e",
     "semantic_hash": ""
   },
@@ -1465,12 +1465,12 @@
     "semantic_hash": ""
   },
   "electron/backend/services/__tests__/studentService.spec.ts": {
-    "mtime": 1790375272.1904724,
+    "mtime": 1790498012.9148402,
     "ast_hash": "a7b725928b19a17c5ded5a0611612c9b",
     "semantic_hash": ""
   },
   "src/components/payment/__tests__/PaymentForm.spec.ts": {
-    "mtime": 1790376972.0423136,
+    "mtime": 1790498012.9368405,
     "ast_hash": "fb8375b10d12aa09caeb9809a45cdcb2",
     "semantic_hash": ""
   },
@@ -1485,7 +1485,7 @@
     "semantic_hash": ""
   },
   "src/views/__tests__/DashboardView.spec.ts": {
-    "mtime": 1790375388.865654,
+    "mtime": 1790498012.9388404,
     "ast_hash": "8cbcced76a662cfe987f2263866bf242",
     "semantic_hash": ""
   },
@@ -1825,8 +1825,8 @@
     "semantic_hash": ""
   },
   "electron/backend/__tests__/migration-upgrade.spec.ts": {
-    "mtime": 1790363472.1009178,
-    "ast_hash": "7076d8568cbe56a0bc4a6b3bc271c5ac",
+    "mtime": 1790498195.7017534,
+    "ast_hash": "05db1a3a40d608e1dfd8e2a3e03830f1",
     "semantic_hash": ""
   },
   "electron/backend/entities/accounting-vault.ts": {
@@ -1840,8 +1840,8 @@
     "semantic_hash": ""
   },
   "electron/migration-runner.ts": {
-    "mtime": 1790497882.294455,
-    "ast_hash": "94c42abfa5f8d8fbee92f66011279b27",
+    "mtime": 1790498997.1706014,
+    "ast_hash": "495c8c73da19d7833d6e3e4f1e61d9ee",
     "semantic_hash": ""
   },
   "electron/migrations/1700000000000-Baseline.ts": {
@@ -2405,8 +2405,8 @@
     "semantic_hash": ""
   },
   "electron/backend/__tests__/migration-registration.spec.ts": {
-    "mtime": 1790375918.149253,
-    "ast_hash": "b4dbaa500b1c8a07aae13047d51ee713",
+    "mtime": 1790498245.43827,
+    "ast_hash": "feeb15ebfb9eee37c48bdb0a85f5d778",
     "semantic_hash": ""
   },
   "electron/backend/__tests__/native-binding.spec.ts": {
@@ -2420,13 +2420,13 @@
     "semantic_hash": ""
   },
   "electron/migrations/1740000000000-TranchConfigPrecision.ts": {
-    "mtime": 1790497863.6322558,
-    "ast_hash": "06eff1af84d11b355a0b65fced53680b",
+    "mtime": 1790499028.060312,
+    "ast_hash": "ac46a197e645df0ef454fc00c4a8b629",
     "semantic_hash": ""
   },
   "electron/tools/repair-temporary-tables.ts": {
-    "mtime": 1790497931.8449826,
-    "ast_hash": "8e33f1c3840cf0fae39056c1d1372fdc",
+    "mtime": 1790499052.7940645,
+    "ast_hash": "86f78de53a57342b1db78d8ccf65f5d6",
     "semantic_hash": ""
   },
   "main.js": {
@@ -2442,6 +2442,16 @@
   "docs/RUNBOOK-repair-1.1.30.md": {
     "mtime": 1790497949.1256888,
     "ast_hash": "5616dd8043d899b53dbcc7a70e17cb22",
+    "semantic_hash": ""
+  },
+  "electron/backend/__tests__/boot-sequence.spec.ts": {
+    "mtime": 1790499097.2827313,
+    "ast_hash": "8e38975858161223f343a837bc4f63d8",
+    "semantic_hash": ""
+  },
+  "electron/preboot.ts": {
+    "mtime": 1790498958.87409,
+    "ast_hash": "4fd6b841cec15684324fa14469a3979b",
     "semantic_hash": ""
   }
 }

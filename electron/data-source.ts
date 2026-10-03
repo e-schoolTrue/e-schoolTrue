@@ -3,7 +3,6 @@ import { DataSource } from "typeorm";
 import path from 'path';
 import { app } from 'electron';
 
-// --- ENTITÉS ---
 import { UserEntity } from "./backend/entities/user";
 import { StudentEntity } from "./backend/entities/students";
 import { FileEntity } from "./backend/entities/file";
@@ -41,18 +40,15 @@ import {
     ReceiptCounterEntity, ProfessorPaymentCounterEntity, FeeItemEntity
 } from "./backend/entities/accounting";
 
-// --- MIGRATIONS (imports explicites, PAS de glob) ---
-// Le main tourne depuis dist-electron/ (buildé) en dev comme en prod :
-// un glob vers 'migrations/*.{ts,js}' ne résout rien là-bas, donc les
-// migrations ne s'exécutaient jamais (silencieux). En les important ici,
-// vite les bundle dans le main et TypeORM les joue au boot via
-// migration-runner.ts. RÈGLE : toute nouvelle migration DOIT être ajoutée
-// à ce tableau (vérifié par __tests__/migration-registration.spec.ts).
+
 import { Baseline1700000000000 } from "./migrations/1700000000000-Baseline";
 import { DriftCatchup1710000000000 } from "./migrations/1710000000000-DriftCatchup";
 import { BackfillCounters1720000000000 } from "./migrations/1720000000000-BackfillCounters";
 import { YearStatusSchoolYear1730000000000 } from "./migrations/1730000000000-YearStatusSchoolYear";
 import { TranchConfigPrecision1740000000000 } from "./migrations/1740000000000-TranchConfigPrecision";
+import { DriftCatchup2175000000000 } from "./migrations/1750000000000-DriftCatchup2";
+import { RoleLegacyFix1760000000000 } from "./migrations/1760000000000-RoleLegacyFix";
+import { DriftCatchup3177000000000 } from "./migrations/1770000000000-DriftCatchup3";
 
 const migrations = [
     Baseline1700000000000,
@@ -60,9 +56,11 @@ const migrations = [
     BackfillCounters1720000000000,
     YearStatusSchoolYear1730000000000,
     TranchConfigPrecision1740000000000,
+    DriftCatchup2175000000000,
+    RoleLegacyFix1760000000000,
+    DriftCatchup3177000000000,
 ];
 
-// --- ENSEMBLE DES ENTITÉS ---
 const entities = [
     UserEntity,
     FileEntity,
@@ -171,5 +169,21 @@ export class AppDataSource {
             throw new Error("Erreur critique: AppDataSource.getInstance() appelé avant AppDataSource.initialize().");
         }
         return this.instance;
+    }
+
+    /**
+     * Réouverture après remplacement à froid (restore/import LocalBackupService).
+     * `replaceDbAndUploads()` fait `destroy()` (SQLite interdit le swap d'un fichier
+     * ouvert) puis swap les fichiers ; sans ce `reinitialize()`, le main reste avec
+     * une connexion détruite et `getSchool()` échoue avec
+     * `database connection is not open` — visible en dev où le backend ne fait
+     * qu'un reload fenêtre (pas de relaunch → pas de `initialize()` au boot).
+     * `isFirstLaunch=false` : la DB existe déjà (jamais de reset onboarding).
+     */
+    static async reinitialize(): Promise<DataSource> {
+        if (this.instance && this.instance.isInitialized) {
+            return this.instance;
+        }
+        return this.initialize(false);
     }
 }

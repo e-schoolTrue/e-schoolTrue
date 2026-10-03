@@ -6,14 +6,21 @@ import {
     YearRepartition, 
     YearRepartitionCreateInput, 
     YearRepartitionUpdateInput} from "../types/year";
-import { canonicalForDate, isCanonicalSchoolYear, monthsBetween, nextSchoolYear, normalizeSchoolYear } from "../lib/schoolYear";
+import { normalizeSchoolYear } from "../lib/schoolYear";
 
 export class YearRepartitionService {
-    private yearRepartitionRepository: Repository<YearRepartitionEntity>;
-
-    constructor() {
-        this.yearRepartitionRepository = AppDataSource.getInstance().getRepository(YearRepartitionEntity);
+    /**
+     * Repository résolu à chaque accès (jamais capturé au constructeur).
+     * Après un remplacement à froid (restore/import : destroy + nouveau fichier
+     * + reinitialize), l'instance DataSource est remplacée ; un repository
+     * capturé au boot pointerait vers la connexion détruite (ancienne DB vide)
+     * → getAll vide / getCurrent null malgré le fichier importé sur disque.
+     */
+    private get yearRepartitionRepository(): Repository<YearRepartitionEntity> {
+        return AppDataSource.getInstance().getRepository(YearRepartitionEntity);
     }
+
+    constructor() {}
 
     private convertToEntity(data: YearRepartitionCreateInput | YearRepartitionUpdateInput): Partial<YearRepartitionEntity> {
         return {
@@ -88,6 +95,15 @@ export class YearRepartitionService {
                     data: null,
                     error: "YearRepartition not found",
                     message: "Répartition d'année scolaire non trouvée",
+                };
+            }
+            // Garde destructif : année clôturée = lecture seule, update refusé (YEAR_CLOSED).
+            if ((yearRepartition.status ?? "active") === "closed") {
+                return {
+                    success: false,
+                    data: null,
+                    error: "YEAR_CLOSED",
+                    message: `L'année ${yearRepartition.schoolYear} est clôturée : modification refusée (lecture seule)`,
                 };
             }
             
@@ -167,6 +183,24 @@ export class YearRepartitionService {
 
     async deleteYearRepartition(id: number): Promise<ResultType<void>> {
         try {
+            // Garde destructif : lecture préalable pour refuser la suppression d'une année clôturée.
+            const existing = await this.yearRepartitionRepository.findOne({ where: { id } });
+            if (!existing) {
+                return {
+                    success: false,
+                    data: null,
+                    error: "YearRepartition not found",
+                    message: "Répartition d'année scolaire non trouvée",
+                };
+            }
+            if ((existing.status ?? "active") === "closed") {
+                return {
+                    success: false,
+                    data: null,
+                    error: "YEAR_CLOSED",
+                    message: `L'année ${existing.schoolYear} est clôturée : suppression refusée (lecture seule)`,
+                };
+            }
             const result = await this.yearRepartitionRepository.delete(id);
 
             if (result.affected === 0) {
@@ -194,38 +228,133 @@ export class YearRepartitionService {
         }
     }
 
-    async getCurrentYearRepartition(): Promise<ResultType<YearRepartition | null>> {
+    /**
+     * Année courante — contrat `year:getCurrent` (yearStore.ts:174-180).
+     * - >1 `isCurrent` (base importée/merge) : auto-résolution → la plus récente
+     *   OUVERTE devient l'unique courante (autres remises à false, persisté).
+     *   Toutes clôturées → `data: null` (lecture seule, correct).
+     * - 0 `isCurrent` (import sans courante, ex. backup) : auto-backfill (année
+     *   couvrant today sinon plus récente OUVERTE), persisté + loggé.
+     *   C'est une ACTIVATION d'années existantes, jamais une création
+     *   (MANUAL_ONLY préservé : aucune année créée ici). Jamais de toast UI.
+     */
+    async getCurrentYearRepartition(now: Date = new Date()): Promise<ResultType<YearRepartition | null>> {
         try {
             const allRepartitions = await this.yearRepartitionRepository.find();
-            
-            // Chercher d'abord une répartition marquée comme courante manuellement
-            const manuallySetCurrent = allRepartitions.find(repartition => repartition.isCurrent === true);
-            if (manuallySetCurrent) {
+
+            const flagged = allRepartitions.filter(repartition => repartition.isCurrent === true);
+            if (flagged.length > 1) {
+                // Fix import backup : base fusionnée avec plusieurs isCurrent=true
+                // (ex. merge/sync) → au lieu de null bloquant (« Aucune année ouverte »),
+                // on résout vers la plus récente OUVERTE et on répare les flags.
+                const openFlagged = flagged
+                    .filter(r => (r.status ?? "active") !== "closed")
+                    .sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)));
+                const winner = openFlagged[0] ?? null;
+                if (!winner) {
+                    console.warn(`[yearService] ${flagged.length} années isCurrent mais toutes clôturées — lecture seule (data:null).`);
+                    return {
+                        success: true,
+                        data: null,
+                        error: null,
+                        message: "Aucune année en cours"
+                    };
+                }
+                try {
+                    for (const r of allRepartitions) {
+                        if (r.id !== (winner as any).id && r.isCurrent === true) {
+                            r.isCurrent = false;
+                            await this.yearRepartitionRepository.save(r);
+                        }
+                    }
+                    (winner as any).isCurrent = true;
+                    const saved = await this.yearRepartitionRepository.save(winner as any);
+                    console.log(`[yearService] ambiguïté ${flagged.length} isCurrent résolue → ${(saved as any).schoolYear} (import/merge).`);
+                    return {
+                        success: true,
+                        data: this.convertToResponse(saved as any),
+                        error: null,
+                        message: `Année scolaire courante auto-résolue : ${(saved as any).schoolYear}`
+                    };
+                } catch (e) {
+                    console.warn("[yearService] résolution ambiguïté isCurrent a échoué (lecture seule) :", (e as Error)?.message ?? e);
+                    return {
+                        success: true,
+                        data: this.convertToResponse(winner as any),
+                        error: null,
+                        message: `Année scolaire courante auto-résolue : ${(winner as any).schoolYear}`
+                    };
+                }
+            }
+            if (flagged.length === 1) {
+                // Clôture courante → isCurrent=false persisté par closeYear, mais
+                // garde-fou : une année flaggée clôturée ne fait jamais foi
+                // (lecture seule globale, getCurrent null).
+                if ((flagged[0].status ?? "active") === "closed") {
+                    return {
+                        success: true,
+                        data: null,
+                        error: null,
+                        message: "Aucune année en cours"
+                    };
+                }
                 return {
                     success: true,
-                    data: this.convertToResponse(manuallySetCurrent),
+                    data: this.convertToResponse(flagged[0]),
                     error: null,
                     message: "Année scolaire courante trouvée (définie manuellement)"
                 };
             }
-            
-            // Sinon, chercher une répartition basée sur la date actuelle
-            const currentDate = new Date();
-            const currentRepartition = allRepartitions.find(repartition => {
-                const periods = repartition.periodConfigurations;
-                if (!periods || periods.length === 0) return false;
-                
-                const startDate = new Date(periods[0].start);
-                const endDate = new Date(periods[periods.length - 1].end);
-                
-                return currentDate >= startDate && currentDate <= endDate;
-            });
 
+            // 0 isCurrent → auto-backfill : année couvrant today, sinon plus récente.
+            if (!allRepartitions.length) {
+                return {
+                    success: true,
+                    data: null,
+                    error: null,
+                    message: "Aucune année en cours"
+                };
+            }
+            const covering = allRepartitions.find(repartition => {
+                const periods = repartition.periodConfigurations;
+                // Hardening : garde périodes vides/malformées (jamais d'index [0] aveugle).
+                if (!Array.isArray(periods) || periods.length === 0) return false;
+                const first = periods[0] as { start?: unknown } | undefined;
+                const last = periods[periods.length - 1] as { end?: unknown } | undefined;
+                if (!first || !last) return false;
+                const startDate = new Date(first.start as string | Date);
+                const endDate = new Date(last.end as string | Date);
+                if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return false;
+
+                return now >= startDate && now <= endDate;
+            });
+            const target = covering
+                ?? [...allRepartitions].sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)))[0];
+            const active = target ? [...allRepartitions].filter(r => (r.status ?? "active") === "active" && r.schoolYear === target.schoolYear)[0] ?? target : null;
+            if (active && (active.status ?? "active") !== "closed") {
+                try {
+                    active.isCurrent = true;
+                    const saved = await this.yearRepartitionRepository.save(active);
+                    console.log(`[yearService] auto-backfill isCurrent → ${saved.schoolYear} (couvrant today: ${covering ? "oui" : "non, plus récente"}).`);
+                    return {
+                        success: true,
+                        data: this.convertToResponse(saved),
+                        error: null,
+                        message: `Année scolaire courante auto-détectée : ${saved.schoolYear}`
+                    };
+                } catch (e) {
+                    console.warn("[yearService] auto-backfill isCurrent a échoué (lecture seule) :", (e as Error)?.message ?? e);
+                }
+            }
+
+            if (target && (target.status ?? "active") === "closed") {
+                return { success: true, data: null, error: null, message: "Aucune année en cours" };
+            }
             return {
                 success: true,
-                data: currentRepartition ? this.convertToResponse(currentRepartition) : null,
+                data: target ? this.convertToResponse(target) : null,
                 error: null,
-                message: currentRepartition ? "Année scolaire courante trouvée (basée sur la date)" : "Aucune année scolaire active trouvée"
+                message: target ? "Année scolaire courante trouvée (basée sur la date)" : "Aucune année en cours"
             };
         } catch (error) {
             return {
@@ -235,6 +364,17 @@ export class YearRepartitionService {
                 message: "Erreur lors de la récupération de l'année scolaire courante"
             };
         }
+    }
+
+    /**
+     * Post-import/restore/boot : garantit une année courante quand des années
+     * OUVERTE existent sans courante (backup importé sans isCurrent=true).
+     * Délègue à `getCurrentYearRepartition` (backfill + résolution d'ambiguïté) :
+     * la plus récente ouverte devient courante. Aucune création (MANUAL_ONLY).
+     * Appelé au boot (main.ts) après un remplacement à froid + utilisable en tests.
+     */
+    async ensureOneCurrentAfterImport(now: Date = new Date()): Promise<ResultType<YearRepartition | null>> {
+        return this.getCurrentYearRepartition(now);
     }
 
     async setCurrentYearRepartition(id: number): Promise<ResultType<YearRepartition>> {
@@ -338,13 +478,27 @@ export class YearRepartitionService {
             if ((year.status ?? "active") === "closed") {
                 return { success: false, data: null, error: "ALREADY_CLOSED", message: `L'année ${year.schoolYear} est déjà clôturée` };
             }
+            // Nouveau comportement : clôture autorisée même sur l'année courante
+            // (plus de garde CLOSE_CURRENT_FORBIDDEN). La clôture fait sortir
+            // l'année du circuit courant → isCurrent=false, status=closed,
+            // closedAt=now. L'app bascule alors en lecture seule globale
+            // (yearGuard.hasOpenYear()=false → toute écriture refuse YEAR_CLOSED,
+            // yearStore.isReadOnly=true → banner + boutons désactivés).
+            // La levée du verrou est automatique à la création + setCurrent
+            // d'une nouvelle année. Confirm UI côté YearRepartitionView (warning
+            // "sans nouvelle année → lecture seule").
+            const wasCurrent = year.isCurrent === true;
             year.status = "closed";
             year.closedAt = new Date();
-            if (year.isCurrent) year.isCurrent = false; // auto-désactive le flag courant
+            year.isCurrent = false;
             const saved = await this.yearRepartitionRepository.save(year);
-            return { success: true, data: this.convertToResponse(saved), error: null, message: `Année ${year.schoolYear} clôturée` };
+            if (wasCurrent) {
+                console.log(`[yearService] clôture année courante ${year.schoolYear} → sortie du courant, mode lecture seule.`);
+            }
+            return { success: true, data: this.convertToResponse(saved), error: null, message: "Année clôturée, mode lecture seule" };
         } catch (error) {
-            return { success: false, data: null, error: error instanceof Error ? error.message : "Erreur inconnue", message: "Échec de la clôture" };
+            const detail = error instanceof Error ? error.message : "Erreur inconnue";
+            return { success: false, data: null, error: detail, message: `Échec de la clôture : ${detail}` };
         }
     }
 
@@ -365,65 +519,41 @@ export class YearRepartitionService {
     }
 
     /**
-     * Auto-création idempotente : si la fin max des périodes de l'année courante
-     * (ou de la plus récente) remonte à >= 9 mois et que N+1 est absent, crée N+1
-     * avec les périodes décalées d'1 an (noms conservés). Ne définit jamais isCurrent.
+     * @deprecated Demande 1 — année scolaire uniquement manuelle.
+     * Auto-création DÉSACTIVÉE : cette méthode est neutralisée (no-op) et ne
+     * crée JAMAIS d'année. Elle retourne toujours `data: null` avec le message
+     * MANUAL_ONLY. Création exclusive via `createYearRepartition` (YearRepartitionView
+     * / YearRepartionForm → IPC `yearRepartition:create`) + `setCurrentYearRepartition`.
+     * Conservée pour compatibilité (boot/login ne l'appellent plus, IPC `ensure` neutralisé).
      */
-    async ensureSchoolYear(now: Date = new Date()): Promise<ResultType<YearRepartition | null>> {
-        try {
-            const all = await this.yearRepartitionRepository.find();
-            if (!all.length) return { success: true, data: null, error: null, message: "Aucune année existante : création manuelle requise" };
-            const current = all.find(r => r.isCurrent) ?? [...all].sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)))[0];
-            const canonCurrent = normalizeSchoolYear(current.schoolYear) ?? current.schoolYear;
-            const next = isCanonicalSchoolYear(canonCurrent) ? nextSchoolYear(canonCurrent) : null;
-            const fallbackNext = (() => {
-                const c = canonicalForDate(now);
-                return c === canonCurrent ? nextSchoolYear(c) : c > canonCurrent ? c : nextSchoolYear(canonCurrent);
-            })();
-            const target = next ?? fallbackNext;
-            if (!target) return { success: true, data: null, error: null, message: "Année suivante indéterminée" };
-            if (all.some(r => normalizeSchoolYear(r.schoolYear) === target)) {
-                return { success: true, data: null, error: null, message: `Année ${target} déjà présente` };
-            }
-            // Fin max des périodes
-            let end: Date | null = null;
-            for (const p of current.periodConfigurations || []) {
-                const e = new Date((p as any).end);
-                if (!Number.isNaN(e.getTime()) && (!end || e > end)) end = e;
-            }
-            if (!end) return { success: true, data: null, error: null, message: "Périodes sans fin exploitable : auto-création différée" };
-            if (monthsBetween(end, now) < 9) {
-                return { success: true, data: null, error: null, message: "Seuil 9 mois non atteint" };
-            }
-            const periods = (current.periodConfigurations || []).map(p => {
-                const s = new Date((p as any).start); s.setFullYear(s.getFullYear() + 1);
-                const e = new Date((p as any).end); e.setFullYear(e.getFullYear() + 1);
-                return { name: (p as any).name, start: s, end: e };
-            });
-            const entity = new YearRepartitionEntity();
-            entity.schoolYear = target;
-            entity.periodConfigurations = periods as any;
-            entity.isCurrent = false;
-            entity.status = "active";
-            entity.closedAt = null;
-            const saved = await this.yearRepartitionRepository.save(entity);
-            return { success: true, data: this.convertToResponse(saved), error: null, message: `Année ${target} auto-créée` };
-        } catch (error) {
-            return { success: false, data: null, error: error instanceof Error ? error.message : "Erreur inconnue", message: "Échec auto-création année" };
-        }
+    async ensureSchoolYear(_now: Date = new Date()): Promise<ResultType<YearRepartition | null>> {
+        console.warn("[yearService] ensureSchoolYear DEPRECATED (demande 1) — no-op, création manuelle requise.");
+        return { success: true, data: null, error: null, message: "MANUAL_ONLY : auto-création désactivée — création manuelle requise" };
     }
 
     /**
      * Clone configs-only, transactionnel : payment_configs, payment_annual_config(+tranches+entries),
      * grading_config(+categories), fee_items. Deep-clone (reset id/remote_id, relink grade).
      * Ne clone JAMAIS payments/scholarships/expenses/movements/notes/absences/paie. Exclut school/settings.
+     *
+     * Garanties (fix "Échec du clone configs-only" 2025-2026 → 2026-2027) :
+     * - payload bilingue `fromId`/`sourceId` (alias V3) ;
+     * - aperçu et clone partagent la même définition des compteurs (forme plate frontend) ;
+     * - idempotent : les lignes déjà présentes sur la cible (même clé métier + schoolYear
+     *   canonique) sont ignorées au lieu de lever UNIQUE (grading sans schoolYear dans
+     *   l'unicité, annual OneToOne sur grade) ;
+     * - source vide : succès explicite EMPTY_SOURCE (année créée, 0 ligne) au lieu d'un
+     *   échec générique ;
+     * - erreurs explicites `Échec du clone A → B : <détail>` (UNIQUE/colonne/table).
      */
-    async cloneYearConfigs(opts: { fromId: number; newSchoolYear: string; copyPayment?: boolean; copyTranches?: boolean; copyGrading?: boolean; copyFeeItems?: boolean }): Promise<ResultType<{ schoolYear: string }>> {
+    async cloneYearConfigs(opts: { fromId?: number; sourceId?: number; newSchoolYear: string; copyPayment?: boolean; copyTranches?: boolean; copyGrading?: boolean; copyFeeItems?: boolean }): Promise<ResultType<any>> {
         const ds = AppDataSource.getInstance();
         try {
             const canon = normalizeSchoolYear(opts.newSchoolYear);
             if (!canon) return { success: false, data: null, error: "INVALID_SCHOOL_YEAR", message: "newSchoolYear invalide (attendu YYYY-YYYY)" };
-            const from = await this.yearRepartitionRepository.findOne({ where: { id: opts.fromId } });
+            const fromId = Number((opts as any).fromId ?? (opts as any).sourceId);
+            if (!Number.isFinite(fromId)) return { success: false, data: null, error: "INVALID_PAYLOAD", message: "Clone : fromId/sourceId manquant (année source introuvable)" };
+            const from = await this.yearRepartitionRepository.findOne({ where: { id: fromId } });
             if (!from) return { success: false, data: null, error: "NOT_FOUND", message: "Année source non trouvée" };
             const fromYear = normalizeSchoolYear(from.schoolYear) ?? from.schoolYear;
             const exists = await this.yearRepartitionRepository.findOne({ where: { schoolYear: canon } });
@@ -443,23 +573,32 @@ export class YearRepartitionService {
                 }
             };
             const counts: Record<string, number> = {};
+            const skipped: Record<string, number> = {};
+            const noteSkipped = (table: string, n = 1) => { skipped[table] = (skipped[table] ?? 0) + n; };
+            const isUniqueViolation = (e: unknown) => /UNIQUE|unique|SQLITE_CONSTRAINT/i.test(String((e as any)?.message ?? e ?? ""));
+            let targetId: number | null = null;
+            let targetPeriods: Array<{ name: string; start: Date; end: Date }> = [];
             await ds.transaction(async (m) => {
                 const { PaymentConfigEntity, PaymentAnnualConfigEntity, TranchConfigEntity, TrancheEntryEntity } = await import("../entities/paymentConfig");
                 const { GradingConfigEntity, EvaluationCategoryEntity } = await import("../entities/configNote");
                 const { FeeItemEntity } = await import("../entities/accounting");
-                // Année cible
+                // Année cible — périodes N-1 décalées d'un an ; lignes invalides écartées
+                // explicitement (jamais de `new Date(invalide)` persisté).
                 const yearRepo = m.getRepository(YearRepartitionEntity);
-                const target = new YearRepartitionEntity();
-                target.schoolYear = canon;
-                target.periodConfigurations = (from.periodConfigurations || []).map((p: any) => {
+                const shifted = (from.periodConfigurations || []).map((p: any) => {
                     const s = new Date(p.start); s.setFullYear(s.getFullYear() + 1);
                     const e = new Date(p.end); e.setFullYear(e.getFullYear() + 1);
                     return { name: p.name, start: s, end: e };
-                }) as any;
+                }).filter((p: any) => p.name && !Number.isNaN(p.start.getTime()) && !Number.isNaN(p.end.getTime()));
+                const target = new YearRepartitionEntity();
+                target.schoolYear = canon;
+                target.periodConfigurations = shifted as any;
                 target.isCurrent = false;
                 target.status = "active";
                 target.closedAt = null;
-                await yearRepo.save(target);
+                const savedYear: any = await yearRepo.save(target);
+                targetId = savedYear?.id ?? null;
+                targetPeriods = shifted;
 
                 if (copyPayment) {
                     // B6: requête canonique stricte ; fallback legacy EXPLICITE.
@@ -472,10 +611,20 @@ export class YearRepartitionService {
                         effective = legacyOnly;
                     }
                     counts.payment_configs = effective.length;
+                    const existing: any[] = await m.getRepository(PaymentConfigEntity as any).find({ where: { schoolYear: canon } as any }).catch(() => []);
+                    const existingKeys = new Set(existing.filter((r) => normalizeSchoolYear(r.schoolYear) === canon).map((r) => `${r.classId ?? ""}|${r.annualAmount ?? ""}|${r.inscriptionFee ?? ""}`));
                     for (const r of effective) {
                         if (r.schoolYear && normalizeSchoolYear(r.schoolYear) !== fromYear) continue;
+                        const key = `${r.classId ?? ""}|${r.annualAmount ?? ""}|${r.inscriptionFee ?? ""}`;
+                        if (existingKeys.has(key)) { noteSkipped("payment_configs"); continue; }
                         const { id, remote_id, ...rest } = r;
-                        await m.getRepository(PaymentConfigEntity as any).save({ ...rest, schoolYear: canon, remote_id: null } as any);
+                        try {
+                            await m.getRepository(PaymentConfigEntity as any).save({ ...rest, schoolYear: canon, remote_id: null } as any);
+                            existingKeys.add(key);
+                        } catch (e) {
+                            if (isUniqueViolation(e)) { noteSkipped("payment_configs"); continue; }
+                            throw e;
+                        }
                     }
                 }
                 if (copyTranches) {
@@ -487,19 +636,33 @@ export class YearRepartitionService {
                         noteFallback("payment_annual_config", effective.filter((a) => !a.schoolYear).length);
                     }
                     counts.payment_annual_config = effective.length;
+                    // Idempotence : grade OneToOne — une cible avec le même grade existe déjà → skip.
+                    const existingAnnuals: any[] = await m.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { grade: true } }).catch(() => []);
+                    const usedGradeIds = new Set(existingAnnuals.filter((a) => normalizeSchoolYear(a.schoolYear) === canon).map((a) => a.grade?.id ?? a.gradeId).filter((v: any) => v != null));
+                    let tranchCount = 0;
                     for (const a of effective) {
                         if (a.schoolYear && normalizeSchoolYear(a.schoolYear) !== fromYear) continue;
+                        const gradeId = (a as any).grade?.id ?? (a as any).gradeId ?? null;
+                        if (gradeId != null && usedGradeIds.has(gradeId)) { noteSkipped("payment_annual_config"); continue; }
                         const { id, remote_id, tranches, grade, ...rest } = a;
-                        const savedAnnual: any = await m.getRepository(PaymentAnnualConfigEntity as any).save({ ...rest, schoolYear: canon, remote_id: null, grade: grade ?? undefined } as any);
-                        for (const t of tranches ?? []) {
-                            const { id: tid, remote_id: tr, entries, paymentAnnualConfig, ...trest } = t;
-                            const savedTranch: any = await m.getRepository(TranchConfigEntity as any).save({ ...trest, remote_id: null, paymentAnnualConfig: savedAnnual } as any);
-                            for (const e of entries ?? []) {
-                                const { id: eid, remote_id: er, tranchConfig, ...erest } = e;
-                                await m.getRepository(TrancheEntryEntity as any).save({ ...erest, remote_id: null, tranchConfig: savedTranch } as any);
+                        try {
+                            const savedAnnual: any = await m.getRepository(PaymentAnnualConfigEntity as any).save({ ...rest, schoolYear: canon, remote_id: null, grade: grade ?? undefined } as any);
+                            if (gradeId != null) usedGradeIds.add(gradeId);
+                            for (const t of tranches ?? []) {
+                                const { id: tid, remote_id: tr, entries, paymentAnnualConfig, schoolYear: _ts, ...trest } = t;
+                                const savedTranch: any = await m.getRepository(TranchConfigEntity as any).save({ ...trest, remote_id: null, paymentAnnualConfig: savedAnnual } as any);
+                                tranchCount++;
+                                for (const e of entries ?? []) {
+                                    const { id: eid, remote_id: er, tranchConfig, ...erest } = e;
+                                    await m.getRepository(TrancheEntryEntity as any).save({ ...erest, remote_id: null, tranchConfig: savedTranch } as any);
+                                }
                             }
+                        } catch (e) {
+                            if (isUniqueViolation(e)) { noteSkipped("payment_annual_config"); continue; }
+                            throw e;
                         }
                     }
+                    counts.tranches = tranchCount;
                 }
                 if (copyGrading) {
                     const configs: any[] = await m.getRepository(GradingConfigEntity as any).find({ relations: { categories: true }, where: { schoolYear: fromYear } as any });
@@ -510,13 +673,45 @@ export class YearRepartitionService {
                         noteFallback("grading_config", effective.filter((c) => !c.schoolYear).length);
                     }
                     counts.grading_config = effective.length;
+                    // Idempotence : unicité (schoolId, classId, subjectId, period) sans schoolYear
+                    // sur schéma frais → une cible identique existe déjà → skip.
+                    //
+                    // Hardening "near ':' syntax error" (clone 2025-2026 → 2026-2027,
+                    // 28 lignes notation) : les valeurs métier contiennent couramment
+                    // ":" ("Semestre 1: …", créneau "08:00", ratio "2:1"). On ne propage
+                    // JAMAIS l'entité chargée en spread (`...rest` / `...crest`) vers le
+                    // writer : toute propriété parasite (clé ou valeur avec ":", fonction
+                    // inlinée en SQL brut par le driver, colonne d'une dérive de schéma)
+                    // finirait dans la construction du statement, là où la substitution
+                    // textuelle `:param` du driver better-sqlite3 est fragile. Seules les
+                    // colonnes connues sont liées (binding positionnel `?` côté driver :
+                    // ":" reste une donnée liée, jamais un fragment SQL).
+                    const GRADING_COPY_COLS = ["schoolId", "classId", "subjectId", "period", "finalGradeBase", "calculationStrategy", "normalizeScores", "description"] as const;
+                    const CATEGORY_COPY_COLS = ["name", "code", "weight", "defaultMaxScore", "minEntries", "maxEntries", "color", "displayOrder", "isExam"] as const;
+                    const pickCopyCols = (src: any, cols: readonly string[]) => {
+                        const o: Record<string, unknown> = {};
+                        for (const k of cols) {
+                            const v = src?.[k];
+                            if (v !== undefined) o[k] = v;
+                        }
+                        return o;
+                    };
+                    const existingConfigs: any[] = await m.getRepository(GradingConfigEntity as any).find().catch(() => []);
+                    const existingKeys = new Set(existingConfigs.filter((c) => normalizeSchoolYear(c.schoolYear) === canon).map((c) => `${c.schoolId ?? ""}|${c.classId ?? ""}|${c.subjectId ?? ""}|${c.period ?? ""}`));
                     for (const c of effective) {
                         if (c.schoolYear && normalizeSchoolYear(c.schoolYear) !== fromYear) continue;
-                        const { id, remote_id, categories, ...rest } = c;
-                        const saved: any = await m.getRepository(GradingConfigEntity as any).save({ ...rest, schoolYear: canon, remote_id: null } as any);
-                        for (const cat of categories ?? []) {
-                            const { id: cid, remote_id: cr, config, ...crest } = cat;
-                            await m.getRepository(EvaluationCategoryEntity as any).save({ ...crest, remote_id: null, config: saved } as any);
+                        const key = `${c.schoolId ?? ""}|${c.classId ?? ""}|${c.subjectId ?? ""}|${c.period ?? ""}`;
+                        if (existingKeys.has(key)) { noteSkipped("grading_config"); continue; }
+                        try {
+                            const saved: any = await m.getRepository(GradingConfigEntity as any).save({ ...pickCopyCols(c, GRADING_COPY_COLS), schoolYear: canon, remote_id: null } as any);
+                            existingKeys.add(key);
+                            for (const cat of c.categories ?? []) {
+                                if (!cat) continue;
+                                await m.getRepository(EvaluationCategoryEntity as any).save({ ...pickCopyCols(cat, CATEGORY_COPY_COLS), remote_id: null, config: saved } as any);
+                            }
+                        } catch (e) {
+                            if (isUniqueViolation(e)) { noteSkipped("grading_config"); continue; }
+                            throw e;
                         }
                     }
                 }
@@ -529,58 +724,125 @@ export class YearRepartitionService {
                         noteFallback("fee_items", effective.filter((it) => !it.schoolYear).length);
                     }
                     counts.fee_items = effective.length;
+                    const existingItems: any[] = await m.getRepository(FeeItemEntity as any).find({ where: { schoolYear: canon } as any }).catch(() => []);
+                    const existingKeys = new Set(existingItems.filter((it) => normalizeSchoolYear(it.schoolYear) === canon).map((it) => `${it.name ?? ""}|${it.gradeId ?? ""}`));
                     for (const it of effective) {
                         if (it.schoolYear && normalizeSchoolYear(it.schoolYear) !== fromYear) continue;
+                        const key = `${it.name ?? ""}|${it.gradeId ?? ""}`;
+                        if (existingKeys.has(key)) { noteSkipped("fee_items"); continue; }
                         const { id, remote_id, ...rest } = it;
-                        await m.getRepository(FeeItemEntity as any).save({ ...rest, schoolYear: canon, remote_id: null } as any);
+                        try {
+                            await m.getRepository(FeeItemEntity as any).save({ ...rest, schoolYear: canon, remote_id: null } as any);
+                            existingKeys.add(key);
+                        } catch (e) {
+                            if (isUniqueViolation(e)) { noteSkipped("fee_items"); continue; }
+                            throw e;
+                        }
                     }
                 }
             });
             const hasFallback = Object.keys(fallbackUsage).length > 0;
+            const enabledCounts = [
+                copyPayment ? (counts.payment_configs ?? 0) : -1,
+                copyTranches ? (counts.payment_annual_config ?? 0) : -1,
+                copyGrading ? (counts.grading_config ?? 0) : -1,
+                copyFeeItems ? (counts.fee_items ?? 0) : -1,
+            ].filter((v) => v >= 0);
+            const emptySource = enabledCounts.length > 0 && enabledCounts.every((v) => v === 0);
             try {
                 await (global as any).auditLogService?.record({
                     action: "create",
                     targetEntity: "YearRepartition",
-                    targetId: null,
-                    summary: `Clone configs-only ${fromYear} → ${canon}${hasFallback ? " (fallback legacy)" : ""}`,
-                    metadata: { fromYear, schoolYear: canon, counts, fallbackUsage },
+                    targetId: targetId,
+                    summary: `Clone configs-only ${fromYear} → ${canon}${emptySource ? " (source vide)" : ""}${hasFallback ? " (fallback legacy)" : ""}`,
+                    metadata: { fromYear, schoolYear: canon, counts, skipped, fallbackUsage, emptySource },
                     actor: await (global as any).authService?.getCurrentUser?.().then((u: any) => u ? { id: u.id, username: u.username, role: u.role, displayName: u.displayName ?? null } : null).catch(() => null),
                 });
             } catch { /* audit best-effort */ }
-            return { success: true, data: { schoolYear: canon, counts, fallbackUsage } as any, error: null, message: `Configurations clonées vers ${canon}` };
+            // Forme plate (contrat frontend YearClonePreview) + détail snake (compat).
+            const flat = {
+                paymentConfigs: counts.payment_configs ?? 0,
+                tranches: counts.tranches ?? counts.payment_annual_config ?? 0,
+                gradingConfigs: counts.grading_config ?? 0,
+                feeItems: counts.fee_items ?? 0,
+            };
+            if (emptySource) {
+                return { success: true, data: { id: targetId, schoolYear: canon, periodConfigurations: targetPeriods, counts, skipped, fallbackUsage, emptySource: true, ...flat } as any, error: "EMPTY_SOURCE", message: `Source ${fromYear} vide : année ${canon} créée sans configurations (paiements 0, tranches 0, notation 0, frais 0)` };
+            }
+            const skippedTotal = Object.values(skipped).reduce((a, b) => a + (b as number), 0);
+            return { success: true, data: { id: targetId, schoolYear: canon, periodConfigurations: targetPeriods, counts, skipped, fallbackUsage, emptySource: false, ...flat } as any, error: null, message: `Configurations clonées vers ${canon} (paiements ${flat.paymentConfigs}, tranches ${flat.tranches}, notation ${flat.gradingConfigs}, frais ${flat.feeItems}${skippedTotal ? `, ${skippedTotal} ignorée(s) déjà présente(s)` : ""})` };
         } catch (error) {
-            return { success: false, data: null, error: error instanceof Error ? error.message : "Erreur inconnue", message: "Échec du clone configs-only" };
+            const detail = error instanceof Error ? error.message : String(error ?? "Erreur inconnue");
+            let hint = "";
+            if (/no such column/i.test(detail)) hint = " — schéma incomplet (colonne manquante) : vérifiez que la migration 177 est appliquée";
+            else if (/no such table/i.test(detail)) hint = " — table cible absente : base corrompue ou migration non appliquée";
+            else if (/UNIQUE|SQLITE_CONSTRAINT/i.test(detail)) hint = " — doublon (contrainte d'unicité) : relancez, les lignes déjà clonées sont désormais ignorées";
+            else if (/DUPLICATE/i.test(detail)) hint = "";
+            const fromLabel = (() => { try { return ""; } catch { return ""; } })();
+            return { success: false, data: null, error: detail, message: `Échec du clone configs-only${hint} : ${detail}${fromLabel}` };
         }
     }
 
     /**
      * B2: aperçu dry-run du clone (year:clone-preview) — compte sans écrire.
-     * Retourne { fromYear, newSchoolYear, counts } pour la modale frontend.
+     * Retourne la forme plate du contrat frontend `YearClonePreview`
+     * ({ paymentConfigs, tranches, gradingConfigs, feeItems }) + `counts`
+     * snake_case détaillé et `emptySource`. Tolérant legacy (lignes sans
+     * schoolYear) et schéma partiel (colonne manquante → 0, jamais de throw).
      */
-    async clonePreview(opts: { fromId: number; newSchoolYear: string }): Promise<ResultType<any>> {
+    async clonePreview(opts: { fromId?: number; sourceId?: number; newSchoolYear: string }): Promise<ResultType<any>> {
         try {
             const canon = normalizeSchoolYear(opts.newSchoolYear);
             if (!canon) return { success: false, data: null, error: "INVALID_SCHOOL_YEAR", message: "newSchoolYear invalide (attendu YYYY-YYYY)" } as any;
-            const from = await this.yearRepartitionRepository.findOne({ where: { id: opts.fromId } });
+            const fromId = Number((opts as any).fromId ?? (opts as any).sourceId);
+            if (!Number.isFinite(fromId)) return { success: false, data: null, error: "INVALID_PAYLOAD", message: "Aperçu : fromId/sourceId manquant" } as any;
+            const from = await this.yearRepartitionRepository.findOne({ where: { id: fromId } });
             if (!from) return { success: false, data: null, error: "NOT_FOUND", message: "Année source non trouvée" } as any;
             const fromYear = normalizeSchoolYear(from.schoolYear) ?? from.schoolYear;
             const ds = AppDataSource.getInstance();
-            const { PaymentConfigEntity, PaymentAnnualConfigEntity } = await import("../entities/paymentConfig");
+            const { PaymentConfigEntity, PaymentAnnualConfigEntity, TranchConfigEntity } = await import("../entities/paymentConfig");
             const { GradingConfigEntity } = await import("../entities/configNote");
             const { FeeItemEntity } = await import("../entities/accounting");
-            const countWhere = async (entity: any, extra?: any): Promise<number> => {
-                try { return await ds.getRepository(entity as any).count({ where: { schoolYear: fromYear, ...(extra ?? {}) } as any }); }
-                catch { return 0; }
+            const tolerantCount = async (entity: any): Promise<number> => {
+                try {
+                    const n = await ds.getRepository(entity as any).count({ where: { schoolYear: fromYear } as any });
+                    if (n > 0) return n;
+                } catch { /* colonne absente sur schéma partiel → fallback */ }
+                try {
+                    const rows: any[] = await ds.getRepository(entity as any).find();
+                    return rows.filter((r) => !r.schoolYear || normalizeSchoolYear(r.schoolYear) === fromYear).length;
+                } catch { return 0; }
             };
+            const paymentConfigs = await tolerantCount(PaymentConfigEntity);
+            const annuals = await tolerantCount(PaymentAnnualConfigEntity);
+            const gradingConfigs = await tolerantCount(GradingConfigEntity);
+            const feeItems = await tolerantCount(FeeItemEntity);
+            // Tranches : lignes tranch_config rattachées aux annuals source (direct schoolYear
+            // quand présent, sinon somme des relations) — même définition que le clone.
+            let tranches = 0;
+            try {
+                const direct: any[] = await ds.getRepository(TranchConfigEntity as any).find();
+                const withYear = direct.filter((t) => t.schoolYear && normalizeSchoolYear(t.schoolYear) === fromYear);
+                if (withYear.length) tranches = withYear.length;
+                else {
+                    const allAnnuals: any[] = await ds.getRepository(PaymentAnnualConfigEntity as any).find({ relations: { tranches: true } }).catch(() => []);
+                    const src = allAnnuals.filter((a) => !a.schoolYear || normalizeSchoolYear(a.schoolYear) === fromYear);
+                    tranches = src.reduce((acc, a) => acc + ((a.tranches ?? []).length || 0), 0);
+                    if (!tranches) tranches = annuals;
+                }
+            } catch { tranches = annuals; }
             const counts = {
-                payment_configs: await countWhere(PaymentConfigEntity),
-                payment_annual_config: await countWhere(PaymentAnnualConfigEntity),
-                grading_config: await countWhere(GradingConfigEntity),
-                fee_items: await countWhere(FeeItemEntity),
+                payment_configs: paymentConfigs,
+                payment_annual_config: annuals,
+                tranches,
+                grading_config: gradingConfigs,
+                fee_items: feeItems,
             };
-            return { success: true, data: { fromYear, newSchoolYear: canon, counts }, error: null, message: `Aperçu clone ${fromYear} → ${canon}` } as any;
+            const emptySource = paymentConfigs === 0 && annuals === 0 && gradingConfigs === 0 && feeItems === 0;
+            return { success: true, data: { fromYear, newSchoolYear: canon, paymentConfigs, tranches, gradingConfigs, feeItems, counts, emptySource }, error: null, message: emptySource ? `Aperçu clone ${fromYear} → ${canon} : source vide (rien à copier)` : `Aperçu clone ${fromYear} → ${canon}` } as any;
         } catch (error) {
-            return { success: false, data: null, error: error instanceof Error ? error.message : "Erreur inconnue", message: "Échec aperçu clone" } as any;
+            const detail = error instanceof Error ? error.message : String(error ?? "Erreur inconnue");
+            return { success: false, data: null, error: detail, message: `Échec aperçu clone : ${detail}` } as any;
         }
     }
 }

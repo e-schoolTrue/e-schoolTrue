@@ -92,8 +92,11 @@
       </el-col>
         </el-row>
       </el-tab-pane>
-      <el-tab-pane label="Fichier local" name="local">
+      <el-tab-pane v-if="isAdmin" label="Fichier local" name="local">
         <LocalBackupTab />
+      </el-tab-pane>
+      <el-tab-pane v-else label="Fichier local" name="local" disabled>
+        <el-empty description="Réservé administrateur" />
       </el-tab-pane>
     </el-tabs>
 
@@ -159,12 +162,21 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Icon } from '@iconify/vue';
 
+import { computed } from 'vue';
 import SyncSettings from '@/components/sync/SyncSettings.vue'; 
 import SyncHistory from '@/components/sync/SyncHistory.vue';   
 import LocalBackupTab from '@/components/sync/LocalBackupTab.vue';
 import type { SyncConfig, SyncHistoryType } from '../../types/sync'; 
 import LoginForm from '@/components/login/supabase/login-form.vue';
 import CreateAccount from '@/components/login/supabase/create-account.vue';
+import { useUserStore } from '@/stores/userStore';
+
+// Sauvegardes locales réservées administrateur (backup:* RBAC admin) :
+// l'onglet « Fichier local » est masqué aux non-admin (empty-state explicite,
+// pas de toast brut). Defense-in-depth : le backend refuse FORBIDDEN + la
+// route /tools/sync porte meta.roles=['admin'].
+const userStore = useUserStore();
+const isAdmin = computed(() => userStore.isAdmin);
 
 // --- États du composant ---
 const activeTab = ref<'cloud' | 'local'>('cloud');

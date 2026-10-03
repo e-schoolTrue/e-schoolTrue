@@ -327,7 +327,6 @@ const saveVacation = async () => {
     }
 
     const endpoint = isEditing.value ? 'vacation:update' : 'vacation:create';
-    console.log(`Appel IPC: ${endpoint}`, dataToSend);
     
     const result = await window.ipcRenderer.invoke(endpoint, dataToSend);
 

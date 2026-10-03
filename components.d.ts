@@ -12,6 +12,7 @@ declare module 'vue' {
     AccountingPasswordDialog: typeof import('./src/components/accounting/AccountingPasswordDialog.vue')['default']
     ArrearsTable: typeof import('./src/components/accounting/ArrearsTable.vue')['default']
     Attachments: typeof import('./src/components/student/sections/Attachments.vue')['default']
+    BackupImportCard: typeof import('./src/components/sync/BackupImportCard.vue')['default']
     BranchForm: typeof import('./src/components/grade/branch-form.vue')['default']
     BranchTable: typeof import('./src/components/grade/branch-table.vue')['default']
     BulletinConfigDialog: typeof import('./src/components/bulletin/BulletinConfigDialog.vue')['default']

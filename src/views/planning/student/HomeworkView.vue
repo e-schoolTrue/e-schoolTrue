@@ -290,9 +290,7 @@ const loadHomework = async () => {
   
   loading.value = true;
   try {
-    console.log("Chargement des devoirs pour la classe:", selectedGrade.value);
     const result = await window.ipcRenderer.invoke('homework:getByGrade', selectedGrade.value);
-    console.log("Résultat du chargement:", result);
     
     if (result.success) {
       homework.value = result.data;

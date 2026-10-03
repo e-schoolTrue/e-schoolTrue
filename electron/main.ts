@@ -68,7 +68,7 @@ let win: BrowserWindow | null;
 // INITIALISATION DES SERVICES
 // =================================================================
 
-function initializeServices() {
+export function initializeServices() {
   global.authService = new AuthService();
   global.backupService = new CloudSyncService();
   global.localBackupService = getLocalBackupService();
@@ -101,6 +101,21 @@ function initializeServices() {
   (global as any).accountingService = accountingService;
   (global as any).accountingAuthService = accountingAuthService;
 }
+
+/**
+ * Hook appelé par LocalBackupService après un remplacement à froid
+ * (destroy + swap fichiers + reinitialize). Tous les services métier
+ * capturent leur DataSource/repositories au boot ; sans re-création ici,
+ * ils continueraient de pointer vers la connexion détruite (ancienne DB
+ * vide) alors que database.db sur disque contient déjà l'import → login
+ * « Aucune année ouverte », données absentes. Le dev-reload ne rebootant
+ * pas le backend (pas de initialize() au boot), ce refresh est obligatoire.
+ * Exposé sur global pour éviter un import circulaire main ↔ localBackupService.
+ */
+function refreshServicesAfterDbReplace(): void {
+  initializeServices();
+}
+(global as any).refreshServicesAfterDbReplace = refreshServicesAfterDbReplace;
 
 // =================================================================
 // GARDE PILOTE NATIF (better-sqlite3) — PLATFORM-AWARE.
@@ -243,14 +258,24 @@ async function startApplication() {
   initializeServices();
   console.log('[3/4] Services métier initialisés avec succès.');
 
-  // V3 : rattrapage auto-création année N+1 (best-effort, ne bloque jamais createWindow).
+  console.log('[3a/4] Activation année importée (si années sans courante)...');
   try {
-    await (global as any).yearRepartitionService?.ensureSchoolYear?.(new Date()).then((r: any) => {
-      if (r?.data) console.log(`[3c/4] Année auto-créée : ${(r.data as any).schoolYear}`);
-    }).catch((e: any) => console.warn("[3c/4] ensureSchoolYear différé:", e?.message ?? e));
-  } catch (e: any) {
-    console.warn("[3c/4] ensureSchoolYear ignoré (best-effort):", e?.message ?? e);
+    const ensured = await global.yearRepartitionService?.ensureOneCurrentAfterImport?.(new Date());
+    if (ensured?.data) console.log(`[3a/4] Année courante : ${(ensured.data as { schoolYear?: string }).schoolYear ?? '?'}.`);
+    else console.log('[3a/4] Aucune année courante (DB vide ou tout clôturé — création manuelle requise).');
+  } catch (error) {
+    console.warn('[3a/4] Activation année importée impossible (poursuite sans année) :', (error as Error)?.message ?? error);
   }
+
+  // Demande 1 — année scolaire uniquement manuelle : AUCUNE auto-création au boot.
+  // ensureSchoolYear() neutralisé (deprecated, no-op côté service). La création
+  // se fait exclusivement via YearRepartitionView / YearRepartionForm (IPC create).
+  // Boot DB vide → getCurrent null → guard router redirect /school-repartition + banner.
+  // Fix import backup : la DB remplacée à froid peut contenir des années SANS
+  // courante (isCurrent jamais persisté). On active la plus récente OUVERTE
+  // (ACTIVATION d'existant, jamais de création — MANUAL_ONLY préservé) afin que
+  // le login propose une année au lieu de « Aucune année ouverte — lecture seule ».
+  // Idempotent : no-op si déjà une courante ou si DB vide / tout clôturé.
 
   console.log('[3b/4] Restauration de la session locale...');
   try {

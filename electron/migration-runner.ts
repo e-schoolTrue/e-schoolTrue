@@ -48,11 +48,35 @@ export const KNOWN_MIGRATIONS: ReadonlyArray<{ timestamp: number; name: string }
   { timestamp: 1720000000000, name: "BackfillCounters1720000000000" },
   { timestamp: 1730000000000, name: "YearStatusSchoolYear1730000000000" },
   { timestamp: 1740000000000, name: "TranchConfigPrecision1740000000000" },
+  { timestamp: 1750000000000, name: "DriftCatchup2175000000000" },
+  { timestamp: 1760000000000, name: "RoleLegacyFix1760000000000" },
+  { timestamp: 1770000000000, name: "DriftCatchup3177000000000" },
 ];
 const MIGRATION_TIMEOUT_MS = 60_000;
 const VACUUM_MAX_ATTEMPTS = 3;
-/** Allowlist des tables cœur vérifiées en postVerify (identifiants sûrs, pas d'input user). */
-const CORE_TABLES = ["user", "T_student", "payments", "tranch_config"];
+/**
+ * Allowlist des tables cœur vérifiées en postVerify (vérif seule, jamais de
+ * CREATE/ALTER ici — identifiants sûrs, pas d'input user). 13 tables :
+ * socle (user, T_student, payments, year_repartition, tranch_config) +
+ * drift-175 (payment_annual_config, grading_config, grade_entry,
+ * calculated_grade, audit_log, document_content, schedules) +
+ * filet-177 (accounting_vault).
+ */
+const CORE_TABLES = [
+  "user",
+  "T_student",
+  "payments",
+  "year_repartition",
+  "tranch_config",
+  "payment_annual_config",
+  "grading_config",
+  "grade_entry",
+  "calculated_grade",
+  "audit_log",
+  "document_content",
+  "schedules",
+  "accounting_vault",
+];
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -175,6 +199,27 @@ async function postVerify(ds: DataSource): Promise<void> {
     if (!Array.isArray(cols) || cols.length === 0) {
       throw new Error(`POST_VERIFY_FAILED: table cœur "${t}" introuvable ou sans colonnes`);
     }
+  }
+  // year_repartition : colonnes gouvernance V3 (status/closedAt, migration 173,
+  // filet 177). payments.receiptNumber : migration 171, filet 177.
+  const yearCols = (await ds.query(`PRAGMA table_info("year_repartition")`)) as Array<{ name?: string }>;
+  const names = new Set((yearCols ?? []).map((c) => String(c?.name ?? "")));
+  for (const required of ["status", "closedAt"]) {
+    if (!names.has(required)) {
+      throw new Error(`POST_VERIFY_FAILED: year_repartition.${required} manquante (migration 173 non jouée ?)`);
+    }
+  }
+  const payCols = (await ds.query(`PRAGMA table_info("payments")`)) as Array<{ name?: string }>;
+  const payNames = new Set((payCols ?? []).map((c) => String(c?.name ?? "")));
+  for (const required of ["receiptNumber", "scholarshipId", "baseAmount"]) {
+    if (!payNames.has(required)) {
+      throw new Error(`POST_VERIFY_FAILED: payments.${required} manquante (migrations 171/177 non jouées ?)`);
+    }
+  }
+  const userCols = (await ds.query(`PRAGMA table_info("user")`)) as Array<{ name?: string }>;
+  const userNames = new Set((userCols ?? []).map((c) => String(c?.name ?? "")));
+  if (!userNames.has("role")) {
+    throw new Error(`POST_VERIFY_FAILED: user.role manquante (migrations 176/177 non jouées ?)`);
   }
 }
 

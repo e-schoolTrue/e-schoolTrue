@@ -84,6 +84,9 @@ export class TranchConfigEntity {
     remote_id?: string;
     @Column({ type: "varchar"})
     tranchName?: string;
+    /** Année scolaire canonique YYYY-YYYY ; NULL = legacy (cf. migration 174 + ADR NULLABLE/DEFAULT). */
+    @Column({ type: "varchar", nullable: true })
+    schoolYear?: string | null;
     @Column({ type: "decimal", precision: 14, scale: 2, default: 0 })
     amount!: number;
     @Column({ type: "integer", nullable: true })

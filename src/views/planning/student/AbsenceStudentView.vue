@@ -664,15 +664,12 @@ const loadGrades = async () => {
 };
 
 const loadAbsences = async () => {
-  console.log('=== Vue - Début loadAbsences ===');
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('absence:allStudent');
-    console.log('Résultat brut du chargement des absences:', result);
     
     if (result?.success) {
       absences.value = result.data.map((absence: any) => {
-        console.log('Traitement absence:', absence);
         return {
           ...absence,
           date: new Date(absence.date),
@@ -686,7 +683,6 @@ const loadAbsences = async () => {
           parentNotified: Boolean(absence.parentNotified)
         };
       });
-      console.log('Absences traitées:', absences.value);
     }
   } catch (error) {
     console.error('Erreur détaillée lors du chargement des absences:', error);
@@ -895,7 +891,6 @@ const getReasonTypeTag = (type: string) => {
 const downloadDocument = async (documentData: any) => {
   try {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', documentData.id);
-    console.log('Résultat du téléchargement:', result);
     
     if (!result?.success || !result.data?.content) {
       throw new Error('Données du document manquantes ou invalides');
@@ -939,8 +934,6 @@ const viewDocument = async (documentData: any) => {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', documentData.id);
     if (result?.success && result.data?.content) {
       // Afficher le type de document pour le débogage
-      console.log('Type de document:', result.data.type);
-      console.log('Extension du fichier:', result.data.name?.split('.').pop()?.toLowerCase());
       
       // Déterminer si c'est un PDF basé sur le type MIME, l'extension ou le contenu du fichier
       const fileExt = result.data.name?.split('.').pop()?.toLowerCase();
@@ -994,7 +987,6 @@ const viewDocument = async (documentData: any) => {
 const forceViewAsPdf = () => {
   if (!currentDocument.value) return;
   
-  console.log('Forçage de l\'affichage en PDF');
   
   // Modifier le type pour forcer l'affichage en PDF
   currentDocument.value = {

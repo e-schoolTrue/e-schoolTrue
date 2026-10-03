@@ -258,11 +258,6 @@ const validateImport = async () => {
     const missingDisplayFields = requiredFieldsForDisplay.filter(field => !mappedFields.includes(field));
     
     // Log des mappages pour débogage
-    console.log("Mappages actuels:", columnMappings.value);
-    console.log("Champs mappés:", mappedFields);
-    console.log("Champs obligatoires pour l'affichage:", requiredFieldsForDisplay);
-    console.log("Champs obligatoires pour le backend:", requiredFields);
-    console.log("Champs manquants pour l'affichage:", missingDisplayFields);
     
     if (missingDisplayFields.length > 0) {
       const fieldLabels = missingDisplayFields.map(field => 
@@ -321,7 +316,6 @@ const validateImport = async () => {
           } else if (field.includes('lastname')) {
             mappedRow[field] = `IMPORTÉ ${index + 1}`;
           }
-          console.log(`Ajout d'une valeur par défaut pour ${field}:`, mappedRow[field]);
         }
       });
       
@@ -353,7 +347,6 @@ const validateImport = async () => {
       const student = mappedData[i];
       
       // Log pour débogage
-      console.log(`Étudiant ${i + 1}:`, student);
       
       // Assurer que les valeurs ne sont pas vides
       if (!student.firstname || !student.lastname) {

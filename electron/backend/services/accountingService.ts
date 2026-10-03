@@ -292,12 +292,16 @@ export class AccountingService {
       if (!p) p = await payRepo.findOne({ where: { receiptNumber: String(idOrNumber) } as any, relations: ["student", "student.grade"] as any });
       if (!p) return fail("Reçu introuvable", "RECEIPT_NOT_FOUND");
       const montant = toNum(p.amount);
+      // Ordre figé au paiement : tag [Imputation:ORDER] dans comment (sans migration).
+      const frozenMatch = /\[Imputation:(FIRST_FIRST|LAST_FIRST|LAST2_THEN_FIRST|LAST3_THEN_FIRST)\]/.exec(String(p.comment ?? ""));
+      const imputationOrder = frozenMatch ? frozenMatch[1] : undefined;
       return ok({
         id: String(p.id), numero: p.receiptNumber ?? `R-${p.id}`, date: new Date(p.created_at).toLocaleDateString("fr-FR"),
         eleve: `${p?.student?.firstname ?? ""} ${p?.student?.lastname ?? ""}`.trim(),
         matricule: p?.student?.matricule ?? "", classe: p?.student?.grade?.name ?? "",
         montant, mode: p.paymentMethod ?? "cash", motif: p.paymentType ?? "scolarité",
         currency: p.currency ?? currency, montantLettres: amountInWords(montant, (p.currency ?? currency) as any),
+        ...(imputationOrder ? { imputationOrder, paymentImputationOrder: imputationOrder } : {}),
       }, "Reçu chargé");
     } catch (e) {
       return fail("Erreur reçu", e instanceof Error ? e.message : String(e));

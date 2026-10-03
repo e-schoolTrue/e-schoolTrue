@@ -23,6 +23,7 @@ import { ElMessage } from 'element-plus'; // Importer ElMessage et ElMessageBox 
 
 // Importation des composants de vue
 import WelcomView from './omboarding/WelcomView.vue';
+import ImportBackupView from './omboarding/ImportBackupView.vue';
 import DataLocationView from './omboarding/DataLocationView.vue';
 import GeneralInfoView from './omboarding/GeneralInfoView.vue';
 import YearRepartitionView from './omboarding/YearRepartitionView.vue';
@@ -38,8 +39,10 @@ const router = useRouter();
 const currentStep = ref(0);
 
 // Clés internes
+// Ordre : Welcome → ImportBackup (skippable, 2ème position) → DataLocation → GeneralInfo → …
 const configViewsKeys = ref([
   'Welcome',
+  'ImportBackup',
   'DataLocation',
   'GeneralInfo',
   'YearRepartition',
@@ -55,6 +58,7 @@ const configViewsKeys = ref([
 // Mapping Clés -> Composants
 const viewComponents = {
   Welcome: WelcomView,
+  ImportBackup: ImportBackupView,
   DataLocation: DataLocationView,
   GeneralInfo: GeneralInfoView,
   YearRepartition: YearRepartitionView,
@@ -76,11 +80,9 @@ const currentViewComponent = computed(() => {
 onMounted(async () => {
   // ... (logique onMounted inchangée) ...
     try {
-    console.log('Démarrage de la vérification du premier lancement...');
     // Assurez-vous que window.ipcRenderer est bien défini (contexte Electron)
     if (window.ipcRenderer) {
         const response = await window.ipcRenderer.invoke('is-first-launch');
-        console.log('Réponse du serveur:', response);
 
         // P0 FIX: backend now returns {success:true, data:boolean, error:null, message:''}
         // Be tolerant: only treat as error when success === false explicitly.
@@ -97,10 +99,18 @@ onMounted(async () => {
         }
 
         if (!response.data) {
-          console.log('Ce n\'est pas le premier lancement, redirection vers /...');
           router.replace('/');
         } else {
-          console.log('Premier lancement détecté, affichage du wizard...');
+          // Guard anti-boucle après import + relaunch : si un import a déjà été
+          // confirmé (flag posé par BackupImportCard avant backup:confirmImport),
+          // on retire l'étape ImportBackup pour ne pas la reproposer.
+          try {
+            if (localStorage.getItem('eschool:wizard-backup-imported')) {
+              configViewsKeys.value = configViewsKeys.value.filter((k) => k !== 'ImportBackup');
+            }
+          } catch {
+            /* stockage indisponible : le wizard reste inchangé */
+          }
         }
     } else {
         console.warn("Contexte non-Electron, la vérification du premier lancement est ignorée.");
@@ -117,8 +127,6 @@ onMounted(async () => {
 
 // Gère la réception des données d'une étape et passe à la suivante
 const handleConfigurationSaved = async () => {
-  const currentKey = configViewsKeys.value[currentStep.value];
-  console.log(`Configuration sauvegardée pour l'étape ${currentKey}`);
   
 
   if (currentStep.value === configViewsKeys.value.length - 1) {
@@ -162,10 +170,8 @@ const finishConfiguration = async () => {
 // Gère le retour à l'étape précédente
 const handleGoBack = () => {
   if (currentStep.value > 0) {
-    console.log('Retour à l\'étape précédente');
     currentStep.value--;
   } else {
-     console.log('Impossible de retourner en arrière depuis la première étape');
   }
 };
 
@@ -173,17 +179,14 @@ const handleGoBack = () => {
 const nextStep = async () => {
   if (currentStep.value < configViewsKeys.value.length - 1) {
     currentStep.value++;
-    console.log('Passage à l\'étape:', currentStep.value, configViewsKeys.value[currentStep.value]);
   } else {
    
-    console.log('Configuration terminée, redirection vers l\'application...');
     
     try {
 
       if (window.ipcRenderer) {
         try {
           await window.ipcRenderer.invoke('set-first-launch-complete');
-          console.log('Premier lancement marqué comme terminé');
         } catch (e) {
           console.warn('Impossible de marquer le premier lancement comme terminé:', e);
         }
@@ -192,7 +195,6 @@ const nextStep = async () => {
   
       
       ElMessage.success('Configuration initiale terminée avec succès !');
-      console.log('Redirection vers /...');
       
       // Forcer une redirection dure pour contourner les guards de navigation
       window.location.href = '/';

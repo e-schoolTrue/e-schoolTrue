@@ -60,11 +60,24 @@ describe('yearGuard — YEAR_CLOSED', () => {
     expect(r).toEqual({ schoolYear: '2024-2025', forced: false })
   })
 
-  it('2. année absente (non gérée) → écriture autorisée', async () => {
-    mockYearRepo.findOne.mockResolvedValue(null)
+  it('2. année absente (non gérée) + année ouverte → écriture autorisée', async () => {
+    mockYearRepo.findOne.mockImplementation(async ({ where }: any) => {
+      if (where?.isCurrent === true) return { id: 1, schoolYear: '2024-2025', status: 'active', isCurrent: true }
+      return null
+    })
     const r = await requireYearWritable({ schoolYear: '2030-2031' })
     expect(r.forced).toBe(false)
     expect(r.schoolYear).toBe('2030-2031')
+  })
+
+  it('2bis. verrou global : aucune année ouverte → écriture refusée même année active/absente', async () => {
+    mockYearRepo.findOne.mockImplementation(async ({ where }: any) => {
+      if (where?.isCurrent === true) return null
+      if (where?.schoolYear) return { id: 2, schoolYear: where.schoolYear, status: 'active' }
+      return null
+    })
+    await expect(requireYearWritable({ schoolYear: '2025-2026', actorRole: 'comptable' })).rejects.toThrow(/YEAR_CLOSED/)
+    await expect(requireYearWritable({ schoolYear: '2030-2031', actorRole: 'admin' })).rejects.toThrow(/YEAR_CLOSED/)
   })
 
   it('3. YEAR_CLOSED bloque sans force (comptable, sans _forceYearWrite)', async () => {

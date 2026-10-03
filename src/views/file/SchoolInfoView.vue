@@ -60,8 +60,8 @@ const handleLogoChange = async (event: Event) => {
     return
   }
 
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.error('L\'image ne doit pas dépasser 5MB')
+  if (file.size > 2 * 1024 * 1024) {
+    ElMessage.error("La taille du logo ne doit pas dépasser 2 Mo (max 2 Mo).")
     return
   }
 
@@ -120,18 +120,20 @@ const saveSchoolInfo = async () => {
 
     // Envoyer directement le payload sans l'envelopper dans un objet data
     const result = await window.ipcRenderer.invoke('school:save', payload);
-    console.log(result);
 
-    if (result.success) {
+    if (result?.success) {
       ElMessage.success('Informations sauvegardées avec succès');
       isEditMode.value = false;
       await loadSchoolInfo(); // Recharger les données
     } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde');
+      const detail = result?.message || result?.error || 'Erreur lors de la sauvegarde';
+      console.error('Échec school:save:', result);
+      ElMessage.error(detail);
     }
   } catch (error) {
-    console.error('Erreur:', error);
-    ElMessage.error('Erreur lors de la sauvegarde');
+    const raw = error instanceof Error ? error.message : String(error ?? '');
+    console.error('Erreur school:save:', error);
+    ElMessage.error(raw || 'Erreur lors de la sauvegarde');
   } finally {
     isSaving.value = false;
   }
@@ -146,7 +148,6 @@ const loadLogo = async (logo?: { id: number; name: string; type: string; path?: 
 
   try {
     const logoResult = await window.ipcRenderer.invoke('school:getLogo', logo.id);
-    console.log("Résultat du chargement du logo:", logoResult);
     
     if (logoResult.success && logoResult.data) {
       // Vérifier si le contenu est déjà en base64 ou s'il faut le convertir
@@ -171,7 +172,6 @@ const loadSchoolInfo = async () => {
   try {
     isLoading.value = true;
     const result = await window.ipcRenderer.invoke('school:get');
-    console.log(result);
     if (result?.success && result.data) {
       schoolInfo.value = {
         ...initialSchoolInfo,
@@ -254,7 +254,6 @@ onMounted(loadSchoolInfo)
                   :preview-src-list="logoPreview ? [logoPreview] : []"
                   @error="(e: any) => {
                     console.error('Erreur de chargement de l\'image:', e);
-                    console.log('URL de l\'image:', logoPreview);
                   }"
                 >
                   <template #error>

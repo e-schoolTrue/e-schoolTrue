@@ -41,7 +41,6 @@ const loadStudentData = async () => {
         gradeId: result.data.grade?.id || null
       };
       studentData.value = mappedData;
-      console.log('Données de l\'étudiant chargées:', mappedData);
     } else {
       ElMessage.error('Erreur lors de la récupération des détails de l\'étudiant');
     }

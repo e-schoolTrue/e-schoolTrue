@@ -26,12 +26,11 @@ function openUpdateForm(classRoom:ClassRoom){
 }
 async function newClassRoom(formRef:FormInstance|undefined , form:ClassRoomCommand){
   if(!formRef) return
-  await formRef.validate(async(isValid, invalidFields)=>{
-    console.log(invalidFields)
+  await formRef.validate(async (isValid, _invalidFields) => {
+    void _invalidFields;
     if(isValid){
       Loader.showLoader("ajout de la salle de classe en cours")
       const newClassRoomResult = await window.ipcRenderer.invoke("classRoom:new" , cloneDeep(form))
-      console.log('newClassRoomResult:', newClassRoomResult)
       if(newClassRoomResult.success){
         await refreshClassRooms()
         newClassRoomFormRef.value?.close()
@@ -51,8 +50,8 @@ async function newClassRoom(formRef:FormInstance|undefined , form:ClassRoomComma
 
 async function updateClassRoom(formRef:FormInstance|undefined , form:ClassRoomCommand){
   if(!formRef) return
-  await formRef.validate(async(isValid, invalidFields)=>{
-    console.log(invalidFields)
+  await formRef.validate(async (isValid, _invalidFields) => {
+    void _invalidFields;
     if(isValid){
       Loader.showLoader("mise à jour de salle de classe en cours")
       const updateClassRoomResult = await window.ipcRenderer.invoke("classRoom:update" , cloneDeep(form))

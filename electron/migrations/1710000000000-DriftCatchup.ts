@@ -47,6 +47,16 @@ export class DriftCatchup1710000000000 implements MigrationInterface {
     const clean = columns
       .split(",")
       .map((c) => c.trim().replace(/^"+|"+$/g, ""));
+    // Filet 177 : sur table pré-existante partielle, la colonne peut manquer
+    // (le CREATE IF NOT EXISTS est alors no-op et aucun ADD COLUMN ne l'a
+    // ajoutée ici). Créer l'index planterait ("no such column") à chaque boot
+    // → on saute (warn), la 177 converge colonnes PUIS index.
+    for (const c of clean) {
+      if (!(await q.hasColumn(table, c))) {
+        console.warn(`[migration-171] skip ${index} : ${table}.${c} absente (filet 177)`);
+        return;
+      }
+    }
     const cols = clean.map((c) => `"${c}" IS NOT NULL`).join(" AND ");
     const colList = clean.map((c) => `"${c}"`).join(", ");
     await q.query(
@@ -56,6 +66,26 @@ export class DriftCatchup1710000000000 implements MigrationInterface {
 
   private async indexIfMissing(q: QueryRunner, index: string, ddl: string): Promise<void> {
     await q.query(ddl.replace("__INDEX__", `"${index}"`));
+  }
+
+  /**
+   * indexOnExistingColumns — comme indexIfMissing mais saute (warn) si une
+   * colonne requise manque sur une table pré-existante partielle (filet 177).
+   */
+  private async indexOnExistingColumns(
+    q: QueryRunner,
+    index: string,
+    table: string,
+    columns: string[],
+    ddl: string,
+  ): Promise<void> {
+    for (const c of columns) {
+      if (!(await q.hasColumn(table, c))) {
+        console.warn(`[migration-171] skip ${index} : ${table}.${c} absente (filet 177)`);
+        return;
+      }
+    }
+    await this.indexIfMissing(q, index, ddl);
   }
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -351,13 +381,14 @@ export class DriftCatchup1710000000000 implements MigrationInterface {
     await this.uniqueWhereNotNull(queryRunner, "UQ_salary_slips_remote_id", "salary_slips", `"remote_id"`);
     await this.uniqueWhereNotNull(queryRunner, "UQ_fee_items_remote_id", "fee_items", `"remote_id"`);
 
-    // --------------------------------------- 9. Index metier (IF NOT EXISTS)
-    await this.indexIfMissing(queryRunner, "IDX_payment_receiptNumber", `CREATE INDEX IF NOT EXISTS __INDEX__ ON "payments" ("receiptNumber")`);
-    await this.indexIfMissing(queryRunner, "IDX_expense_studentId", `CREATE INDEX IF NOT EXISTS __INDEX__ ON "expenses" ("studentId")`);
-    await this.indexIfMissing(queryRunner, "UQ_cash_register_name_date", `CREATE UNIQUE INDEX IF NOT EXISTS __INDEX__ ON "cash_registers" ("name", "registerDate")`);
-    await this.indexIfMissing(queryRunner, "UQ_salary_slip_prof_month", `CREATE UNIQUE INDEX IF NOT EXISTS __INDEX__ ON "salary_slips" ("professorId", "month")`);
-    await this.indexIfMissing(queryRunner, "IDX_hourlog_prof_month", `CREATE INDEX IF NOT EXISTS __INDEX__ ON "teacher_hour_logs" ("professorId", "month")`);
-    await this.indexIfMissing(queryRunner, "IDX_feeitem_schoolYear", `CREATE INDEX IF NOT EXISTS __INDEX__ ON "fee_items" ("schoolYear")`);
+    // --------------------------------------- 9. Index metier (IF NOT EXISTS,
+    // guardé colonnes : no-op warn sur table partielle, filet 177)
+    await this.indexOnExistingColumns(queryRunner, "IDX_payment_receiptNumber", "payments", ["receiptNumber"], `CREATE INDEX IF NOT EXISTS __INDEX__ ON "payments" ("receiptNumber")`);
+    await this.indexOnExistingColumns(queryRunner, "IDX_expense_studentId", "expenses", ["studentId"], `CREATE INDEX IF NOT EXISTS __INDEX__ ON "expenses" ("studentId")`);
+    await this.indexOnExistingColumns(queryRunner, "UQ_cash_register_name_date", "cash_registers", ["name", "registerDate"], `CREATE UNIQUE INDEX IF NOT EXISTS __INDEX__ ON "cash_registers" ("name", "registerDate")`);
+    await this.indexOnExistingColumns(queryRunner, "UQ_salary_slip_prof_month", "salary_slips", ["professorId", "month"], `CREATE UNIQUE INDEX IF NOT EXISTS __INDEX__ ON "salary_slips" ("professorId", "month")`);
+    await this.indexOnExistingColumns(queryRunner, "IDX_hourlog_prof_month", "teacher_hour_logs", ["professorId", "month"], `CREATE INDEX IF NOT EXISTS __INDEX__ ON "teacher_hour_logs" ("professorId", "month")`);
+    await this.indexOnExistingColumns(queryRunner, "IDX_feeitem_schoolYear", "fee_items", ["schoolYear"], `CREATE INDEX IF NOT EXISTS __INDEX__ ON "fee_items" ("schoolYear")`);
   }
 
   public async down(): Promise<void> {

@@ -60,16 +60,22 @@ async function goNext() {
       departmentCode: formData.value.departmentCode
     });
 
-    if (result.success) {
+    if (result?.success) {
       ElMessage.success('Paramètres sauvegardés avec succès');
       emit('configuration-saved', formData.value);
       router.push({ name: 'general-info' });
     } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde des paramètres');
+      const detail = result?.message || result?.error || 'Erreur lors de la sauvegarde des paramètres';
+      console.error('Échec school:saveSettings:', result);
+      ElMessage.error(detail);
     }
   } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error ?? '');
+    const detail = /UNAUTHENTICATED/.test(raw)
+      ? 'Sauvegarde refusée : session non authentifiée (onboarding). Relancez l’assistant de configuration.'
+      : (raw || 'Une erreur est survenue lors de la sauvegarde des paramètres');
     console.error('Erreur lors de la sauvegarde:', error);
-    ElMessage.error('Une erreur est survenue lors de la sauvegarde des paramètres');
+    ElMessage.error(detail);
   } finally {
     isSaving.value = false;
   }

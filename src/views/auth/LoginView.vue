@@ -22,17 +22,10 @@ const formData = reactive({
   yearId: null as number | null,
 })
 
-/** Années passées → courante, puis option de création N+1. */
+/** Années existantes triées (100% manuelles — AUCUNE auto-création, MANUAL_ONLY).
+ * L'option N+1 auto a été supprimée (MANUAL_ONLY) : si la liste est
+ * vide, le select affiche « Aucune année ouverte — créez-la manuellement ». */
 const yearOptions = computed(() => [...yearStore.list].sort((a, b) => a.schoolYear.localeCompare(b.schoolYear)))
-
-const nextYearLabel = computed(() => {
-  const last = yearOptions.value[yearOptions.value.length - 1]?.schoolYear
-  if (!last) {
-    const y = new Date().getFullYear()
-    return `${y}-${y + 1}`
-  }
-  return yearStore.nextSchoolYearLabel(last) ?? null
-})
 
 const loadYears = async () => {
   yearsLoading.value = true
@@ -176,12 +169,15 @@ const handleLogin = async () => {
                   :label="`${y.schoolYear}${y.isCurrent ? ' (en cours)' : ''}${y.status === 'closed' ? ' — clôturée' : ''}`"
                 />
                 <el-option
-                  v-if="nextYearLabel && !yearOptions.some((y) => y.schoolYear === nextYearLabel)"
+                  v-if="yearOptions.length === 0 && !yearsLoading"
                   :value="null"
-                  :label="`${nextYearLabel} (sera créée automatiquement)`"
+                  label="Aucune année ouverte — créez-la manuellement"
                   disabled
                 />
               </el-select>
+              <div v-if="yearOptions.length === 0 && !yearsLoading" class="year-manual-hint">
+                Aucune année ouverte — créez-la manuellement depuis l’écran admin après connexion.
+              </div>
             </el-form-item>
 
             <div class="forgot-password">
@@ -354,6 +350,14 @@ const handleLogin = async () => {
   justify-content: flex-end;
   margin-bottom: 24px;
   margin-top: -10px;
+}
+
+/* Hint manuel (liste vide) — cohérence 100% manuelle, pas d'auto-création. */
+.year-manual-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 6px;
+  line-height: 1.4;
 }
 
 /* Le select année occupe toute la largeur comme les inputs */

@@ -343,7 +343,6 @@ const goNext = async () => {
   // Convertir le Map en tableau pour l'émission d'événement
   const uniqueConfigsArray = Array.from(uniqueConfigs.values());
   
-  console.log('Configurations uniques envoyées:', uniqueConfigsArray);
   emit('configuration-saved', uniqueConfigsArray);
 };
 

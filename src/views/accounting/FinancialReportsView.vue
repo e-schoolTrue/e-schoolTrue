@@ -58,6 +58,7 @@ import { loadGradeNames } from '@/composables/useArrears'
 import { useYearStore } from '@/stores/yearStore'
 import { useCurrency } from '@/composables/useCurrency'
 import { strictInvoke } from '@/utils/ipc'
+import { formatJJMMAAAA } from '@/utils/receiptCasy'
 
 interface ReportDef {
   key: string
@@ -185,17 +186,6 @@ const reports = computed<ReportDef[]>(() => {
     { key: 'resultat', title: 'Compte de résultat', desc: 'Entrées − sorties', value: fmt(store.kpis.encaisseMois - store.kpis.depensesMois) },
   ]
 })
-
-function formatJJMMAAAA(d: unknown): string {
-  if (!d) return '—'
-  try {
-    const s = String(d)
-    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s.slice(0, 10)
-    const dt = new Date(s)
-    if (Number.isNaN(dt.getTime())) return s
-    return dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  } catch { return String(d) }
-}
 
 async function schoolName(): Promise<string> {
   try {

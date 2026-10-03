@@ -484,6 +484,12 @@ export class PaymentService {
                 if (frontendRef) extraBits.push(`[Réf: ${frontendRef}]`);
                 if (frontendRemise > 0) extraBits.push(`[Remise: ${frontendRemise}]`);
                 if (frontendDateRaw) extraBits.push(`[Date saisie: ${String(frontendDateRaw)}]`);
+                // Ordre d'imputation figé au paiement (sans migration : tag dans comment).
+                const rawOrder = String((paymentData as any)?.imputationOrder ?? "").trim();
+                const frozenOrder = ["FIRST_FIRST", "LAST_FIRST", "LAST2_THEN_FIRST", "LAST3_THEN_FIRST"].includes(rawOrder)
+                    ? rawOrder : null;
+                const hasImputationTag = /\[Imputation:(FIRST_FIRST|LAST_FIRST|LAST2_THEN_FIRST|LAST3_THEN_FIRST)\]/.test(baseComment);
+                if (frozenOrder && !hasImputationTag) extraBits.push(`[Imputation:${frozenOrder}]`);
                 const enrichedComment = [baseComment, ...extraBits].filter(Boolean).join(" | ").slice(0, 500) || undefined;
                 if (frontendRef || frontendRemise > 0 || frontendDateRaw) {
                     console.log("[payment] champs mappés -> comment/cash:", { frontendRef, frontendDateRaw, frontendRemise, enrichedComment });

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { PaymentConfig, PaymentConfigCreateInput, CustomPaymentConfig, PaymentSchedule } from '@/types/payment';
 import { useCurrency } from '@/composables/useCurrency';
+import { DEFAULT_IMPUTATION_ORDER, normalizeImputationOrder, useImputationOrder } from '@/composables/useImputationOrder';
 import CurrencyDisplay from '@/components/common/CurrencyDisplay.vue';
 import { Delete, Plus, Calendar, Money, Setting } from '@element-plus/icons-vue';
 import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError, openGuardedForm } from '@/composables/useAccountingGuard';
@@ -57,7 +58,8 @@ const currentCustomConfig = ref<CustomPaymentConfig>({
     numberOfMonths: 10,
     startMonth: 9,
     monthlyAmount: 0,
-    excludedMonths: [7, 8]
+    excludedMonths: [7, 8],
+    paymentImputationOrder: DEFAULT_IMPUTATION_ORDER
   },
   installmentConfig: {
     numberOfInstallments: 3,
@@ -89,6 +91,16 @@ const serializeForIPC = (obj: any): any => {
 };
 
 const selectedGradeForCustom = ref<string>('');
+
+// Ordre d'imputation (hook extrait — évite de grossir ce fichier).
+const imputation = useImputationOrder(currentCustomConfig.value.monthlyConfig?.paymentImputationOrder);
+watch(() => currentCustomConfig.value.monthlyConfig?.paymentImputationOrder, (v) => {
+  if (v) imputation.setOrder(v);
+});
+watch(imputation.order, (v) => {
+  const mc = currentCustomConfig.value.monthlyConfig;
+  if (mc && mc.paymentImputationOrder !== v) mc.paymentImputationOrder = v;
+});
 
 
 // Calculs pour la configuration personnalisée
@@ -137,7 +149,8 @@ const openCustomConfigModal = () => {
       numberOfMonths: 10,
       startMonth: 9,
       monthlyAmount: 0,
-      excludedMonths: [7, 8]
+      excludedMonths: [7, 8],
+      paymentImputationOrder: DEFAULT_IMPUTATION_ORDER
     },
     installmentConfig: {
       numberOfInstallments: 3,
@@ -421,6 +434,10 @@ const editCustomConfig = async (config: CustomPaymentConfig) => {
   // Convertir les dates strings en objets Date pour l'édition
   const configWithDates = {
     ...config,
+    monthlyConfig: config.monthlyConfig ? {
+      ...config.monthlyConfig,
+      paymentImputationOrder: normalizeImputationOrder((config.monthlyConfig as { paymentImputationOrder?: unknown }).paymentImputationOrder)
+    } : config.monthlyConfig,
     customSchedule: config.customSchedule ? {
       schedules: config.customSchedule.schedules.map(schedule => ({
         ...schedule,
@@ -672,6 +689,17 @@ onMounted(async () => {
                   :value="index + 1"
                 />
               </el-select>
+            </el-form-item>
+            <el-form-item label="Ordre d'imputation des paiements (reflété sur reçu)">
+              <el-select v-model="currentCustomConfig.monthlyConfig!.paymentImputationOrder" class="full-width">
+                <el-option
+                  v-for="opt in imputation.options"
+                  :key="opt.value"
+                  :label="opt.label"
+                  :value="opt.value"
+                />
+              </el-select>
+              <div class="form-hint">Preview : {{ imputation.previewText }}</div>
             </el-form-item>
           </template>
 

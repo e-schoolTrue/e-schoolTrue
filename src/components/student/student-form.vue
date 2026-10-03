@@ -61,7 +61,6 @@ watch(
   () => props.studentData,
   (newData) => {
     if (newData && Object.keys(newData).length > 0) {
-      console.log('Mise à jour formData avec:', newData);
       // Mettre à jour formData avec les nouvelles données
       Object.keys(newData).forEach(key => {
         if (key in formData) {
@@ -73,7 +72,6 @@ watch(
           }
         }
       });
-      console.log('formData après mise à jour:', formData);
     }
   },
   { immediate: true, deep: true }
@@ -125,7 +123,6 @@ const validateRequiredFields = () => {
 
 // Mise à jour de la fonction saveData pour utiliser la nouvelle validation
 const saveData = () => {
-  console.log("Données brutes à sauvegarder:", formData);
   
   if (!validateRequiredFields()) {
     return;
@@ -154,7 +151,6 @@ const saveData = () => {
   };
 
   const dataToSave = cleanObject(formData);
-  console.log("Données nettoyées à sauvegarder:", dataToSave);
 
   try {
     emit("save", dataToSave);

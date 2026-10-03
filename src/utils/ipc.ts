@@ -49,26 +49,61 @@ export async function safeInvoke<T>(channel: string, fallback: T, ...args: unkno
   }
 }
 
+export interface StrictInvokeOptions {
+  /**
+   * Année scolaire / lecture non critique : pas de toast, log debug seul.
+   * L'appelant gère `null` via empty-state explicite (« Aucune année en cours »).
+   */
+  silent?: boolean
+}
+
+function splitSilent(args: unknown[]): { silent: boolean; payload: unknown[] } {
+  if (!args.length) return { silent: false, payload: args }
+  const last = args[args.length - 1] as Record<string, unknown> | null
+  if (last && typeof last === 'object' && !Array.isArray(last) && 'silent' in last) {
+    const { silent, ...rest } = last as { silent?: unknown } & Record<string, unknown>
+    const isOnlySilent = Object.keys(rest).length === 0
+    return {
+      silent: silent === true,
+      payload: isOnlySilent ? args.slice(0, -1) : [...args.slice(0, -1), rest],
+    }
+  }
+  return { silent: false, payload: args }
+}
+
 /**
  * Invocation IPC stricte — montants en prod.
  * Ne retourne jamais un fallback silencieux : lève si IPC absent/échec.
+ * Option `{ silent: true }` en dernier argument : pas de `ElMessage`, log
+ * debug seul (lectures année non critiques → empty-state, pas de toast).
  *
  * @param channel - Canal IPC.
- * @param args - Arguments transmis au canal.
+ * @param args - Arguments transmis au canal (`{ silent: true }` final = option).
  * @returns Donnée IPC typée.
  * @throws {Error} Si IPC indisponible, réponse `{ success: false }` ou donnée nulle.
  */
 export async function strictInvoke<T>(channel: string, ...args: unknown[]): Promise<T> {
-  const ipc = getIpc()
-  if (!ipc?.invoke) {
-    const msg = `Canal IPC "${channel}" indisponible (montant non chargé — refus du fallback silencieux)`
+  const { silent, payload } = splitSilent(args)
+  const fail = (msg: string): never => {
+    if (silent) {
+      if (import.meta.env.DEV) console.debug(`[ipc] "${channel}" silencieux → ${msg}`)
+      throw new Error(msg)
+    }
     ElMessage.error(msg)
     throw new Error(msg)
   }
+  const ipc = getIpc()
+  if (!ipc?.invoke) {
+    fail(`Canal IPC "${channel}" indisponible (montant non chargé — refus du fallback silencieux)`)
+  }
   let res: unknown
   try {
-    res = await ipc.invoke(channel, ...args)
+    res = await (ipc as { invoke: (c: string, ...a: unknown[]) => Promise<unknown> }).invoke(channel, ...payload)
   } catch (err) {
+    if (silent) {
+      if (import.meta.env.DEV) console.debug(`[ipc] "${channel}" échec silencieux`, err)
+      throw err instanceof Error ? err : new Error(`Échec IPC "${channel}"`)
+    }
     const msg = `Échec IPC "${channel}"`
     ElMessage.error(msg)
     throw err instanceof Error ? err : new Error(msg)
@@ -77,17 +112,32 @@ export async function strictInvoke<T>(channel: string, ...args: unknown[]): Prom
     const r = res as { success?: boolean; data?: T; message?: string }
     if (!r.success || r.data === undefined || r.data === null) {
       const msg = r.message || `Réponse invalide du canal "${channel}" (montant)`
+      if (silent) {
+        if (import.meta.env.DEV) console.debug(`[ipc] "${channel}" silencieux → ${msg}`)
+        throw new Error(msg)
+      }
       ElMessage.error(msg)
       throw new Error(msg)
     }
     return r.data
   }
   if (res === undefined || res === null) {
-    const msg = `Réponse vide du canal "${channel}" (montant)`
-    ElMessage.error(msg)
-    throw new Error(msg)
+    fail(`Réponse vide du canal "${channel}" (montant)`)
   }
   return res as T
+}
+
+/**
+ * Lecture fail-soft année : `strictInvoke` silencieux + `null` en échec.
+ * Jamais de toast — l'appelant affiche « Aucune année en cours ».
+ */
+export async function invokeFailSoft<T>(channel: string, ...args: unknown[]): Promise<T | null> {
+  try {
+    return await strictInvoke<T>(channel, ...args, { silent: true })
+  } catch (err) {
+    if (import.meta.env.DEV) console.debug(`[ipc] "${channel}" fail-soft → null`, err)
+    return null
+  }
 }
 
 /** Vrai en build prod (`vite build`) — les fallbacks montants y sont interdits. */

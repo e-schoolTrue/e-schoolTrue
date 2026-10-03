@@ -1,14 +1,5 @@
 <template>
   <div class="re-enrollment">
-    <el-alert
-      v-if="writeLocked"
-      :title="`Année ${targetYearLabel} clôturée — réinscription en lecture seule`"
-      type="warning"
-      :closable="false"
-      show-icon
-      class="closed-banner"
-    />
-
     <el-card class="filters-card" shadow="hover">
       <template #header>
         <div class="card-header">
@@ -146,7 +137,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useYearStore } from '@/stores/yearStore';
-import { warnIfClosed, isYearClosedError, handleYearClosedError } from '@/composables/useYearGuard';
+import { isYearClosedError, handleYearClosedError } from '@/composables/useYearGuard';
 import { YEAR_CLOSED_CODE } from '@/types/year';
 import type { YearRepartitionResponse } from '@/types/year';
 
@@ -199,7 +190,6 @@ const filters = ref<Filters>({ sourceYear: '', targetYear: '', gradeId: undefine
 
 const sourceYear = computed(() => filters.value.sourceYear);
 const targetYear = computed(() => filters.value.targetYear || yearStore.currentSchoolYear);
-const targetYearLabel = computed(() => filters.value.targetYear || 'cible');
 const writeLocked = computed(() => {
   const target = years.value.find((y) => y.schoolYear === filters.value.targetYear);
   return target?.status === 'closed' || (target == null && yearStore.isClosed);
@@ -624,7 +614,6 @@ async function exportToPdf(): Promise<void> {
 }
 
 onMounted(async () => {
-  warnIfClosed('la réinscription');
   await loadReferentials();
   await loadCandidates();
 });
@@ -636,9 +625,6 @@ onMounted(async () => {
   flex-direction: column;
   gap: 16px;
   padding: 16px;
-}
-.closed-banner {
-  width: 100%;
 }
 .card-header {
   display: flex;

@@ -359,7 +359,6 @@ const getTeachingInfo = (professor: Professor): string => {
 const loadClasses = async () => {
   try {
     const result = await window.ipcRenderer.invoke('grade:all');
-    console.log("données classe", result )
     if (result.success) {
       classes.value = result.data;
       if (classes.value.length > 0) {
@@ -398,14 +397,11 @@ const loadSchedules = async () => {
   try {
     loading.value = true;
     const dateStr = selectedDate.value.toISOString().split('T')[0];
-    console.log('[loadSchedules] Date sélectionnée:', dateStr);
 
     const [scheduleResult, absenceResult] = await Promise.all([
       window.ipcRenderer.invoke('schedule:getByDate', { date: dateStr }),
       window.ipcRenderer.invoke('absence:allProfessor')
     ]);
-    console.log("shedule value :",scheduleResult )
-    console.log("absences value :", absenceResult?.data?.length)
 
     // Build map of existing absences for this date: key = professorId + normalized slot
     const absenceMap = new Map<string, any>()

@@ -185,7 +185,7 @@ import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { strictInvoke } from '@/utils/ipc'
 import { useCurrency } from '@/composables/useCurrency'
-import { useReceipt } from '@/composables/useReceipt'
+import { labelModeGuinee, useReceipt } from '@/composables/useReceipt'
 import { buildCasyReceiptHtml, openCasyPrintWindow } from '@/utils/receiptCasy'
 import { ensureUnlock, isAccountingLockError, isNoSecretError, mapAccountingError, openGuardedForm } from '@/composables/useAccountingGuard'
 import { useRouter } from 'vue-router'
@@ -305,16 +305,6 @@ function labelNature(v: unknown): string {
     uniform: 'Uniforme', transport: 'Transport', cafeteria: 'Cantine', other: 'Autre',
   }
   return map[String(v ?? '')] ?? String(v ?? '—')
-}
-
-function labelModeGuinee(v: unknown): string {
-  const k = String(v ?? '').toLowerCase().trim()
-  const map: Record<string, string> = {
-    cash: 'Espèces', orange_money: 'Orange Money', orange: 'Orange Money',
-    mobile_money: 'Orange Money', mtn_money: 'MTN Mobile Money', mtn: 'MTN Mobile Money',
-    transfer: 'Virement', check: 'Chèque',
-  }
-  return map[k] ?? String(v ?? '—')
 }
 
 function labelMode(v: unknown): string {
@@ -459,13 +449,18 @@ async function encaisser(): Promise<void> {
     if (Number(form.value.remise ?? 0) > 0) extraBits.push(`[Remise: ${Number(form.value.remise)}]`)
     if (form.value.date) extraBits.push(`[Date saisie: ${form.value.date}]`)
     const enrichedObservation = [form.value.observation?.trim(), ...extraBits].filter(Boolean).join(' | ') || undefined
+    // Fige l'ordre d'imputation au paiement (grade élève → défaut, best effort).
+    const { fetchLiveImputationOrder, formatImputationTag } = await import('@/composables/useImputationOrder')
+    const frozenOrder = await fetchLiveImputationOrder(selected.value?.grade?.id).catch(() => 'FIRST_FIRST' as const)
+    const commentWithOrder = [enrichedObservation, formatImputationTag(frozenOrder)].filter(Boolean).join(' | ') || undefined
     const payload = {
       studentId: selected.value.id,
       amount: montantAPayer.value,
       paymentType: form.value.nature,
       paymentMethod: form.value.mode,
       reference: form.value.reference || undefined,
-      comment: enrichedObservation,
+      comment: commentWithOrder,
+      imputationOrder: frozenOrder,
       paymentDate: form.value.date,
       remise: Number(form.value.remise ?? 0),
       idempotencyKey: uuidv4(),

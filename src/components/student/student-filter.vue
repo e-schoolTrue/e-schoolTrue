@@ -45,7 +45,6 @@ const loadGrades = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke("grade:all");
-    console.log("classes", result);
     if (result?.success && Array.isArray(result.data)) {
       grades.value = result.data.map((grade: { id: number; name: string; }) => ({
         id: grade.id,
@@ -66,7 +65,6 @@ const loadGrades = async () => {
 };
 
 const applyFilter = () => {
-  console.log('Filtres appliqués:', filterForm);
   emit('filter', filterForm);
 };
 

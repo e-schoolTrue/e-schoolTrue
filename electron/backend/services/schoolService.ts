@@ -7,7 +7,8 @@ import {
     ISchoolServiceResponse,
     ISchoolData
 } from "../types/school";
-import { currencyForCountry, isCountryCode } from "../utils/countryCurrency";
+import { currencyForCountry } from "../utils/countryCurrency";
+import { validateSchoolPayload } from "../utils/schoolValidation";
 
 interface ISchoolSettingsData {
     id?: number;
@@ -24,8 +25,13 @@ interface ISchoolSettingsServiceResponse {
 }
 
 export class SchoolService {
-    private schoolRepository: Repository<SchoolEntity>;
-    private settingsRepository: Repository<SchoolSettingsEntity>;
+    /** Repositories résolus à chaque accès (jamais capturés : voir yearService — remplacement à froid). */
+    private get schoolRepository(): Repository<SchoolEntity> {
+        return AppDataSource.getInstance().getRepository(SchoolEntity);
+    }
+    private get settingsRepository(): Repository<SchoolSettingsEntity> {
+        return AppDataSource.getInstance().getRepository(SchoolSettingsEntity);
+    }
     private fileService: FileService;
 
     private mapToISchoolData(school: SchoolEntity): ISchoolData {
@@ -50,21 +56,26 @@ export class SchoolService {
     }
 
     constructor() {
-        const dataSource = AppDataSource.getInstance();
-        this.schoolRepository = dataSource.getRepository(SchoolEntity);
-        this.settingsRepository = dataSource.getRepository(SchoolSettingsEntity);
         this.fileService = new FileService();
     }
 
     async saveOrUpdateSchool(schoolData: ISchoolServiceParams['saveOrUpdateSchool']): Promise<ISchoolServiceResponse> {
         try {
-            if ((schoolData as any).country && !isCountryCode((schoolData as any).country)) {
-                return { success: false, data: null, error: 'COUNTRY_INVALIDE', message: "Pays invalide : attendu MAR, SEN, CAF ou GIN" };
+            // Validation explicite AVANT tout accès DB/fichier : chaque échec
+            // renvoie un code + message précis affiché tel quel côté UI
+            // (au lieu du CHECK/NOT NULL SQLite générique).
+            const validation = validateSchoolPayload(schoolData as any);
+            if (!validation.ok) {
+                return { success: false, data: null, error: validation.code, message: validation.message };
             }
-            // Gestion du logo si un nouveau logo est fourni
-            const { logo, ...schoolDataWithoutLogo } = schoolData;
+            // Gestion du logo si un nouveau logo est fourni.
+            // On persiste les valeurs NORMALISÉES (trim, type canonique
+            // 'publique'|'privée', année entière) pour ne jamais écrire
+            // la variante brute (« Privé », espaces, année string…).
+            const { logo } = schoolData;
+            const normalized = validation.normalized;
             const schoolDataToSave: Partial<SchoolEntity> = {
-                ...schoolDataWithoutLogo
+                ...normalized
             };
 
             if (logo && logo.content) {

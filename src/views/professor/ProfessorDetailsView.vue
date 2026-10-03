@@ -72,7 +72,6 @@ const loadPhoto = async (photo?: IFile) => {
 
   try {
     const photoResult = await window.ipcRenderer.invoke('getProfessorPhoto', photo.id); 
-    console.log("photo prof :", photoResult)
     if (photoResult.success && photoResult.data) {
       photoUrl.value = `data:${photoResult.data.type};base64,${photoResult.data.content}`;
     } else {
@@ -145,10 +144,8 @@ const loadProfessor = async () => {
   loading.value = true;
   try {
     const result = await window.ipcRenderer.invoke('professor:getById', Number(route.params.id));
-    console.log("Données complètes du professeur:", result);
     if (result.success) {
       professor.value = result.data;
-      console.log("Détails de l'affectation:", professor.value?.teaching);
       await loadPhoto(professor.value?.photo);}
       else {
         ElMessage.error("Erreur lors de la récupération des détails de l'étudiant");
@@ -188,7 +185,6 @@ const getTeachingInfo = (teachings: Teaching[]) => {
   if (!teachings || teachings.length === 0) return 'Non assigné';
   
   const teaching: any = teachings[0];
-  console.log("Teaching data being processed:", teaching);
 
   if (teaching.schoolType === SCHOOL_TYPE.PRIMARY) {
     return teaching.class ? `Instituteur - ${teaching.class.name}` : 'Instituteur (classe non assignée)';
@@ -249,7 +245,6 @@ onMounted(loadProfessor);
               :preview-src-list="photoUrl ? [photoUrl] : []"
               @error="(e: any) => {
                 console.error('Erreur de chargement de l\'image:', e);
-                console.log('URL de l\'image:', photoUrl);
               }"
             >
               <template #error>

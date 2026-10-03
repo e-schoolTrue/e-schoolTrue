@@ -87,6 +87,7 @@ import CashCloseDialog from '@/components/accounting/CashCloseDialog.vue'
 import { useCash } from '@/composables/useCash'
 import { useCurrency } from '@/composables/useCurrency'
 import { strictInvoke } from '@/utils/ipc'
+import { formatJJMMAAAA } from '@/utils/receiptCasy'
 import { isNoSecretError, lockAccounting, mapAccountingError, openGuardedForm } from '@/composables/useAccountingGuard'
 
 const date = ref(new Date().toISOString().slice(0, 10))
@@ -109,16 +110,6 @@ const hasEverOpened = computed(() => {
     store.movements.length > 0
   )
 })
-
-function formatJJMMAAAA(d: unknown): string {
-  try {
-    const s = String(d ?? '')
-    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s.slice(0, 10)
-    const dt = new Date(s)
-    if (Number.isNaN(dt.getTime())) return s || '—'
-    return dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  } catch { return String(d) }
-}
 
 async function schoolHeader(): Promise<string> {
   try {

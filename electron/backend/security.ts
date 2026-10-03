@@ -18,7 +18,11 @@ export const ADMIN_ONLY: string[] = [
     "schedule-config:",
     "gradeConfig:",
     "grade-config:",
-    "document-content:"
+    "document-content:",
+    // Sauvegardes locales (backup:create/list/restore/import/confirmImport/delete/
+    // reveal/exportTo) : réservé administrateur. Explicite ici plutôt que
+    // défaut implicite (deny-by-default ligne 79) — lisible + auditable.
+    "backup:",
 ];
 
 export const PROFESSOR_WRITE: string[] = [
@@ -86,9 +90,77 @@ interface AuditSummarizeResult {
     metadata?: Record<string, unknown>;
 }
 
+/**
+ * Garde fail-soft restore à froid (fix import sauvegarde) :
+ * après `replaceDbAndUploads()` (`DataSource.destroy()`), la connexion est
+ * fermée et tout `auditLogService.record()` échouerait avec
+ * `TypeError: database connection is not open`. Le wrapper saute alors
+ * l'audit SILENCIEUSEMENT (sans `console.warn` bruyant) — `AuditLogService`
+ * met déjà en file mémoire bornée pendant `isRestoring`.
+ */
+function isBackupRestoringSilent(): boolean {
+    try {
+        const svc = (global as unknown as { localBackupService?: unknown }).localBackupService as
+            | { isRestoreInProgress?: () => unknown; isRestoringActive?: unknown; isRestoring?: unknown }
+            | undefined;
+        if (!svc) return false;
+        if (typeof svc.isRestoreInProgress === 'function') {
+            try { return !!svc.isRestoreInProgress(); } catch { return false; }
+        }
+        if (typeof svc.isRestoringActive === 'boolean') return !!svc.isRestoringActive;
+        if (typeof (svc as { isRestoring?: unknown }).isRestoring === 'boolean') {
+            return !!(svc as { isRestoring?: unknown }).isRestoring;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Bypass onboarding : quand `true`, le contrôle RBAC est ignoré si
+ * `ConfigService.getInstance().isFirstLaunch() === true` (aucun user/admin
+ * loggé pendant le ConfigurationWizard — étape "Restaurer une sauvegarde
+ * existante" : backup:previewImport / backup:confirmImport).
+ * Après `set-first-launch-complete`, le bypass devient inactif et le canal
+ * redevient admin-only (fail-closed). Scope volontairement étroit : ne pas
+ * l'activer sur backup:create/list/restore/delete/reveal/exportTo.
+ */
+export async function isFirstLaunchBypassActive(): Promise<boolean> {
+    try {
+        const { ConfigService } = await import("./services/configService");
+        return ConfigService.getInstance().isFirstLaunch() === true;
+    } catch {
+        // Fail-closed : si ConfigService est indisponible, pas de bypass.
+        return false;
+    }
+}
+
+/**
+ * Grâce wizard tolérante : un preview valide pendant first-launch arme une
+ * fenêtre de grâce (30 min, en mémoire) pour `backup:confirmImport`, même si
+ * `set-first-launch-complete` a déjà été appelé entre-temps (ancien frontend
+ * qui marquait complete AVANT le confirm, ou retry après un premier échec).
+ * Scope étroit : seul `backup:confirmImport` en bénéficie, jamais les autres
+ * canaux backup. Sans preview armé au préalable, le comportement reste
+ * fail-closed (après setup sans user → UNAUTHENTICATED, sans admin → FORBIDDEN).
+ */
+let wizardImportArmedAt: number | null = null;
+export const WIZARD_IMPORT_GRACE_MS = 30 * 60 * 1000;
+export function armWizardImportBypass(now: number = Date.now()): void {
+    wizardImportArmedAt = now;
+}
+export function isWizardImportBypassArmed(now: number = Date.now()): boolean {
+    return wizardImportArmedAt !== null && now - wizardImportArmedAt < WIZARD_IMPORT_GRACE_MS;
+}
+export function resetWizardImportBypassForTests(): void {
+    wizardImportArmedAt = null;
+}
+
 interface ProtectedHandleOptions {
     roles: Role[];
     auth?: 'required' | 'optional';
+    allowDuringFirstLaunch?: boolean;
     /**
      * Garde année scolaire : refuse l'écriture si l'année cible est `closed`
      * (sauf admin + `_forceYearWrite: true`, audité). `true` = extraction
@@ -153,9 +225,25 @@ export function protectedHandle(
             ? { id: actor.id, username: actor.username, role: actor.role, displayName: actor.displayName ?? null }
             : null;
 
+        // Onboarding (is-first-launch) : aucun user/admin loggé pendant le
+        // ConfigurationWizard. Si le canal l'autorise explicitement
+        // (allowDuringFirstLaunch) ET que le wizard n'est pas terminé,
+        // on saute le contrôle RBAC (actor null, audité comme tel).
+        // Après setup → bypass inactif → admin-only à nouveau (fail-closed),
+        // sauf grâce wizard : un preview valide pendant first-launch arme
+        // `backup:confirmImport` pour 30 min même après set-first-launch-complete
+        // (tolère l'ancien ordre frontend + permet le retry après échec).
+        let firstLaunchBypass = false;
+        if (opts.allowDuringFirstLaunch) {
+            firstLaunchBypass = await isFirstLaunchBypassActive();
+            if (!firstLaunchBypass && channel === 'backup:confirmImport' && isWizardImportBypassArmed()) {
+                firstLaunchBypass = true;
+            }
+        }
+
         // B1 RBAC enforcement: deny by default unless auth is optional.
         const authMode = opts.auth ?? 'required';
-        if (authMode !== 'optional') {
+        if (!firstLaunchBypass && authMode !== 'optional') {
             if (!actorSnapshot) {
                 throw new Error('UNAUTHENTICATED');
             }
@@ -231,7 +319,18 @@ export function protectedHandle(
                 before = await opts.audit.before(args.slice(1));
             }
             const result = await handler(...args);
+            // Preview valide pendant first-launch → arme la grâce confirm
+            // (staging créé en first-launch reste confirmable après le flag).
+            if (
+                firstLaunchBypass &&
+                (channel === 'backup:previewImport' || channel === 'backup:import') &&
+                result && typeof result === 'object' && (result as any).success !== false
+            ) {
+                try { armWizardImportBypass(); } catch { /* best-effort */ }
+            }
             if (opts.audit) {
+                // Fenêtre à froid (restore/import) : skip silencieux, jamais de warn.
+                if (!isBackupRestoringSilent()) {
                 const ctx = { actor: actorSnapshot, before };
                 const isEnvelopeFailure =
                     result &&
@@ -253,10 +352,13 @@ export function protectedHandle(
                 } catch (auditError) {
                     console.warn(`[Audit] Échec de l'enregistrement pour ${channel}:`, auditError);
                 }
+                }
             }
             return result;
         } catch (error: any) {
             if (opts.audit) {
+                // Même skip silencieux sur le chemin d'erreur pendant un restore.
+                if (!isBackupRestoringSilent()) {
                 try {
                     await global.auditLogService?.record({
                         action: opts.audit.action,
@@ -267,6 +369,7 @@ export function protectedHandle(
                     });
                 } catch (auditError) {
                     console.warn(`[Audit] Échec de l'enregistrement de l'erreur pour ${channel}:`, auditError);
+                }
                 }
             }
             throw error;

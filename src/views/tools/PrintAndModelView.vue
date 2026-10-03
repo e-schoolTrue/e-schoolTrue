@@ -618,7 +618,6 @@ const loadStudentRankings = async () => {
     return;
   }
   
-  console.log('Loading rankings for:', { classId: selectedClassId.value, schoolId: schoolInfo.value?.id || schoolId.value, period: selectedPeriod.value });
   
   try {
     const rankingsRes = await window.ipcRenderer.invoke('gradeEntry:getClassRankings', {
@@ -627,7 +626,6 @@ const loadStudentRankings = async () => {
       period: selectedPeriod.value
     });
     
-      console.log('Rankings response:', rankingsRes);
       
     if (rankingsRes.success && rankingsRes.data) {
       const newMap = new Map<any, RankingData>();
@@ -639,7 +637,6 @@ const loadStudentRankings = async () => {
         : 0;
       
       // Stocker les données de classement pour chaque élève
-      console.log('Storing rankings with data:', rankingsRes.data.map((r: any) => ({ studentId: r.studentId, rank: r.rank })));
       rankingsRes.data.forEach((r: any) => {
         const studentId = Number(r.studentId);
         const rankingData = {
@@ -655,15 +652,12 @@ const loadStudentRankings = async () => {
         newMap.set(String(r.studentId), rankingData);
       });
       
-      console.log('Final map keys:', Array.from(newMap.keys()));
       
       studentRankings.value = newMap;
       
       // Mettre à jour la moyenne de classe globale
       classAverage.value = Math.round(classAvg * 100) / 100;
       
-      console.log(`Classement chargé: ${totalStudents} élèves, moyenne de classe: ${classAvg.toFixed(2)}`);
-      console.log('Student rankings map:', studentRankings.value);
     } else {
       console.error('Failed to load rankings:', rankingsRes);
     }
@@ -742,19 +736,15 @@ const loadStudentGradesForPreview = async (student: Student) => {
          // Récupérer le professeur enseignant cette matière dans cette classe
          let professorName = '';
          try {
-           console.log(`🔍 Recherche professeur pour matière: ${course.name} (id=${course.id}), classe: ${selectedClassId.value}`);
            const profRes = await window.ipcRenderer.invoke('professor:getByCourseAndGrade', {
              courseId: course.id,
              gradeId: selectedClassId.value
            });
 
-           console.log('Réponse professeur:', profRes);
 
            if (profRes.success && profRes.data) {
              professorName = `${profRes.data.firstname} ${profRes.data.lastname}`;
-             console.log(`✅ Professeur trouvé: ${professorName}`);
            } else {
-             console.log(`⚠️ Aucun professeur affecté pour ${course.name}: ${profRes.message}`);
            }
          } catch (error) {
            console.error('❌ Erreur récupération professeur:', error);
@@ -763,13 +753,10 @@ const loadStudentGradesForPreview = async (student: Student) => {
           // Calculer la note de cours (moyenne des catégories qui ne sont pas des exams)
           const classAverage = calculateClassAverage(avgRes.data);
           const examAverage = calculateExamAverage(avgRes.data);
-          console.log(`📝 Moyenne de cours pour ${course.name}: ${classAverage}`);
-          console.log(`📝 Moyenne de composition pour ${course.name}: ${examAverage}`);
 
           // Extraire les notes par catégorie
           let categoryGrades: GradeData['categoryGrades'] = [];
           if (avgRes.data && avgRes.data.categoryBreakdown) {
-            console.log(`📊 Category breakdown pour ${course.name}:`, avgRes.data.categoryBreakdown);
             const breakdown = Array.isArray(avgRes.data.categoryBreakdown) 
               ? avgRes.data.categoryBreakdown 
               : Object.values(avgRes.data.categoryBreakdown);
@@ -780,9 +767,7 @@ const loadStudentGradesForPreview = async (student: Student) => {
               isExam: cat.isExam || false,
               gradesCount: cat.gradesCount || 0
             }));
-            console.log(`📊 Category grades pour ${course.name}:`, categoryGrades);
           } else {
-            console.log(`⚠️ Pas de categoryBreakdown pour ${course.name}:`, avgRes.data);
           }
 
           const courseTypeForName = (course as any).type || course.grades?.[0]?.type || (course as any).grade?.type || '';
@@ -990,25 +975,20 @@ const loadAnnualData = async (student: Student, currentGrades: GradeData[]) => {
         ? calculatedData.categoryBreakdown 
         : Object.values(calculatedData.categoryBreakdown);
       
-      console.log('📊 breakdown pour calculateClassAverage:', breakdown.map((c: any) => ({ name: c.categoryName, isExam: c.isExam, average: c.average })));
       
       // Calculer la moyenne uniquement des catégories qui ne sont pas des examens
       let categoriesToUse = breakdown.filter((cat: any) => cat.isExam === false);
-      console.log('📊 Catégories non-examen:', categoriesToUse.length, categoriesToUse.map((c: any) => ({ name: c.categoryName, average: c.average })));
       
       // Fallback: si aucune catégorie non-examen, utiliser toutes les catégories
       if (categoriesToUse.length === 0 && breakdown.length > 0) {
         categoriesToUse = breakdown;
-        console.log('📊 Utilisation fallback - toutes les catégories');
       }
       
       if (categoriesToUse.length > 0) {
         const totalAvg = categoriesToUse.reduce((sum: number, cat: any) => sum + (cat.average || 0), 0);
         classAverage = Math.round((totalAvg / categoriesToUse.length) * 100) / 100;
-        console.log('📊 Moyenne calculée:', classAverage, 'total:', totalAvg, 'nb:', categoriesToUse.length);
       }
     } else {
-      console.log('📊 Pas de categoryBreakdown');
     }
     return classAverage;
   };
@@ -1081,8 +1061,6 @@ const getCountryData = () => {
 // --- Impression ---
 
 const generateBulletinsHtml = async (studentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number; semester1Average?: number; semester2Average?: number; annualAverage?: number; annualRank?: number; classHighestAnnual?: number; classLowestAnnual?: number; decisions?: { honors: boolean; admitted: boolean; session: boolean; repeat: boolean; excluded: boolean }; annualAppreciation?: string; isFinalPeriod?: boolean }[]) => {
-  console.log('📄 generateBulletinsHtml appelé avec', studentsData.length, 'élèves');
-  console.log('📄 Données des élèves avec rank:', studentsData.map(d => ({ id: d.student.id, name: d.student.firstname, rank: d.rank, totalStudents: d.totalStudents })));
   
   const bulletinPages = await Promise.all(
     studentsData.map(data => generateBulletinHtml(data))
@@ -1253,12 +1231,7 @@ const generateBulletinsHtml = async (studentsData: { student: Student; grades: G
 const generateBulletinHtml = async (data: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number; semester1Average?: number; semester2Average?: number; annualAverage?: number; annualRank?: number; classHighestAnnual?: number; classLowestAnnual?: number; decisions?: { honors: boolean; admitted: boolean; session: boolean; repeat: boolean; excluded: boolean }; annualAppreciation?: string; isFinalPeriod?: boolean }) => {
   const { student, grades, absences, rank, totalStudents, classAverage, semester1Average, semester2Average, annualAverage, annualRank, classHighestAnnual, classLowestAnnual, decisions, annualAppreciation, isFinalPeriod } = data;
 
-  console.log('🎯 generateBulletinHtml - student:', student.id, student.firstname, 'rank:', rank, 'totalStudents:', totalStudents);
 
-  console.log('🎯 generateBulletinHtml appelé avec', grades.length, 'matières');
-  console.log('🎯 grades[0] brut:', JSON.stringify(grades[0]));
-  console.log('🎯 Première matière categoryGrades:', grades[0]?.categoryGrades);
-  console.log('🎯 Première matière categoryGrades détail:', grades[0]?.categoryGrades?.map((c: any) => ({ code: c.code, isExam: c.isExam, average: c.average })));
 
   // Calculer les données nécessaires
   const processedGrades = grades.map(g => ({
@@ -1266,7 +1239,6 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
     weightedValue: g.average * (g.coefficient || 1)
   }));
 
-  console.log('🎯 classAverage dans grades:', grades.map(g => ({ course: g.courseName, classAvg: g.classAverage })));
 
   // Extraire toutes les catégories uniques
   const allCategories = new Map<string, { name: string; isExam: boolean }>();
@@ -1285,17 +1257,12 @@ const generateBulletinHtml = async (data: { student: Student; grades: GradeData[
     isExam: info.isExam
   }));
 
-  console.log('📋 Catégories trouvées:', categoryColumns);
-  console.log('📋 isExam de chaque catégorie:', categoryColumns.map(c => ({ code: c.code, isExam: c.isExam })));
-  console.log('📋 Nombre de catégories:', categoryColumns.length);
 
   // Filtrer uniquement les catégories non-examen pour les colonnes
   const nonExamCategories = categoryColumns.filter(c => c.isExam === false);
-  console.log('📋 Catégories non-examen:', nonExamCategories);
 
   // Fallback: si pas de catégories non-examen, ne pas afficher de colonnes
   const finalCategories = nonExamCategories.length > 0 ? nonExamCategories : [];
-  console.log('📋 Catégories finales (non-exam):', finalCategories);
 
   const totalCoefficients = processedGrades.reduce((sum, g) => sum + (g.coefficient || 1), 0);
   const totalWeightedPoints = processedGrades.reduce((sum, g) => sum + g.weightedValue, 0);
@@ -2538,7 +2505,6 @@ const handlePrint = async () => {
   // Charger les classements des élèves avant la validation
   progressMessage.value = 'Chargement des classements...';
   
-  console.log('Loading rankings - classId:', selectedClassId.value, 'period:', selectedPeriod.value, 'schoolId:', schoolInfo.value?.id || schoolId.value);
   
   if (!selectedPeriod.value) {
     console.error('Période non sélectionnée!');
@@ -2550,7 +2516,6 @@ const handlePrint = async () => {
   
   await loadStudentRankings();
   
-  console.log('After loading rankings, studentRankings:', studentRankings.value);
 
   const studentsToPrint = selectedStudents.value;
   const validStudentsData: { student: Student; grades: GradeData[]; absences?: number; rank?: number; totalStudents?: number; classAverage?: number; semester1Average?: number; semester2Average?: number; annualAverage?: number; annualRank?: number; classHighestAnnual?: number; classLowestAnnual?: number; decisions?: { honors: boolean; admitted: boolean; session: boolean; repeat: boolean; excluded: boolean }; annualAppreciation?: string; isFinalPeriod?: boolean }[] = [];
@@ -2601,7 +2566,6 @@ const handlePrint = async () => {
               const breakdown = Array.isArray(avgRes.data.categoryBreakdown) 
                 ? avgRes.data.categoryBreakdown 
                 : Object.values(avgRes.data.categoryBreakdown);
-              console.log('💾 Extraction categoryGrades AVANT breakdown:', breakdown);
               categoryGrades = breakdown.map((cat: any) => ({
                 name: cat.categoryName,
                 code: cat.categoryCode,
@@ -2609,7 +2573,6 @@ const handlePrint = async () => {
                 isExam: cat.isExam || false,
                 gradesCount: cat.gradesCount || 0
               }));
-              console.log('💾 Extraction categoryGrades APRÈS:', categoryGrades);
             }
 
             const bulkTypeForName = (course as any).type || course.grades?.[0]?.type || (course as any).grade?.type || '';
@@ -2667,7 +2630,6 @@ const handlePrint = async () => {
       const studentTotalStudents = ranking?.totalStudents ?? students.value.length;
       const studentClassAverage = ranking?.classAverage ?? classAverage.value;
       
-      console.log(`Student ${student.id} final rank:`, studentRank, 'totalStudents:', studentTotalStudents);
 
       // Charger les données annuelles si période finale
       let annualData: any = {};
@@ -2721,7 +2683,6 @@ const handlePrint = async () => {
     }
   }
 
-  console.log('validStudentsData with ranks:', validStudentsData.map(d => ({ student: d.student.id, rank: d.rank, totalStudents: d.totalStudents })));
 
   // Si erreurs de validation
   if (validationErrors.value.length > 0) {

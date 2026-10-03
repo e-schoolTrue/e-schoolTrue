@@ -48,7 +48,8 @@ describe("migration-registration : toutes les migrations sont branchées", () =>
     expect(opt, "data-source.ts doit brancher `migrations` (shorthand ou explicite)").not.toBe("");
     expect(opt).not.toMatch(/\*\.\{ts,js\}|\bglob\b/i);
     expect(`${opt},`).toContain("migrations,");
-    // Le tableau `const migrations = [...]` doit lister les 5 migrations.
+    // Le tableau `const migrations = [...]` doit lister les 8 migrations
+    // (train unique : + DriftCatchup2 175 + RoleLegacyFix 176 + filet 177).
     const arr = dataSourceSrc.match(/const\s+migrations\s*=\s*\[(.*?)\]/s)?.[1] ?? "";
     for (const cls of [
       "Baseline1700000000000",
@@ -56,6 +57,9 @@ describe("migration-registration : toutes les migrations sont branchées", () =>
       "BackfillCounters1720000000000",
       "YearStatusSchoolYear1730000000000",
       "TranchConfigPrecision1740000000000",
+      "DriftCatchup2175000000000",
+      "RoleLegacyFix1760000000000",
+      "DriftCatchup3177000000000",
     ]) {
       expect(arr, `const migrations doit contenir ${cls}`).toContain(cls);
     }
@@ -92,5 +96,118 @@ describe("migration-registration : toutes les migrations sont branchées", () =>
       .join("\n");
     expect(codeOnly).not.toMatch(/\.query\(.*DROP COLUMN/i);
     expect(src).toMatch(/public async down/);
+  });
+
+  // --- Train unique : migrations 175 + 176 --------------------------------
+  it("migration 175 déclare timestamp=1750000000000", () => {
+    const src = fs.readFileSync(
+      path.join(migrationsDir, "1750000000000-DriftCatchup2.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/timestamp\s*=\s*1750000000000/);
+    expect(src).toMatch(/export\s+class\s+DriftCatchup2175000000000/);
+  });
+
+  it("migration 175 est idempotente (CREATE IF NOT EXISTS, ADD COLUMN guard, sans DROP/UNIQUE/NOT NULL sans default, down no-op)", () => {
+    const src = fs.readFileSync(
+      path.join(migrationsDir, "1750000000000-DriftCatchup2.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/hasTable/);
+    expect(src).toMatch(/hasColumn/);
+    expect(src).toMatch(/CREATE TABLE IF NOT EXISTS/);
+    expect(src).toMatch(/COUNT=/);
+    const codeOnly = src
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//"))
+      .join("\n");
+    expect(codeOnly).not.toMatch(/DROP TABLE\s+"(?!IF)/i);
+    expect(codeOnly).not.toMatch(/\.query\(.*DROP COLUMN/i);
+    expect(codeOnly).not.toMatch(/CREATE UNIQUE INDEX/i);
+    // Règle NULLABLE/DEFAULT (ADR-002) : aucun ADD COLUMN NOT NULL sans DEFAULT
+    // (SQLite refuse sur table peuplée). Les NOT NULL des CREATE TABLE neufs
+    // (PK auto-générées, jointure teaching_grades) sont hors périmètre.
+    for (const line of codeOnly.split("\n")) {
+      if (/ADD COLUMN/i.test(line) && /NOT NULL/i.test(line) && !/DEFAULT/i.test(line)) {
+        throw new Error(`migration 175 : ADD COLUMN NOT NULL sans DEFAULT → ${line.trim()}`);
+      }
+    }
+    expect(src).toMatch(/public async down/);
+  });
+
+  it("migration 176 déclare timestamp=1760000000000 et force admin idempotent", () => {    const src = fs.readFileSync(
+      path.join(migrationsDir, "1760000000000-RoleLegacyFix.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/timestamp\s*=\s*1760000000000/);
+    expect(src).toMatch(/export\s+class\s+RoleLegacyFix1760000000000/);
+    expect(src).toMatch(/hasTable/);
+    expect(src).toMatch(/SET "role" = 'admin'/);
+    expect(src).toMatch(/COUNT=/);
+    const codeOnly = src
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//"))
+      .join("\n");
+    expect(codeOnly).not.toMatch(/DROP/i);
+    expect(src).toMatch(/public async down/);
+  });
+
+  it("migration 177 déclare timestamp=1770000000000 (filet zéro-colonne-manquante)", () => {
+    const src = fs.readFileSync(
+      path.join(migrationsDir, "1770000000000-DriftCatchup3.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/timestamp\s*=\s*1770000000000/);
+    expect(src).toMatch(/export\s+class\s+DriftCatchup3177000000000/);
+    expect(dataSourceSrc).toContain("./migrations/1770000000000-DriftCatchup3");
+    expect(dataSourceSrc).toContain("DriftCatchup3177000000000");
+  });
+
+  it("migration 177 est idempotente (guards + IF NOT EXISTS, down no-op, sans DROP/NOT NULL sans DEFAULT)", () => {
+    const src = fs.readFileSync(
+      path.join(migrationsDir, "1770000000000-DriftCatchup3.ts"),
+      "utf8"
+    );
+    expect(src).toMatch(/hasTable/);
+    expect(src).toMatch(/hasColumn/);
+    expect(src).toMatch(/CREATE TABLE IF NOT EXISTS/);
+    expect(src).toMatch(/COUNT=/);
+    // Couvre les filets critiques : user.role, year_repartition.status/closedAt,
+    // payments.receiptNumber/scholarshipId/baseAmount, accounting_vault, statuts comptables.
+    for (const needle of [
+      '"user", "role"',
+      '"year_repartition", "status"',
+      '"year_repartition", "closedAt"',
+      '"payments", "receiptNumber"',
+      '"payments", "scholarshipId"',
+      '"accounting_vault"',
+      '"expenses", "status"',
+      '"cash_registers", "status"',
+      '"salary_slips", "status"',
+    ]) {
+      expect(src, `migration 177 doit couvrir ${needle}`).toContain(needle);
+    }
+    const codeOnly = src
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//"))
+      .join("\n");
+    expect(codeOnly).not.toMatch(/\.query\(.*DROP COLUMN/i);
+    for (const line of codeOnly.split("\n")) {
+      if (/ADD COLUMN/i.test(line) && /NOT NULL/i.test(line) && !/DEFAULT/i.test(line)) {
+        throw new Error(`migration 177 : ADD COLUMN NOT NULL sans DEFAULT → ${line.trim()}`);
+      }
+    }
+    expect(src).toMatch(/public async down/);
+  });
+
+  it("KNOWN_MIGRATIONS (migration-runner.ts) est en phase avec data-source.ts", () => {
+    const runnerSrc = fs.readFileSync(
+      path.join(__dirname, "..", "..", "migration-runner.ts"),
+      "utf8"
+    );
+    for (const ts of [1700000000000, 1710000000000, 1720000000000, 1730000000000, 1740000000000, 1750000000000, 1760000000000, 1770000000000]) {
+      expect(runnerSrc, `KNOWN_MIGRATIONS doit contenir ${ts}`).toContain(String(ts));
+    }
+    expect(runnerSrc).toContain("DriftCatchup3177000000000");
   });
 });

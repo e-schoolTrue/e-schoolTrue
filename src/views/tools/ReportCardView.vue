@@ -283,7 +283,6 @@ const calculationDetailRef = ref<InstanceType<typeof GradeCalculationDetail> | n
 // Watch pour déboguer les changements dans gradesData
 if (import.meta.env.DEV) {
   watchEffect(() => {
-    console.log('🔄 gradesData mis à jour:', JSON.stringify(gradesData, null, 2));
   });
 }
 
@@ -493,10 +492,7 @@ const loadStudentGrades = async () => {
   const generation = ++loadGeneration;
   loading.value = true;
   try {
-    console.log('=== CHARGEMENT DES NOTES ===');
-    console.log('StudentId:', selectedStudent.value.id, 'Période:', selectedPeriod.value, 'Matières:', courses.value.length);
 
-    console.log('Structure initiale de gradesData créée');
 
     // Charger les notes existantes pour chaque matière
     for (const course of courses.value) {
@@ -523,16 +519,12 @@ const loadStudentGrades = async () => {
         for (const entry of gradesRes.data) {
           gradesData[course.id!][entry.categoryId] = entry.score;
         }
-        console.log(`✅ Notes chargées pour matière ${course.name} (ID: ${course.id}):`, gradesData[course.id!]);
       } else {
-        console.log(`ℹ️ Aucune note trouvée pour matière ${course.name} (studentId: ${selectedStudent.value.id}, courseId: ${course.id}, period: ${selectedPeriod.value})`);
       }
     }
 
     if (generation !== loadGeneration) return;
 
-    console.log('=== CHARGEMENT TERMINÉ ===');
-    console.log('Notes finales dans gradesData:', JSON.stringify(gradesData, null, 2));
     hasChanges.value = false;
   } catch (error) {
     if (generation !== loadGeneration) return;
@@ -545,7 +537,6 @@ const loadStudentGrades = async () => {
 
 const onGradeChange = (courseId: number, categoryId: number) => {
   const newValue = gradesData[courseId]?.[categoryId];
-  console.log(`✏️ Modification détectée - Cours ${courseId}, Catégorie ${categoryId}:`, newValue);
   hasChanges.value = true;
 };
 
@@ -578,9 +569,7 @@ const calculateClassAverage = (courseId: number): string => {
 const calculateCourseAverage = (courseId: number): string => {
   // Toujours recalculer à partir des notes brutes dans gradesData
   const courseGrades = gradesData[courseId];
-  console.log(`📊 Calcul local pour cours ${courseId}. Grades présents:`, courseGrades);
   if (!courseGrades || !configInfo.value) {
-    console.log(`📊 Pas de grades ni de config pour cours ${courseId}`);
     return '0.00';
   }
 
@@ -612,7 +601,6 @@ const calculateCourseAverage = (courseId: number): string => {
       let totalWeighted = 0;
       let totalWeight = 0;
 
-      console.log(`📊 Moyenne pondérée pour cours ${courseId}. Catégories: ${classCategories.length} classe, ${examCategories.length} examens`);
 
     // 1. Traiter les notes de classe (groupées)
     // Les notes de classe sont moyennées et comptent pour 1 coefficient total
@@ -687,8 +675,6 @@ const showCalculationDetail = (courseId: number) => {
   }
 
   const courseGrades = gradesData[courseId];
-  console.log(`🔍 showCalculationDetail appelé pour cours ${courseId}`);
-  console.log('Course grades:', courseGrades);
 
   if (!courseGrades) {
     console.error(`❌ showCalculationDetail: gradesData[${courseId}] non trouvé`);
@@ -786,7 +772,6 @@ const showCalculationDetail = (courseId: number) => {
     finalAverage
   });
 
-  console.log(`🔍 Détail de calcul final: stratégie=${configInfo.value.strategy}, finalAverage=${finalAverage}, totalWeighted=${totalWeighted}, totalWeight=${totalWeight}`);
 };
 
 const saveAll = async () => {
@@ -797,25 +782,17 @@ const saveAll = async () => {
   let allSuccess = true;
   let savedAtLeastOne = false;
   try {
-    console.log('=== DÉBUT SAUVEGARDE ===');
-    console.log('Élève:', selectedStudent.value.id, selectedStudent.value.lastname);
-    console.log('Période:', selectedPeriod.value);
-    console.log('Catégories:', categories.value.map(c => ({ id: c.id, name: c.name, isExam: c.isExam })));
 
     // Afficher les notes actuellement dans gradesData avant sauvegarde
-    console.log('État complet de gradesData avant sauvegarde:', JSON.stringify(gradesData, null, 2));
 
     // Sauvegarder les notes pour chaque matière
     for (const course of courses.value) {
       const courseGrades = gradesData[course.id!];
       const gradesToSave: any[] = [];
 
-      console.log(`\n--- Matière: ${course.name} (ID: ${course.id}) ---`);
-      console.log('Notes saisies:', courseGrades);
 
       for (const category of categories.value) {
         const score = courseGrades[category.id];
-        console.log(`Catégorie ${category.name} (ID: ${category.id}):`, score);
 
         if (score !== null && score !== undefined && score >= 0) {
           gradesToSave.push({
@@ -826,7 +803,6 @@ const saveAll = async () => {
         }
       }
 
-      console.log('Notes à sauvegarder:', gradesToSave);
 
       if (gradesToSave.length > 0) {
         const savePayload = {
@@ -836,10 +812,8 @@ const saveAll = async () => {
           grades: gradesToSave
         };
         
-        console.log('Payload de sauvegarde:', JSON.stringify(savePayload, null, 2));
         
         const saveRes = await window.ipcRenderer.invoke('gradeEntry:bulkSave', savePayload);
-        console.log('Résultat sauvegarde:', saveRes);
 
         if (!saveRes.success) {
           allSuccess = false;
@@ -849,12 +823,10 @@ const saveAll = async () => {
 
         savedAtLeastOne = true;
       } else {
-        console.log('Aucune note à sauvegarder pour cette matière');
       }
     }
 
     if (allSuccess && savedAtLeastOne) {
-      console.log('=== FIN SAUVEGARDE ===\n');
       ElMessage.success('Notes enregistrées avec succès');
       hasChanges.value = false;
       await loadStudentGrades();

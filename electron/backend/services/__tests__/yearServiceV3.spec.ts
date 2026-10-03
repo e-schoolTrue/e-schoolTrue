@@ -98,14 +98,27 @@ describe('YearService V3 — close/reopen/setCurrent/ensure/clone', () => {
     expect(mockYearRepo.save).not.toHaveBeenCalled()
   })
 
-  it('2. close succès : status=closed, closedAt set, isCurrent auto-désactivé', async () => {
-    mockYearRepo.findOne.mockResolvedValue(mkYear({ status: 'active', isCurrent: true }))
+  it('2. close année courante OK (nouveau comportement) : isCurrent=false, status=closed, lecture seule', async () => {
+    mockYearRepo.findOne.mockResolvedValue(mkYear({ status: 'active', isCurrent: true, schoolYear: '2025-2026' }))
+    const r = await service.closeYear(1)
+    expect(r.success).toBe(true)
+    expect(r.message).toMatch(/lecture seule/)
+    expect(mockYearRepo.save).toHaveBeenCalledTimes(1)
+    const saved = mockYearRepo.save.mock.calls[0][0]
+    expect(saved.status).toBe('closed')
+    expect(saved.closedAt).toBeInstanceOf(Date)
+    expect(saved.isCurrent).toBe(false)
+    expect(r.data?.status).toBe('closed')
+    expect(r.data?.isCurrent).toBe(false)
+  })
+
+  it('2bis. close succès année non courante : status=closed, closedAt set', async () => {
+    mockYearRepo.findOne.mockResolvedValue(mkYear({ status: 'active', isCurrent: false }))
     const r = await service.closeYear(1)
     expect(r.success).toBe(true)
     expect(mockYearRepo.save).toHaveBeenCalledTimes(1)
     const saved = mockYearRepo.save.mock.calls[0][0]
     expect(saved.status).toBe('closed')
-    expect(saved.isCurrent).toBe(false)
     expect(saved.closedAt).toBeInstanceOf(Date)
     expect(r.data?.status).toBe('closed')
   })
@@ -135,7 +148,7 @@ describe('YearService V3 — close/reopen/setCurrent/ensure/clone', () => {
     expect(mockYearRepo.save).not.toHaveBeenCalled()
   })
 
-  it('6. ensure 9 mois : crée N+1 avec isCurrent=false quand now-end >= 9 mois', async () => {
+  it('6. [Demande 1] ensure DEPRECATED no-op : ne crée JAMAIS N+1 même si seuil 9 mois atteint', async () => {
     const current = mkYear({
       id: 1,
       schoolYear: '2024-2025',
@@ -143,19 +156,14 @@ describe('YearService V3 — close/reopen/setCurrent/ensure/clone', () => {
       periodConfigurations: [{ name: 'Année', start: new Date('2024-09-01'), end: new Date('2024-06-30') }],
     })
     mockYearRepo.find.mockResolvedValue([current])
-    // now = 2025-04-15 → monthsBetween(2024-06-30, 2025-04-15) = 10 >= 9
     const r = await service.ensureSchoolYear(new Date('2025-04-15'))
     expect(r.success).toBe(true)
-    expect(r.data?.schoolYear).toBe('2025-2026')
-    expect(mockYearRepo.save).toHaveBeenCalledTimes(1)
-    const saved = mockYearRepo.save.mock.calls[0][0]
-    expect(saved.schoolYear).toBe('2025-2026')
-    // Ne définit JAMAIS isCurrent
-    expect(saved.isCurrent).toBe(false)
-    expect(saved.status).toBe('active')
+    expect(r.data).toBeNull()
+    expect(r.message).toMatch(/MANUAL_ONLY/)
+    expect(mockYearRepo.save).not.toHaveBeenCalled()
   })
 
-  it('7. ensure 9 mois idempotent : N+1 déjà présent → data=null, save non rappelé', async () => {
+  it('7. [Demande 1] ensure no-op : N+1 déjà présent → data=null, save non appelé', async () => {
     const current = mkYear({
       id: 1,
       schoolYear: '2024-2025',
@@ -167,11 +175,11 @@ describe('YearService V3 — close/reopen/setCurrent/ensure/clone', () => {
     const r = await service.ensureSchoolYear(new Date('2025-04-15'))
     expect(r.success).toBe(true)
     expect(r.data).toBeNull()
-    expect(r.message).toMatch(/déjà présente/)
+    expect(r.message).toMatch(/MANUAL_ONLY/)
     expect(mockYearRepo.save).not.toHaveBeenCalled()
   })
 
-  it('8. ensure sous le seuil 9 mois → aucune création', async () => {
+  it('8. [Demande 1] ensure no-op sous le seuil → aucune création (MANUAL_ONLY)', async () => {
     const current = mkYear({
       id: 1,
       schoolYear: '2024-2025',
@@ -179,11 +187,10 @@ describe('YearService V3 — close/reopen/setCurrent/ensure/clone', () => {
       periodConfigurations: [{ name: 'Année', start: new Date('2024-09-01'), end: new Date('2025-06-30') }],
     })
     mockYearRepo.find.mockResolvedValue([current])
-    // now = 2025-08-01 → 2 mois après fin → sous le seuil
     const r = await service.ensureSchoolYear(new Date('2025-08-01'))
     expect(r.success).toBe(true)
     expect(r.data).toBeNull()
-    expect(r.message).toMatch(/Seuil 9 mois/)
+    expect(r.message).toMatch(/MANUAL_ONLY/)
     expect(mockYearRepo.save).not.toHaveBeenCalled()
   })
 
@@ -223,5 +230,14 @@ describe('YearService V3 — close/reopen/setCurrent/ensure/clone', () => {
     expect(r.success).toBe(false)
     expect(r.error).toBe('DUPLICATE_SCHOOL_YEAR')
     expect(mockDS.transaction).not.toHaveBeenCalled()
+  })
+
+  it('11. close échec save → message explicite (jamais « Échec de la clôture » seul)', async () => {
+    mockYearRepo.findOne.mockResolvedValue(mkYear({ status: 'active', isCurrent: false }))
+    mockYearRepo.save.mockRejectedValueOnce(new Error('no such column: status'))
+    const r = await service.closeYear(1)
+    expect(r.success).toBe(false)
+    expect(r.message).toMatch(/Échec de la clôture/)
+    expect(r.message).toMatch(/no such column/)
   })
 })

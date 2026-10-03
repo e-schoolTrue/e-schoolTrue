@@ -9,7 +9,6 @@ const router = useRouter();
 const emit = defineEmits(['configuration-saved']);
 
 function goNext() {
-  console.log('goNext called, emitting configuration-saved event');
   emit('configuration-saved', {});
 }
 

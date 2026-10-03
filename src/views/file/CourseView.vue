@@ -87,7 +87,6 @@ async function handleAddToGroup(course: Course) {
     // Cas 1: Le cours a un groupement ou est une sous-matière à créer
     if ((course as any).groupementId || course.isInGroupement) {
       // C'est une sous-matière à ajouter à une matière existante
-      console.log('Ajout de sous-matière avec ID:', (course as any).groupementId);
       
       loading.value = true;
       Loader.showLoader("Ajout de la sous-matière en cours");
@@ -100,10 +99,8 @@ async function handleAddToGroup(course: Course) {
         isInGroupement: true
       };
       
-      console.log('Données envoyées au serveur:', groupData);
       
       const result = await window.ipcRenderer.invoke("courseGroup:add", cloneDeep(groupData));
-      console.log('Résultat reçu du serveur:', result);
       
       if (result.success) {
         const updatedResult = await window.ipcRenderer.invoke("course:all");

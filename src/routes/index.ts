@@ -103,7 +103,6 @@ router.beforeEach(async (to, _from, next) => {
     try {
         // Vérifier d'abord si c'est le premier lancement
         const response = await window.ipcRenderer.invoke('is-first-launch');
-        console.log('Premier lancement ?', response.data)
         
         if (response.data && to.path !== '/configuration-wizard') {
             next('/configuration-wizard');

@@ -1,14 +1,6 @@
 <template>
   <div class="year-repartition-container">
     <div class="container-content">
-      <el-alert
-        v-if="activeClosedLabel"
-        :title="`Année ${activeClosedLabel} clôturée — lecture seule`"
-        type="warning"
-        :closable="false"
-        show-icon
-        class="closed-banner"
-      />
       <div class="actions-row">
         <el-button type="primary" @click="openCreateModal" class="create-btn" :disabled="writeLocked">
           Créer une Répartition Annuelle
@@ -116,7 +108,14 @@
         <el-checkbox v-model="cloneOptions.copyFeeItems">Copier les frais (fee items)</el-checkbox>
         <div v-if="clonePreview" class="clone-preview">
           <el-divider content-position="left">Aperçu</el-divider>
-          <p>Paiements : {{ clonePreview.paymentConfigs }} · Tranches : {{ clonePreview.tranches }} · Notation : {{ clonePreview.gradingConfigs }} · Frais : {{ clonePreview.feeItems }}</p>
+          <p>Paiements : {{ clonePreview.paymentConfigs ?? '–' }} · Tranches : {{ clonePreview.tranches ?? '–' }} · Notation : {{ clonePreview.gradingConfigs ?? '–' }} · Frais : {{ clonePreview.feeItems ?? '–' }}</p>
+          <el-alert
+            v-if="isPreviewEmpty"
+            title="Source vide : rien à copier — le clonage créera l'année cible sans configurations."
+            type="warning"
+            :closable="false"
+            show-icon
+          />
         </div>
         <el-alert
           v-if="clonePreview === null && previewLoading"
@@ -135,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import YearRepartitionForm from "@/components/schoolYear/YearRepartionForm.vue";
 import { format } from 'date-fns';
@@ -152,14 +151,13 @@ import {
 } from '@/types/year';
 import { useUserStore } from '@/stores/userStore';
 import { useYearStore } from '@/stores/yearStore';
-import { handleYearClosedError, isYearClosedError, warnIfClosed } from '@/composables/useYearGuard';
+import { handleYearClosedError, isYearClosedError } from '@/composables/useYearGuard';
 
 const userStore = useUserStore();
 const yearStore = useYearStore();
 const isAdmin = computed(() => userStore.hasRole('admin'));
 /** Écran d'écriture : verrouillé si l'année active est clôturée. */
 const writeLocked = computed(() => yearStore.isClosed);
-const activeClosedLabel = computed(() => yearStore.isClosed ? yearStore.currentSchoolYear : '');
 
 const yearRepartitions = ref<YearRepartitionResponse[]>([]);
 const showModal = ref(false);
@@ -265,7 +263,6 @@ const handleSubmit = async (data: YearRepartitionCreateInput | YearRepartitionUp
   try {
     // Vérifier si c'est une mise à jour (l'ID est présent dans les données)
     const isUpdate = 'id' in data && data.id !== undefined;
-    console.log(`Mode: ${isUpdate ? 'Mise à jour' : 'Création'}, ID: ${isUpdate ? data.id : 'N/A'}`);
     
     // Préparer les données en formatant correctement les dates
     const formattedData = {
@@ -282,23 +279,13 @@ const handleSubmit = async (data: YearRepartitionCreateInput | YearRepartitionUp
     if (isUpdate) {
       // S'assurer que l'ID est correctement extrait avant de l'envoyer
       const id = (data as any).id;
-      console.log("Mode mise à jour - ID:", id);
-      console.log("Données à envoyer:", JSON.stringify({
-        id,
-        data: formattedData
-      }, null, 2));
-      
       // Envoi explicite de l'ID et des données séparément
       result = await window.ipcRenderer.invoke("yearRepartition:update", {
         id,
         data: formattedData
       });
-      
-      console.log("Résultat de la mise à jour:", JSON.stringify(result, null, 2));
     } else {
-      console.log("Mode création - Données:", JSON.stringify(formattedData, null, 2));
       result = await window.ipcRenderer.invoke("yearRepartition:create", formattedData);
-      console.log("Résultat de la création:", JSON.stringify(result, null, 2));
     }
 
     if (!result.success) {
@@ -389,6 +376,41 @@ async function invokeYearClose(
 }
 
 /**
+ * Normalise l'aperçu clone : le backend renvoie la forme plate du contrat
+ * `YearClonePreview` ({ paymentConfigs, tranches, gradingConfigs, feeItems })
+ * + `counts` snake_case détaillé ; les anciens backends renvoyaient
+ * `{ counts: {...} }` seul (aperçu vide "–"). Les deux formes sont acceptées.
+ */
+function normalizePreview(data: unknown): YearClonePreview | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Partial<YearClonePreview> & {
+    counts?: Partial<Record<'payment_configs' | 'payment_annual_config' | 'tranches' | 'grading_config' | 'fee_items', number>>;
+  };
+  const pick = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  const paymentConfigs = pick(d.paymentConfigs) ?? pick(d.counts?.payment_configs);
+  const tranches = pick(d.tranches) ?? pick(d.counts?.tranches) ?? pick(d.counts?.payment_annual_config);
+  const gradingConfigs = pick(d.gradingConfigs) ?? pick(d.counts?.grading_config);
+  const feeItems = pick(d.feeItems) ?? pick(d.counts?.fee_items);
+  if (paymentConfigs == null && tranches == null && gradingConfigs == null && feeItems == null) return null;
+  return {
+    paymentConfigs: paymentConfigs ?? 0,
+    tranches: tranches ?? 0,
+    gradingConfigs: gradingConfigs ?? 0,
+    feeItems: feeItems ?? 0,
+  };
+}
+
+/** Garde : aperçu entièrement à zéro = source vide (message explicite, pas d'échec aveugle). */
+const isPreviewEmpty = computed(() =>
+  !!clonePreview.value &&
+  (clonePreview.value.paymentConfigs ?? 0) === 0 &&
+  (clonePreview.value.tranches ?? 0) === 0 &&
+  (clonePreview.value.gradingConfigs ?? 0) === 0 &&
+  (clonePreview.value.feeItems ?? 0) === 0,
+);
+
+/**
  * B2 : ouvre le dialogue de clonage N ← N-1.
  * Aperçu best-effort (`yearRepartition:clone-preview` → alias V3) ; backend actuel
  * sans preview = dialogue reste utilisable, aperçu proprement désactivé (pas d'erreur).
@@ -411,8 +433,13 @@ const openCloneDialog = async () => {
           newSchoolYear: nextYearLabel.value,
         });
         if (res?.success && res.data) {
-          clonePreview.value = res.data as YearClonePreview;
-          break;
+          const norm = normalizePreview(res.data);
+          if (norm) {
+            clonePreview.value = norm;
+            break;
+          }
+          // Succès sans compteurs exploitables : on garde la recherche sur le canal suivant.
+          continue;
         }
       } catch {
         continue;
@@ -426,40 +453,55 @@ const openCloneDialog = async () => {
 
 /**
  * Normalise le retour clone : le backend `cloneYearConfigs` renvoie
- * `{ schoolYear }` (configs-only), l'alias V3 peut renvoyer l'année complète.
+ * `{ id, schoolYear, periodConfigurations, counts, skipped, emptySource, ...flat }`
+ * (année cible déjà créée, transactionnelle), l'alias V3 peut renvoyer
+ * l'année complète. Retourne `null` si inexploitable.
  */
 function normalizeCloneResult(data: unknown, fallbackYear: string): YearRepartitionResponse | null {
   if (!data || typeof data !== 'object') return null;
   const d = data as Partial<YearRepartitionResponse> & { schoolYear?: string };
-  if ((d as { id?: number }).id != null) return d as YearRepartitionResponse;
-  const schoolYear = typeof d.schoolYear === 'string' && d.schoolYear ? d.schoolYear : fallbackYear;
-  return {
-    id: -1,
-    schoolYear,
-    periodConfigurations: [],
-    isCurrent: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  } as unknown as YearRepartitionResponse;
+  const id = (d as { id?: number }).id;
+  if (typeof id === 'number' && id > 0) return d as YearRepartitionResponse;
+  // Ancien backend `{ schoolYear }` seul : année créée côté serveur mais id perdu —
+  // on ne fabrique PLUS de stub id:-1 (il provoquait un doublon à l'enregistrement
+  // manuel). On signale l'année par son libellé, sans rouvrir le formulaire.
+  if (typeof d.schoolYear === 'string' && d.schoolYear) {
+    return {
+      id: -1,
+      schoolYear: d.schoolYear,
+      periodConfigurations: Array.isArray(d.periodConfigurations) ? d.periodConfigurations : [],
+      isCurrent: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as YearRepartitionResponse;
+  }
+  void fallbackYear;
+  return null;
 }
 
 /**
  * B2 : exécute le clonage `yearRepartition:clone` (canonique backend
  * `cloneYearConfigs({ fromId, newSchoolYear, ...options })`), fallback `year:clone`.
- * Puis pré-remplit le formulaire (noms N-1, dates +1 an).
+ * Le backend crée déjà l'année cible (transactionnel) : en succès on rafraîchit
+ * la liste et on affiche le bilan explicite — on ne rouvre PAS le formulaire
+ * de création (qui produirait DUPLICATE_SCHOOL_YEAR).
  */
 const confirmClone = async () => {
   if (!previousYear.value || !nextYearLabel.value) return;
+  const sourceLabel = previousYear.value.schoolYear;
+  const targetLabel = nextYearLabel.value;
   cloning.value = true;
   try {
     // Payload bilingue : `fromId`+`newSchoolYear` (backend) + `sourceId` (alias V3).
     const payload = {
       fromId: previousYear.value.id,
       sourceId: previousYear.value.id,
-      newSchoolYear: nextYearLabel.value,
+      newSchoolYear: targetLabel,
       ...cloneOptions.value,
     };
-    let cloned: YearRepartitionResponse | null = null;
+    let ok = false;
+    let okMessage = '';
+    let okEmptySource = false;
     let lastError: unknown = null;
     for (const ch of ['yearRepartition:clone', 'year:clone']) {
       try {
@@ -470,12 +512,25 @@ const confirmClone = async () => {
             ElMessage.error('Année clôturée — clonage refusé (lecture seule).');
             return;
           }
-          lastError = new Error(res.message || res.error || 'Échec du clonage');
+          // Message explicite backend (Échec du clone A → B : <détail>) préservé tel quel.
+          lastError = new Error(msg || 'Échec du clonage');
           continue;
         }
-        cloned = normalizeCloneResult(res?.data, nextYearLabel.value);
-        lastError = null;
-        break;
+        if (res?.success && res?.data) {
+          const norm = normalizeCloneResult(res.data, targetLabel);
+          okMessage = String(res.message || `Configurations clonées vers ${targetLabel}`);
+          okEmptySource = (res.data as { emptySource?: boolean })?.emptySource === true
+            || (res as { error?: string })?.error === 'EMPTY_SOURCE';
+          ok = !!norm || /clonée/i.test(okMessage);
+          if (!norm && !ok) {
+            lastError = new Error(okMessage || 'Réponse de clonage inexploitable');
+            continue;
+          }
+          lastError = null;
+          break;
+        }
+        lastError = new Error('Réponse de clonage vide');
+        continue;
       } catch (err) {
         handleYearClosedError(err);
         if (isYearClosedError(err)) return;
@@ -483,48 +538,26 @@ const confirmClone = async () => {
         continue;
       }
     }
-    if (!cloned && lastError) {
-      // Backend sans clone : repli création manuelle pré-remplie (config copiée serveur si dispo).
-      throw lastError;
+    if (!ok) {
+      const detail = lastError instanceof Error ? lastError.message : 'Échec du clonage';
+      throw new Error(`Échec du clone ${sourceLabel} → ${targetLabel} : ${detail}`);
     }
     await fetchYearRepartitions();
-    // Pré-remplit le formulaire : noms repris de N-1, dates décalées d'un an (éditables).
-    const source = previousYear.value;
-    const clonedId = cloned?.id != null && cloned.id > 0 ? cloned.id : undefined;
-    currentRepartition.value = {
-      ...(clonedId != null ? { id: clonedId } : {}),
-      schoolYear: cloned?.schoolYear ?? nextYearLabel.value ?? '',
-      periodConfigurations: (cloned?.periodConfigurations?.length
-        ? cloned.periodConfigurations
-        : source.periodConfigurations
-      ).map((p) => ({
-        name: p.name,
-        start: shiftOneYear(p.start),
-        end: shiftOneYear(p.end),
-      })),
-    };
     showCloneDialog.value = false;
-    showModal.value = true;
-    ElMessage.success(
-      clonedId
-        ? 'Année clonée — vérifiez puis enregistrez'
-        : 'Configurations clonées — vérifiez puis enregistrez',
-    );
+    if (okEmptySource) {
+      ElMessage.warning(okMessage);
+    } else {
+      ElMessage.success(okMessage);
+    }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'Échec du clonage');
+    const detail = error instanceof Error ? error.message : 'Échec du clonage';
+    ElMessage.error(detail.startsWith('Échec du clone') ? detail : `Échec du clone ${sourceLabel} → ${targetLabel} : ${detail}`);
   } finally {
     cloning.value = false;
   }
 };
 
-/** Décale une date d'un an (pré-remplissage N, champs restant éditables/vidables). */
-function shiftOneYear(date: string | Date | null | undefined): string | Date {
-  if (!date) return '';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
-  d.setFullYear(d.getFullYear() + 1);
-  return d.toISOString();
-}
+
 
 const setCurrentYear = async (repartition: YearRepartitionResponse) => {
   // Gouvernance admin : définit l'année courante côté serveur.
@@ -542,7 +575,6 @@ const setCurrentYear = async (repartition: YearRepartitionResponse) => {
       }
     );
 
-    console.log(`Tentative de définition de l'année courante avec ID: ${repartition.id}`);
     
     try {
       const result = await window.ipcRenderer.invoke(
@@ -550,7 +582,6 @@ const setCurrentYear = async (repartition: YearRepartitionResponse) => {
         repartition.id
       );
       
-      console.log("Résultat de yearRepartition:setCurrent:", JSON.stringify(result, null, 2));
 
       if (result.success) {
         ElMessage.success("Année scolaire en cours mise à jour avec succès");
@@ -585,9 +616,6 @@ const setCurrentYear = async (repartition: YearRepartitionResponse) => {
 };
 
 fetchYearRepartitions();
-onMounted(() => {
-  warnIfClosed('la gestion des répartitions');
-});
 </script>
 
 <style scoped>
@@ -614,10 +642,6 @@ onMounted(() => {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: center;
-  width: 100%;
-}
-
-.closed-banner {
   width: 100%;
 }
 

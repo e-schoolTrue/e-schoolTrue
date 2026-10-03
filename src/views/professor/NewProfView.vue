@@ -78,7 +78,6 @@ const handleSave = async (professorData: ProfessorFormData) => {
 
     // Validation des données d'enseignement
     if (professorData.teaching) {
-      console.log("Données de teaching pour validation:", professorData.teaching);
 
       const teachingData = professorData.teaching;
       
@@ -102,7 +101,6 @@ const handleSave = async (professorData: ProfessorFormData) => {
       }
     }
 
-    console.log("Données avant construction :", professorData);
 
     // Conversion des données du formulaire au format attendu par le service
     const serviceData: IProfessorServiceParams['createProfessor'] = {
@@ -143,7 +141,6 @@ const handleSave = async (professorData: ProfessorFormData) => {
       } : undefined
     };
 
-    console.log("Données préparées pour le service :", serviceData);
 
     const result = await window.ipcRenderer.invoke('professor:create', serviceData);
 

@@ -42,8 +42,9 @@ const formData = ref<SchoolFormData>({
   town: '',
   country: 'SEN',
   phone: '',
-  email: '', 
-  foundationYear: new Date().getFullYear(), 
+  email: '',
+  type: '',
+  foundationYear: new Date().getFullYear(),
   logoFile: null
 });
 const logoPreview = ref<string>(''); 
@@ -80,8 +81,8 @@ const handleLogoChange = (event: Event) => {
     ElMessage.error('Veuillez sélectionner un fichier image (JPG, PNG, GIF, etc.).');
     return;
   }
-  if (file.size > 2 * 1024 * 1024) { // Limite à 2MB comme dans le code original
-    ElMessage.error('La taille de l\'image ne doit pas dépasser 2MB.');
+  if (file.size > 2 * 1024 * 1024) {
+    ElMessage.error("La taille du logo ne doit pas dépasser 2 Mo (max 2 Mo).");
     return;
   }
 
@@ -106,6 +107,18 @@ const triggerFileInput = () => {
   fileInput.value?.click();
 };
 
+// Message d'erreur précis : ne jamais masquer le diagnostic backend
+// (code + message) derrière un texte générique.
+const formatSaveError = (error: unknown, fallback: string): string => {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  if (/UNAUTHENTICATED/.test(raw)) return 'Sauvegarde refusée : session non authentifiée (onboarding). Relancez l’assistant de configuration.';
+  if (/FORBIDDEN/.test(raw)) return 'Sauvegarde refusée : droits insuffisants (rôle admin requis).';
+  if (/AppDataSource.*initialize|database\.db|ENOENT|SQLITE/i.test(raw)) {
+    return `Sauvegarde impossible : base de données inaccessible (${raw}). Vérifiez le dossier de stockage (étape DataLocation).`;
+  }
+  return raw || fallback;
+};
+
 const saveSchoolInfo = async () => {
   try {
     isSaving.value = true;
@@ -123,16 +136,18 @@ const saveSchoolInfo = async () => {
     };
 
     if (formData.value.logoFile) {
-      const reader = new FileReader();
       const file = formData.value.logoFile;
-      
-      const logoData = await new Promise<{ content: string; name: string; type: string }>((resolve) => {
+
+      const logoData = await new Promise<{ content: string; name: string; type: string }>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('LOGO_CORROMPU: lecture du fichier logo impossible. Réessayez.'));
         reader.onload = (e) => {
-          resolve({
-            content: e.target?.result as string,
-            name: file.name,
-            type: file.type
-          });
+          const content = e.target?.result as string | undefined;
+          if (!content) {
+            reject(new Error('LOGO_CORROMPU: contenu du logo vide après lecture. Réessayez.'));
+            return;
+          }
+          resolve({ content, name: file.name, type: file.type });
         };
         reader.readAsDataURL(file);
       });
@@ -142,15 +157,21 @@ const saveSchoolInfo = async () => {
 
     const result = await window.ipcRenderer.invoke('school:save', payload);
 
-    if (result.success) {
+    if (result?.success) {
       ElMessage.success('Informations sauvegardées avec succès');
       return true;
     } else {
-      throw new Error(result.message || 'Erreur lors de la sauvegarde');
+      // Le backend renvoie { success:false, error: CODE, message: explicite } :
+      // on l'affiche tel quel (ex. « Pays invalide… », « Logo trop volumineux… »).
+      const detail = result?.message || result?.error || 'Erreur lors de la sauvegarde';
+      ElMessage.error(detail);
+      console.error('Échec school:save:', result);
+      return false;
     }
   } catch (error) {
-    console.error('Erreur:', error);
-    ElMessage.error('Erreur lors de la sauvegarde');
+    const detail = formatSaveError(error, 'Erreur lors de la sauvegarde');
+    console.error('Erreur school:save:', error);
+    ElMessage.error(detail);
     return false;
   } finally {
     isSaving.value = false;
@@ -165,13 +186,11 @@ async function goNext() {
     if (valid) {
       const saved = await saveSchoolInfo();
       if (saved) {
-        console.log('Formulaire valide, émission des données:', formData.value);
         // Émettre les données du formulaire (y compris logoFile)
         // Le composant parent se chargera de la sauvegarde via IPC
         emit('configuration-saved', { ...formData.value });
       }
     } else {
-      console.log('Formulaire invalide');
       ElMessage.error('Veuillez corriger les erreurs dans le formulaire.');
       return false;
     }

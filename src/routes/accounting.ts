@@ -66,4 +66,10 @@ export const accountingRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/accounting/AccountingSetupView.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'comptable'] },
   },
+  {
+    path: '/comptabilite/config-paiements',
+    name: 'AccountingPaymentConfig',
+    component: () => import('@/views/file/PayementConfigurationView.vue'),
+    meta: { requiresAuth: true, roles: ['admin', 'comptable'] },
+  },
 ]

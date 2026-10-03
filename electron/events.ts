@@ -271,16 +271,15 @@ export function registerIpcHandlers() {
   // - Si fournie et autorisée, le backend initialise l'année demandée via
   //   setCurrentYearRepartition (admin uniquement, année active exigée).
   // - Canal canonique de bascule SANS relogin : `year:switch` (alias
-  //   `yearRepartition:setCurrent`). `yearRepartition:ensure` est admin-only.
+  //   `yearRepartition:setCurrent`). Demande 1 : `yearRepartition:ensure`
+  //   neutralisé (deprecated, no-op) — AUCUNE auto-création au login.
   ipcMain.handle("auth:login", async (_, credentials) => {
     const result = await global.authService.validateSupervisor(credentials.username, credentials.password);
     try {
       if (result?.success) {
-        // V3 rattrapage : auto-création année N+1 si seuil 9 mois atteint (best-effort, ne bloque pas le login).
-        // NOTE: ensureSchoolYear est désormais admin-only côté IPC ; l'appel
-        // direct au SERVICE ici reste autorisé (pas de contournement RBAC :
-        // c'est le main process lui-même, pas un renderer non privilégié).
-        try { await global.yearRepartitionService?.ensureSchoolYear?.(new Date()).catch(() => null); } catch { /* best-effort */ }
+        // Demande 1 — année 100% manuelle : PAS d'appel ensureSchoolYear ici.
+        // DB vide / getCurrent null → le guard router redirige vers
+        // /school-repartition (création manuelle + banner), sans créer.
         const user = result.data;
         // B5: init année demandée si autorisée (admin + année active).
         let switchedYear: any = null;
@@ -508,9 +507,9 @@ export function registerIpcHandlers() {
   protectedHandle("backup:restore", {
     roles: rolesForChannel("backup:restore"),
     audit: auditFor("backup:restore", "Backup")
-  }, async (_, basename: string, confirmed: boolean) => {
+  }, async (_, basename: string, confirmed: boolean, options?: { acknowledgeMissingUploads?: boolean; acknowledgeDowngrade?: boolean }) => {
     try {
-      return await global.localBackupService.restoreBackup(basename, confirmed);
+      return await global.localBackupService.restoreBackup(basename, confirmed, options);
     } catch (error) {
       return handleError(error, "backup:restore");
     }
@@ -522,20 +521,32 @@ export function registerIpcHandlers() {
       return handleError(error, "backup:import");
     }
   };
+  // Onboarding : preview + confirm autorisés pendant is-first-launch
+  // (ConfigurationWizard → ImportBackupView → BackupImportCard, aucun
+  // user/admin loggé). Ordre frontend : confirm D'ABORD (bypass actif), puis
+  // set-first-launch-complete après succès uniquement. Après setup, le bypass
+  // (security.ts:isFirstLaunchBypassActive) devient inactif → admin-only,
+  // sauf grâce wizard 30 min armée par un preview valide (tolère l'ancien
+  // ordre + retry après échec). Safety backup pre-import + relaunch conservés
+  // dans localBackupService (confirmImport : createBackup('pre-import') +
+  // relaunch). backup:import = alias legacy du même previewHandler → même flag.
   protectedHandle("backup:import", {
     roles: rolesForChannel("backup:import"),
+    allowDuringFirstLaunch: true,
     audit: auditFor("backup:import", "Backup")
   }, previewImportHandler);
   protectedHandle("backup:previewImport", {
     roles: rolesForChannel("backup:previewImport"),
+    allowDuringFirstLaunch: true,
     audit: auditFor("backup:previewImport", "Backup")
   }, previewImportHandler);
   protectedHandle("backup:confirmImport", {
     roles: rolesForChannel("backup:confirmImport"),
+    allowDuringFirstLaunch: true,
     audit: auditFor("backup:confirmImport", "Backup")
-  }, async (_, stagingPath: string, confirmed: boolean) => {
+  }, async (_, stagingPath: string, confirmed: boolean, options?: { acknowledgeMissingUploads?: boolean; acknowledgeDowngrade?: boolean }) => {
     try {
-      return await global.localBackupService.confirmImport(stagingPath, confirmed);
+      return await global.localBackupService.confirmImport(stagingPath, confirmed, options);
     } catch (error) {
       return handleError(error, "backup:confirmImport");
     }
@@ -1456,8 +1467,13 @@ export function registerIpcHandlers() {
 
   // --- École ---
   ipcMain.handle("school:get", async () => global.schoolService.getSchool());
+  // Onboarding (ConfigurationWizard → GeneralInfoView / LanguageSettingView) :
+  // aucun user/admin loggé pendant is-first-launch → bypass RBAC opt-in
+  // (comme backup:previewImport/confirmImport). Après set-first-launch-complete,
+  // le bypass devient inactif → admin-only (fail-closed).
   protectedHandle("school:save", {
     roles: rolesForChannel("school:save"),
+    allowDuringFirstLaunch: true,
     audit: auditFor("school:save", "School", {
       summarize: (args, result) => ({
         targetId: result?.data?.id ?? null,
@@ -1467,6 +1483,7 @@ export function registerIpcHandlers() {
   }, async (_, schoolData) => global.schoolService.saveOrUpdateSchool(schoolData));
   protectedHandle("school:saveSettings", {
     roles: rolesForChannel("school:saveSettings"),
+    allowDuringFirstLaunch: true,
     audit: auditFor("school:saveSettings", "School", {
       summarize: (args, result) => ({
         targetId: result?.data?.id ?? null,
@@ -1482,9 +1499,14 @@ export function registerIpcHandlers() {
   ipcMain.handle("dashboard:professorPaymentStats", async () => global.dashboardService.getProfessorPaymentStats());
   ipcMain.handle("dashboard:absenceStats", async () => global.dashboardService.getAbsenceStats());
 
-  // --- Année Scolaire (lectures authentifiées — SEV3 : plus de ipcMain.handle ouvert) ---
+  // --- Année Scolaire (lectures publiques pré-login — select "Année scolaire" du login) ---
+  // Fix login UNAUTHENTICATED : getAll/getCurrent + alias year:list/getAll/getCurrent en
+  // `auth: 'optional'` (lecture publique, actor null audité). Mutations
+  // (create/update/delete/setCurrent/close/reopen/clone + alias switch/close/reopen/clone)
+  // restent admin-only (fail-closed). SEV3 : plus de ipcMain.handle ouvert.
   protectedHandle("yearRepartition:getAll", {
     roles: ['admin', 'professor', 'student', 'comptable'],
+    auth: 'optional',
     audit: {
       action: "system",
       entity: "YearRepartition",
@@ -1499,6 +1521,7 @@ export function registerIpcHandlers() {
   });
   protectedHandle("yearRepartition:getCurrent", {
     roles: ['admin', 'professor', 'student', 'comptable'],
+    auth: 'optional',
     audit: {
       action: "system",
       entity: "YearRepartition",
@@ -1563,17 +1586,17 @@ export function registerIpcHandlers() {
       })
     })
   }, async (_, payload) => global.yearRepartitionService.cloneYearConfigs(payload ?? {}));
-  // B5: ensure passé en protectedHandle admin-only + audit create.
-  // Le renderer ne l'appelle plus directement ; le login l'invoque côté
-  // SERVICE (main process). Tout appel renderer non-admin => FORBIDDEN.
+  // Demande 1 — `yearRepartition:ensure` NEUTRALISÉ (deprecated, no-op).
+  // Année 100% manuelle : ce canal ne crée JAMAIS d'année (compatibilité
+  // conservée pour anciens renderers). Création via `yearRepartition:create`.
   protectedHandle("yearRepartition:ensure", {
     roles: ["admin"],
     audit: {
-      action: "create",
+      action: "system",
       entity: "YearRepartition",
-      summarize: (args, result) => ({
-        targetId: (result?.data as any)?.id ?? null,
-        summary: (result?.data as any)?.schoolYear ? `Vérification/création année ${(result.data as any).schoolYear}` : "Vérification année scolaire"
+      summarize: () => ({
+        targetId: null,
+        summary: "Vérification année scolaire (deprecated no-op — création manuelle requise)"
       })
     }
   }, async () => {
@@ -1587,13 +1610,14 @@ export function registerIpcHandlers() {
   // Canoniques : yearRepartition:getAll/getCurrent/setCurrent/close/reopen/clone.
   // Alias V3 (frontend yearStore) : year:list, year:getAll, year:getCurrent,
   // year:switch, year:clone, year:close, year:reopen, year:clone-preview.
-  // SEV3: lectures year:* authentifiées (tous rôles authentifiés) + audit lecture.
+  // Lectures year:* publiques pré-login (auth optional) + audit lecture (actor null).
   // Compat fallback conservée : le frontend (yearStore.fetchList/fetchCurrent,
   // YearSwitcher, ReEnrollmentView) appelle en authentifié et chaîne les alias ;
   // chaque alias retourne la même enveloppe ou un handleError (success:false),
   // jamais de throw hors RBAC — le fallback inter-canaux reste fonctionnel.
   protectedHandle("year:list", {
     roles: ['admin', 'professor', 'student', 'comptable'],
+    auth: 'optional',
     audit: {
       action: "system",
       entity: "YearRepartition",
@@ -1608,6 +1632,7 @@ export function registerIpcHandlers() {
   });
   protectedHandle("year:getAll", {
     roles: ['admin', 'professor', 'student', 'comptable'],
+    auth: 'optional',
     audit: {
       action: "system",
       entity: "YearRepartition",
@@ -1622,6 +1647,7 @@ export function registerIpcHandlers() {
   });
   protectedHandle("year:getCurrent", {
     roles: ['admin', 'professor', 'student', 'comptable'],
+    auth: 'optional',
     audit: {
       action: "system",
       entity: "YearRepartition",

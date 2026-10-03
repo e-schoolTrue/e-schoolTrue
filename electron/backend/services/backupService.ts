@@ -1449,7 +1449,14 @@ export class CloudSyncService {
     let config = { ...DEFAULT_SYNC_CONFIG };
     if (fs.existsSync(localConfigPath)) {
       try {
-        config = { ...config, ...JSON.parse(fs.readFileSync(localConfigPath, 'utf8')) };
+        // Hardening : JSON.parse en try/catch + validation de forme (objet
+        // attendu, jamais de tableau/primitif étalé dans la config).
+        const parsed: unknown = JSON.parse(fs.readFileSync(localConfigPath, 'utf8'));
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          config = { ...config, ...(parsed as Partial<SyncConfig>) };
+        } else {
+          console.warn("[backupService] sync_config.json ignoré : forme inattendue (objet attendu).");
+        }
       } catch (e) { console.error("Erreur lecture config locale:", e); }
     }
     return config;

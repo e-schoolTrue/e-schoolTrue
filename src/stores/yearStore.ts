@@ -85,6 +85,22 @@ export const useYearStore = defineStore('year', () => {
   /** Vrai si l'année active est clôturée → lecture seule. */
   const isClosed = computed(() => activeYear.value?.status === 'closed')
   const isCurrent = computed(() => activeYear.value?.isCurrent === true)
+  /**
+   * Lecture seule globale : vrai quand AUCUNE année courante ouverte.
+   * - `activeYear` null (getCurrent null, DB vide ou clôture sans N+1),
+   * - ou année clôturée,
+   * - ou année non courante (stale / pas encore définie courante).
+   * Se lève automatiquement dès qu'une nouvelle année est créée +
+   * définie courante (`setActiveYear` → année ouverte courante).
+   * Alias `writeLocked` conservé pour les vues existantes.
+   */
+  const isReadOnly = computed(
+    () =>
+      activeYear.value == null ||
+      activeYear.value.status === 'closed' ||
+      activeYear.value.isCurrent !== true,
+  )
+  const writeLocked = computed(() => isReadOnly.value)
 
   // --- Helpers persistance ---
   function persist(year: YearRepartitionResponse | null) {
@@ -305,6 +321,27 @@ export const useYearStore = defineStore('year', () => {
     persist(null)
   }
 
+  /**
+   * Resynchronise après clôture / création : `getCurrent` serveur fait foi.
+   * - serveur null → lecture seule globale (`activeYear = null`).
+   * - serveur ouvert → année active mise à jour (levée du verrou).
+   */
+  async function refreshAfterClose(): Promise<void> {
+    try {
+      const serverCurrent = await fetchCurrent().catch(() => null)
+      if (serverCurrent?.id != null && serverCurrent.status !== 'closed') {
+        const full = list.value.find((y) => y.id === serverCurrent.id) ?? serverCurrent
+        activeYear.value = full
+        persist(full)
+      } else {
+        activeYear.value = null
+        persist(null)
+      }
+    } catch {
+      /* fail-open */
+    }
+  }
+
   return {
     activeYear,
     list,
@@ -314,11 +351,14 @@ export const useYearStore = defineStore('year', () => {
     currentSchoolYear,
     isClosed,
     isCurrent,
+    isReadOnly,
+    writeLocked,
     fetchList,
     fetchCurrent,
     init,
     setActiveYear,
     nextSchoolYearLabel,
     clear,
+    refreshAfterClose,
   }
 })

@@ -16,7 +16,7 @@
  * - Restauration/import : remplacement à froid (DataSource.destroy() + relaunch) car SQLite
  *   ne supporte pas le swap d'un fichier ouvert ; coût dominé par la taille du zip.
  */
-import { app, dialog, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
@@ -59,9 +59,29 @@ export interface BackupPreview {
   dbSize: number;
   tableCount: number;
   userVersion: number | null;
+  /** user_version live au moment de la validation (null si illisible). Sert au détecteur downgrade. */
+  liveUserVersion: number | null;
   hasUploads: boolean;
+  /** true quand l'archive zip ne contient pas uploads/ → confirmation bloquante distincte requise. */
+  missingUploads: boolean;
+  /** true quand userVersion < liveUserVersion → confirmation bloquante distincte requise. */
+  isDowngrade: boolean;
   sha256: string;
   warnings: string[];
+}
+
+export interface ConfirmOptions {
+  acknowledgeMissingUploads?: boolean;
+  acknowledgeDowngrade?: boolean;
+}
+
+/** Résultat restore/import : `devReload` vrai quand le backend a rechargé la
+ * fenêtre de dev au lieu de `app.relaunch()+exit` (jamais de sortie en dev). */
+export interface RelaunchResult {
+  relaunching: boolean;
+  safetyBackup: string;
+  /** Dev uniquement : fenêtre rechargée (loadURL dev / reload), redémarrage manuel conseillé. */
+  devReload?: boolean;
 }
 
 interface Envelope<T> {
@@ -80,9 +100,18 @@ const UPLOADS_DIRNAME = 'uploads';
 const SQLITE_MAGIC = 'SQLite format 3';
 const MIN_DB_BYTES = 4 * 1024; // en dessous : pas une SQLite crédible
 const MAX_CANDIDATE_BYTES = 5 * 1024 * 1024 * 1024; // garde-fou anti zip-bomb (5 Gio)
-/** Tables cœur exigées à la validation (noms réels : user, T_student, payments). */
-const REQUIRED_TABLES = ['user', 't_student', 'payments'];
-/** En dessous de ce total, le fichier est valide mais suspect (base d'un autre produit). */
+/**
+ * Tables cœur exigées à la validation — garde élargie (destructif).
+ * Noms réels (lowercase comparé) : user, T_student, payments + school, grade,
+ * course, year_repartition, professors. Un candidat qui n'a pas TOUTES ces
+ * tables est rejeté en ERREUR (MISSING_TABLES), jamais en simple warning :
+ * c'est le filet anti base d'un autre produit / export partiel.
+ */
+const REQUIRED_TABLES = ['user', 't_student', 'payments', 'school', 'grade', 'course', 'year_repartition'];
+/**
+ * En dessous de ce total, rejet en ERREUR (TOO_FEW_TABLES) — pas un warning seul.
+ * Une base eSchool réelle dépasse 30 tables ; < 20 = autre produit ou dump tronqué.
+ */
 const WARN_TABLE_COUNT = 20;
 const VACUUM_MAX_ATTEMPTS = 3;
 
@@ -108,6 +137,20 @@ export class LocalBackupService {
   private readonly syncHistoryDir: string;
   /** Garde anti-concurrence : un restore/import est une fenêtre à froid, aucune écriture sinon. */
   private isRestoring = false;
+
+  /**
+   * Exposé pour l'audit fail-soft (`AuditLogService` + wrapper `protectedHandle`
+   * sautent l'audit silencieusement pendant un restore à froid, au lieu de
+   * throw `database connection is not open` sur connexion détruite).
+   */
+  public isRestoreInProgress(): boolean {
+    return this.isRestoring;
+  }
+
+  /** Alias getter (lecture externe sans appel méthode). */
+  public get isRestoringActive(): boolean {
+    return this.isRestoring;
+  }
 
   constructor() {
     const userData = app.getPath('userData');
@@ -475,12 +518,23 @@ export class LocalBackupService {
         await fsp.rm(workDir, { recursive: true, force: true });
         return fail('MISSING_TABLES', `Tables requises absentes : ${missing.join(', ')}.`);
       }
+      // Garde élargie : tableCount < 20 → ERREUR bloquante (pas un warning seul).
+      if (tables.length < WARN_TABLE_COUNT) {
+        await fsp.rm(workDir, { recursive: true, force: true });
+        return fail('TOO_FEW_TABLES', `Schéma incomplet : ${tables.length} tables seulement (attendu >= ${WARN_TABLE_COUNT}).`);
+      }
 
+      const live = await this.liveUserVersion();
+      const missingUploads = !stagingUploads && kind === 'zip';
+      const isDowngrade = userVersion !== null && live !== null && userVersion < live;
       const warnings: string[] = [];
-      if (tables.length < WARN_TABLE_COUNT) warnings.push(`Schéma inhabituel : ${tables.length} tables seulement.`);
-      if (!stagingUploads && kind === 'zip') warnings.push('Archive sans dossier uploads/ (pièces jointes non restaurées).');
-      if (userVersion !== null && userVersion !== (await this.liveUserVersion())) {
-        warnings.push(`user_version différent (${userVersion}) — migration/sync à prévoir.`);
+      if (missingUploads) warnings.push('Archive sans dossier uploads/ (pièces jointes non restaurées) — confirmation requise.');
+      if (userVersion !== null && live !== null && userVersion !== live) {
+        warnings.push(
+          isDowngrade
+            ? `Downgrade schéma détecté (candidat ${userVersion} < live ${live}) — confirmation requise.`
+            : `user_version différent (${userVersion} vs live ${live}) — migration/sync à prévoir.`,
+        );
       }
 
       const preview: BackupPreview = {
@@ -488,7 +542,10 @@ export class LocalBackupService {
         dbSize: dbStat.size,
         tableCount: tables.length,
         userVersion,
+        liveUserVersion: live,
         hasUploads: stagingUploads !== null,
+        missingUploads,
+        isDowngrade,
         sha256: await this.computeSha256(stagingDb),
         warnings,
       };
@@ -504,7 +561,14 @@ export class LocalBackupService {
   /**
    * Remplacement à froid : DataSource.destroy() (libère le handle better-sqlite3 — SQLite
    * interdit le swap d'un fichier ouvert en écriture), copie DB, bascule uploads avec
-   * rollback sur échec, puis relaunch. Le safety zip pré-restore/pré-import est le filet.
+   * rollback sur échec, puis RÉOUVERTURE immédiate de la DataSource sur le nouveau fichier.
+   *
+   * La réouverture est obligatoire même en dev : le chemin dev ne fait qu'un reload
+   * fenêtre (pas de `app.relaunch()+exit`, Vite :5173 doit rester vivant) donc aucun
+   * `initialize()` au boot ne suit ; sans `reinitialize()` ici, `getSchool()` et tous
+   * les repositories échouent avec `database connection is not open`. Le safety zip
+   * pré-restore/pré-import reste le filet en cas d'échec du reopen (erreur propagée,
+   * `isRestoring` remis à false par l'appelant).
    */
   private async replaceDbAndUploads(stagingDb: string, stagingUploads: string | null): Promise<void> {
     const ds = AppDataSource.getInstance();
@@ -546,6 +610,94 @@ export class LocalBackupService {
         throw e;
       }
     }
+
+    // Réouverture sur le NOUVEAU database.db avant de rendre la main : le renderer
+    // peut appeler school:get immédiatement après le success (avant le reload fenêtre
+    // en dev). Sans cela, connexion détruite → `database connection is not open`.
+    try {
+      await AppDataSource.reinitialize();
+      console.log('[LocalBackup] DataSource réouverte après remplacement à froid.');
+    } catch (e) {
+      console.error('[LocalBackup] Réouverture DataSource impossible après remplacement:', e);
+      throw e;
+    }
+    // Les services métier capturent leurs repositories au boot (constructeur) :
+    // après destroy + nouvelle DataSource, ils pointeraient vers la connexion
+    // détruite (ancienne DB vide) → getAll vide / getCurrent null malgré le
+    // fichier importé sur disque. Le dev-reload ne rebootant pas le backend,
+    // on re-crée les services ici (hook posé par main.ts, sans import circulaire).
+    this.refreshBoundServices();
+  }
+
+  /**
+   * Re-crée les services liés à la DataSource après un remplacement à froid.
+   * Sans cela, `yearRepartition:getAll` pré-login (et login/auth) interroge
+   * l'ancienne connexion détruite → liste vide → « Aucune année ouverte ».
+   */
+  private refreshBoundServices(): void {
+    try {
+      const hook = (global as unknown as { refreshServicesAfterDbReplace?: unknown }).refreshServicesAfterDbReplace;
+      if (typeof hook === 'function') {
+        (hook as () => void)();
+        console.log('[LocalBackup] Services métier re-liés à la nouvelle DB.');
+        return;
+      }
+    } catch (e) {
+      console.error('[LocalBackup] refreshBoundServices via hook impossible:', e);
+    }
+    // Repli (tests / hook absent) : au minimum les lectures pré-login + login
+    // utilisent des repositories paresseux (year/school/auth), donc aucune action
+    // supplémentaire n'est strictement requise ici.
+  }
+
+  /**
+   * Post-import/restore (même processus, sans reboot en dev-reload) : garantit
+   * que la liste pré-login voit les années du zip et que la plus récente
+   * OUVERTE devient courante (activation d'existant, jamais de création).
+   * Log explicite exigé : `Import OK : X années, Y élèves`.
+   */
+  private async activateImportedYear(reason: 'import' | 'restore'): Promise<void> {
+    try {
+      const ds = AppDataSource.getInstance();
+      const countTable = async (table: string): Promise<number | null> => {
+        try {
+          const rows = (await ds.query(`SELECT COUNT(*) AS n FROM "${table}"`)) as Array<{ n?: unknown }>;
+          const n = Number(rows?.[0]?.n);
+          return Number.isFinite(n) ? n : null;
+        } catch {
+          return null;
+        }
+      };
+      let years: Array<{ schoolYear?: unknown; isCurrent?: unknown; status?: unknown }> = [];
+      try {
+        const rows = (await ds.query('SELECT schoolYear, isCurrent, status FROM year_repartition ORDER BY schoolYear DESC')) as typeof years;
+        if (Array.isArray(rows)) years = rows;
+      } catch { /* table absente → compte 0 ci-dessous */ }
+      // Activation : la plus récente OUVERTE devient courante (idempotent,
+      // no-op si déjà une courante / DB vide / tout clôturé).
+      let current: string | null = null;
+      try {
+        const svc = (global as unknown as { yearRepartitionService?: { ensureOneCurrentAfterImport?: (d: Date) => Promise<{ data?: { schoolYear?: string } | null }> } }).yearRepartitionService;
+        const ensured = await svc?.ensureOneCurrentAfterImport?.(new Date());
+        current = ensured?.data?.schoolYear ?? null;
+      } catch (e) {
+        console.warn('[LocalBackup] ensureOneCurrentAfterImport impossible (poursuite sans année) :', (e as Error)?.message ?? e);
+      }
+      if (!current) {
+        const flagged = years.find((y) => (y as { isCurrent?: unknown }).isCurrent === 1 || (y as { isCurrent?: unknown }).isCurrent === true);
+        current = typeof flagged?.schoolYear === 'string' ? flagged.schoolYear : null;
+      }
+      const students = await countTable('T_student');
+      const payments = await countTable('payments');
+      const label = (v: number | null) => (v === null ? '?' : String(v));
+      console.log(
+        `[LocalBackup] Import OK : ${years.length} années, ${label(students)} élèves, ${label(payments)} payments` +
+        (current ? `, courante=${current}` : ' (aucune courante)') +
+        ` (${reason}).`
+      );
+    } catch (e) {
+      console.warn('[LocalBackup] activateImportedYear (non bloquant):', (e as Error)?.message ?? e);
+    }
   }
 
   /**
@@ -586,15 +738,80 @@ export class LocalBackupService {
     }
   }
 
-  private relaunch(message: string): void {
+  private isDevReloadPath(): boolean {
+    // Dev (Vite :5173) : `app.relaunch()` relance l'exe SANS le serveur Vite →
+    // `ERR_CONNECTION_REFUSED` sur http://localhost:5173/ (Process exit 0).
+    // En dev on recharge donc la fenêtre (loadURL dev / reload) et on ne quitte jamais.
+    try {
+      if (process.env.VITE_DEV_SERVER_URL) return true;
+      if (process.env.NODE_ENV === 'development') return true;
+      // `app.isPackaged === false` = dev electron, mais les tests vitest tournent
+      // avec `NODE_ENV=test` / `VITEST` → doivent garder le chemin prod (relaunch mocké).
+      if (process.env.VITEST) return false;
+      if (process.env.NODE_ENV === 'test') return false;
+      const packaged = (app as unknown as { isPackaged?: unknown })?.isPackaged;
+      if (packaged === false) return true;
+    } catch { /* fail-closed vers relaunch prod */ }
+    return false;
+  }
+
+  private relaunch(message: string): { devReload: boolean } {
+    if (this.isDevReloadPath()) {
+      console.log(`[LocalBackup] ${message} — dev : reload fenêtre (pas de relaunch, Vite 5173 vivant). Redémarrez manuellement si besoin.`);
+      // setImmediate : laisse la réponse IPC être flushée vers le renderer avant le reload.
+      setImmediate(() => {
+        try {
+          const wins = BrowserWindow.getAllWindows?.() ?? [];
+          const devUrl = process.env.VITE_DEV_SERVER_URL;
+          let reloaded = false;
+          for (const w of wins) {
+            try {
+              if (w.isDestroyed()) continue;
+              if (devUrl) void w.loadURL(devUrl);
+              else w.reload();
+              reloaded = true;
+            } catch { /* best-effort par fenêtre */ }
+          }
+          if (!reloaded) {
+            console.log('[LocalBackup] Dev : aucune fenêtre à recharger — redémarrage manuel requis (relancez la commande dev).');
+          }
+        } catch (e) {
+          console.error('[LocalBackup] reload dev impossible (redémarrez manuellement):', e);
+        }
+      });
+      return { devReload: true };
+    }
     console.log(`[LocalBackup] ${message} — relaunch.`);
     // setImmediate : laisse la réponse IPC être flushée vers le renderer avant le restart.
     setImmediate(() => { app.relaunch(); app.exit(0); });
+    return { devReload: false };
+  }
+
+  /**
+   * Vérifie le sha sidecar (.meta.json → integrity) quand présent.
+   * Legacy sans sidecar → skip best-effort. Mismatch → SHA_MISMATCH bloquant.
+   */
+  private async verifySidecarSha(backupZipPath: string, stagingDb: string): Promise<void> {
+    let raw: string;
+    try {
+      raw = await fsp.readFile(`${backupZipPath}.meta.json`, 'utf8');
+    } catch {
+      return; // sidecar absent (ancien/legacy) → skip
+    }
+    try {
+      const meta = JSON.parse(raw) as { integrity?: unknown };
+      if (!meta || typeof meta.integrity !== 'string' || meta.integrity.length === 0) return;
+      const actual = await this.computeSha256(stagingDb);
+      if (actual !== meta.integrity) throw new Error('SHA_MISMATCH');
+    } catch (e) {
+      if (e instanceof Error && e.message === 'SHA_MISMATCH') throw e;
+      return; // sidecar corrompu/illisible → skip best-effort (legacy), pas de faux blocage
+    }
   }
 
   // ---------------------------------------------------------- restore
 
-  async restoreBackup(basename: string, confirmed: boolean): Promise<Envelope<{ relaunching: boolean; safetyBackup: string }>> {
+  async restoreBackup(basename: string, confirmed: boolean, options?: ConfirmOptions): Promise<Envelope<RelaunchResult>> {
     if (confirmed !== true) return fail('NEED_CONFIRMATION', 'Restauration non confirmée.');
     let full: string;
     try { full = this.resolveBackupFile(basename); } catch { return fail('INVALID_NAME'); }
@@ -615,16 +832,34 @@ export class LocalBackupService {
       const stagingDb = path.join(workDir, DB_FILENAME);
       if (!fs.existsSync(stagingDb)) throw new Error('MISSING_DATABASE');
       if (!(await this.readMagicOk(stagingDb))) throw new Error('NOT_SQLITE');
-      const { tables } = await this.attachInspect(stagingDb);
+      // Sidecar sha quand présent (intégrité du snapshot au moment du backup).
+      await this.verifySidecarSha(full, stagingDb);
+      const { tables, userVersion } = await this.attachInspect(stagingDb);
       const lowerTables = new Set(tables.map((t) => t.toLowerCase()));
       const missing = REQUIRED_TABLES.filter((t) => !lowerTables.has(t));
       if (missing.length > 0) throw new Error('MISSING_TABLES');
+      if (tables.length < WARN_TABLE_COUNT) throw new Error('TOO_FEW_TABLES');
 
       const up = path.join(workDir, UPLOADS_DIRNAME);
-      await this.replaceDbAndUploads(stagingDb, fs.existsSync(up) ? up : null);
+      const hasUploads = fs.existsSync(up);
+      // Confirmations bloquantes distinctes : uploads orphelins / downgrade user_version.
+      if (!hasUploads && options?.acknowledgeMissingUploads !== true) throw new Error('NEED_CONFIRM_MISSING_UPLOADS');
+      const live = await this.liveUserVersion();
+      if (userVersion !== null && live !== null && userVersion < live && options?.acknowledgeDowngrade !== true) {
+        throw new Error('NEED_CONFIRM_DOWNGRADE');
+      }
+
+      await this.replaceDbAndUploads(stagingDb, hasUploads ? up : null);
+      // Même processus (dev-reload sans reboot) : la liste pré-login doit voir
+      // les années du zip et la plus récente ouverte devient courante.
+      await this.activateImportedYear('restore');
       await this.invalidateSyncCursors('pre-restore', safety.data.id);
-      this.relaunch(`restore ${basename}`);
-      return ok({ relaunching: true, safetyBackup: safety.data.id });
+      // Connexion réouverte par replaceDbAndUploads : le main reste vivant en dev
+      // (reload fenêtre) comme en prod (relaunch différé via setImmediate) — les
+      // appels suivants (school:get, audits) doivent retrouver une DB ouverte.
+      this.isRestoring = false;
+      const { devReload } = this.relaunch(`restore ${basename}`);
+      return ok({ relaunching: true, safetyBackup: safety.data.id, ...(devReload ? { devReload: true as const } : {}) });
     } catch (e) {
       console.error('[LocalBackup] restoreBackup:', e);
       // QA-1 : nettoyage staging en échec (même pattern que validateCandidate),
@@ -637,18 +872,37 @@ export class LocalBackupService {
 
   // ---------------------------------------------------------- import externe (2 temps)
 
-  async previewImport(): Promise<Envelope<{ canceled: boolean; stagingPath?: string; fileName?: string; preview?: BackupPreview; warnings?: string[] }>> {
+  async previewImport(): Promise<Envelope<{ canceled: boolean; stagingPath?: string; fileName?: string; sourcePath?: string; preview?: BackupPreview; warnings?: string[] }>> {
     if (this.isRestoring) return fail('RESTORE_IN_PROGRESS');
     try {
-      const res = await dialog.showOpenDialog({
-        title: 'Importer une base externe',
-        properties: ['openFile'],
+      // Fenêtre parente : en onboarding (ConfigurationWizard) getFocusedWindow()
+      // peut être null au tout premier tick ; on retombe sur la 1re fenêtre,
+      // sinon dialog non-modal (sans parent) — jamais de blocage silencieux.
+      const parent = (() => {
+        try {
+          const focused = BrowserWindow?.getFocusedWindow?.();
+          if (focused && !focused.isDestroyed()) return focused;
+          const all = BrowserWindow?.getAllWindows?.() ?? [];
+          return all.find((w) => !w.isDestroyed()) ?? undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+      const options = {
+        title: 'Choisir le fichier .zip de sauvegarde à importer',
+        message: 'Choisissez explicitement le fichier .zip de sauvegarde eSchool à importer.',
+        buttonLabel: 'Choisir ce fichier',
+        properties: ['openFile', 'dontAddToRecent'] as Array<'openFile' | 'dontAddToRecent'>,
         filters: [
           { name: 'Bases & archives', extensions: ['zip', 'db', 'sqlite', 'sqlite3', 'bak'] },
           { name: 'Archives zip', extensions: ['zip'] },
+          { name: 'Bases SQLite', extensions: ['db', 'sqlite', 'sqlite3'] },
           { name: 'Tous fichiers', extensions: ['*'] },
         ],
-      });
+      };
+      const res = parent
+        ? await dialog.showOpenDialog(parent, options)
+        : await dialog.showOpenDialog(options);
       if (res.canceled || res.filePaths.length === 0) return ok({ canceled: true });
       const picked = res.filePaths[0];
       // validateCandidate ne fait que lire le fichier choisi (stat + copie en staging),
@@ -661,6 +915,7 @@ export class LocalBackupService {
         canceled: false,
         stagingPath: v.data.stagingDb,
         fileName: path.basename(picked),
+        sourcePath: picked,
         preview: v.data.preview,
         warnings: v.data.preview.warnings,
       });
@@ -670,7 +925,7 @@ export class LocalBackupService {
     }
   }
 
-  async confirmImport(stagingPath: string, confirmed: boolean): Promise<Envelope<{ relaunching: boolean; safetyBackup: string }>> {
+  async confirmImport(stagingPath: string, confirmed: boolean, options?: ConfirmOptions): Promise<Envelope<RelaunchResult>> {
     if (confirmed !== true) return fail('NEED_CONFIRMATION', 'Import non confirmé.');
     let stagingDb: string;
     try { stagingDb = this.resolveStagingPath(stagingPath); } catch { return fail('INVALID_STAGING_PATH'); }
@@ -684,17 +939,32 @@ export class LocalBackupService {
     try {
       // Re-validation au commit (le staging peut avoir vieilli entre preview et confirm).
       if (!(await this.readMagicOk(stagingDb))) throw new Error('NOT_SQLITE');
-      const { tables } = await this.attachInspect(stagingDb);
+      const { tables, userVersion } = await this.attachInspect(stagingDb);
       const lowerTables = new Set(tables.map((t) => t.toLowerCase()));
       const missing = REQUIRED_TABLES.filter((t) => !lowerTables.has(t));
       if (missing.length > 0) throw new Error('MISSING_TABLES');
+      if (tables.length < WARN_TABLE_COUNT) throw new Error('TOO_FEW_TABLES');
 
       const workDir = path.dirname(stagingDb);
       const up = path.join(workDir, UPLOADS_DIRNAME);
-      await this.replaceDbAndUploads(stagingDb, fs.existsSync(up) ? up : null);
+      const hasUploads = fs.existsSync(up);
+      if (!hasUploads && options?.acknowledgeMissingUploads !== true) throw new Error('NEED_CONFIRM_MISSING_UPLOADS');
+      const live = await this.liveUserVersion();
+      if (userVersion !== null && live !== null && userVersion < live && options?.acknowledgeDowngrade !== true) {
+        throw new Error('NEED_CONFIRM_DOWNGRADE');
+      }
+
+      await this.replaceDbAndUploads(stagingDb, hasUploads ? up : null);
+      // Même processus (dev-reload sans reboot) : la liste pré-login doit voir
+      // les années du zip et la plus récente ouverte devient courante.
+      await this.activateImportedYear('import');
       await this.invalidateSyncCursors('pre-import', safety.data.id);
-      this.relaunch('import externe');
-      return ok({ relaunching: true, safetyBackup: safety.data.id });
+      // Même raison que restoreBackup : connexion déjà réouverte, le flag ne doit
+      // pas survivre au success sinon le main (toujours vivant en devReload) reste
+      // bloqué en RESTORE_IN_PROGRESS et les audits restent en fail-soft.
+      this.isRestoring = false;
+      const { devReload } = this.relaunch('import externe');
+      return ok({ relaunching: true, safetyBackup: safety.data.id, ...(devReload ? { devReload: true as const } : {}) });
     } catch (e) {
       console.error('[LocalBackup] confirmImport:', e);
       this.isRestoring = false;

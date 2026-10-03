@@ -92,7 +92,6 @@ const handlePrint = async (type: 'scolarite' | 'inscription') => {
 const downloadDocument = async (document: IStudentFile) => {
   try {
     const result = await window.ipcRenderer.invoke('student:downloadDocument', document.id);
-    console.log("Document à télécharger:", result);
     if (result.success && result.data && result.data.content) {
       try {
         const byteCharacters = atob(result.data.content);

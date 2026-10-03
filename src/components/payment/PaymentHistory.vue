@@ -219,7 +219,6 @@ const loadPayments = async () => {
     if (!props.student?.id) return;
     
     const result = await window.ipcRenderer.invoke('payment:getByStudent', props.student.id);
-    console.log('Résultat de la requête:', result);
 
     if (!result.success) {
       ElMessage.warning('Aucun paiement trouvé pour cet étudiant');
@@ -236,7 +235,6 @@ const loadPayments = async () => {
       payments, 
       tuitionFeeDue,
       inscriptionFeeDue,
-      scholarshipAmount,
       totalDue,
       totalPaid: totalPaidFromServer,
       totalRemaining 
@@ -260,15 +258,6 @@ const loadPayments = async () => {
       }));
     }
     
-    console.log('Détails du chargement:', {
-      tuitionFeeDue,
-      inscriptionFeeDue,
-      scholarshipAmount,
-      totalDue,
-      totalPaid: totalPaid.value,
-      remaining: remainingAmount.value,
-      payments: paymentData.value
-    });
   } catch (error) {
     console.error('Erreur lors du chargement des paiements:', error);
     ElMessage.error('Erreur lors du chargement des paiements');
@@ -317,7 +306,6 @@ const printReceipt = async (payment: any) => {
     }
 
     const schoolInfo = await window.ipcRenderer.invoke('school:get');
-    console.log('Informations école pour impression:', schoolInfo);
     
     if (!schoolInfo?.success) {
       throw new Error('Impossible de récupérer les informations de l\'école');
@@ -424,7 +412,6 @@ const printReceipt = async (payment: any) => {
     document.body.appendChild(style);
     document.body.appendChild(printContainer);
     
-    console.log('Impression en cours...');
     
     // Utiliser l'API d'impression native du navigateur
     window.print();

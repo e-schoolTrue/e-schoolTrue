@@ -33,7 +33,7 @@ async function loadSchoolCache(): Promise<{ name: string; year: string }> {
     const d = (s ?? {}) as Record<string, unknown>
     let year = String((d.schoolYear as string) ?? '')
     try {
-      const yr = await strictInvoke<{ schoolYear?: string }>('school:year:current', {}).catch(() => null)
+      const yr = await strictInvoke<{ schoolYear?: string }>('year:getCurrent', {}, { silent: true }).catch(() => null)
       if ((yr as { schoolYear?: string } | null)?.schoolYear) year = String((yr as { schoolYear?: string }).schoolYear)
     } catch { /* optionnel */ }
     schoolCache = { name: String((d.name as string) ?? ''), year }

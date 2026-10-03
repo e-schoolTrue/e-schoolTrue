@@ -42,7 +42,6 @@ const fetchCurrentSchoolYear = async () => {
     const result = await window.ipcRenderer.invoke('yearRepartition:getCurrent');
     if (result.success && result.data) {
       currentSchoolYear.value = result.data.schoolYear ?? result.data.year;
-      console.log('Année scolaire courante récupérée:', currentSchoolYear.value);
     } else {
       console.warn('Impossible de récupérer l\'année scolaire courante, utilisation de la valeur par défaut');
       currentSchoolYear.value = getCurrentSchoolYear();
@@ -59,7 +58,6 @@ onMounted(async () => {
 
 const saveStudent = async (studentData: IStudentData) => {
   try {
-    console.log("Données reçues de student-form:", studentData);
     
     // Préparation des données pour l'envoi
     const preparedData = {
@@ -91,7 +89,6 @@ const saveStudent = async (studentData: IStudentData) => {
 
 const handleFileLoaded = async (students: IStudentData[]) => {
   isLoading.value = true;
-  console.log('Données importées reçues:', students);
   
   let successCount = 0;
   let errorCount = 0;
@@ -126,10 +123,8 @@ const handleFileLoaded = async (students: IStudentData[]) => {
           photo: null
         };
 
-        console.log('Tentative d\'enregistrement pour:', preparedData);
         const result = await window.ipcRenderer.invoke('save-student', preparedData);
         
-        console.log('Résultat de l\'enregistrement:', result);
         
         if (result.success) {
           successCount++;

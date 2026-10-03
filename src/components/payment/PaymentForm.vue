@@ -136,6 +136,11 @@ const submitForm = async () => {
     // pour cash_movements.reference/movementDate côté backend. Jamais de perte silencieuse.
     const refTag = form.value.reference?.trim() ? `[Réf: ${form.value.reference.trim()}]` : '';
     const enrichedNotes = [form.value.notes?.trim(), refTag].filter(Boolean).join(' | ') || undefined;
+    // Fige l'ordre d'imputation au paiement (live → défaut) ; backend le reporte en comment.
+    const { fetchLiveImputationOrder, formatImputationTag } = await import('@/composables/useImputationOrder');
+    const frozenOrder = await fetchLiveImputationOrder().catch(() => 'FIRST_FIRST' as const);
+    const imputationTag = formatImputationTag(frozenOrder);
+    const commentWithOrder = [enrichedNotes, imputationTag].filter(Boolean).join(' | ') || undefined;
     const paymentData = {
       studentId: props.studentData.id,
       amount: Number(form.value.amount),
@@ -143,7 +148,8 @@ const submitForm = async () => {
       paymentType: 'tuition',
       paymentMethod: normalizePaymentMethod(form.value.paymentType),
       reference: form.value.reference || undefined,
-      comment: enrichedNotes,
+      comment: commentWithOrder,
+      imputationOrder: frozenOrder,
       installmentNumber: Number(form.value.installmentNumber),
       paymentDate: now.toISOString(),
       schoolYear: loginSchoolYear || undefined,

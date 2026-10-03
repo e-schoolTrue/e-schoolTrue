@@ -74,7 +74,6 @@ const loadStudents = async (serverFilters?: {
         schoolYear: serverFilters?.schoolYear || undefined,
       },
     });
-    console.log('Raw student data:', result.data);
 
     // P0 FIX: tolerant to both envelope shapes - {success:true, data: students[]} (legacy)
     // and {success:true, data:{students, total}} (paginated). Also tolerant to missing success field.
@@ -123,11 +122,9 @@ const loadStudents = async (serverFilters?: {
           ,isNew:student.isNew
         };
 
-        console.log('Mapped student:', mappedStudent);
         return mappedStudent;
       });
       
-      console.log('Students after mapping:', students.value);
       filteredStudents.value = students.value;
   } catch (error) {
     console.error("Erreur lors du chargement des étudiants:", error);
@@ -259,7 +256,6 @@ const handleFilter = async (filterCriteria: {
   classId?: string | number;
   studentFullName?: string;
 }) => {
-  console.log('Critères de filtrage reçus:', filterCriteria);
 
   // Filtre serveur d'abord (grade + nom + année), repli client ensuite
   // car le backend peut ignorer `schoolYear`.
@@ -294,7 +290,6 @@ const handleFilter = async (filterCriteria: {
         : true;
 
       const match = nameMatch && gradeMatch && yearMatch;
-      console.log('Étudiant:', student, 'Match:', match);
       return match;
     });
   } else {
@@ -319,11 +314,10 @@ const handleFilter = async (filterCriteria: {
     });
   }
 
-  console.log('Étudiants filtrés:', filteredStudents.value);
 };
 
-const handlePageChange = (page: number) => {
-  console.log('Page changée:', page);
+const handlePageChange = (_page: number) => {
+  void _page;
 };
 
 const handlePreview = async (data: StudentTableItem[]) => {
